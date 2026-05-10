@@ -1,0 +1,90 @@
+{
+  "project_info": {
+    "project_number": "190353139949",
+    "project_id": "farmsynchub",
+    "storage_bucket": "farmsynchub.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:190353139949:android:473d20925463c709e704e4",
+        "android_client_info": {
+          "package_name": "com.example.farmsynchub"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "190353139949-5tbr5iv8mljqclcl507u99t9h7t5igf6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.farmsynchub",
+            "certificate_hash": "4a015a0baf36de8ab673807b3d00b4c9d8170e08"
+          }
+        },
+        {
+          "client_id": "190353139949-8vjnn71ku91tvp75kpl2q5ete9hcpnd1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCLX3lfPRKORpIcE-7i7DVMHnAANgPhuvw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "190353139949-8vjnn71ku91tvp75kpl2q5ete9hcpnd1.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "190353139949-h655366lmrfn2t8jr8rj24pkjsos2v9i.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.farmsynchub.app"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:190353139949:android:d04f39bb07daca68e704e4",
+        "android_client_info": {
+          "package_name": "com.farmsynchub"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "190353139949-8vjnn71ku91tvp75kpl2q5ete9hcpnd1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCLX3lfPRKORpIcE-7i7DVMHnAANgPhuvw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "190353139949-8vjnn71ku91tvp75kpl2q5ete9hcpnd1.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "190353139949-h655366lmrfn2t8jr8rj24pkjsos2v9i.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.farmsynchub.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

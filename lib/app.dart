@@ -1,0 +1,247 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import 'domain/models/notification.dart' as domain;
+import 'data/remote/firebase_service.dart';
+import 'core/theme/app_theme.dart';
+import 'presentation/common/layouts/main_scaffold.dart';
+import 'presentation/screens/ai_advisor/ai_advisor_screen.dart';
+import 'presentation/screens/auth/forgot_password_screen.dart';
+import 'presentation/screens/auth/login_screen.dart';
+import 'presentation/screens/auth/post_auth_gate_screen.dart';
+import 'presentation/screens/auth/register_screen.dart';
+import 'presentation/screens/auth/verify_email_screen.dart';
+import 'presentation/screens/dashboard/dashboard_screen.dart';
+import 'presentation/screens/farms/farms_screen.dart';
+import 'presentation/screens/crops/crops_screen.dart';
+import 'presentation/screens/learn/learn_screen.dart';
+import 'presentation/screens/livestock/livestock_screen.dart';
+import 'presentation/screens/finance/finance_screen.dart';
+import 'presentation/screens/profile/profile_screen.dart';
+import 'presentation/screens/profile/account_setup_screen.dart';
+import 'presentation/screens/settings/settings_screen.dart';
+import 'presentation/screens/splash/splash_screen.dart';
+import 'presentation/screens/onboarding/onboarding_screen.dart';
+import 'presentation/screens/onboarding/app_tour_screen.dart';
+import 'presentation/screens/notifications/notifications_screen.dart';
+import 'presentation/screens/notifications/notification_detail_screen.dart';
+import 'providers/theme_provider.dart';
+
+/// The root widget of the Farmsync application.
+class FarmsyncApp extends ConsumerWidget {
+  const FarmsyncApp({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeProvider);
+
+    return MaterialApp.router(
+      title: 'Farmsync',
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: themeMode,
+      routerConfig: _router,
+      debugShowCheckedModeBanner: false,
+    );
+  }
+}
+
+/// GoRouter configuration for the app navigation.
+final GoRouter _router = GoRouter(
+  initialLocation: '/splash',
+  routes: [
+    GoRoute(
+      path: '/splash',
+      builder: (context, state) => const SplashScreen(),
+    ),
+    GoRoute(
+      path: '/onboarding',
+      builder: (context, state) => const OnboardingScreen(),
+    ),
+    GoRoute(
+      path: '/login',
+      builder: (context, state) => const LoginScreen(),
+      redirect: (context, state) {
+        final user = FirebaseService().currentUser;
+        if (user == null) {
+          return null;
+        }
+        return user.emailVerified ? '/post-auth' : '/verify-email';
+      },
+    ),
+    GoRoute(
+      path: '/register',
+      builder: (context, state) => const RegisterScreen(),
+      redirect: (context, state) {
+        final user = FirebaseService().currentUser;
+        if (user == null) {
+          return null;
+        }
+        return user.emailVerified ? '/post-auth' : '/verify-email';
+      },
+    ),
+    GoRoute(
+      path: '/forgot-password',
+      builder: (context, state) => const ForgotPasswordScreen(),
+    ),
+    GoRoute(
+      path: '/verify-email',
+      builder: (context, state) => const VerifyEmailScreen(),
+      redirect: (context, state) {
+        final user = FirebaseService().currentUser;
+        if (user == null) {
+          return '/login';
+        }
+        return user.emailVerified ? '/post-auth' : null;
+      },
+    ),
+    GoRoute(
+      path: '/post-auth',
+      builder: (context, state) => const PostAuthGateScreen(),
+      redirect: (context, state) {
+        final user = FirebaseService().currentUser;
+        if (user == null) {
+          return '/login';
+        }
+        return user.emailVerified ? null : '/verify-email';
+      },
+    ),
+    GoRoute(
+      path: '/account-setup',
+      builder: (context, state) => const AccountSetupScreen(),
+      redirect: _authRedirect,
+    ),
+    GoRoute(
+      path: '/app-tour',
+      builder: (context, state) => const AppTourScreen(),
+      redirect: _authRedirect,
+    ),
+    ShellRoute(
+      builder: (context, state, child) {
+        final currentIndex = _getCurrentIndex(state.uri.path);
+        return MainScaffold(
+          currentIndex: currentIndex,
+          child: child,
+          onDestinationSelected: (index) {
+            final path = _getPathForIndex(index);
+            context.go(path);
+          },
+        );
+      },
+      routes: [
+        GoRoute(
+          path: '/dashboard',
+          builder: (context, state) => const DashboardScreen(),
+          redirect: _authRedirect,
+        ),
+        GoRoute(
+          path: '/farms',
+          builder: (context, state) => const FarmsScreen(),
+          redirect: _authRedirect,
+        ),
+        GoRoute(
+          path: '/crops',
+          builder: (context, state) => const CropsScreen(),
+          redirect: _authRedirect,
+        ),
+        GoRoute(
+          path: '/livestock',
+          builder: (context, state) => const LivestockScreen(),
+          redirect: _authRedirect,
+        ),
+        GoRoute(
+          path: '/finance',
+          builder: (context, state) => const FinanceScreen(),
+          redirect: _authRedirect,
+        ),
+        GoRoute(
+      path: '/profile',
+      builder: (context, state) => const ProfileScreen(),
+      redirect: _authRedirect,
+        ),
+      ],
+    ),
+    GoRoute(
+      path: '/ai-advisor',
+      builder: (context, state) => const AiAdvisorScreen(),
+      redirect: _authRedirect,
+    ),
+    GoRoute(
+      path: '/learn',
+      builder: (context, state) => const LearnScreen(),
+      redirect: _authRedirect,
+    ),
+    GoRoute(
+      path: '/settings',
+      builder: (context, state) => const SettingsScreen(),
+      redirect: _authRedirect,
+    ),
+    GoRoute(
+      path: '/notifications',
+      builder: (context, state) => const NotificationsScreen(),
+      redirect: _authRedirect,
+    ),
+    GoRoute(
+      path: '/notifications/:id',
+      builder: (context, state) {
+        final notification = state.extra as domain.Notification?;
+        if (notification == null) {
+          // Handle error or redirect
+          return const NotificationsScreen();
+        }
+        return NotificationDetailScreen(notification: notification);
+      },
+    ),
+    // Add more routes as needed
+  ],
+);
+
+String? _authRedirect(BuildContext context, GoRouterState state) {
+  final user = FirebaseService().currentUser;
+  if (user == null) {
+    return '/login';
+  }
+  if (!user.emailVerified) {
+    return '/verify-email';
+  }
+  return null;
+}
+
+int _getCurrentIndex(String path) {
+  switch (path) {
+    case '/dashboard':
+      return 0;
+    case '/farms':
+      return 1;
+    case '/crops':
+      return 2;
+    case '/livestock':
+      return 3;
+    case '/finance':
+      return 4;
+    case '/profile':
+      return 5;
+    default:
+      return 0;
+  }
+}
+
+String _getPathForIndex(int index) {
+  switch (index) {
+    case 0:
+      return '/dashboard';
+    case 1:
+      return '/farms';
+    case 2:
+      return '/crops';
+    case 3:
+      return '/livestock';
+    case 4:
+      return '/finance';
+    case 5:
+      return '/profile';
+    default:
+      return '/dashboard';
+  }
+}

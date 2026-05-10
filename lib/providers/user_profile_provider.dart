@@ -1,0 +1,71 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../data/remote/firebase_service.dart';
+import '../domain/models/user_profile.dart';
+import 'auth_provider.dart';
+
+final userProfileProvider =
+    StateNotifierProvider<UserProfileController, AsyncValue<UserProfile?>>((ref) {
+  return UserProfileController(ref.watch(firebaseServiceProvider));
+});
+
+class UserProfileController extends StateNotifier<AsyncValue<UserProfile?>> {
+  UserProfileController(this._firebaseService) : super(const AsyncValue.loading()) {
+    loadProfile();
+  }
+
+  final FirebaseService _firebaseService;
+
+  void setProfile(UserProfile? profile) {
+    if (!mounted) {
+      return;
+    }
+    state = AsyncValue.data(profile);
+  }
+
+  void clearProfile() {
+    if (!mounted) {
+      return;
+    }
+    state = const AsyncValue.data(null);
+  }
+
+  Future<void> loadProfile() async {
+    if (!mounted) {
+      return;
+    }
+    state = const AsyncValue.loading();
+    try {
+      final UserProfile? profile = await _firebaseService.getUserProfile();
+      if (!mounted) {
+        return;
+      }
+      state = AsyncValue.data(profile);
+    } catch (error, stackTrace) {
+      if (!mounted) {
+        return;
+      }
+      state = AsyncValue.error(error, stackTrace);
+    }
+  }
+
+  Future<void> saveProfile(UserProfile profile) async {
+    if (!mounted) {
+      return;
+    }
+    state = const AsyncValue.loading();
+    try {
+      await _firebaseService.saveUserProfile(profile);
+      if (!mounted) {
+        return;
+      }
+      state = AsyncValue.data(profile);
+    } catch (error, stackTrace) {
+      if (!mounted) {
+        return;
+      }
+      state = AsyncValue.error(error, stackTrace);
+      rethrow;
+    }
+  }
+}

@@ -1,0 +1,72 @@
+name: farmsynchub
+description: "FarmSync Hub - Farm Management Information System for smallholder farmers in Jos South LGA, Plateau State, Nigeria."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+
+  # State Management
+  flutter_riverpod: ^2.4.9
+
+  # Firebase
+  firebase_admin: ^0.3.1+4
+  firebase_core: ^3.1.0
+  firebase_auth: ^5.1.2
+  cloud_firestore: ^5.0.0
+
+  # PDF Export
+  pdf: ^3.10.7
+
+  # Charts
+  fl_chart: ^0.66.2
+
+  # Navigation
+  go_router: ^13.0.1
+  lottie: ^3.1.2
+
+  # Fonts
+  google_fonts: ^6.1.0
+
+  # Utils
+  intl: ^0.19.0
+  connectivity_plus: ^5.0.2
+  path_provider: ^2.1.2
+  path: ^1.8.3
+  uuid: ^4.2.1
+  shimmer: ^3.0.0
+  shared_preferences: ^2.5.5
+  http: ^1.2.1
+  image_picker: ^1.1.2
+  url_launcher: ^6.3.1
+  intl_phone_number_input: ^0.7.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/appicon.png
+    - assets/
+  fonts:
+    - family: DM Serif Display
+      fonts:
+        - asset: assets/fonts/DM_Serif_Display/DMSerifDisplay-Regular.ttf
+    - family: Plus Jakarta Sans
+      fonts:
+        - asset: assets/fonts/Plus_Jakarta_Sans/PlusJakartaSans-Regular.ttf
+        - asset: assets/fonts/Plus_Jakarta_Sans/PlusJakartaSans-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Plus_Jakarta_Sans/PlusJakartaSans-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Plus_Jakarta_Sans/PlusJakartaSans-Bold.ttf
+          weight: 700

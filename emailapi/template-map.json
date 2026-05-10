@@ -1,0 +1,28 @@
+{
+  "templates": [
+    {
+      "id": "welcome",
+      "file": "templates/welcome.html",
+      "subject": "Welcome to {{app_name}}",
+      "variables": ["app_name", "user_name", "login_url", "support_email", "current_year"]
+    },
+    {
+      "id": "verify_email",
+      "file": "templates/verify-email.html",
+      "subject": "Verify your email for {{app_name}}",
+      "variables": ["app_name", "user_name", "action_url", "expiration_text", "support_email", "current_year"]
+    },
+    {
+      "id": "reset_password",
+      "file": "templates/reset-password.html",
+      "subject": "Reset your {{app_name}} password",
+      "variables": ["app_name", "user_name", "action_url", "expiration_text", "support_email", "current_year"]
+    },
+    {
+      "id": "security_alert",
+      "file": "templates/security-alert.html",
+      "subject": "Security notice from {{app_name}}",
+      "variables": ["app_name", "user_name", "event_name", "event_time", "event_location", "support_email", "current_year"]
+    }
+  ]
+}

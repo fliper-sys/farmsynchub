@@ -1,0 +1,40 @@
+{
+  "firestore": {
+    "database": "(default)",
+    "location": "nam5",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        ".dart_tool",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "runtime": "dart3"
+    }
+  ],
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "remoteconfig": {
+    "template": "remoteconfig.template.json"
+  },
+  "extensions": {},
+  "auth": {
+    "providers": {
+      "anonymous": true,
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Farmsync Hub",
+        "supportEmail": "support@farmsync.lbteh.site"
+      }
+    }
+  }
+}

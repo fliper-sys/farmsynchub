@@ -1,0 +1,271 @@
+import 'dart:typed_data';
+
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+
+import '../utils/currency_utils.dart';
+import '../utils/date_utils.dart' as app_date;
+import '../../domain/models/transaction.dart';
+
+class FinanceReportService {
+  Future<Uint8List> buildFinanceReport({
+    required List<Transaction> transactions,
+    required double income,
+    required double expenses,
+    required double balance,
+    required Map<TransactionCategory, double> categoryTotals,
+  }) async {
+    final pw.Document document = pw.Document();
+
+    document.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(28),
+        build: (pw.Context context) => <pw.Widget>[
+          _buildHeader(),
+          pw.SizedBox(height: 18),
+          _buildSummary(income: income, expenses: expenses, balance: balance),
+          pw.SizedBox(height: 18),
+          _buildCategorySection(categoryTotals),
+          pw.SizedBox(height: 18),
+          _buildTransactionTable(transactions),
+          pw.SizedBox(height: 18),
+          _buildFooterNote(transactions.length),
+        ],
+      ),
+    );
+
+    return document.save();
+  }
+
+  pw.Widget _buildHeader() {
+    final DateTime now = DateTime.now();
+
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(22),
+      decoration: pw.BoxDecoration(
+        color: PdfColor.fromHex('#F2F7EC'),
+        borderRadius: pw.BorderRadius.circular(20),
+      ),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: <pw.Widget>[
+          pw.Container(
+            width: 54,
+            height: 54,
+            decoration: pw.BoxDecoration(
+              color: PdfColor.fromHex('#214B34'),
+              borderRadius: pw.BorderRadius.circular(14),
+            ),
+            child: pw.Center(
+              child: pw.Text(
+                'FS',
+                style: pw.TextStyle(
+                  color: PdfColors.white,
+                  fontSize: 20,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          pw.SizedBox(width: 16),
+          pw.Expanded(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: <pw.Widget>[
+                pw.Text(
+                  'FarmSync Financial Report',
+                  style: pw.TextStyle(
+                    fontSize: 22,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColor.fromHex('#214B34'),
+                  ),
+                ),
+                pw.SizedBox(height: 6),
+                pw.Text(
+                  'Exported ${app_date.DateUtils.formatDateTime(now)}',
+                  style: const pw.TextStyle(
+                    fontSize: 11,
+                    color: PdfColors.grey700,
+                  ),
+                ),
+                pw.SizedBox(height: 8),
+                pw.Text(
+                  'A detailed overview of recent farm income, expenses, and transaction activity.',
+                  style: const pw.TextStyle(
+                    fontSize: 11,
+                    color: PdfColors.grey800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildSummary({
+    required double income,
+    required double expenses,
+    required double balance,
+  }) {
+    return pw.Row(
+      children: <pw.Widget>[
+        pw.Expanded(child: _summaryCard('Income', CurrencyUtils.formatCurrency(income), '#E4F4D6')),
+        pw.SizedBox(width: 10),
+        pw.Expanded(child: _summaryCard('Expenses', CurrencyUtils.formatCurrency(expenses), '#FDE3D8')),
+        pw.SizedBox(width: 10),
+        pw.Expanded(child: _summaryCard('Balance', CurrencyUtils.formatCurrency(balance), '#DDEEFF')),
+      ],
+    );
+  }
+
+  pw.Widget _summaryCard(String title, String value, String colorHex) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(16),
+      decoration: pw.BoxDecoration(
+        color: PdfColor.fromHex(colorHex),
+        borderRadius: pw.BorderRadius.circular(16),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: <pw.Widget>[
+          pw.Text(
+            title,
+            style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey800),
+          ),
+          pw.SizedBox(height: 8),
+          pw.Text(
+            value,
+            style: pw.TextStyle(
+              fontSize: 16,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColor.fromHex('#214B34'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildCategorySection(Map<TransactionCategory, double> totals) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(18),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColor.fromHex('#E3E8DE')),
+        borderRadius: pw.BorderRadius.circular(18),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: <pw.Widget>[
+          pw.Text(
+            'Category Breakdown',
+            style: pw.TextStyle(
+              fontSize: 16,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColor.fromHex('#214B34'),
+            ),
+          ),
+          pw.SizedBox(height: 12),
+          ...totals.entries.map(
+            (MapEntry<TransactionCategory, double> entry) => pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 8),
+              child: pw.Row(
+                children: <pw.Widget>[
+                  pw.Expanded(child: pw.Text(_categoryLabel(entry.key))),
+                  pw.Text(
+                    CurrencyUtils.formatCurrency(entry.value),
+                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildTransactionTable(List<Transaction> transactions) {
+    final List<List<String>> rows = transactions
+        .map(
+          (Transaction transaction) => <String>[
+            app_date.DateUtils.formatDate(transaction.transactionDate),
+            _categoryLabel(transaction.category),
+            transaction.description,
+            transaction.type == TransactionType.income ? 'Income' : 'Expense',
+            CurrencyUtils.formatCurrency(transaction.amount),
+          ],
+        )
+        .toList();
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: <pw.Widget>[
+        pw.Text(
+          'Transaction Details',
+          style: pw.TextStyle(
+            fontSize: 16,
+            fontWeight: pw.FontWeight.bold,
+            color: PdfColor.fromHex('#214B34'),
+          ),
+        ),
+        pw.SizedBox(height: 10),
+        pw.TableHelper.fromTextArray(
+          headerStyle: pw.TextStyle(
+            fontWeight: pw.FontWeight.bold,
+            color: PdfColors.white,
+          ),
+          headerDecoration: pw.BoxDecoration(
+            color: PdfColor.fromHex('#214B34'),
+            borderRadius: const pw.BorderRadius.only(
+              topLeft: pw.Radius.circular(10),
+              topRight: pw.Radius.circular(10),
+            ),
+          ),
+          cellAlignment: pw.Alignment.centerLeft,
+          cellStyle: const pw.TextStyle(fontSize: 10),
+          cellPadding: const pw.EdgeInsets.all(8),
+          rowDecoration: const pw.BoxDecoration(color: PdfColors.white),
+          oddRowDecoration: pw.BoxDecoration(color: PdfColor.fromHex('#F8FAF5')),
+          headers: const <String>['Date', 'Category', 'Description', 'Type', 'Amount'],
+          data: rows,
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _buildFooterNote(int count) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(14),
+      decoration: pw.BoxDecoration(
+        color: PdfColor.fromHex('#FFF5DE'),
+        borderRadius: pw.BorderRadius.circular(14),
+      ),
+      child: pw.Text(
+        'This export includes $count transactions and is suitable for seasonal review, reporting, or sharing with field partners.',
+        style: const pw.TextStyle(fontSize: 11),
+      ),
+    );
+  }
+
+  String _categoryLabel(TransactionCategory category) {
+    switch (category) {
+      case TransactionCategory.cropSale:
+        return 'Crop Sale';
+      case TransactionCategory.livestockSale:
+        return 'Livestock Sale';
+      case TransactionCategory.feed:
+        return 'Feed';
+      case TransactionCategory.fertiliser:
+        return 'Fertiliser';
+      case TransactionCategory.labour:
+        return 'Labour';
+      case TransactionCategory.veterinary:
+        return 'Veterinary';
+      case TransactionCategory.other:
+        return 'Other';
+    }
+  }
+}
