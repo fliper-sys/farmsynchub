@@ -18,6 +18,15 @@ abstract final class AppAssets {
   static const String onboardingLogistics = 'assets/pickup-truck.png';
   static const String onboardingStrategy = 'assets/real-time-strategy.png';
 
+  // New UI image set
+  static const String uiAuthReference = 'assets/ui/auth_reference.jpeg';
+  static const String uiLeafBackground = 'assets/ui/leaf_background.jpeg';
+  static const String uiLeafField = 'assets/ui/leaf_field.jpeg';
+  static const String uiSmartFarm = 'assets/ui/smart_farm.jpeg';
+  static const String uiFieldSprayer = 'assets/ui/field_sprayer.jpeg';
+  static const String uiProduceMarket = 'assets/ui/produce_market.jpeg';
+  static const String uiFarmLandscape = 'assets/ui/farm_landscape.jpeg';
+
   // Auth artwork
   static const String authBrandDark = 'assets/app/auth_brand_dark.jpeg';
   static const String authBrandWarm = 'assets/app/auth_brand_warm.jpeg';

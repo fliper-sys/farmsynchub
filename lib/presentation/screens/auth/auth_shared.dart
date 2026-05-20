@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_assets.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../common/widgets/app_button.dart';
-import '../../common/widgets/app_card.dart';
 
 class AuthScaffold extends StatelessWidget {
   const AuthScaffold({
@@ -27,75 +26,249 @@ class AuthScaffold extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final ColorScheme scheme = theme.colorScheme;
     final bool isDark = theme.brightness == Brightness.dark;
+    final Color inputSurface = isDark ? const Color(0xFF14241A) : const Color(0xFFE4EEE5);
+    final ThemeData formTheme = theme.copyWith(
+      colorScheme: scheme.copyWith(surface: inputSurface),
+    );
 
     return Scaffold(
-      body: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: isDark
-                ? <Color>[
-                    const Color(0xFF112317),
-                    const Color(0xFF17301F),
-                    scheme.surface,
-                  ]
-                : const <Color>[
-                    Color(0xFFE4F8D7),
-                    Color(0xFFF4FFE9),
-                    Color(0xFFFFFBF2),
-                  ],
+      body: Stack(
+        children: <Widget>[
+          Positioned.fill(
+            child: Image.asset(
+              AppAssets.uiLeafBackground,
+              fit: BoxFit.cover,
+              alignment: Alignment.center,
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 460),
-                child: Column(
-                  children: <Widget>[
-                    _BrandHero(badge: badge),
-                    const SizedBox(height: 20),
-                    AppCard(
-                      color: isDark ? scheme.surfaceContainerHighest : const Color(0xFFF2FFE8),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 28, 24, 26),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              title,
-                              style: theme.textTheme.headlineMedium?.copyWith(
-                                color: AppColors.primary,
-                                fontSize: 34,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              subtitle,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                                height: 1.5,
-                              ),
-                            ),
-                            const SizedBox(height: 22),
-                            child,
-                          ],
-                        ),
-                      ),
-                    ),
-                    if (footer != null) ...<Widget>[
-                      const SizedBox(height: 14),
-                      footer!,
-                    ],
-                  ],
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: isDark
+                      ? <Color>[
+                          Colors.black.withOpacity(0.62),
+                          const Color(0xFF051009).withOpacity(0.88),
+                          Colors.black.withOpacity(0.96),
+                        ]
+                      : <Color>[
+                          Colors.white.withOpacity(0.18),
+                          const Color(0xFFE9F4EA).withOpacity(0.58),
+                          Colors.white.withOpacity(0.94),
+                        ],
                 ),
               ),
             ),
           ),
-        ),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 430),
+                  child: _PhoneAuthPanel(
+                    title: title,
+                    subtitle: subtitle,
+                    badge: badge,
+                    child: child,
+                    footer: footer,
+                    scheme: scheme,
+                    isDark: isDark,
+                    formTheme: formTheme,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _PhoneAuthPanel extends StatelessWidget {
+  const _PhoneAuthPanel({
+    required this.title,
+    required this.subtitle,
+    required this.badge,
+    required this.child,
+    required this.footer,
+    required this.scheme,
+    required this.isDark,
+    required this.formTheme,
+  });
+
+  final String title;
+  final String subtitle;
+  final String badge;
+  final Widget child;
+  final Widget? footer;
+  final ColorScheme scheme;
+  final bool isDark;
+  final ThemeData formTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0B1510).withOpacity(0.96) : Colors.white,
+        borderRadius: BorderRadius.circular(38),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.42 : 0.18),
+            blurRadius: 34,
+            offset: const Offset(0, 20),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: <Widget>[
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 238,
+            child: _LeafHero(badge: badge),
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Container(
+                width: 118,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF0B1510) : Colors.white,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(18),
+                    bottomRight: Radius.circular(18),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 206, 24, 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    color: isDark ? Colors.white : AppColors.primary,
+                    fontSize: 32,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  subtitle,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    height: 1.45,
+                    color: isDark ? Colors.white70 : scheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Theme(
+                  data: formTheme,
+                  child: child,
+                ),
+                if (footer != null) ...<Widget>[
+                  const SizedBox(height: 18),
+                  footer!,
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LeafHero extends StatelessWidget {
+  const _LeafHero({required this.badge});
+
+  final String badge;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color bottomColor = isDark ? const Color(0xFF0B1510) : Colors.white;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        Image.asset(
+          AppAssets.uiLeafBackground,
+          fit: BoxFit.cover,
+          alignment: Alignment.topCenter,
+        ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: <Color>[
+                Colors.black.withOpacity(0.20),
+                const Color(0xFF0D3723).withOpacity(0.62),
+                bottomColor,
+              ],
+              stops: const <double>[0, 0.62, 1],
+            ),
+          ),
+        ),
+        Positioned(
+          left: 24,
+          top: 32,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: Colors.white.withOpacity(0.28)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Image.asset(AppAssets.appIcon, width: 20, height: 20),
+                const SizedBox(width: 8),
+                Text(
+                  badge,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          left: 26,
+          right: 26,
+          bottom: 36,
+          child: Text(
+            'The best app for your farms',
+            style: theme.textTheme.headlineMedium?.copyWith(
+              color: Colors.white,
+              fontSize: 34,
+              height: 1.08,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -159,6 +332,7 @@ class AuthSecondaryLinkRow extends StatelessWidget {
               actionLabel,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
                     color: AppColors.primary,
+                    decoration: TextDecoration.underline,
                   ),
             ),
           ),
@@ -215,125 +389,6 @@ class AuthPageFooter extends StatelessWidget {
       text,
       textAlign: TextAlign.center,
       style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.5),
-    );
-  }
-}
-
-class _BrandHero extends StatelessWidget {
-  const _BrandHero({
-    required this.badge,
-  });
-
-  final String badge;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Stack(
-      children: <Widget>[
-        Container(
-          width: double.infinity,
-          constraints: const BoxConstraints(maxWidth: 460),
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 28),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(34),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: <Color>[
-                Color(0xFF8CE3A0),
-                Color(0xFF53C16C),
-              ],
-            ),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: AppColors.primary.withOpacity(0.18),
-                blurRadius: 30,
-                offset: const Offset(0, 16),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  badge,
-                  style: theme.textTheme.labelLarge?.copyWith(color: Colors.white),
-                ),
-              ),
-              const SizedBox(height: 18),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(28),
-                child: Stack(
-                  children: <Widget>[
-                    AspectRatio(
-                      aspectRatio: 1.4,
-                      child: Image.asset(
-                        AppAssets.authBrandDark,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    Positioned.fill(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: <Color>[
-                              Colors.transparent,
-                              Colors.black.withOpacity(0.35),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const Positioned(
-                      left: 18,
-                      right: 18,
-                      bottom: 18,
-                      child: _HeroCaption(),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _HeroCaption extends StatelessWidget {
-  const _HeroCaption();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          'Field-ready access for every farm day',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: Colors.white,
-                fontSize: 30,
-              ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Plan crops, manage livestock, track finance, and sync advisory tools from one calm operations hub.',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.white.withOpacity(0.92),
-                height: 1.5,
-              ),
-        ),
-      ],
     );
   }
 }

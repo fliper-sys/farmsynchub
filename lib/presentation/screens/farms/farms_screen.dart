@@ -19,6 +19,7 @@ import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
+import 'farm_detail_screen.dart';
 
 class FarmsScreen extends ConsumerWidget {
   const FarmsScreen({super.key});
@@ -126,6 +127,11 @@ class FarmsScreen extends ConsumerWidget {
                 crops: crops.where((Crop crop) => crop.farmId == farm.id).toList(),
                 livestock: livestock.where((Livestock animal) => animal.farmId == farm.id).toList(),
                 transactions: transactions.where((Transaction item) => item.farmId == farm.id).toList(),
+                onOpen: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => FarmDetailScreen(farmId: farm.id),
+                  ),
+                ),
                 onEdit: () => _openFarmSheet(context, ref, farm: farm),
                 onDelete: () => _confirmDelete(context, ref, farm),
               ),
@@ -296,6 +302,13 @@ class FarmsScreen extends ConsumerWidget {
       createdAt: farm?.createdAt ?? now,
       updatedAt: now,
       isSynced: farm?.isSynced ?? false,
+      coverImageBase64: farm?.coverImageBase64 ?? '',
+      notes: farm?.notes ?? '',
+      temperatureCelsius: farm?.temperatureCelsius ?? 24,
+      humidityPercent: farm?.humidityPercent ?? 60,
+      soilMoisturePercent: farm?.soilMoisturePercent ?? 52,
+      precipitationMm: farm?.precipitationMm ?? 6,
+      documents: farm?.documents ?? const <FarmDocumentRecord>[],
     );
 
     try {
@@ -373,6 +386,7 @@ class _FarmManagementCard extends StatelessWidget {
     required this.crops,
     required this.livestock,
     required this.transactions,
+    required this.onOpen,
     required this.onEdit,
     required this.onDelete,
   });
@@ -381,6 +395,7 @@ class _FarmManagementCard extends StatelessWidget {
   final List<Crop> crops;
   final List<Livestock> livestock;
   final List<Transaction> transactions;
+  final VoidCallback onOpen;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
@@ -395,6 +410,7 @@ class _FarmManagementCard extends StatelessWidget {
         .fold(0, (double sum, Transaction item) => sum + item.amount);
 
     return AppCard(
+      onTap: onOpen,
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -492,7 +508,7 @@ class _FarmManagementCard extends StatelessWidget {
                     Expanded(
                       child: _FarmStatTile(
                         label: 'Documentation',
-                        value: '${crops.length + livestock.length} entries',
+                        value: '${crops.length + livestock.length + farm.documents.length} entries',
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -505,8 +521,8 @@ class _FarmManagementCard extends StatelessWidget {
                     const SizedBox(width: 10),
                     Expanded(
                       child: _FarmStatTile(
-                        label: 'Expenses',
-                        value: CurrencyUtils.formatCompactCurrency(expenses),
+                        label: 'Climate',
+                        value: '${farm.temperatureCelsius.toStringAsFixed(0)} C',
                       ),
                     ),
                   ],

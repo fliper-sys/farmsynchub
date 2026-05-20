@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 /// Centralized application color tokens for AgriCare.
 abstract final class AppColors {
   /// Deep botanical green used as the primary brand color.
-  static const Color primary = Color(0xFF214B34);
+  static const Color primary = Color.fromARGB(255, 79, 104, 90);
 
   /// Medium green used for active states and FABs.
   static const Color primaryMid = Color(0xFF4D8F5E);

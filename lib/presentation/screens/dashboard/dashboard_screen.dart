@@ -6,14 +6,19 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_utils.dart';
+import '../../../domain/models/crop.dart';
 import '../../../domain/models/farm.dart';
+import '../../../domain/models/livestock.dart';
 import '../../../domain/models/transaction.dart';
+import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/crop_provider.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/finance_provider.dart';
 import '../../../providers/livestock_provider.dart';
 import '../../../providers/notification_provider.dart';
+import '../../../providers/sync_provider.dart';
+import '../../../providers/theme_provider.dart';
 import '../../../providers/user_profile_provider.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import 'widgets/activity_feed.dart';
@@ -56,13 +61,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    final farmsAsync = ref.watch(farmsProvider);
-    final cropsAsync = ref.watch(cropsProvider);
-    final livestockAsync = ref.watch(livestockProvider);
-    final transactionsAsync = ref.watch(transactionsProvider);
+    final AsyncValue<List<Farm>> farmsAsync = ref.watch(farmsProvider);
+    final AsyncValue<List<Crop>> cropsAsync = ref.watch(cropsProvider);
+    final AsyncValue<List<Livestock>> livestockAsync = ref.watch(livestockProvider);
+    final AsyncValue<List<Transaction>> transactionsAsync = ref.watch(transactionsProvider);
     final notifications = ref.watch(notificationsProvider);
     final currentUser = ref.watch(firebaseServiceProvider).currentUser;
     final profile = ref.watch(userProfileProvider).valueOrNull;
+    final AppLanguage language = ref.watch(appLanguageProvider);
+    final ThemeMode themeMode = ref.watch(themeProvider);
+    final SyncOverview syncOverview = ref.watch(syncOverviewProvider);
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
 
@@ -72,9 +80,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     );
     final String farmsCount = farms.length.toString();
     final String cropsCount =
-        cropsAsync.maybeWhen(data: (List<dynamic> items) => items.length.toString(), orElse: () => '0');
+        cropsAsync.maybeWhen(data: (List<Crop> items) => items.length.toString(), orElse: () => '0');
+    final int animalTotal = livestockAsync.maybeWhen(
+      data: (List<Livestock> items) => items.fold<int>(0, (int sum, Livestock item) => sum + item.count),
+      orElse: () => 0,
+    );
     final String livestockCount = livestockAsync.maybeWhen(
-      data: (List<dynamic> items) => items.length.toString(),
+      data: (List<Livestock> items) => items.length.toString(),
       orElse: () => '0',
     );
     final List<Transaction> transactions = transactionsAsync.maybeWhen(
@@ -82,13 +94,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       orElse: () => <Transaction>[],
     );
     final String balance = CurrencyUtils.formatCompactCurrency(_calculateBalance(transactions));
-    final int pendingSync = farms.where((Farm farm) => !farm.isSynced).length;
-    final String activeFarmName = farms.isEmpty ? 'No farms yet' : farms.first.name;
+    final int pendingSync = syncOverview.pendingCount;
+    final String activeFarmName = farms.isEmpty
+        ? language.tr(en: 'No farms yet', ha: 'Babu gona tukuna', fr: 'Aucune ferme pour le moment')
+        : farms.first.name;
     final int unreadNotifications = notifications.where((notification) => !notification.isRead).length;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Home'),
+        title: Text(language.tr(en: 'Home', ha: 'Gida', fr: 'Accueil')),
         actions: <Widget>[
           IconButton(
             icon: const Icon(Icons.school_outlined),
@@ -157,6 +171,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               child: RefreshIndicator(
                 onRefresh: () async {
                   _controller.forward(from: 0);
+                  await Future.wait(<Future<void>>[
+                    ref.read(farmsProvider.notifier).refresh(),
+                    ref.read(cropsProvider.notifier).refresh(),
+                    ref.read(livestockProvider.notifier).refresh(),
+                    ref.read(transactionsProvider.notifier).refresh(),
+                    ref.read(syncOverviewProvider.notifier).refreshOverview(),
+                  ]);
                 },
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
@@ -171,6 +192,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                             : 'Farmer',
                         activeFarmName: activeFarmName,
                         pendingSync: pendingSync,
+                        themeMode: themeMode,
+                        onThemeToggle: () => ref.read(themeProvider.notifier).toggleTheme(),
+                        language: language,
                       ),
                       const SizedBox(height: 18),
                       const WeatherPill(),
@@ -197,9 +221,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                           const SizedBox(width: 10),
                           Expanded(
                             child: _AnimatedStatCard(
-                              label: 'Crop records',
-                              value: cropsCount,
-                              icon: Icons.spa_rounded,
+                              label: language.tr(en: 'Animal count', ha: 'Yawan dabbobi', fr: 'Nombre d animaux'),
+                              value: '$animalTotal',
+                              icon: Icons.pets_rounded,
                               tint: const Color(0xFFDFF1E5),
                               delay: 60,
                             ),
@@ -218,7 +242,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                       ),
                       const SizedBox(height: 24),
                       Text(
-                        'Farm launchpad',
+                        language.tr(en: 'Farm launchpad', ha: 'Wurin fara aiki', fr: 'Centre de gestion'),
                         style: theme.textTheme.titleLarge?.copyWith(color: AppColors.primary),
                       ),
                       const SizedBox(height: 14),
@@ -287,7 +311,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                                       Expanded(
                                         child: _MiniStatCard(
                                           label: 'Livestock',
-                                          value: livestockCount,
+                                          value: '$animalTotal',
                                           tint: const Color(0xFFDFF1FF),
                                         ),
                                       ),
@@ -324,15 +348,51 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                             Expanded(
                               child: _OverviewMetric(
                                 title: 'Status',
-                                value: pendingSync == 0 ? 'Synced' : 'Pending',
+                                value: syncOverview.isSyncing
+                                    ? 'Syncing'
+                                    : pendingSync == 0
+                                        ? 'Synced'
+                                        : 'Pending',
                               ),
                             ),
                           ],
                         ),
                       ),
+                      const SizedBox(height: 18),
+                      if (syncOverview.pendingCount > 0 || !syncOverview.hasConnection)
+                        Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(color: theme.colorScheme.outlineVariant),
+                          ),
+                          child: Row(
+                            children: <Widget>[
+                              Expanded(
+                                child: Text(
+                                  syncOverview.hasConnection
+                                      ? '$pendingSync updates are waiting to sync.'
+                                      : 'You are offline. Changes will sync when connection returns.',
+                                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              FilledButton.tonalIcon(
+                                onPressed: syncOverview.isSyncing || !syncOverview.hasConnection
+                                    ? null
+                                    : () async {
+                                        await ref.read(syncOverviewProvider.notifier).runSync();
+                                      },
+                                icon: const Icon(Icons.sync_rounded),
+                                label: Text(syncOverview.isSyncing ? 'Syncing...' : 'Start sync'),
+                              ),
+                            ],
+                          ),
+                        ),
                       const SizedBox(height: 24),
                       Text(
-                        'Recent activity',
+                        language.tr(en: 'Recent activity', ha: 'Ayyukan baya-bayan nan', fr: 'Activite recente'),
                         style: theme.textTheme.titleLarge?.copyWith(color: AppColors.primary),
                       ),
                       const SizedBox(height: 14),
@@ -438,12 +498,18 @@ class _AnimatedHeroCard extends StatefulWidget {
     required this.userName,
     required this.activeFarmName,
     required this.pendingSync,
+    required this.themeMode,
+    required this.onThemeToggle,
+    required this.language,
   });
 
   final String greeting;
   final String userName;
   final String activeFarmName;
   final int pendingSync;
+  final ThemeMode themeMode;
+  final VoidCallback onThemeToggle;
+  final AppLanguage language;
 
   @override
   State<_AnimatedHeroCard> createState() => _AnimatedHeroCardState();
@@ -538,9 +604,19 @@ class _AnimatedHeroCardState extends State<_AnimatedHeroCard>
                       color: Colors.white.withOpacity(0.14),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Icon(
-                      Icons.wb_sunny_outlined,
-                      color: Colors.white,
+                    child: IconButton(
+                      onPressed: widget.onThemeToggle,
+                      icon: Icon(
+                        widget.themeMode == ThemeMode.dark
+                            ? Icons.dark_mode_rounded
+                            : Icons.light_mode_rounded,
+                        color: Colors.white,
+                      ),
+                      tooltip: widget.language.tr(
+                        en: 'Toggle theme',
+                        ha: 'Canja jigo',
+                        fr: 'Changer le theme',
+                      ),
                     ),
                   ),
                 ],
@@ -566,7 +642,11 @@ class _AnimatedHeroCardState extends State<_AnimatedHeroCard>
                   Expanded(
                     child: _HeroPill(
                       icon: Icons.auto_graph_rounded,
-                      label: 'Live dashboard metrics',
+                      label: widget.language.tr(
+                        en: 'Live dashboard metrics',
+                        ha: 'Kididdiga kai tsaye',
+                        fr: 'Mesures en direct',
+                      ),
                     ),
                   ),
                 ],

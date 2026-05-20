@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../providers/auth_provider.dart';
+import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/user_profile_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
@@ -21,6 +22,7 @@ class ProfileScreen extends ConsumerWidget {
     final authState = ref.watch(authControllerProvider);
     final profileAsync = ref.watch(userProfileProvider);
     final profile = profileAsync.valueOrNull;
+    final AppLanguage language = ref.watch(appLanguageProvider);
     final String displayName = currentUser?.displayName?.trim().isNotEmpty == true
         ? currentUser!.displayName!
         : 'Farmer';
@@ -149,7 +151,7 @@ class ProfileScreen extends ConsumerWidget {
             Expanded(
               child: SoftInfoChip(
                 label: 'Language',
-                value: 'English',
+                value: language.label,
                 color: Color(0xFFDFF1FF),
               ),
             ),

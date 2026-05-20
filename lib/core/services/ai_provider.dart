@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -8,6 +10,8 @@ import 'gemini_service.dart';
 class AiProvider extends ChangeNotifier {
   final Map<AiTopic, List<ChatMessage>> _messages = <AiTopic, List<ChatMessage>>{};
   final Map<AiTopic, bool> _loading = <AiTopic, bool>{};
+  final Map<AiTopic, DateTime> _cooldownUntil = <AiTopic, DateTime>{};
+  final Map<AiTopic, Timer> _cooldownTimers = <AiTopic, Timer>{};
 
   AiTopic _activeTopic = AiTopic.general;
   String _language = 'English';
@@ -27,6 +31,16 @@ class AiProvider extends ChangeNotifier {
 
   bool isLoadingFor(AiTopic topic) => _loading[topic] ?? false;
   bool get isActiveLoading => isLoadingFor(_activeTopic);
+  bool get isActiveCoolingDown => cooldownRemainingFor(_activeTopic) > Duration.zero;
+
+  Duration cooldownRemainingFor(AiTopic topic) {
+    final DateTime? until = _cooldownUntil[topic];
+    if (until == null) {
+      return Duration.zero;
+    }
+    final Duration remaining = until.difference(DateTime.now());
+    return remaining.isNegative ? Duration.zero : remaining;
+  }
 
   List<String> get supportedLanguages => const <String>[
         'English',
@@ -82,12 +96,17 @@ class AiProvider extends ChangeNotifier {
       return;
     }
 
+    final AiTopic topic = _activeTopic;
+    if (isLoadingFor(topic)) {
+      return;
+    }
+
     if (!hasApiKey) {
       _addMessage(
-        _activeTopic,
+        topic,
         ChatMessage.fromAi(
           'AI requests are disabled until a Gemini API key is configured with `--dart-define=GEMINI_API_KEY=your_key`.',
-          topic: _activeTopic,
+          topic: topic,
           isError: true,
         ),
       );
@@ -95,7 +114,6 @@ class AiProvider extends ChangeNotifier {
       return;
     }
 
-    final AiTopic topic = _activeTopic;
     final ChatMessage userMessage = ChatMessage.fromUser(
       trimmedText,
       topic: topic,
@@ -117,6 +135,9 @@ class AiProvider extends ChangeNotifier {
     _removeLoading(topic);
     _addMessage(topic, response);
     _loading[topic] = false;
+    if (response.text.toLowerCase().contains('rate-limiting this api key')) {
+      _startCooldown(topic, const Duration(seconds: 75));
+    }
     notifyListeners();
   }
 
@@ -144,6 +165,24 @@ class AiProvider extends ChangeNotifier {
 
   void _removeLoading(AiTopic topic) {
     _messages[topic]?.removeWhere((ChatMessage message) => message.isLoading);
+  }
+
+  void _startCooldown(AiTopic topic, Duration duration) {
+    _cooldownUntil[topic] = DateTime.now().add(duration);
+    _cooldownTimers[topic]?.cancel();
+    _cooldownTimers[topic] = Timer(duration, () {
+      _cooldownUntil.remove(topic);
+      _cooldownTimers.remove(topic);
+      notifyListeners();
+    });
+  }
+
+  @override
+  void dispose() {
+    for (final Timer timer in _cooldownTimers.values) {
+      timer.cancel();
+    }
+    super.dispose();
   }
 }
 

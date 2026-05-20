@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../providers/ai_chat_provider.dart';
+import '../../../providers/app_preferences_provider.dart';
+import '../../../providers/sync_provider.dart';
 import '../../../providers/theme_provider.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
@@ -25,6 +27,8 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ThemeMode themeMode = ref.watch(themeProvider);
     final ai = ref.watch(aiChatProvider);
+    final AppLanguage appLanguage = ref.watch(appLanguageProvider);
+    final SyncOverview syncOverview = ref.watch(syncOverviewProvider);
     final ThemeData theme = Theme.of(context);
 
     return Scaffold(
@@ -127,25 +131,26 @@ class SettingsScreen extends ConsumerWidget {
           const SoftSectionTitle(title: 'Farm preferences'),
           AppCard(
             color: theme.colorScheme.surfaceContainerHighest,
-            child: const Padding(
-              padding: EdgeInsets.all(18),
+            child: Padding(
+              padding: const EdgeInsets.all(18),
               child: Column(
                 children: <Widget>[
                   _SettingsRow(
                     icon: Icons.translate_rounded,
                     title: 'Language',
-                    value: 'English',
-                    tint: Color(0xFFDFF1FF),
+                    value: appLanguage.label,
+                    tint: const Color(0xFFDFF1FF),
+                    onTap: () => _showAppLanguageSheet(context, ref),
                   ),
-                  SizedBox(height: 12),
-                  _SettingsRow(
+                  const SizedBox(height: 12),
+                  const _SettingsRow(
                     icon: Icons.record_voice_over_rounded,
                     title: 'Voice mode',
                     value: 'Enabled',
                     tint: Color(0xFFE9F4DB),
                   ),
-                  SizedBox(height: 12),
-                  _SettingsRow(
+                  const SizedBox(height: 12),
+                  const _SettingsRow(
                     icon: Icons.download_rounded,
                     title: 'Export reports',
                     value: 'Weekly PDF',
@@ -185,24 +190,28 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 18),
           const SoftSectionTitle(title: 'Connection and alerts'),
           Row(
-            children: const <Widget>[
+            children: <Widget>[
               Expanded(
                 child: SoftInfoChip(
                   label: 'Sync status',
-                  value: 'Synced',
-                  color: Color(0xFFE9F4DB),
+                  value: syncOverview.isSyncing
+                      ? 'Syncing'
+                      : syncOverview.pendingCount == 0
+                          ? 'Synced'
+                          : '${syncOverview.pendingCount} pending',
+                  color: const Color(0xFFE9F4DB),
                 ),
               ),
-              SizedBox(width: 10),
-              Expanded(
+              const SizedBox(width: 10),
+              const Expanded(
                 child: SoftInfoChip(
                   label: 'Alerts',
-                  value: 'Daily',
+                  value: 'Live',
                   color: Color(0xFFDFF1FF),
                 ),
               ),
-              SizedBox(width: 10),
-              Expanded(
+              const SizedBox(width: 10),
+              const Expanded(
                 child: SoftInfoChip(
                   label: 'Version',
                   value: '1.0.0',
@@ -213,6 +222,44 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _showAppLanguageSheet(BuildContext context, WidgetRef ref) async {
+    final AppLanguage current = ref.read(appLanguageProvider);
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: AppLanguage.values
+                .map(
+                  (AppLanguage language) => ListTile(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                    leading: const Icon(Icons.language_rounded),
+                    title: Text(language.label),
+                    trailing: current == language
+                        ? const Icon(Icons.check_circle_rounded)
+                        : null,
+                    onTap: () async {
+                      await ref.read(appLanguageProvider.notifier).setLanguage(language);
+                      if (context.mounted) {
+                        Navigator.of(context).pop();
+                      }
+                    },
+                  ),
+                )
+                .toList(),
+          ),
+        );
+      },
     );
   }
 

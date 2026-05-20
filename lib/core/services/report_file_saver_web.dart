@@ -10,9 +10,22 @@ class _WebReportFileSaver implements ReportFileSaver {
     required Uint8List bytes,
     required String fileName,
   }) async {
+    return saveBytes(
+      bytes: bytes,
+      fileName: fileName,
+      mimeType: 'application/pdf',
+    );
+  }
+
+  @override
+  Future<String> saveBytes({
+    required Uint8List bytes,
+    required String fileName,
+    required String mimeType,
+  }) async {
     final String base64Data = base64Encode(bytes);
     final html.AnchorElement anchor = html.AnchorElement(
-      href: 'data:application/pdf;base64,$base64Data',
+      href: 'data:$mimeType;base64,$base64Data',
     )
       ..download = fileName
       ..style.display = 'none';

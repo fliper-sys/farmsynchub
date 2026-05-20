@@ -10,6 +10,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   cupertino_icons: ^1.0.6
 
   # State Management
@@ -35,7 +37,7 @@ dependencies:
   google_fonts: ^6.1.0
 
   # Utils
-  intl: ^0.19.0
+  intl: ^0.20.2
   connectivity_plus: ^5.0.2
   path_provider: ^2.1.2
   path: ^1.8.3
@@ -57,6 +59,13 @@ flutter:
   assets:
     - assets/appicon.png
     - assets/
+    - assets/ui/auth_reference.jpeg
+    - assets/ui/leaf_background.jpeg
+    - assets/ui/leaf_field.jpeg
+    - assets/ui/smart_farm.jpeg
+    - assets/ui/field_sprayer.jpeg
+    - assets/ui/produce_market.jpeg
+    - assets/ui/farm_landscape.jpeg
   fonts:
     - family: DM Serif Display
       fonts:

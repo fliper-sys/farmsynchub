@@ -6,9 +6,8 @@ import '../../../core/constants/app_assets.dart';
 import '../../../core/services/onboarding_preferences.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/remote/firebase_service.dart';
-import '../../common/widgets/farm_scene_artwork.dart';
 
-/// Splash screen with a soft illustrated brand reveal.
+/// Leaf-forward splash screen aligned with the redesigned auth flow.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -17,52 +16,40 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
-  late final AnimationController _controller;
+  late final AnimationController _introController;
+  late final AnimationController _pulseController;
   late final Animation<double> _fade;
   late final Animation<Offset> _slide;
-  late final AnimationController _scaleController;
-  late final Animation<double> _scale;
-  late final AnimationController _textController;
-  late final Animation<double> _textFade;
+  late final Animation<double> _pulse;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+    _introController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1600),
+      duration: const Duration(milliseconds: 950),
     )..forward();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat(reverse: true);
 
-    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
+    _fade = CurvedAnimation(parent: _introController, curve: Curves.easeOutCubic);
     _slide = Tween<Offset>(
-      begin: const Offset(0, 0.08),
+      begin: const Offset(0, 0.05),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
-
-    _scaleController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    )..forward();
-
-    _scale = Tween<double>(
-      begin: 0.8,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _scaleController, curve: Curves.elasticOut));
-
-    _textController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..forward();
-
-    _textFade = CurvedAnimation(parent: _textController, curve: Curves.easeIn);
+    ).animate(CurvedAnimation(parent: _introController, curve: Curves.easeOutCubic));
+    _pulse = Tween<double>(begin: 0.96, end: 1.02).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
 
     _handleNavigation();
   }
 
   Future<void> _handleNavigation() async {
-    await Future<void>.delayed(const Duration(milliseconds: 6000));
+    await Future<void>.delayed(const Duration(milliseconds: 2300));
     final bool hasCompletedOnboarding = await OnboardingPreferences.isCompleted();
-    final firebaseService = FirebaseService();
+    final FirebaseService firebaseService = FirebaseService();
     if (!mounted) {
       return;
     }
@@ -82,144 +69,177 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
   @override
   void dispose() {
-    _controller.dispose();
-    _scaleController.dispose();
-    _textController.dispose();
+    _introController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: <Color>[
-              Color(0xFF4CAF50), // Green
-              Color(0xFF8BC34A), // Light green
-              Color(0xFFFFF8E1), // Cream
-            ],
+      body: Stack(
+        children: <Widget>[
+          Positioned.fill(
+            child: Image.asset(
+              AppAssets.uiLeafBackground,
+              fit: BoxFit.cover,
+              alignment: Alignment.center,
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
-            child: FadeTransition(
-              opacity: _fade,
-              child: SlideTransition(
-                position: _slide,
-                child: Column(
-                  children: <Widget>[
-                    Align(
-                      alignment: Alignment.topRight,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.76),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          'Jos South',
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    ScaleTransition(
-                      scale: _scale,
-                      child: const FarmSceneArtwork(
-                        height: 320,
-                        variant: FarmArtworkVariant.welcome,
-                        showFarmer: true,
-                        borderRadius: BorderRadius.all(Radius.circular(36)),
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    FadeTransition(
-                      opacity: _textFade,
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.fromLTRB(28, 30, 28, 26),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.9),
-                          borderRadius: BorderRadius.circular(36),
-                          boxShadow: <BoxShadow>[
-                            BoxShadow(
-                              color: AppColors.primary.withOpacity(0.10),
-                              blurRadius: 28,
-                              offset: const Offset(0, 16),
-                            ),
-                          ]
-                        ),
-                        child: Column(
-                        children: <Widget>[
-                          Container(
-                            width: 58,
-                            height: 58,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(18),
-                              boxShadow: <BoxShadow>[
-                                BoxShadow(
-                                  color: AppColors.primary.withOpacity(0.12),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 10),
-                                ),
-                              ],
-                            ),
-                            padding: const EdgeInsets.all(10),
-                            child: Image.asset(AppAssets.appIcon),
-                          ),
-                          const SizedBox(height: 22),
-                          Text(
-                            'FarmSync',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.dmSerifDisplay(
-                              fontSize: 36,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Nurturing farms, cultivating futures. Experience the harmony of nature and technology in modern agriculture.',
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              height: 1.6,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: List<Widget>.generate(
-                              3,
-                              (int index) => Container(
-                                width: index == 0 ? 24 : 8,
-                                height: 8,
-                                margin: const EdgeInsets.symmetric(horizontal: 3),
-                                decoration: BoxDecoration(
-                                  color: index == 0 ? AppColors.primaryMid : AppColors.borderLight,
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                              ),
-                            ),
-                          ),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: isDark
+                      ? <Color>[
+                          Colors.black.withOpacity(0.34),
+                          const Color(0xFF062014).withOpacity(0.82),
+                          Colors.black.withOpacity(0.94),
+                        ]
+                      : <Color>[
+                          Colors.white.withOpacity(0.02),
+                          const Color(0xFF0F3E2A).withOpacity(0.30),
+                          Colors.white.withOpacity(0.86),
                         ],
-                      ),
-                    ),
-                 
-                 ) ],
                 ),
               ),
             ),
           ),
-        ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 28),
+              child: FadeTransition(
+                opacity: _fade,
+                child: SlideTransition(
+                  position: _slide,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Container(
+                            width: 46,
+                            height: 46,
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.22),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.white.withOpacity(0.34)),
+                            ),
+                            child: Image.asset(AppAssets.appIcon),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'FarmSync Hub',
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.18),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(color: Colors.white.withOpacity(0.26)),
+                            ),
+                            child: Text(
+                              'Jos South',
+                              style: theme.textTheme.labelMedium?.copyWith(color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      Center(
+                        child: ScaleTransition(
+                          scale: _pulse,
+                          child: Container(
+                            width: 246,
+                            padding: const EdgeInsets.fromLTRB(24, 34, 24, 26),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.40),
+                              borderRadius: BorderRadius.circular(38),
+                              border: Border.all(color: Colors.white.withOpacity(0.18)),
+                              boxShadow: <BoxShadow>[
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.32),
+                                  blurRadius: 36,
+                                  offset: const Offset(0, 20),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                Image.asset(AppAssets.appIcon, width: 58, height: 58),
+                                const SizedBox(height: 26),
+                                Text(
+                                  'The best app for your farms',
+                                  textAlign: TextAlign.left,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: Colors.white,
+                                    fontSize: 30,
+                                    height: 1.15,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                const SizedBox(height: 30),
+                                Container(
+                                  height: 48,
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.20),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    'Loading',
+                                    style: theme.textTheme.labelLarge?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      Center(
+                        child: SizedBox(
+                          width: 38,
+                          height: 38,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3,
+                            color: isDark ? Colors.white : AppColors.primary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Preparing your farm workspace',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: isDark ? Colors.white70 : AppColors.primary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

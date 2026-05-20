@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../../core/constants/app_assets.dart';
 import '../../../core/theme/app_colors.dart';
 
 enum FarmArtworkVariant { welcome, field, crops, dashboard }
@@ -32,14 +33,117 @@ class FarmSceneArtwork extends StatelessWidget {
       child: SizedBox(
         height: height,
         width: double.infinity,
-        child: CustomPaint(
-          painter: _FarmScenePainter(
-            variant: variant,
-            showFarmer: showFarmer,
-          ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            Image.asset(
+              _imageForVariant(variant),
+              fit: BoxFit.cover,
+              alignment: _alignmentForVariant(variant),
+              errorBuilder: (_, __, ___) => CustomPaint(
+                painter: _FarmScenePainter(
+                  variant: variant,
+                  showFarmer: showFarmer,
+                ),
+              ),
+            ),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    Colors.black.withOpacity(0.08),
+                    Colors.black.withOpacity(0.22),
+                    Colors.black.withOpacity(0.48),
+                  ],
+                ),
+              ),
+            ),
+            CustomPaint(
+              painter: _FarmAccentPainter(
+                variant: variant,
+                showFarmer: showFarmer,
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  String _imageForVariant(FarmArtworkVariant variant) {
+    switch (variant) {
+      case FarmArtworkVariant.welcome:
+        return AppAssets.uiLeafField;
+      case FarmArtworkVariant.field:
+        return AppAssets.uiFieldSprayer;
+      case FarmArtworkVariant.crops:
+        return AppAssets.uiProduceMarket;
+      case FarmArtworkVariant.dashboard:
+        return AppAssets.uiSmartFarm;
+    }
+  }
+
+  Alignment _alignmentForVariant(FarmArtworkVariant variant) {
+    switch (variant) {
+      case FarmArtworkVariant.welcome:
+        return Alignment.center;
+      case FarmArtworkVariant.field:
+        return Alignment.center;
+      case FarmArtworkVariant.crops:
+        return Alignment.centerLeft;
+      case FarmArtworkVariant.dashboard:
+        return Alignment.centerRight;
+    }
+  }
+}
+
+class _FarmAccentPainter extends CustomPainter {
+  const _FarmAccentPainter({
+    required this.variant,
+    required this.showFarmer,
+  });
+
+  final FarmArtworkVariant variant;
+  final bool showFarmer;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint glow = Paint()
+      ..shader = RadialGradient(
+        colors: <Color>[
+          Colors.white.withOpacity(0.26),
+          Colors.white.withOpacity(0),
+        ],
+      ).createShader(
+        Rect.fromCircle(
+          center: Offset(size.width * 0.16, size.height * 0.16),
+          radius: size.width * 0.38,
+        ),
+      );
+    canvas.drawRect(Offset.zero & size, glow);
+
+    final Paint leaf = Paint()..color = Colors.white.withOpacity(0.18);
+    final List<Offset> anchors = <Offset>[
+      Offset(size.width * 0.10, size.height * 0.88),
+      Offset(size.width * 0.86, size.height * 0.18),
+      Offset(size.width * 0.76, size.height * 0.88),
+    ];
+    for (final Offset anchor in anchors) {
+      for (int i = 0; i < 3; i++) {
+        final double offset = i * 12.0;
+        final Path path = Path()..moveTo(anchor.dx + offset, anchor.dy);
+        path.quadraticBezierTo(anchor.dx + offset - 18, anchor.dy - 26, anchor.dx + offset + 2, anchor.dy - 52);
+        path.quadraticBezierTo(anchor.dx + offset + 24, anchor.dy - 26, anchor.dx + offset, anchor.dy);
+        canvas.drawPath(path, leaf);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _FarmAccentPainter oldDelegate) {
+    return oldDelegate.variant != variant || oldDelegate.showFarmer != showFarmer;
   }
 }
 

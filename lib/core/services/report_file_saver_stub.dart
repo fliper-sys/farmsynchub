@@ -10,6 +10,15 @@ class _UnsupportedReportFileSaver implements ReportFileSaver {
   }) async {
     throw UnsupportedError('PDF export is not supported on this platform.');
   }
+
+  @override
+  Future<String> saveBytes({
+    required Uint8List bytes,
+    required String fileName,
+    required String mimeType,
+  }) async {
+    throw UnsupportedError('File export is not supported on this platform.');
+  }
 }
 
 ReportFileSaver createReportFileSaverImpl() => _UnsupportedReportFileSaver();

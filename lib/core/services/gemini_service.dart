@@ -9,7 +9,7 @@ import '../../domain/models/chat_message.dart';
 
 const String _kApiKey = String.fromEnvironment(
   'GEMINI_API_KEY',
-  defaultValue: '',
+  defaultValue: 'AIzaSyDrDAtU0L5A8o1LGbRnYqwwRgvx8Svnm_Y',
 );
 const List<String> _kModelNames = <String>[
   'gemini-2.0-flash',
@@ -43,6 +43,7 @@ class GeminiService {
 
   final Map<AiTopic, List<ChatMessage>> _history = <AiTopic, List<ChatMessage>>{};
   final Map<String, _CachedResponse> _cache = <String, _CachedResponse>{};
+  DateTime? _rateLimitedUntil;
 
   bool get hasApiKey => _kApiKey.isNotEmpty && !_kApiKey.contains('YOUR_GEMINI_API_KEY_HERE');
 
@@ -74,6 +75,16 @@ class GeminiService {
       );
     }
 
+    final DateTime? rateLimitedUntil = _rateLimitedUntil;
+    if (rateLimitedUntil != null && DateTime.now().isBefore(rateLimitedUntil)) {
+      return _offlineRateLimitResponse(
+        topic: topic,
+        message: trimmedMessage,
+        imageBytes: imageBytes,
+        retryAt: rateLimitedUntil,
+      );
+    }
+
     if (imageBytes == null) {
       final cached = _getFromCache(trimmedMessage, topic);
       if (cached != null) {
@@ -92,6 +103,26 @@ class GeminiService {
     try {
       final _GeminiAttemptResult result = await _sendWithFallbackModels(requestBody, topic);
       if (result.response.statusCode != 200) {
+        if (result.response.statusCode == 429) {
+          _rateLimitedUntil = DateTime.now().add(const Duration(minutes: 10));
+          final ChatMessage offlineMessage = _offlineRateLimitResponse(
+            topic: topic,
+            message: trimmedMessage,
+            imageBytes: imageBytes,
+            retryAt: _rateLimitedUntil!,
+          );
+          _addToHistory(
+            topic,
+            ChatMessage.fromUser(
+              trimmedMessage,
+              topic: topic,
+              hasImage: imageBytes != null,
+            ),
+          );
+          _addToHistory(topic, offlineMessage);
+          await _persistHistory(topic);
+          return offlineMessage;
+        }
         return _handleError(
           topic,
           result.response.statusCode,
@@ -122,16 +153,18 @@ class GeminiService {
       await _persistHistory(topic);
       return aiMessage;
     } on SocketException {
-      return ChatMessage.fromAi(
-        'No internet connection. Check your network and try again.',
+      return _offlineUnavailableResponse(
         topic: topic,
-        isError: true,
+        message: trimmedMessage,
+        imageBytes: imageBytes,
+        reason: 'No internet connection was detected.',
       );
     } on HttpException {
-      return ChatMessage.fromAi(
-        'The AI service could not be reached right now. Please try again shortly.',
+      return _offlineUnavailableResponse(
         topic: topic,
-        isError: true,
+        message: trimmedMessage,
+        imageBytes: imageBytes,
+        reason: 'The AI service could not be reached.',
       );
     } catch (_) {
       return ChatMessage.fromAi(
@@ -342,8 +375,8 @@ class GeminiService {
       case 429:
         return ChatMessage.fromAi(
           apiMessage.isEmpty
-              ? 'Too many AI requests were sent at once. Wait a moment and try again.'
-              : 'Too many AI requests were sent: $apiMessage',
+              ? 'Too many AI requests were sent. Gemini is rate-limiting this key, so wait about a minute before trying again. If this keeps happening, check the Gemini quota or use another key.'
+              : 'Too many AI requests were sent. Gemini is rate-limiting this key: $apiMessage',
           topic: topic,
           isError: true,
         );
@@ -365,6 +398,96 @@ class GeminiService {
           isError: true,
         );
     }
+  }
+
+  ChatMessage _offlineRateLimitResponse({
+    required AiTopic topic,
+    required String message,
+    required List<int>? imageBytes,
+    required DateTime retryAt,
+  }) {
+    final int waitMinutes = retryAt.difference(DateTime.now()).inMinutes + 1;
+    final String advice = _localFarmAdvice(topic, message);
+    final String imageNote = imageBytes == null
+        ? ''
+        : '\n\nImage note: Gemini is rate-limited, so I cannot inspect the photo right now. Save the photo and retry after the cooldown.';
+
+    return ChatMessage.fromAi(
+      'Gemini is rate-limiting this API key, so I switched to offline farm guidance for now. Try the live AI again in about $waitMinutes minutes.\n\n$advice$imageNote',
+      topic: topic,
+    );
+  }
+
+  ChatMessage _offlineUnavailableResponse({
+    required AiTopic topic,
+    required String message,
+    required List<int>? imageBytes,
+    required String reason,
+  }) {
+    final String advice = _localFarmAdvice(topic, message);
+    final String imageNote = imageBytes == null
+        ? ''
+        : '\n\nImage note: I cannot inspect the photo while offline. Keep the image attached or upload it again when internet or quota is available.';
+
+    return ChatMessage.fromAi(
+      '$reason I switched to offline FarmSync guidance until Gemini is available again.\n\n$advice$imageNote',
+      topic: topic,
+    );
+  }
+
+  String _localFarmAdvice(AiTopic topic, String message) {
+    final String lower = message.toLowerCase();
+    final List<String>? exactAnswers = _offlineAnswersFor(topic, message);
+    if (exactAnswers != null && exactAnswers.isNotEmpty) {
+      final int historyCount = _history[topic]?.length ?? 0;
+      return exactAnswers[historyCount % exactAnswers.length];
+    }
+
+    switch (topic) {
+      case AiTopic.cropManagement:
+        return 'Crop action plan:\n- Check crop stage, soil moisture, and leaf color before applying inputs.\n- Record the field, date, product used, quantity, and labour cost in crop records.\n- If leaves are yellowing, compare watering, nutrient deficiency, and pest signs before treatment.\n- For urgent field problems, take clear photos and ask an extension officer or retry Gemini later.';
+      case AiTopic.animalHealth:
+        return 'Animal care action plan:\n- Separate weak or sick animals and check feed, water, temperature, stool, coughing, and wounds.\n- Record symptoms, treatment, vaccination status, and mortality risk in livestock records.\n- Keep housing dry and clean, and call a vet quickly for sudden deaths, severe diarrhoea, or breathing trouble.\n- Update stock counts after births, sales, deaths, or transfers.';
+      case AiTopic.diseaseAndPest:
+        return 'Pest and disease action plan:\n- Inspect both sides of leaves, stems, fruit, and nearby healthy plants.\n- Do not spray blindly; identify whether signs look like insects, fungus, bacteria, nutrient stress, or water stress.\n- Remove badly affected plant parts where safe, improve spacing/airflow, and document the affected bed.\n- Retry live AI with a clear close-up photo when quota is available.';
+      case AiTopic.soilAndWater:
+        return 'Soil and water action plan:\n- Use a simple soil squeeze test before irrigation.\n- Mulch exposed beds, avoid waterlogging, and record rainfall or irrigation dates.\n- If soil stays wet after rain, improve drains and avoid walking heavy paths through beds.\n- Match watering to crop stage; young crops need steadier moisture than mature crops.';
+      case AiTopic.marketAndFinance:
+        return 'Market and finance action plan:\n- Record every sale with buyer, product, quantity, unit price, transport, and receipt number.\n- Compare at least three buyer prices before large sales.\n- Track input costs immediately so profit is not guessed after harvest.\n- If prices are low, compare storage loss risk against waiting for a better market day.';
+      case AiTopic.weatherAndClimate:
+        return 'Weather planning action plan:\n- Move spraying, harvesting, drying, and transport away from heavy rain periods.\n- Check drainage before storms and cover feed, fertiliser, documents, and harvested produce.\n- During hot dry days, irrigate early morning or evening and watch young plants first.\n- Keep a daily task list for weather-sensitive farm work.';
+      case AiTopic.general:
+        if (lower.contains('goat') || lower.contains('chicken') || lower.contains('cattle') || lower.contains('animal')) {
+          return _localFarmAdvice(AiTopic.animalHealth, message);
+        }
+        if (lower.contains('sale') || lower.contains('price') || lower.contains('profit') || lower.contains('money')) {
+          return _localFarmAdvice(AiTopic.marketAndFinance, message);
+        }
+        return 'Farm action plan:\n- Write the issue as a record: farm, crop/animal, date, symptoms, cost, and next action.\n- Start with observation before treatment: moisture, weather, pests, health signs, and recent input use.\n- Add a reminder so the issue is checked again tomorrow.\n- Retry Gemini later for a more specific live answer.';
+    }
+  }
+
+  List<String>? _offlineAnswersFor(AiTopic topic, String message) {
+    final String normalizedMessage = _normalizeQuestion(message);
+    final Map<String, List<String>> answers = _kOfflineAnswerBank[topic] ?? const <String, List<String>>{};
+
+    for (final MapEntry<String, List<String>> entry in answers.entries) {
+      final String normalizedQuestion = _normalizeQuestion(entry.key);
+      if (normalizedMessage == normalizedQuestion ||
+          normalizedMessage.contains(normalizedQuestion) ||
+          normalizedQuestion.contains(normalizedMessage)) {
+        return entry.value;
+      }
+    }
+    return null;
+  }
+
+  String _normalizeQuestion(String value) {
+    return value
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9 ]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   String _extractApiErrorMessage(String responseBody) {
@@ -466,6 +589,151 @@ class _GeminiAttemptResult {
 
 const String _kFallbackMessage =
     'I could not generate a response for that question. Please rephrase it or ask a nearby agricultural extension office for help.';
+
+const Map<AiTopic, Map<String, List<String>>> _kOfflineAnswerBank = <AiTopic, Map<String, List<String>>>{
+  AiTopic.cropManagement: <String, List<String>>{
+    'When is the best time to plant Irish potatoes in Jos?': <String>[
+      'Offline guide: In Jos South, Irish potatoes usually do well when planting is timed with cool, moist conditions. For rain-fed fields, target the early rainy season once rains are steady and the soil is workable. For dry-season production, use irrigation and avoid the hottest periods.\n\nPractical steps:\n- Use clean seed tubers.\n- Plant on ridges or well-drained beds.\n- Avoid waterlogged areas because potatoes rot easily.\n- Record planting date and expected harvest window in crop records.',
+      'Offline guide: Plant potatoes when the soil is moist but not soaked. In Plateau conditions, many farmers use the rainy season for easier moisture management, while dry-season farmers depend on irrigation.\n\nQuick checklist:\n- Prepare loose, well-drained soil.\n- Use disease-free seed.\n- Hill up soil as plants grow.\n- Watch for late blight during cool wet periods.',
+    ],
+    'My tomato leaves are turning yellow. What could be wrong?': <String>[
+      'Offline diagnosis: Yellow tomato leaves can come from too much water, too little nitrogen, old lower leaves, root stress, or disease. Check whether yellowing starts from old leaves, whether soil is waterlogged, and whether there are spots or wilting.\n\nNext action:\n- Check soil moisture first.\n- Remove badly diseased leaves.\n- Apply balanced nutrition only if moisture is stable.\n- Take a clear photo and retry live AI when quota returns.',
+      'Offline guide: Start with observation before treatment. If lower leaves yellow evenly, nutrient shortage is possible. If yellowing comes with brown spots, suspect disease. If plants wilt in wet soil, root problems may be involved.\n\nRecord this in crop notes: field, date, affected area, recent fertilizer, watering pattern, and photo.',
+    ],
+    'How much NPK fertilizer do I need for 1 hectare of maize?': <String>[
+      'Offline guide: Fertilizer rate depends on soil fertility and NPK grade, so avoid guessing if soil test is available. As a practical smallholder step, split fertilizer application instead of applying everything once.\n\nPlan:\n- Apply basal fertilizer after establishment if soil moisture is good.\n- Top dress when maize is actively growing.\n- Do not apply fertilizer to dry soil.\n- Track quantity and cost in finance records.',
+      'Offline caution: Without soil test and exact NPK grade, I cannot give a safe precise rate. Use local extension recommendations for your ward and maize variety.\n\nGood practice:\n- Place fertilizer away from seed to avoid burning.\n- Weed before top dressing.\n- Apply before light rain or irrigate after application.\n- Compare plant color one week later.',
+    ],
+    'How do I control late blight on potatoes?': <String>[
+      'Offline guide: Late blight spreads fast in cool, wet weather. Look for dark water-soaked leaf patches, white growth under leaves, and rapid plant collapse.\n\nActions:\n- Remove badly infected leaves carefully.\n- Improve airflow and avoid overhead watering.\n- Use recommended fungicide from a trusted agro dealer.\n- Do not delay if weather is wet; scout every 2-3 days.',
+      'Offline emergency plan: Separate affected sections, avoid moving through wet plants, and record where symptoms started. If infection is spreading, speak with extension staff or a reliable input provider for the right fungicide and dosage.\n\nPrevention: clean seed, crop rotation, drainage, and early scouting.',
+    ],
+    'What spacing is best for onions?': <String>[
+      'Offline guide: Onion spacing depends on variety and bulb size target. A common approach is close spacing for smaller bulbs and wider spacing for bigger bulbs.\n\nPractical rule:\n- Keep rows straight for easy weeding.\n- Avoid overcrowding because airflow reduces disease pressure.\n- Thin weak plants early.\n- Record bed size, plant population, and harvest yield.',
+      'Offline tip: For onions, consistent spacing matters as much as the exact number. Leave enough room for hand weeding and bulb expansion. If disease pressure is high, give plants more airflow rather than crowding them.',
+    ],
+  },
+  AiTopic.animalHealth: <String, List<String>>{
+    'What vaccines should my goats get this season?': <String>[
+      'Offline guide: Goat vaccine schedules depend on local disease risk, age, and veterinary advice. In many smallholder systems, farmers plan around PPR and other locally advised vaccines.\n\nAction:\n- Call a local vet/extension worker for the exact vaccine list.\n- Record vaccine name, date, batch, provider, and next due date.\n- Keep sick animals separate before vaccination.',
+      'Offline checklist: Do not vaccinate weak, feverish, or heavily stressed goats without vet guidance. Keep vaccines cold, use clean needles, and mark treated groups in livestock records. Add a reminder for the next dose.',
+    ],
+    'My chickens are dying suddenly. What could cause it?': <String>[
+      'Offline urgent guide: Sudden chicken deaths can be serious. Possible causes include Newcastle disease, poisoning, heat stress, contaminated feed/water, or severe infection.\n\nDo now:\n- Isolate sick birds.\n- Remove dead birds safely.\n- Check feed, water, and housing ventilation.\n- Call a vet quickly if deaths continue.',
+      'Offline triage: Look for twisted neck, green diarrhoea, coughing, swollen face, blood in droppings, or sudden weakness. Do not sell or move birds while deaths continue. Record mortality count and time in livestock records.',
+    ],
+    'How do I deworm my goats properly?': <String>[
+      'Offline guide: Deworming should match animal weight and local parasite risk. Under-dosing encourages resistance; over-dosing can harm animals.\n\nSteps:\n- Estimate or weigh goats.\n- Use the correct product and dose label.\n- Treat the group consistently.\n- Keep housing dry and rotate grazing where possible.',
+      'Offline reminder: Deworming alone is not enough. Improve sanitation, avoid overcrowding, and watch for pale eyelids, bottle jaw, diarrhoea, poor weight gain, or rough coat. Record date and product used.',
+    ],
+    'What feed ratio is good for broilers at week 6?': <String>[
+      'Offline guide: Week 6 broilers usually need a finisher ration with good protein-energy balance and constant clean water. Exact ratio depends on feed brand/formulation.\n\nPractical actions:\n- Use reputable finisher feed.\n- Avoid sudden feed changes.\n- Keep feeders clean and dry.\n- Track feed bags used and weight gain.',
+      'Offline tip: At week 6, performance depends heavily on water, ventilation, stocking density, and feed quality. If growth is poor, check heat stress, disease, feeder access, and whether feed is stale or mouldy.',
+    ],
+    'What are danger signs during farrowing?': <String>[
+      'Offline guide: Danger signs include prolonged straining without piglet delivery, heavy bleeding, foul discharge, fever, weakness, or piglets stuck for too long.\n\nAction:\n- Keep the area clean and quiet.\n- Do not pull aggressively.\n- Call a vet if labour is prolonged or sow is distressed.\n- Record birth count, stillbirths, and sow condition.',
+      'Offline checklist: Prepare clean bedding, disinfect hands/tools, keep piglets warm, and ensure each piglet gets colostrum. Watch the sow after farrowing for fever, poor appetite, or swollen udder.',
+    ],
+  },
+  AiTopic.diseaseAndPest: <String, List<String>>{
+    'There are holes in my cabbage leaves. What pest is this?': <String>[
+      'Offline diagnosis: Holes in cabbage leaves are often caused by caterpillars, diamondback moth larvae, grasshoppers, or beetles. Check the underside of leaves for larvae and eggs.\n\nAction:\n- Hand-pick if infestation is light.\n- Remove badly damaged leaves.\n- Use recommended control only after confirming pest.\n- Scout early morning or evening.',
+      'Offline guide: Look at the hole pattern. Small many holes may suggest tiny larvae; large ragged holes may suggest bigger caterpillars or grasshoppers. Record affected beds and retry live AI with a close photo later.',
+    ],
+    'My maize leaves have a white powder. What does it mean?': <String>[
+      'Offline diagnosis: White powder can be fungal growth, dust, or residue from sprays. If it rubs off and spreads on leaves, suspect powdery mildew or another fungal issue.\n\nAction:\n- Improve spacing and airflow.\n- Avoid overhead irrigation.\n- Check if nearby plants show the same sign.\n- Ask extension support if spreading fast.',
+      'Offline check: Confirm whether the white material is powder, insect residue, or chemical deposit. Take a photo, note weather conditions, and avoid applying more chemicals until you know the cause.',
+    ],
+    'My goat is coughing and has nose discharge.': <String>[
+      'Offline animal health guide: Coughing with nasal discharge may be respiratory infection, dust irritation, pneumonia risk, or parasites. Separate the goat and check temperature, appetite, breathing, and discharge color.\n\nCall a vet if breathing is fast, discharge is thick, or the animal is weak.',
+      'Offline action: Move the goat to a dry, clean, well-ventilated pen. Reduce dust, provide clean water, and record symptoms. Do not mix it with healthy animals until the cause is clear.',
+    ],
+    'Caterpillars are eating my potato plants. What can I spray?': <String>[
+      'Offline guide: First confirm caterpillars are present and active. Check leaf undersides and field edges.\n\nActions:\n- Hand-pick in small plots.\n- Remove heavily damaged leaves.\n- Ask an agro dealer/extension worker for a potato-safe product and correct pre-harvest interval.\n- Avoid spraying during wind or before rain.',
+      'Offline caution: Do not spray blindly. Identify the pest, crop stage, and harvest timing first. Use protective clothing, follow label dosage, and record product, date, and cost in crop/finance records.',
+    ],
+    'My tomato fruits have brown patches inside. What is it?': <String>[
+      'Offline diagnosis: Brown patches inside tomato fruit can come from blossom end rot, disease, sunscald, or nutrient/water stress. If patches are at the blossom end, calcium uptake and irregular watering may be involved.\n\nAction: keep moisture steady and remove badly affected fruits.',
+      'Offline guide: Cut a few fruits and compare. Record whether the patch is at the bottom, side, or inside only. Check watering pattern, heat stress, and variety. Retry live AI with fruit photos when quota returns.',
+    ],
+  },
+  AiTopic.soilAndWater: <String, List<String>>{
+    'How do I know if my soil pH is good for potatoes?': <String>[
+      'Offline guide: The best way is a soil test. Potatoes generally prefer slightly acidic soil, but exact target and amendments should follow local test results.\n\nAction:\n- Test soil before planting.\n- Avoid fresh lime unless advised.\n- Improve organic matter and drainage.\n- Record pH result in farm notes.',
+      'Offline tip: Poor potato growth can come from pH, low fertility, disease, or waterlogging. If you cannot test immediately, compare crop performance across beds and avoid fields with known scab or drainage problems.',
+    ],
+    'How do I make compost from farm waste?': <String>[
+      'Offline guide: Mix dry materials, green materials, manure, and a little soil. Keep the pile moist like a squeezed sponge, not soaked.\n\nSteps:\n- Layer dry stalks/leaves with green waste/manure.\n- Turn every 1-2 weeks.\n- Cover during heavy rain.\n- Use when dark, crumbly, and earthy-smelling.',
+      'Offline warning: Do not add diseased plant material, plastics, chemicals, or fresh uncomposted waste directly around young crops. Good compost improves water holding and soil life.',
+    ],
+    'My field stays waterlogged after rain. What should I do?': <String>[
+      'Offline guide: Waterlogging reduces roots and encourages disease.\n\nActions:\n- Open shallow drains to move excess water away.\n- Use raised beds or ridges.\n- Avoid walking or tilling when soil is wet.\n- Add organic matter over time to improve structure.',
+      'Offline plan: Map where water stands longest after rain. Plant water-sensitive crops on higher beds and keep livestock/feed away from muddy zones. Record drainage work as a farm task.',
+    ],
+    'How often should I irrigate dry season vegetables?': <String>[
+      'Offline guide: Frequency depends on crop stage, soil, mulch, heat, and wind. Young vegetables need steady moisture; mature crops may tolerate slightly longer intervals.\n\nUse this test: squeeze soil from root depth. If it crumbles dry, irrigate. If it forms a wet sticky ball, wait.',
+      'Offline tip: Irrigate early morning or evening to reduce loss. Mulch beds, group crops by water need, and record irrigation dates so you can learn the pattern for your farm.',
+    ],
+    'How can I improve sandy soil on the Jos Plateau?': <String>[
+      'Offline guide: Sandy soil loses water and nutrients quickly.\n\nActions:\n- Add compost or well-rotted manure.\n- Mulch exposed soil.\n- Split fertilizer into smaller doses.\n- Plant cover crops where possible.\n- Avoid burning residues.',
+      'Offline plan: Improve sandy soil gradually. Keep living roots or mulch on the soil, add organic matter every season, and avoid heavy watering that washes nutrients below roots.',
+    ],
+  },
+  AiTopic.marketAndFinance: <String, List<String>>{
+    'How do I calculate farm profit for this season?': <String>[
+      'Offline formula: Profit = total sales income - total costs.\n\nTrack:\n- Seed, fertilizer, feed, medicine, labour, transport, rent, packaging.\n- Sales by buyer, product, quantity, and price.\n- Losses/spoilage.\nUse the finance screen to register expenses and receipts.',
+      'Offline guide: Do not calculate from memory. Enter each input as it happens, then enter each sale with receipt. Compare profit per crop or animal group, not only whole-farm profit.',
+    ],
+    'When is the best time to sell tomatoes for better prices?': <String>[
+      'Offline guide: Best timing depends on supply, spoilage risk, transport, and buyer demand. Prices often fall when many farmers harvest at once.\n\nAction:\n- Compare 3 buyers.\n- Estimate spoilage if you wait.\n- Sell lower-grade fruits first.\n- Record buyer price history.',
+      'Offline tip: If tomatoes are ripe and storage is weak, waiting can lose more than a higher price gains. Sort fruits, sell ripe stock quickly, and hold only firm healthy fruits if market signals are improving.',
+    ],
+    'How do I access a small farm loan in Plateau State?': <String>[
+      'Offline guide: Prepare records before applying. Lenders want identity, farm activity, expected income, costs, and repayment plan.\n\nChecklist:\n- Farm profile.\n- Crop/livestock records.\n- Sales history.\n- Input costs.\n- Simple cashflow plan.',
+      'Offline caution: Compare interest, fees, repayment timing, collateral, and penalties. Avoid loans where repayment is due before harvest or sales income is likely.',
+    ],
+    'What is the best way to store onions after harvest?': <String>[
+      'Offline guide: Cure onions properly before storage. Keep them dry, shaded, and ventilated.\n\nSteps:\n- Harvest when tops fall and bulbs mature.\n- Cure under shade with airflow.\n- Remove damaged bulbs.\n- Store off the floor in breathable bags/crates.',
+      'Offline warning: Moisture is the enemy. Do not store wet onions in sealed bags. Check regularly and remove rotting bulbs before they spread losses.',
+    ],
+    'Help me make a simple poultry startup budget.': <String>[
+      'Offline budget headings:\n- Chicks or point-of-lay birds.\n- Feed by growth stage.\n- Vaccines/medicine.\n- Housing, drinkers, feeders, bedding.\n- Labour, transport, electricity/heat.\n- Emergency reserve.\n- Expected sales and mortality allowance.',
+      'Offline guide: Start with flock size, then calculate cost per bird and expected sale income. Include losses and feed price changes. Use finance records from day one so profit is clear.',
+    ],
+  },
+  AiTopic.weatherAndClimate: <String, List<String>>{
+    'When do rains usually start in Jos South?': <String>[
+      'Offline guide: Rain onset varies by year, so use current local forecasts before planting. Farmers often prepare before steady rains and plant when rainfall becomes reliable, not after one isolated shower.\n\nAction: keep seed and ridges ready, but wait for consistent moisture.',
+      'Offline planning: Watch for two or more meaningful rains and soil moisture at planting depth. Keep early seed protected from dry spells and record first effective rain in farm notes.',
+    ],
+    'What crops suit dry season farming in Jos?': <String>[
+      'Offline guide: Dry-season options depend on irrigation. Vegetables such as tomato, pepper, cabbage, onion, leafy greens, and irrigated potatoes may work where water is reliable.\n\nCheck: water source, market demand, pest pressure, and labour.',
+      'Offline caution: Choose crops by water availability, not only price. Start with a manageable area, mulch heavily, and track irrigation cost in finance records.',
+    ],
+    'How do I protect crops from harmattan winds?': <String>[
+      'Offline guide: Harmattan can dry leaves and soil quickly.\n\nActions:\n- Mulch beds.\n- Use windbreaks where possible.\n- Irrigate early or evening.\n- Protect seedlings with light shade.\n- Avoid spraying during strong wind.',
+      'Offline tip: Young crops suffer most. Group sensitive seedlings near wind protection, reduce exposed soil, and inspect leaf scorch or wilting daily.',
+    ],
+    'Help me plan a planting calendar for Jos South.': <String>[
+      'Offline planning steps:\n- List crops and maturity days.\n- Mark expected rain start, dry spells, and harvest targets.\n- Match crops to field drainage and water source.\n- Add reminders for nursery, transplanting, fertilizer, scouting, and harvest.',
+      'Offline guide: Build the calendar backwards from market or household need. Add buffer days for rain delays, labour shortages, and input purchase time. Keep it updated in crop records.',
+    ],
+  },
+  AiTopic.general: <String, List<String>>{
+    'How can FarmSync help me manage my farm?': <String>[
+      'Offline answer: Use FarmSync to connect farm profiles, crop records, livestock groups, reminders, input costs, sales, receipts, and learning notes in one place. Start by creating a farm, then link crops, animals, finance, and tasks to it.',
+      'Offline answer: FarmSync works best when you record small actions daily: planting, treatment, feeding, irrigation, expenses, sales, and reminders. Those records make profit, planning, and advisory support easier.',
+    ],
+    'What should I record every day?': <String>[
+      'Offline answer: Record weather, tasks done, crop or animal changes, input used, labour, expenses, sales, and issues noticed. Add photos when possible.',
+      'Offline answer: A good daily farm note includes date, farm section, crop/animal, what changed, what was spent, who worked, and next action.',
+    ],
+    'How do I prepare for the next farming season?': <String>[
+      'Offline answer: Review last season profit, input use, pest problems, labour gaps, and market timing. Then prepare seed, soil, finance, water source, and a task calendar before planting.',
+      'Offline answer: Start with records: what worked, what failed, and what cost too much. Use that to choose crops, set budget, plan irrigation, and schedule reminders.',
+    ],
+  },
+};
 
 const Map<AiTopic, List<String>> _kSuggestedQuestions = <AiTopic, List<String>>{
   AiTopic.cropManagement: <String>[

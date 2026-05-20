@@ -6,9 +6,14 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/validators.dart';
 import '../../../domain/models/farm.dart';
+import '../../../domain/models/farm_activity.dart';
 import '../../../domain/models/livestock.dart';
+import '../../../domain/models/notification.dart' as farm_notification;
+import '../../../domain/models/transaction.dart';
 import '../../../providers/farm_provider.dart';
+import '../../../providers/finance_provider.dart';
 import '../../../providers/livestock_provider.dart';
+import '../../../providers/notification_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
@@ -41,6 +46,8 @@ class LivestockScreen extends ConsumerWidget {
     final int healthAverage = livestock.isEmpty
         ? 0
         : (livestock.fold(0, (int sum, Livestock item) => sum + item.healthScore) / livestock.length).round();
+    final int openTaskCount = livestock.fold<int>(0, (int sum, Livestock item) => sum + item.openTaskCount);
+    final double inputSpend = livestock.fold<double>(0, (double sum, Livestock item) => sum + item.syncedInputCost);
 
     return SoftScreenScaffold(
       heroTitle: 'Livestock care',
@@ -66,8 +73,8 @@ class LivestockScreen extends ConsumerWidget {
           children: <Widget>[
             Expanded(
               child: SoftInfoChip(
-                label: 'Animals',
-                value: '$animalCount',
+                label: 'Open tasks',
+                value: '$openTaskCount',
                 color: const Color(0xFFE9F4DB),
               ),
             ),
@@ -85,6 +92,26 @@ class LivestockScreen extends ConsumerWidget {
                 label: 'Health score',
                 value: '$healthAverage%',
                 color: const Color(0xFFFFE9D0),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: SoftInfoChip(
+                label: 'Animals',
+                value: '$animalCount',
+                color: const Color(0xFFEDE8FF),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: SoftInfoChip(
+                label: 'Inputs synced',
+                value: CurrencyUtils.formatCurrency(inputSpend),
+                color: const Color(0xFFFFF2C7),
               ),
             ),
           ],
@@ -118,6 +145,10 @@ class LivestockScreen extends ConsumerWidget {
                 farmName: farmById[item.farmId]?.name ?? 'Unknown farm',
                 onEdit: () => _openLivestockSheet(context, ref, farms: farms, livestock: item),
                 onDelete: () => _confirmDelete(context, ref, item),
+                onAddTask: () => _openLivestockTaskSheet(context, ref, item),
+                onAddInput: () => _openLivestockInputSheet(context, ref, item),
+                onAdjustStock: () => _openStockCountSheet(context, ref, item),
+                onToggleTask: (FarmTodoItem task) => _toggleLivestockTask(context, ref, item, task),
               ),
             ),
           ),
@@ -163,6 +194,12 @@ class LivestockScreen extends ConsumerWidget {
       createdAt: livestock?.createdAt ?? now,
       updatedAt: now,
       isSynced: livestock?.isSynced ?? false,
+      profileImageBase64: livestock?.profileImageBase64 ?? '',
+      todoItems: livestock?.todoItems ?? const <FarmTodoItem>[],
+      inputRecords: livestock?.inputRecords ?? const <FarmInputRecord>[],
+      stockNotes: livestock?.stockNotes ?? _stockSummary(draft.count, draft.maleCount, draft.femaleCount),
+      intelligenceNotes: livestock?.intelligenceNotes ?? _livestockIntelligenceSummary(draft.species, draft.healthScore, draft.vaccinationStatus),
+      lastIntelligenceSyncAt: now,
     );
 
     if (livestock == null) {
@@ -175,6 +212,162 @@ class LivestockScreen extends ConsumerWidget {
       if (context.mounted) {
         context.showSnackBar('Livestock record updated successfully');
       }
+    }
+  }
+
+  Future<void> _openLivestockTaskSheet(BuildContext context, WidgetRef ref, Livestock livestock) async {
+    final FarmTodoItem? task = await showModalBottomSheet<FarmTodoItem>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) => _TodoFormSheet(entityName: _speciesLabel(livestock.species)),
+    );
+    if (task == null) {
+      return;
+    }
+    await ref.read(livestockProvider.notifier).updateLivestock(
+          livestock.copyWith(
+            todoItems: <FarmTodoItem>[task, ...livestock.todoItems],
+            updatedAt: DateTime.now(),
+            isSynced: false,
+            intelligenceNotes: _livestockIntelligenceSummary(livestock.species, livestock.healthScore, livestock.vaccinationStatus),
+            lastIntelligenceSyncAt: DateTime.now(),
+          ),
+        );
+    if (task.pushNotificationEnabled) {
+      ref.read(notificationsProvider.notifier).addNotification(
+            title: 'Animal reminder: ${task.title}',
+            message:
+                '${_speciesLabel(livestock.species)} reminder due ${_dateLabel(task.dueDate)}.${task.dailyReminder ? ' Repeats daily.' : ''}',
+            type: farm_notification.NotificationType.info,
+            actionUrl: '/livestock',
+            metadata: <String, dynamic>{
+              'entityType': 'livestock',
+              'entityId': livestock.id,
+              'priority': task.priority.name,
+            },
+          );
+    }
+    if (context.mounted) {
+      context.showSnackBar('Animal reminder saved for sync and notification planning.');
+    }
+  }
+
+  Future<void> _openLivestockInputSheet(BuildContext context, WidgetRef ref, Livestock livestock) async {
+    final FarmInputRecord? input = await showModalBottomSheet<FarmInputRecord>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) => _InputFormSheet(entityName: _speciesLabel(livestock.species)),
+    );
+    if (input == null) {
+      return;
+    }
+
+    final String transactionId = const Uuid().v4();
+    final FarmInputRecord syncedInput = FarmInputRecord(
+      id: input.id,
+      name: input.name,
+      category: input.category,
+      quantity: input.quantity,
+      unit: input.unit,
+      unitCost: input.unitCost,
+      supplier: input.supplier,
+      notes: input.notes,
+      recordedAt: input.recordedAt,
+      financeSynced: input.totalCost > 0,
+      financeTransactionId: input.totalCost > 0 ? transactionId : '',
+      createdAt: input.createdAt,
+      updatedAt: DateTime.now(),
+    );
+
+    if (input.totalCost > 0) {
+      final DateTime now = DateTime.now();
+      await ref.read(transactionsProvider.notifier).addTransaction(
+            Transaction(
+              id: transactionId,
+              farmId: livestock.farmId,
+              type: TransactionType.expense,
+              category: _transactionCategoryForInput(input.category),
+              amount: input.totalCost,
+              description: '${input.name} for ${_speciesLabel(livestock.species)}',
+              transactionDate: input.recordedAt,
+              linkedEntityId: livestock.id,
+              createdAt: now,
+              updatedAt: now,
+              isSynced: false,
+              recordKind: TransactionRecordKind.procurement,
+              partyType: TransactionPartyType.provider,
+              productName: input.name,
+              quantity: input.quantity,
+              unit: input.unit,
+              unitPrice: input.unitCost,
+              counterpartyName: input.supplier,
+              notes: input.notes,
+            ),
+          );
+    }
+
+    await ref.read(livestockProvider.notifier).updateLivestock(
+          livestock.copyWith(
+            inputRecords: <FarmInputRecord>[syncedInput, ...livestock.inputRecords],
+            updatedAt: DateTime.now(),
+            isSynced: false,
+            intelligenceNotes: _livestockIntelligenceSummary(livestock.species, livestock.healthScore, livestock.vaccinationStatus),
+            lastIntelligenceSyncAt: DateTime.now(),
+          ),
+        );
+    if (context.mounted) {
+      context.showSnackBar(input.totalCost > 0 ? 'Animal input saved and synced to finance.' : 'Animal input stock saved.');
+    }
+  }
+
+  Future<void> _openStockCountSheet(BuildContext context, WidgetRef ref, Livestock livestock) async {
+    final _StockCountDraft? draft = await showModalBottomSheet<_StockCountDraft>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) => _StockCountSheet(livestock: livestock),
+    );
+    if (draft == null) {
+      return;
+    }
+    await ref.read(livestockProvider.notifier).updateLivestock(
+          livestock.copyWith(
+            count: draft.count,
+            maleCount: draft.maleCount,
+            femaleCount: draft.femaleCount,
+            stockNotes: draft.notes,
+            updatedAt: DateTime.now(),
+            isSynced: false,
+            intelligenceNotes: _livestockIntelligenceSummary(livestock.species, livestock.healthScore, livestock.vaccinationStatus),
+            lastIntelligenceSyncAt: DateTime.now(),
+          ),
+        );
+    if (context.mounted) {
+      context.showSnackBar('Stock count updated and marked for sync.');
+    }
+  }
+
+  Future<void> _toggleLivestockTask(BuildContext context, WidgetRef ref, Livestock livestock, FarmTodoItem task) async {
+    final DateTime now = DateTime.now();
+    final List<FarmTodoItem> tasks = livestock.todoItems
+        .map(
+          (FarmTodoItem item) => item.id == task.id
+              ? item.copyWith(
+                  isCompleted: !item.isCompleted,
+                  completedAt: item.isCompleted ? null : now,
+                  clearCompletedAt: item.isCompleted,
+                  updatedAt: now,
+                )
+              : item,
+        )
+        .toList();
+    await ref.read(livestockProvider.notifier).updateLivestock(
+          livestock.copyWith(todoItems: tasks, updatedAt: now, isSynced: false),
+        );
+    if (context.mounted) {
+      context.showSnackBar('Animal task updated.');
     }
   }
 
@@ -587,12 +780,20 @@ class _AnimalGroupCard extends StatelessWidget {
     required this.farmName,
     required this.onEdit,
     required this.onDelete,
+    required this.onAddTask,
+    required this.onAddInput,
+    required this.onAdjustStock,
+    required this.onToggleTask,
   });
 
   final Livestock livestock;
   final String farmName;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback onAddTask;
+  final VoidCallback onAddInput;
+  final VoidCallback onAdjustStock;
+  final ValueChanged<FarmTodoItem> onToggleTask;
 
   @override
   Widget build(BuildContext context) {
@@ -633,10 +834,25 @@ class _AnimalGroupCard extends StatelessWidget {
                             onEdit();
                             return;
                           }
+                          if (value == 'task') {
+                            onAddTask();
+                            return;
+                          }
+                          if (value == 'input') {
+                            onAddInput();
+                            return;
+                          }
+                          if (value == 'stock') {
+                            onAdjustStock();
+                            return;
+                          }
                           onDelete();
                         },
                         itemBuilder: (BuildContext context) => const <PopupMenuEntry<String>>[
                           PopupMenuItem<String>(value: 'edit', child: Text('Edit group')),
+                          PopupMenuItem<String>(value: 'task', child: Text('Add todo/reminder')),
+                          PopupMenuItem<String>(value: 'input', child: Text('Record input stock')),
+                          PopupMenuItem<String>(value: 'stock', child: Text('Adjust stock count')),
                           PopupMenuItem<String>(value: 'delete', child: Text('Delete group')),
                         ],
                       ),
@@ -660,7 +876,24 @@ class _AnimalGroupCard extends StatelessWidget {
                       _MiniTag(text: farmName, color: const Color(0xFFDFF1FF)),
                       _MiniTag(text: '${livestock.vaccinationStatus}% vaccinated', color: const Color(0xFFE9F4DB)),
                       _MiniTag(text: CurrencyUtils.formatCurrency(livestock.estimatedValue), color: const Color(0xFFFFE9D0)),
+                      _MiniTag(text: '${livestock.openTaskCount} open tasks', color: const Color(0xFFFFF2C7)),
+                      _MiniTag(text: '${livestock.inputRecords.length} inputs', color: const Color(0xFFEDE8FF)),
                     ],
+                  ),
+                  const SizedBox(height: 12),
+                  _SmartAnimalStrip(
+                    title: livestock.intelligenceNotes.isEmpty
+                        ? _livestockIntelligenceSummary(livestock.species, livestock.healthScore, livestock.vaccinationStatus)
+                        : livestock.intelligenceNotes,
+                    stockNotes: livestock.stockNotes.isEmpty
+                        ? _stockSummary(livestock.count, livestock.maleCount, livestock.femaleCount)
+                        : livestock.stockNotes,
+                    tasks: livestock.todoItems,
+                    inputs: livestock.inputRecords,
+                    onAddTask: onAddTask,
+                    onAddInput: onAddInput,
+                    onAdjustStock: onAdjustStock,
+                    onToggleTask: onToggleTask,
                   ),
                 ],
               ),
@@ -905,6 +1138,457 @@ class _MiniTag extends StatelessWidget {
   }
 }
 
+class _SmartAnimalStrip extends StatelessWidget {
+  const _SmartAnimalStrip({
+    required this.title,
+    required this.stockNotes,
+    required this.tasks,
+    required this.inputs,
+    required this.onAddTask,
+    required this.onAddInput,
+    required this.onAdjustStock,
+    required this.onToggleTask,
+  });
+
+  final String title;
+  final String stockNotes;
+  final List<FarmTodoItem> tasks;
+  final List<FarmInputRecord> inputs;
+  final VoidCallback onAddTask;
+  final VoidCallback onAddInput;
+  final VoidCallback onAdjustStock;
+  final ValueChanged<FarmTodoItem> onToggleTask;
+
+  @override
+  Widget build(BuildContext context) {
+    final Iterable<FarmTodoItem> openTasks = tasks.where((FarmTodoItem item) => !item.isCompleted).take(2);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface.withOpacity(0.72),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(title, style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.45)),
+          const SizedBox(height: 6),
+          Text(stockNotes, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
+          if (openTasks.isEmpty)
+            Text('No open animal reminders. Add feeding, vaccination, cleaning, or inspection tasks.', style: Theme.of(context).textTheme.bodySmall)
+          else
+            ...openTasks.map(
+              (FarmTodoItem task) => CheckboxListTile(
+                value: task.isCompleted,
+                onChanged: (_) => onToggleTask(task),
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: Text(task.title),
+                subtitle: Text(task.dailyReminder ? 'Daily reminder enabled' : _dateLabel(task.dueDate)),
+              ),
+            ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              OutlinedButton.icon(
+                onPressed: onAddTask,
+                icon: const Icon(Icons.notifications_active_outlined, size: 18),
+                label: const Text('Todo'),
+              ),
+              OutlinedButton.icon(
+                onPressed: onAddInput,
+                icon: const Icon(Icons.inventory_2_outlined, size: 18),
+                label: Text(inputs.isEmpty ? 'Input' : '${inputs.length} inputs'),
+              ),
+              OutlinedButton.icon(
+                onPressed: onAdjustStock,
+                icon: const Icon(Icons.add_chart_rounded, size: 18),
+                label: const Text('Stock'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TodoFormSheet extends StatefulWidget {
+  const _TodoFormSheet({required this.entityName});
+
+  final String entityName;
+
+  @override
+  State<_TodoFormSheet> createState() => _TodoFormSheetState();
+}
+
+class _TodoFormSheetState extends State<_TodoFormSheet> {
+  late final TextEditingController _titleController;
+  late final TextEditingController _notesController;
+  DateTime _dueDate = DateTime.now().add(const Duration(days: 1));
+  FarmTodoPriority _priority = FarmTodoPriority.normal;
+  bool _dailyReminder = true;
+  bool _pushEnabled = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: 'Check ${widget.entityName}');
+    _notesController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _SheetShell(
+      title: 'Animal todo and reminder',
+      subtitle: 'Create a daily care action for feeding, cleaning, vaccination, treatment, or inspection.',
+      children: <Widget>[
+        AppTextField(controller: _titleController, label: 'Task title', hint: 'Feed and inspect'),
+        const SizedBox(height: 12),
+        _DropdownField<FarmTodoPriority>(
+          label: 'Priority',
+          value: _priority,
+          items: FarmTodoPriority.values,
+          itemLabel: _priorityLabel,
+          onChanged: (FarmTodoPriority? value) {
+            if (value != null) {
+              setState(() => _priority = value);
+            }
+          },
+        ),
+        const SizedBox(height: 12),
+        _DateTile(
+          label: 'Due date',
+          value: _dueDate,
+          onTap: () async {
+            final DateTime? picked = await showDatePicker(
+              context: context,
+              initialDate: _dueDate,
+              firstDate: DateTime.now().subtract(const Duration(days: 1)),
+              lastDate: DateTime(2035),
+            );
+            if (picked != null) {
+              setState(() => _dueDate = picked);
+            }
+          },
+        ),
+        SwitchListTile(
+          value: _dailyReminder,
+          onChanged: (bool value) => setState(() => _dailyReminder = value),
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Daily reminder'),
+        ),
+        SwitchListTile(
+          value: _pushEnabled,
+          onChanged: (bool value) => setState(() => _pushEnabled = value),
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Push notification ready'),
+        ),
+        AppTextField(controller: _notesController, label: 'Notes', maxLines: 3),
+        const SizedBox(height: 18),
+        AppButton.primary(onPressed: _submit, child: const Text('Save reminder')),
+      ],
+    );
+  }
+
+  void _submit() {
+    final String title = _titleController.text.trim();
+    if (title.isEmpty) {
+      context.showSnackBar('Task title is required', isError: true);
+      return;
+    }
+    final DateTime now = DateTime.now();
+    Navigator.of(context).pop(
+      FarmTodoItem(
+        id: const Uuid().v4(),
+        title: title,
+        notes: _notesController.text.trim(),
+        dueDate: _dueDate,
+        priority: _priority,
+        dailyReminder: _dailyReminder,
+        pushNotificationEnabled: _pushEnabled,
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
+  }
+}
+
+class _InputFormSheet extends StatefulWidget {
+  const _InputFormSheet({required this.entityName});
+
+  final String entityName;
+
+  @override
+  State<_InputFormSheet> createState() => _InputFormSheetState();
+}
+
+class _InputFormSheetState extends State<_InputFormSheet> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _quantityController;
+  late final TextEditingController _unitController;
+  late final TextEditingController _unitCostController;
+  late final TextEditingController _supplierController;
+  late final TextEditingController _notesController;
+  FarmInputCategory _category = FarmInputCategory.feed;
+  DateTime _recordedAt = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: 'Feed');
+    _quantityController = TextEditingController(text: '1');
+    _unitController = TextEditingController(text: 'bag');
+    _unitCostController = TextEditingController(text: '0');
+    _supplierController = TextEditingController();
+    _notesController = TextEditingController(text: 'Used for ${widget.entityName}');
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _quantityController.dispose();
+    _unitController.dispose();
+    _unitCostController.dispose();
+    _supplierController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _SheetShell(
+      title: 'Animal input stock',
+      subtitle: 'Track feed, medicine, bedding, labour, and sync costs to finance records.',
+      children: <Widget>[
+        AppTextField(controller: _nameController, label: 'Input name', hint: 'Grower feed'),
+        const SizedBox(height: 12),
+        _DropdownField<FarmInputCategory>(
+          label: 'Category',
+          value: _category,
+          items: FarmInputCategory.values,
+          itemLabel: _inputCategoryLabel,
+          onChanged: (FarmInputCategory? value) {
+            if (value != null) {
+              setState(() => _category = value);
+            }
+          },
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: <Widget>[
+            Expanded(child: AppTextField(controller: _quantityController, label: 'Quantity', keyboardType: const TextInputType.numberWithOptions(decimal: true))),
+            const SizedBox(width: 10),
+            Expanded(child: AppTextField(controller: _unitController, label: 'Unit', hint: 'bag')),
+          ],
+        ),
+        const SizedBox(height: 12),
+        AppTextField(controller: _unitCostController, label: 'Unit cost', keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+        const SizedBox(height: 12),
+        AppTextField(controller: _supplierController, label: 'Supplier/provider', hint: 'Feed mill'),
+        const SizedBox(height: 12),
+        _DateTile(
+          label: 'Record date',
+          value: _recordedAt,
+          onTap: () async {
+            final DateTime? picked = await showDatePicker(
+              context: context,
+              initialDate: _recordedAt,
+              firstDate: DateTime(2020),
+              lastDate: DateTime(2035),
+            );
+            if (picked != null) {
+              setState(() => _recordedAt = picked);
+            }
+          },
+        ),
+        const SizedBox(height: 12),
+        AppTextField(controller: _notesController, label: 'Notes', maxLines: 3),
+        const SizedBox(height: 18),
+        AppButton.primary(onPressed: _submit, child: const Text('Save and sync finance')),
+      ],
+    );
+  }
+
+  void _submit() {
+    final String name = _nameController.text.trim();
+    final double quantity = double.tryParse(_quantityController.text.trim()) ?? 0;
+    final double unitCost = double.tryParse(_unitCostController.text.trim()) ?? 0;
+    if (name.isEmpty || quantity <= 0 || _unitController.text.trim().isEmpty) {
+      context.showSnackBar('Input name, quantity, and unit are required', isError: true);
+      return;
+    }
+    final DateTime now = DateTime.now();
+    Navigator.of(context).pop(
+      FarmInputRecord(
+        id: const Uuid().v4(),
+        name: name,
+        category: _category,
+        quantity: quantity,
+        unit: _unitController.text.trim(),
+        unitCost: unitCost,
+        supplier: _supplierController.text.trim(),
+        notes: _notesController.text.trim(),
+        recordedAt: _recordedAt,
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
+  }
+}
+
+class _StockCountSheet extends StatefulWidget {
+  const _StockCountSheet({required this.livestock});
+
+  final Livestock livestock;
+
+  @override
+  State<_StockCountSheet> createState() => _StockCountSheetState();
+}
+
+class _StockCountSheetState extends State<_StockCountSheet> {
+  late final TextEditingController _countController;
+  late final TextEditingController _maleController;
+  late final TextEditingController _femaleController;
+  late final TextEditingController _notesController;
+
+  @override
+  void initState() {
+    super.initState();
+    _countController = TextEditingController(text: widget.livestock.count.toString());
+    _maleController = TextEditingController(text: widget.livestock.maleCount.toString());
+    _femaleController = TextEditingController(text: widget.livestock.femaleCount.toString());
+    _notesController = TextEditingController(text: widget.livestock.stockNotes);
+  }
+
+  @override
+  void dispose() {
+    _countController.dispose();
+    _maleController.dispose();
+    _femaleController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _SheetShell(
+      title: 'Update stock count',
+      subtitle: 'Record births, mortality, purchases, sales, or transfers so animal counts stay finance-ready.',
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Expanded(child: AppTextField(controller: _countController, label: 'Total count', keyboardType: TextInputType.number)),
+            const SizedBox(width: 10),
+            Expanded(child: AppTextField(controller: _maleController, label: 'Male', keyboardType: TextInputType.number)),
+            const SizedBox(width: 10),
+            Expanded(child: AppTextField(controller: _femaleController, label: 'Female', keyboardType: TextInputType.number)),
+          ],
+        ),
+        const SizedBox(height: 12),
+        AppTextField(controller: _notesController, label: 'Stock notes', hint: '2 births, 1 sale, 0 mortality', maxLines: 3),
+        const SizedBox(height: 18),
+        AppButton.primary(onPressed: _submit, child: const Text('Update stock')),
+      ],
+    );
+  }
+
+  void _submit() {
+    final int count = int.tryParse(_countController.text.trim()) ?? -1;
+    final int male = int.tryParse(_maleController.text.trim()) ?? -1;
+    final int female = int.tryParse(_femaleController.text.trim()) ?? -1;
+    if (count < 0 || male < 0 || female < 0 || male + female > count) {
+      context.showSnackBar('Enter valid stock counts. Male and female cannot exceed total.', isError: true);
+      return;
+    }
+    Navigator.of(context).pop(
+      _StockCountDraft(
+        count: count,
+        maleCount: male,
+        femaleCount: female,
+        notes: _notesController.text.trim().isEmpty ? _stockSummary(count, male, female) : _notesController.text.trim(),
+      ),
+    );
+  }
+}
+
+class _SheetShell extends StatelessWidget {
+  const _SheetShell({
+    required this.title,
+    required this.subtitle,
+    required this.children,
+  });
+
+  final String title;
+  final String subtitle;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Center(
+                  child: Container(
+                    width: 52,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(title, style: Theme.of(context).textTheme.headlineSmall),
+                const SizedBox(height: 8),
+                Text(subtitle, style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5)),
+                const SizedBox(height: 18),
+                ...children,
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StockCountDraft {
+  const _StockCountDraft({
+    required this.count,
+    required this.maleCount,
+    required this.femaleCount,
+    required this.notes,
+  });
+
+  final int count;
+  final int maleCount;
+  final int femaleCount;
+  final String notes;
+}
+
 Color _accentForSpecies(LivestockSpecies species) {
   switch (species) {
     case LivestockSpecies.goat:
@@ -962,6 +1646,71 @@ String _housingLabel(HousingType housingType) {
       return 'Coop';
   }
 }
+
+String _livestockIntelligenceSummary(LivestockSpecies species, int healthScore, int vaccinationStatus) {
+  final String animal = _speciesLabel(species).toLowerCase();
+  if (healthScore < 60) {
+    return 'Animal intelligence: $animal need urgent health checks, treatment notes, and closer daily inspection.';
+  }
+  if (vaccinationStatus < 70) {
+    return 'Animal intelligence: $animal vaccination coverage is low. Plan a vet visit and mark the reminder for push notification.';
+  }
+  return 'Animal intelligence: $animal are stable. Keep feed, water, housing hygiene, and stock-count records updated.';
+}
+
+String _stockSummary(int count, int maleCount, int femaleCount) =>
+    'Stock sync: $count animals recorded, $maleCount male, $femaleCount female, ${count - maleCount - femaleCount} unclassified.';
+
+String _priorityLabel(FarmTodoPriority priority) {
+  switch (priority) {
+    case FarmTodoPriority.low:
+      return 'Low';
+    case FarmTodoPriority.normal:
+      return 'Normal';
+    case FarmTodoPriority.high:
+      return 'High';
+    case FarmTodoPriority.urgent:
+      return 'Urgent';
+  }
+}
+
+String _inputCategoryLabel(FarmInputCategory category) {
+  switch (category) {
+    case FarmInputCategory.seed:
+      return 'Seed';
+    case FarmInputCategory.fertiliser:
+      return 'Fertiliser';
+    case FarmInputCategory.feed:
+      return 'Feed';
+    case FarmInputCategory.veterinary:
+      return 'Veterinary';
+    case FarmInputCategory.labour:
+      return 'Labour';
+    case FarmInputCategory.equipment:
+      return 'Equipment';
+    case FarmInputCategory.other:
+      return 'Other';
+  }
+}
+
+TransactionCategory _transactionCategoryForInput(FarmInputCategory category) {
+  switch (category) {
+    case FarmInputCategory.feed:
+      return TransactionCategory.feed;
+    case FarmInputCategory.veterinary:
+      return TransactionCategory.veterinary;
+    case FarmInputCategory.labour:
+      return TransactionCategory.labour;
+    case FarmInputCategory.seed:
+    case FarmInputCategory.fertiliser:
+      return TransactionCategory.fertiliser;
+    case FarmInputCategory.equipment:
+    case FarmInputCategory.other:
+      return TransactionCategory.other;
+  }
+}
+
+String _dateLabel(DateTime value) => '${value.day}/${value.month}/${value.year}';
 
 class LivestockDraft {
   const LivestockDraft({

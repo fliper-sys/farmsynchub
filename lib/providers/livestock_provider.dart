@@ -44,6 +44,8 @@ class LivestockNotifier extends StateNotifier<AsyncValue<List<Livestock>>> {
     }
   }
 
+  Future<void> refresh() => _loadLivestock();
+
   /// Adds new livestock.
   Future<void> addLivestock(Livestock livestock) async {
     try {

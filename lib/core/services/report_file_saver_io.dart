@@ -12,6 +12,19 @@ class _IoReportFileSaver implements ReportFileSaver {
     required Uint8List bytes,
     required String fileName,
   }) async {
+    return saveBytes(
+      bytes: bytes,
+      fileName: fileName,
+      mimeType: 'application/pdf',
+    );
+  }
+
+  @override
+  Future<String> saveBytes({
+    required Uint8List bytes,
+    required String fileName,
+    required String mimeType,
+  }) async {
     final Directory directory = await getApplicationDocumentsDirectory();
     final String filePath = path.join(directory.path, fileName);
     final File file = File(filePath);

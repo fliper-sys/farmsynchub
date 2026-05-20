@@ -78,7 +78,9 @@ class Notification {
       timestamp: DateTime.parse(map['timestamp'] as String),
       isRead: map['isRead'] as bool? ?? false,
       actionUrl: map['actionUrl'] as String?,
-      metadata: map['metadata'] as Map<String, dynamic>?,
+      metadata: map['metadata'] == null
+          ? null
+          : Map<String, dynamic>.from(map['metadata'] as Map),
     );
   }
 

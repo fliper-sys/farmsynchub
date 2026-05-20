@@ -10,13 +10,13 @@ class NotificationItem extends StatelessWidget {
     super.key,
     required this.notification,
     required this.onTap,
-    required this.onMarkAsRead,
+    required this.onToggleRead,
     required this.onDismiss,
   });
 
   final Notification notification;
   final VoidCallback onTap;
-  final VoidCallback onMarkAsRead;
+  final VoidCallback onToggleRead;
   final VoidCallback onDismiss;
 
   @override
@@ -40,11 +40,17 @@ class NotificationItem extends StatelessWidget {
       ),
       onDismissed: (_) => onDismiss(),
       child: Card(
-        elevation: 2,
+        elevation: notification.isRead ? 0 : 2,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: notification.isRead ? theme.colorScheme.outlineVariant : theme.colorScheme.primary.withOpacity(0.28),
+          ),
         ),
+        color: notification.isRead
+            ? theme.colorScheme.surface
+            : theme.colorScheme.primaryContainer.withOpacity(0.20),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
@@ -80,6 +86,25 @@ class NotificationItem extends StatelessWidget {
                                 shape: BoxShape.circle,
                               ),
                             ),
+                          PopupMenuButton<String>(
+                            onSelected: (String value) {
+                              if (value == 'toggle') {
+                                onToggleRead();
+                                return;
+                              }
+                              onDismiss();
+                            },
+                            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                              PopupMenuItem<String>(
+                                value: 'toggle',
+                                child: Text(notification.isRead ? 'Mark as unread' : 'Mark as read'),
+                              ),
+                              const PopupMenuItem<String>(
+                                value: 'delete',
+                                child: Text('Delete notification'),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -104,16 +129,19 @@ class NotificationItem extends StatelessWidget {
                             ),
                           ),
                           const Spacer(),
-                          if (!notification.isRead)
-                            TextButton(
-                              onPressed: onMarkAsRead,
+                          TextButton.icon(
+                              onPressed: onToggleRead,
                               style: TextButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 minimumSize: Size.zero,
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
-                              child: Text(
-                                'Mark as read',
+                              icon: Icon(
+                                notification.isRead ? Icons.mark_email_unread_outlined : Icons.mark_email_read_outlined,
+                                size: 16,
+                              ),
+                              label: Text(
+                                notification.isRead ? 'Unread' : 'Read',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,

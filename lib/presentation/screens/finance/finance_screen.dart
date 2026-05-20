@@ -1,5 +1,10 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/rendering.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/services/finance_report_service.dart';
@@ -10,8 +15,10 @@ import '../../../core/utils/date_utils.dart' as app_date;
 import '../../../core/utils/validators.dart';
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/transaction.dart';
+import '../../../providers/auth_provider.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/finance_provider.dart';
+import '../../../providers/operations_hub_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
@@ -32,28 +39,28 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final AsyncValue<List<Transaction>> transactionsAsync = ref.watch(transactionsProvider);
-    final List<Farm> farms = ref.watch(farmsProvider).maybeWhen(
-          data: (List<Farm> value) => value,
-          orElse: () => <Farm>[],
-        );
-    final List<Transaction> transactions = transactionsAsync.maybeWhen(
-      data: (List<Transaction> value) => value,
-      orElse: () => <Transaction>[],
-    );
+    final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
+    final List<Transaction> transactions = ref.watch(transactionsProvider).valueOrNull ?? <Transaction>[];
+    final OperationsHubState operations = ref.watch(operationsHubProvider);
     final FinanceSnapshot snapshot = FinanceSnapshot.fromTransactions(transactions);
+    final List<Transaction> sales = transactions
+        .where((Transaction item) => item.recordKind == TransactionRecordKind.sale)
+        .toList(growable: false);
+    final List<Transaction> procurement = transactions
+        .where((Transaction item) => item.recordKind == TransactionRecordKind.procurement)
+        .toList(growable: false);
 
     return SoftScreenScaffold(
-      heroTitle: 'Farm balance',
-      heroSubtitle: 'See sales, expenses, cash movement, and export-ready records in one cleaner ledger view.',
-      heroIcon: Icons.account_balance_wallet_rounded,
+      heroTitle: 'Sales and finance hub',
+      heroSubtitle: 'Track inventory, register customers and providers, record sales or procurement, and export clean receipts.',
+      heroIcon: Icons.point_of_sale_rounded,
       heroVariant: FarmArtworkVariant.dashboard,
-      heroBadge: 'This month',
+      heroBadge: '${sales.length} sales - ${procurement.length} procurement',
       trailing: Column(
         children: <Widget>[
           AppButton.primary(
             onPressed: farms.isEmpty ? null : () => _openTransactionSheet(context, farms: farms),
-            child: const Text('Add record'),
+            child: const Text('Record deal'),
           ),
           const SizedBox(height: 10),
           AppButton.secondary(
@@ -63,16 +70,6 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         ],
       ),
       sections: <Widget>[
-        if (farms.isEmpty) ...<Widget>[
-          AppCard(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: const Padding(
-              padding: EdgeInsets.all(18),
-              child: Text('Create a farm first before recording income or expenses so each transaction can be linked to a real operation.'),
-            ),
-          ),
-          const SizedBox(height: 18),
-        ],
         Row(
           children: <Widget>[
             Expanded(
@@ -93,7 +90,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: SoftInfoChip(
-                label: 'Balance',
+                label: 'Open balance',
                 value: CurrencyUtils.formatCompactCurrency(snapshot.balance),
                 color: const Color(0xFFDFF1FF),
               ),
@@ -101,14 +98,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
           ],
         ),
         const SizedBox(height: 18),
-        SoftSectionTitle(
-          title: 'Transaction tools',
-          action: TextButton.icon(
-            onPressed: farms.isEmpty ? null : () => _openTransactionSheet(context, farms: farms),
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Add'),
-          ),
-        ),
+        const SoftSectionTitle(title: 'Quick tools'),
         AppCard(
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
           child: Padding(
@@ -116,87 +106,23 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
             child: Row(
               children: <Widget>[
                 Expanded(
-                  child: Text(
-                    farms.isEmpty
-                        ? 'Finance records unlock after at least one farm has been created.'
-                        : 'Capture crop sales, livestock sales, labour costs, feed, fertiliser, or other expenses from here.',
-                  ),
-                ),
-                const SizedBox(width: 12),
-                AppButton.primary(
-                  onPressed: farms.isEmpty ? null : () => _openTransactionSheet(context, farms: farms),
-                  child: const Text('Quick record'),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 18),
-        const SoftSectionTitle(title: 'Financial overview'),
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: _InsightCard(
-                title: 'Transactions',
-                value: '${transactions.length}',
-                note: 'Recorded cash events',
-                color: const Color(0xFFEAF4DD),
-                icon: Icons.receipt_long_rounded,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _InsightCard(
-                title: 'Largest income',
-                value: CurrencyUtils.formatCompactCurrency(snapshot.largestIncome),
-                note: 'Best sale this cycle',
-                color: const Color(0xFFDDEEFF),
-                icon: Icons.trending_up_rounded,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _InsightCard(
-                title: 'Largest expense',
-                value: CurrencyUtils.formatCompactCurrency(snapshot.largestExpense),
-                note: 'Highest cost item',
-                color: const Color(0xFFFFEBD9),
-                icon: Icons.trending_down_rounded,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 18),
-        const SoftSectionTitle(title: 'Category breakdown'),
-        ...snapshot.categoryTotals.entries.map(
-          (MapEntry<TransactionCategory, double> entry) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _CategoryBreakdownTile(
-              category: _readableCategory(entry.key),
-              amount: CurrencyUtils.formatCurrency(entry.value),
-              ratio: snapshot.totalFlow == 0 ? 0 : entry.value / snapshot.totalFlow,
-            ),
-          ),
-        ),
-        const SizedBox(height: 18),
-        const SoftSectionTitle(title: 'Reporting details'),
-        AppCard(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Row(
-              children: <Widget>[
-                Expanded(
-                  child: _ReportMeta(
-                    label: 'Reporting period',
-                    value: '${app_date.DateUtils.formatDate(snapshot.startDate)} - ${app_date.DateUtils.formatDate(snapshot.endDate)}',
+                  child: AppButton.primary(
+                    onPressed: farms.isEmpty ? null : () => _openTransactionSheet(context, farms: farms),
+                    child: const Text('Add sale or buy'),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _ReportMeta(
-                    label: 'Sync state',
-                    value: snapshot.pendingSyncCount == 0 ? 'All synced' : '${snapshot.pendingSyncCount} pending',
+                  child: AppButton.secondary(
+                    onPressed: farms.isEmpty ? null : () => _openInventorySheet(context, farms),
+                    child: const Text('Add inventory'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: AppButton.secondary(
+                    onPressed: () => _openPartnerSheet(context),
+                    child: const Text('Add contact'),
                   ),
                 ),
               ],
@@ -204,21 +130,107 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
           ),
         ),
         const SizedBox(height: 18),
-        const SoftSectionTitle(title: 'Recent transactions'),
-        if (transactions.isEmpty)
-          AppCard(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: const Padding(
-              padding: EdgeInsets.all(20),
-              child: Text('No transactions recorded yet.'),
+        const SoftSectionTitle(title: 'Products for sale'),
+        if (operations.inventory.isEmpty)
+          _EmptyFinanceCard(
+            message: 'No inventory items yet. Add a farm product so sales can deduct available stock.',
+          )
+        else
+          ...operations.inventory.map(
+            (InventoryItem item) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: AppCard(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  leading: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE5F5D8),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(Icons.inventory_2_rounded),
+                  ),
+                  title: Text(item.name),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      '${item.availableQuantity.toStringAsFixed(2)} ${item.unit} available - ${CurrencyUtils.formatCurrency(item.unitPrice)} per ${item.unit}',
+                    ),
+                  ),
+                  trailing: Text(item.category),
+                ),
+              ),
             ),
           ),
-        ...transactions.take(6).map(
-          (Transaction transaction) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _TransactionTile(transaction: transaction),
+        const SizedBox(height: 18),
+        const SoftSectionTitle(title: 'Customers and providers'),
+        if (operations.partners.isEmpty)
+          _EmptyFinanceCard(
+            message: 'No registered buyers or providers yet. Add contacts so receipts and email notices can reuse them.',
+          )
+        else
+          ...operations.partners.map(
+            (BusinessPartner partner) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: AppCard(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  leading: CircleAvatar(
+                    backgroundColor: partner.type == BusinessPartnerType.customer
+                        ? const Color(0xFFDFF1FF)
+                        : const Color(0xFFFFEBD0),
+                    child: Icon(
+                      partner.type == BusinessPartnerType.customer
+                          ? Icons.person_outline_rounded
+                          : Icons.local_shipping_outlined,
+                    ),
+                  ),
+                  title: Text(partner.name),
+                  subtitle: Text(
+                    '${partner.email.isEmpty ? 'No email' : partner.email} - ${partner.phone.isEmpty ? 'No phone' : partner.phone}',
+                  ),
+                  trailing: Text(
+                    partner.type == BusinessPartnerType.customer ? 'Customer' : 'Provider',
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
+        const SizedBox(height: 18),
+        const SoftSectionTitle(title: 'Sales history'),
+        if (sales.isEmpty)
+          _EmptyFinanceCard(
+            message: 'No sales recorded yet.',
+          )
+        else
+          ...sales.map(
+            (Transaction transaction) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _TransactionRecordTile(
+                transaction: transaction,
+                onTap: () => _openReceiptDetail(context, transaction),
+              ),
+            ),
+          ),
+        const SizedBox(height: 18),
+        const SoftSectionTitle(title: 'Procurement'),
+        if (procurement.isEmpty)
+          _EmptyFinanceCard(
+            message: 'No procurement records yet.',
+          )
+        else
+          ...procurement.map(
+            (Transaction transaction) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _TransactionRecordTile(
+                transaction: transaction,
+                onTap: () => _openReceiptDetail(context, transaction),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -226,7 +238,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
   Future<void> _exportReport(FinanceSnapshot snapshot, List<Transaction> transactions) async {
     setState(() => _isExporting = true);
     try {
-      final bytes = await _reportService.buildFinanceReport(
+      final Uint8List bytes = await _reportService.buildFinanceReport(
         transactions: transactions,
         income: snapshot.income,
         expenses: snapshot.expenses,
@@ -237,14 +249,11 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         bytes: bytes,
         fileName: 'farmsync_finance_report_${DateTime.now().millisecondsSinceEpoch}.pdf',
       );
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Report exported: $savedPath')),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: $error')),
       );
     } finally {
       if (mounted) {
@@ -253,17 +262,64 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     }
   }
 
-  Future<void> _openTransactionSheet(
-    BuildContext context, {
-    required List<Farm> farms,
-  }) async {
+  Future<void> _openPartnerSheet(BuildContext context) async {
+    final _PartnerDraft? draft = await showModalBottomSheet<_PartnerDraft>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) => const _PartnerSheet(),
+    );
+    if (draft == null) {
+      return;
+    }
+    await ref.read(operationsHubProvider.notifier).addPartner(
+          BusinessPartner(
+            id: const Uuid().v4(),
+            name: draft.name,
+            email: draft.email,
+            phone: draft.phone,
+            type: draft.type,
+            createdAt: DateTime.now(),
+          ),
+        );
+  }
+
+  Future<void> _openInventorySheet(BuildContext context, List<Farm> farms) async {
+    final _InventoryDraft? draft = await showModalBottomSheet<_InventoryDraft>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) => _InventorySheet(farms: farms),
+    );
+    if (draft == null) {
+      return;
+    }
+    await ref.read(operationsHubProvider.notifier).addInventoryItem(
+          InventoryItem(
+            id: const Uuid().v4(),
+            farmId: draft.farmId,
+            name: draft.name,
+            category: draft.category,
+            unit: draft.unit,
+            availableQuantity: draft.quantity,
+            unitPrice: draft.unitPrice,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          ),
+        );
+  }
+
+  Future<void> _openTransactionSheet(BuildContext context, {required List<Farm> farms}) async {
+    final OperationsHubState operations = ref.read(operationsHubProvider);
     final _TransactionDraft? draft = await showModalBottomSheet<_TransactionDraft>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (BuildContext context) => _TransactionFormSheet(farms: farms),
+      builder: (BuildContext context) => _TransactionFormSheet(
+        farms: farms,
+        operations: operations,
+      ),
     );
-
     if (draft == null) {
       return;
     }
@@ -277,203 +333,170 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       amount: draft.amount,
       description: draft.description,
       transactionDate: draft.transactionDate,
-      linkedEntityId: draft.farmId,
+      linkedEntityId: draft.partnerId,
       createdAt: now,
       updatedAt: now,
       isSynced: true,
+      recordKind: draft.recordKind,
+      partyType: draft.partyType,
+      productName: draft.productName,
+      quantity: draft.quantity,
+      unit: draft.unit,
+      unitPrice: draft.unitPrice,
+      counterpartyName: draft.counterpartyName,
+      counterpartyEmail: draft.counterpartyEmail,
+      counterpartyPhone: draft.counterpartyPhone,
+      receiptNumber: 'FS-${DateTime.now().millisecondsSinceEpoch}',
+      notes: draft.notes,
     );
-
     await ref.read(transactionsProvider.notifier).addTransaction(transaction);
+
+    final double delta = draft.recordKind == TransactionRecordKind.sale
+        ? -draft.quantity
+        : draft.recordKind == TransactionRecordKind.procurement
+            ? draft.quantity
+            : 0;
+    if (delta != 0 && draft.productName.trim().isNotEmpty) {
+      await ref.read(operationsHubProvider.notifier).adjustInventoryQuantity(
+            farmId: draft.farmId,
+            productName: draft.productName,
+            unit: draft.unit,
+            deltaQuantity: delta,
+            unitPrice: draft.unitPrice,
+          );
+    }
     if (!context.mounted) {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Transaction recorded successfully.')),
-    );
-  }
-
-  String _readableCategory(TransactionCategory category) {
-    switch (category) {
-      case TransactionCategory.cropSale:
-        return 'Crop sale';
-      case TransactionCategory.livestockSale:
-        return 'Livestock sale';
-      case TransactionCategory.feed:
-        return 'Feed purchase';
-      case TransactionCategory.fertiliser:
-        return 'Fertiliser';
-      case TransactionCategory.labour:
-        return 'Labour payout';
-      case TransactionCategory.veterinary:
-        return 'Veterinary care';
-      case TransactionCategory.other:
-        return 'Other transaction';
-    }
-  }
-}
-
-class FinanceSnapshot {
-  const FinanceSnapshot({
-    required this.income,
-    required this.expenses,
-    required this.balance,
-    required this.largestIncome,
-    required this.largestExpense,
-    required this.pendingSyncCount,
-    required this.categoryTotals,
-    required this.startDate,
-    required this.endDate,
-  });
-
-  final double income;
-  final double expenses;
-  final double balance;
-  final double largestIncome;
-  final double largestExpense;
-  final int pendingSyncCount;
-  final Map<TransactionCategory, double> categoryTotals;
-  final DateTime startDate;
-  final DateTime endDate;
-
-  double get totalFlow => income + expenses;
-
-  factory FinanceSnapshot.fromTransactions(List<Transaction> transactions) {
-    double income = 0;
-    double expenses = 0;
-    double largestIncome = 0;
-    double largestExpense = 0;
-    int pendingSyncCount = 0;
-    final Map<TransactionCategory, double> categoryTotals = <TransactionCategory, double>{};
-
-    DateTime startDate = DateTime.now();
-    DateTime endDate = DateTime.now();
-
-    if (transactions.isNotEmpty) {
-      final List<Transaction> sorted = List<Transaction>.from(transactions)
-        ..sort((Transaction a, Transaction b) => a.transactionDate.compareTo(b.transactionDate));
-      startDate = sorted.first.transactionDate;
-      endDate = sorted.last.transactionDate;
-    }
-
-    for (final Transaction transaction in transactions) {
-      if (transaction.type == TransactionType.income) {
-        income += transaction.amount;
-        if (transaction.amount > largestIncome) {
-          largestIncome = transaction.amount;
-        }
-      } else {
-        expenses += transaction.amount;
-        if (transaction.amount > largestExpense) {
-          largestExpense = transaction.amount;
-        }
-      }
-
-      if (!transaction.isSynced) {
-        pendingSyncCount++;
-      }
-
-      categoryTotals.update(
-        transaction.category,
-        (double value) => value + transaction.amount,
-        ifAbsent: () => transaction.amount,
-      );
-    }
-
-    return FinanceSnapshot(
-      income: income,
-      expenses: expenses,
-      balance: income - expenses,
-      largestIncome: largestIncome,
-      largestExpense: largestExpense,
-      pendingSyncCount: pendingSyncCount,
-      categoryTotals: categoryTotals,
-      startDate: startDate,
-      endDate: endDate,
-    );
-  }
-}
-
-class _InsightCard extends StatelessWidget {
-  const _InsightCard({
-    required this.title,
-    required this.value,
-    required this.note,
-    required this.color,
-    required this.icon,
-  });
-
-  final String title;
-  final String value;
-  final String note;
-  final Color color;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return AppCard(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(icon),
-            ),
-            const SizedBox(height: 14),
-            Text(title, style: theme.textTheme.bodySmall),
-            const SizedBox(height: 4),
-            Text(value, style: theme.textTheme.titleLarge?.copyWith(fontSize: 22)),
-            const SizedBox(height: 6),
-            Text(note, style: theme.textTheme.bodySmall?.copyWith(height: 1.5)),
-          ],
+      SnackBar(
+        content: Text(
+          draft.recordKind == TransactionRecordKind.sale
+              ? 'Sale recorded and receipt generated.'
+              : draft.recordKind == TransactionRecordKind.procurement
+                  ? 'Procurement recorded successfully.'
+                  : 'Transaction recorded successfully.',
         ),
+      ),
+    );
+  }
+
+  void _openReceiptDetail(BuildContext context, Transaction transaction) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ReceiptDetailScreen(transaction: transaction),
       ),
     );
   }
 }
 
-class _CategoryBreakdownTile extends StatelessWidget {
-  const _CategoryBreakdownTile({
-    required this.category,
-    required this.amount,
-    required this.ratio,
+class ReceiptDetailScreen extends ConsumerStatefulWidget {
+  const ReceiptDetailScreen({
+    super.key,
+    required this.transaction,
   });
 
-  final String category;
-  final String amount;
-  final double ratio;
+  final Transaction transaction;
+
+  @override
+  ConsumerState<ReceiptDetailScreen> createState() => _ReceiptDetailScreenState();
+}
+
+class _ReceiptDetailScreenState extends ConsumerState<ReceiptDetailScreen> {
+  final GlobalKey _receiptBoundaryKey = GlobalKey();
+  bool _isExporting = false;
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: Padding(
+    final Transaction transaction = widget.transaction;
+    final Farm? farm = ref.watch(farmsProvider).valueOrNull?.firstWhere(
+          (Farm item) => item.id == transaction.farmId,
+          orElse: () => Farm(
+            id: '',
+            name: 'Unknown farm',
+            ward: '',
+            sizeHa: 0,
+            farmerCategory: FarmerCategory.subsistence,
+            soilType: SoilType.loamy,
+            waterSource: WaterSource.rainfall,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+            isSynced: true,
+          ),
+        );
+    final String sellerEmail = ref.watch(firebaseServiceProvider).currentUser?.email ?? '';
+    final String sellerName = ref.watch(firebaseServiceProvider).currentUser?.displayName ?? 'FarmSync Seller';
+
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          transaction.recordKind == TransactionRecordKind.procurement
+              ? 'Procurement Detail'
+              : 'Receipt Detail',
+        ),
+        actions: <Widget>[
+          IconButton(
+            onPressed: _isExporting
+                ? null
+                : () => _exportReceipt(
+                      transaction: transaction,
+                      farmName: farm?.name ?? 'Farm',
+                      sellerName: sellerName,
+                    ),
+            icon: const Icon(Icons.picture_as_pdf_rounded),
+            tooltip: 'Export PDF',
+          ),
+          IconButton(
+            onPressed: _isExporting ? null : _exportReceiptImage,
+            icon: const Icon(Icons.image_outlined),
+            tooltip: 'Export image',
+          ),
+          IconButton(
+            onPressed: () => _composeEmail(
+              buyerEmail: transaction.counterpartyEmail,
+              sellerEmail: sellerEmail,
+              receiptNumber: transaction.receiptNumber,
+              total: transaction.amount,
+            ),
+            icon: const Icon(Icons.email_outlined),
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(18),
         child: Column(
           children: <Widget>[
-            Row(
-              children: <Widget>[
-                Expanded(child: Text(category)),
-                Text(amount),
-              ],
+            RepaintBoundary(
+              key: _receiptBoundaryKey,
+              child: _ReceiptPreviewCard(
+                transaction: transaction,
+                farmName: farm?.name ?? 'Farm',
+                sellerName: sellerName,
+              ),
             ),
-            const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: LinearProgressIndicator(
-                minHeight: 8,
-                value: ratio.clamp(0.0, 1.0).toDouble(),
-                backgroundColor: const Color(0xFFF0F1EA),
-                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4D8F5E)),
+            const SizedBox(height: 18),
+            AppCard(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Export options',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'A styled receipt preview is available here. PDF export is supported directly from this screen, and email handoff pre-fills buyer and seller details when an email address is present.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -481,10 +504,178 @@ class _CategoryBreakdownTile extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _exportReceipt({
+    required Transaction transaction,
+    required String farmName,
+    required String sellerName,
+  }) async {
+    setState(() => _isExporting = true);
+    try {
+      final Uint8List bytes = await FinanceReportService().buildSalesReceipt(
+        transaction: transaction,
+        farmName: farmName,
+        sellerName: sellerName,
+      );
+      final String path = await createReportFileSaver().savePdf(
+        bytes: bytes,
+        fileName: 'receipt_${transaction.receiptNumber.isEmpty ? transaction.id : transaction.receiptNumber}.pdf',
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Receipt exported: $path')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isExporting = false);
+      }
+    }
+  }
+
+  Future<void> _exportReceiptImage() async {
+    setState(() => _isExporting = true);
+    try {
+      final RenderRepaintBoundary? boundary =
+          _receiptBoundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) {
+        throw StateError('Receipt preview is not ready yet.');
+      }
+      final ui.Image image = await boundary.toImage(pixelRatio: 3);
+      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) {
+        throw StateError('Could not render receipt image.');
+      }
+      final Uint8List bytes = byteData.buffer.asUint8List();
+      final String path = await createReportFileSaver().saveBytes(
+        bytes: bytes,
+        fileName: 'receipt_${widget.transaction.receiptNumber.isEmpty ? widget.transaction.id : widget.transaction.receiptNumber}.png',
+        mimeType: 'image/png',
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Receipt image exported: $path')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isExporting = false);
+      }
+    }
+  }
+
+  Future<void> _composeEmail({
+    required String buyerEmail,
+    required String sellerEmail,
+    required String receiptNumber,
+    required double total,
+  }) async {
+    final Uri uri = Uri(
+      scheme: 'mailto',
+      path: buyerEmail.isEmpty ? sellerEmail : buyerEmail,
+      queryParameters: <String, String>{
+        if (sellerEmail.isNotEmpty && buyerEmail.isNotEmpty) 'cc': sellerEmail,
+        'subject': 'FarmSync Receipt $receiptNumber',
+        'body': 'Receipt number: $receiptNumber\nTotal: ${CurrencyUtils.formatCurrency(total)}',
+      },
+    );
+    await launchUrl(uri);
+  }
 }
 
-class _ReportMeta extends StatelessWidget {
-  const _ReportMeta({
+class _ReceiptPreviewCard extends StatelessWidget {
+  const _ReceiptPreviewCard({
+    required this.transaction,
+    required this.farmName,
+    required this.sellerName,
+  });
+
+  final Transaction transaction;
+  final String farmName;
+  final String sellerName;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE5F5D8),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.receipt_long_rounded),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        transaction.recordKind == TransactionRecordKind.procurement
+                            ? 'Procurement Record'
+                            : 'Sales Receipt',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      Text(transaction.receiptNumber),
+                    ],
+                  ),
+                ),
+                Text(
+                  CurrencyUtils.formatCurrency(transaction.amount),
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            _ReceiptLine(label: 'Farm', value: farmName),
+            _ReceiptLine(label: 'Seller', value: sellerName),
+            _ReceiptLine(
+              label: transaction.recordKind == TransactionRecordKind.procurement ? 'Provider' : 'Buyer',
+              value: transaction.counterpartyName.isEmpty ? 'Walk-in' : transaction.counterpartyName,
+            ),
+            _ReceiptLine(
+              label: 'Product',
+              value: transaction.productName.isEmpty ? transaction.description : transaction.productName,
+            ),
+            _ReceiptLine(
+              label: 'Quantity',
+              value: '${transaction.quantity.toStringAsFixed(2)} ${transaction.unit}',
+            ),
+            _ReceiptLine(
+              label: 'Unit price',
+              value: CurrencyUtils.formatCurrency(transaction.unitPrice),
+            ),
+            _ReceiptLine(
+              label: 'Date',
+              value: app_date.DateUtils.formatDate(transaction.transactionDate),
+            ),
+            if (transaction.notes.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 12),
+              Text(
+                transaction.notes,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.5),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReceiptLine extends StatelessWidget {
+  const _ReceiptLine({
     required this.label,
     required this.value,
   });
@@ -494,101 +685,141 @@ class _ReportMeta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
         children: <Widget>[
-          Text(label, style: theme.textTheme.bodySmall),
-          const SizedBox(height: 6),
-          Text(value, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          SizedBox(width: 110, child: Text(label)),
+          Expanded(
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _TransactionTile extends StatelessWidget {
-  const _TransactionTile({required this.transaction});
+class _TransactionRecordTile extends StatelessWidget {
+  const _TransactionRecordTile({
+    required this.transaction,
+    required this.onTap,
+  });
 
   final Transaction transaction;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
     final bool positive = transaction.type == TransactionType.income;
-    final String amount = '${positive ? '+' : '-'}${CurrencyUtils.formatCurrency(transaction.amount)}';
 
     return AppCard(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      onTap: onTap,
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
         leading: Container(
-          width: 48,
-          height: 48,
+          width: 50,
+          height: 50,
           decoration: BoxDecoration(
-            color: positive ? const Color(0xFFE5F5D8) : const Color(0xFFFFE7D7),
+            color: positive ? const Color(0xFFE5F5D8) : const Color(0xFFFFEBD0),
             borderRadius: BorderRadius.circular(16),
           ),
-          child: Icon(positive ? Icons.south_west_rounded : Icons.north_east_rounded),
+          child: Icon(
+            positive ? Icons.trending_up_rounded : Icons.shopping_bag_outlined,
+          ),
         ),
-        title: Text(
-          _readableCategory(transaction.category),
-          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        title: Text(transaction.productName.isEmpty ? transaction.description : transaction.productName),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text(
+            '${transaction.counterpartyName.isEmpty ? 'Walk-in' : transaction.counterpartyName} - ${app_date.DateUtils.formatDate(transaction.transactionDate)}\n${transaction.quantity.toStringAsFixed(2)} ${transaction.unit}',
+          ),
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: <Widget>[
-            const SizedBox(height: 4),
-            Text(transaction.description),
+            Text(CurrencyUtils.formatCurrency(transaction.amount)),
             const SizedBox(height: 4),
             Text(
-              app_date.DateUtils.formatDate(transaction.transactionDate),
-              style: theme.textTheme.bodySmall,
+              transaction.recordKind == TransactionRecordKind.sale ? 'Receipt' : 'View',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
-        ),
-        trailing: Text(
-          amount,
-          style: theme.textTheme.labelLarge?.copyWith(
-            color: positive ? const Color(0xFF2C7A39) : const Color(0xFFB45533),
-          ),
         ),
       ),
     );
   }
+}
 
-  String _readableCategory(TransactionCategory category) {
-    switch (category) {
-      case TransactionCategory.cropSale:
-        return 'Crop sale';
-      case TransactionCategory.livestockSale:
-        return 'Livestock sale';
-      case TransactionCategory.feed:
-        return 'Feed purchase';
-      case TransactionCategory.fertiliser:
-        return 'Fertiliser';
-      case TransactionCategory.labour:
-        return 'Labour payout';
-      case TransactionCategory.veterinary:
-        return 'Veterinary care';
-      case TransactionCategory.other:
-        return 'Other transaction';
+class _EmptyFinanceCard extends StatelessWidget {
+  const _EmptyFinanceCard({
+    required this.message,
+  });
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Text(message),
+      ),
+    );
+  }
+}
+
+class FinanceSnapshot {
+  const FinanceSnapshot({
+    required this.income,
+    required this.expenses,
+    required this.balance,
+    required this.categoryTotals,
+  });
+
+  final double income;
+  final double expenses;
+  final double balance;
+  final Map<TransactionCategory, double> categoryTotals;
+
+  factory FinanceSnapshot.fromTransactions(List<Transaction> transactions) {
+    double income = 0;
+    double expenses = 0;
+    final Map<TransactionCategory, double> categoryTotals = <TransactionCategory, double>{};
+    for (final Transaction transaction in transactions) {
+      if (transaction.type == TransactionType.income) {
+        income += transaction.amount;
+      } else {
+        expenses += transaction.amount;
+      }
+      categoryTotals.update(
+        transaction.category,
+        (double value) => value + transaction.amount,
+        ifAbsent: () => transaction.amount,
+      );
     }
+    return FinanceSnapshot(
+      income: income,
+      expenses: expenses,
+      balance: income - expenses,
+      categoryTotals: categoryTotals,
+    );
   }
 }
 
 class _TransactionFormSheet extends StatefulWidget {
   const _TransactionFormSheet({
     required this.farms,
+    required this.operations,
   });
 
   final List<Farm> farms;
+  final OperationsHubState operations;
 
   @override
   State<_TransactionFormSheet> createState() => _TransactionFormSheetState();
@@ -597,11 +828,17 @@ class _TransactionFormSheet extends StatefulWidget {
 class _TransactionFormSheetState extends State<_TransactionFormSheet> {
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _productController = TextEditingController();
+  final TextEditingController _quantityController = TextEditingController(text: '1');
+  final TextEditingController _unitController = TextEditingController(text: 'bag');
+  final TextEditingController _unitPriceController = TextEditingController();
+  final TextEditingController _notesController = TextEditingController();
 
   late String _farmId;
-  TransactionType _type = TransactionType.income;
+  TransactionRecordKind _recordKind = TransactionRecordKind.sale;
   TransactionCategory _category = TransactionCategory.cropSale;
   DateTime _transactionDate = DateTime.now();
+  String? _partnerId;
 
   @override
   void initState() {
@@ -613,11 +850,28 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
   void dispose() {
     _amountController.dispose();
     _descriptionController.dispose();
+    _productController.dispose();
+    _quantityController.dispose();
+    _unitController.dispose();
+    _unitPriceController.dispose();
+    _notesController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final List<BusinessPartner> partners = widget.operations.partners
+        .where((BusinessPartner item) {
+          if (_recordKind == TransactionRecordKind.sale) {
+            return item.type == BusinessPartnerType.customer;
+          }
+          if (_recordKind == TransactionRecordKind.procurement) {
+            return item.type == BusinessPartnerType.provider;
+          }
+          return true;
+        })
+        .toList(growable: false);
+
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
@@ -632,27 +886,8 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Center(
-                  child: Container(
-                    width: 52,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.outlineVariant,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  'Add transaction',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Record a real income or expense and connect it to the correct farm.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
-                ),
-                const SizedBox(height: 18),
+                Text('Record sale or procurement', style: Theme.of(context).textTheme.headlineSmall),
+                const SizedBox(height: 14),
                 _DropdownField<String>(
                   label: 'Farm',
                   value: _farmId,
@@ -664,86 +899,98 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
                     }
                   },
                 ),
-                const SizedBox(height: 14),
-                _DropdownField<TransactionType>(
-                  label: 'Type',
-                  value: _type,
-                  items: TransactionType.values,
-                  itemLabel: (TransactionType value) => value == TransactionType.income ? 'Income' : 'Expense',
-                  onChanged: (TransactionType? value) {
+                const SizedBox(height: 12),
+                _DropdownField<TransactionRecordKind>(
+                  label: 'Record type',
+                  value: _recordKind,
+                  items: const <TransactionRecordKind>[
+                    TransactionRecordKind.sale,
+                    TransactionRecordKind.procurement,
+                    TransactionRecordKind.general,
+                  ],
+                  itemLabel: (TransactionRecordKind value) {
+                    switch (value) {
+                      case TransactionRecordKind.sale:
+                        return 'Sale';
+                      case TransactionRecordKind.procurement:
+                        return 'Procurement';
+                      case TransactionRecordKind.general:
+                        return 'General';
+                    }
+                  },
+                  onChanged: (TransactionRecordKind? value) {
                     if (value != null) {
                       setState(() {
-                        _type = value;
-                        _category = value == TransactionType.income
-                            ? TransactionCategory.cropSale
-                            : TransactionCategory.feed;
+                        _recordKind = value;
+                        _category = value == TransactionRecordKind.procurement
+                            ? TransactionCategory.other
+                            : TransactionCategory.cropSale;
+                        _partnerId = null;
                       });
                     }
                   },
                 ),
-                const SizedBox(height: 14),
-                _DropdownField<TransactionCategory>(
-                  label: 'Category',
-                  value: _category,
-                  items: _categoriesForType(_type),
-                  itemLabel: _categoryLabel,
-                  onChanged: (TransactionCategory? value) {
-                    if (value != null) {
-                      setState(() => _category = value);
-                    }
-                  },
+                const SizedBox(height: 12),
+                if (partners.isNotEmpty)
+                  _DropdownField<String?>(
+                    label: _recordKind == TransactionRecordKind.procurement ? 'Provider' : 'Customer',
+                    value: _partnerId,
+                    items: <String?>[null, ...partners.map((BusinessPartner item) => item.id)],
+                    itemLabel: (String? value) {
+                      if (value == null) {
+                        return 'Walk-in / unregistered';
+                      }
+                      return partners.firstWhere((BusinessPartner item) => item.id == value).name;
+                    },
+                    onChanged: (String? value) => setState(() => _partnerId = value),
+                  ),
+                if (partners.isNotEmpty) const SizedBox(height: 12),
+                AppTextField(controller: _productController, label: 'Product', hint: 'Maize, eggs, feed'),
+                const SizedBox(height: 12),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: AppTextField(
+                        controller: _quantityController,
+                        label: 'Quantity',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: AppTextField(controller: _unitController, label: 'Unit', hint: 'bag, crate, kg'),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: AppTextField(
+                        controller: _unitPriceController,
+                        label: 'Unit price',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
                 AppTextField(
                   controller: _amountController,
-                  label: 'Amount',
-                  hint: '250000',
+                  label: 'Total amount',
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
                 AppTextField(
                   controller: _descriptionController,
                   label: 'Description',
-                  hint: 'Tomato sales from market day',
+                  hint: 'Market sale or farm supply note',
                   maxLines: 2,
                 ),
-                const SizedBox(height: 14),
-                InkWell(
-                  onTap: () async {
-                    final DateTime? picked = await showDatePicker(
-                      context: context,
-                      initialDate: _transactionDate,
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime(2035),
-                    );
-                    if (picked != null) {
-                      setState(() => _transactionDate = picked);
-                    }
-                  },
-                  borderRadius: BorderRadius.circular(20),
-                  child: InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: 'Transaction date',
-                      filled: true,
-                      fillColor: Theme.of(context).colorScheme.surface,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(20),
-                        borderSide: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(20),
-                        borderSide: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-                      ),
-                    ),
-                    child: Row(
-                      children: <Widget>[
-                        Expanded(child: Text('${_transactionDate.day}/${_transactionDate.month}/${_transactionDate.year}')),
-                        const Icon(Icons.calendar_today_rounded, size: 18),
-                      ],
-                    ),
-                  ),
+                const SizedBox(height: 12),
+                AppTextField(
+                  controller: _notesController,
+                  label: 'Receipt notes',
+                  hint: 'Delivery details, payment note, or stock observation',
+                  maxLines: 2,
                 ),
-                const SizedBox(height: 22),
+                const SizedBox(height: 18),
                 Row(
                   children: <Widget>[
                     Expanded(
@@ -755,7 +1002,7 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: AppButton.primary(
-                        onPressed: _submit,
+                        onPressed: () => _submit(partners),
                         child: const Text('Save'),
                       ),
                     ),
@@ -769,74 +1016,228 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
     );
   }
 
-  void _submit() {
+  void _submit(List<BusinessPartner> partners) {
     final String? amountError = Validators.combine(
       <String? Function(String?)>[
-        (String? value) => Validators.required(value, fieldName: 'Amount'),
+        (String? value) => Validators.required(value, fieldName: 'Total amount'),
         Validators.amount,
       ],
       _amountController.text.trim(),
     );
-    final String? descriptionError = Validators.required(
-      _descriptionController.text.trim(),
-      fieldName: 'Description',
-    );
-
     if (amountError != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(amountError)));
       return;
     }
-    if (descriptionError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(descriptionError)));
-      return;
-    }
+
+    final BusinessPartner? partner = _partnerId == null
+        ? null
+        : partners.firstWhere((BusinessPartner item) => item.id == _partnerId);
+    final TransactionType type = _recordKind == TransactionRecordKind.procurement
+        ? TransactionType.expense
+        : TransactionType.income;
 
     Navigator.of(context).pop(
       _TransactionDraft(
         farmId: _farmId,
-        type: _type,
-        category: _category,
+        type: type,
+        category: _recordKind == TransactionRecordKind.procurement
+            ? TransactionCategory.other
+            : _productController.text.trim().toLowerCase().contains('livestock')
+                ? TransactionCategory.livestockSale
+                : TransactionCategory.cropSale,
         amount: double.parse(_amountController.text.trim()),
-        description: _descriptionController.text.trim(),
+        description: _descriptionController.text.trim().isEmpty
+            ? _productController.text.trim()
+            : _descriptionController.text.trim(),
         transactionDate: _transactionDate,
+        recordKind: _recordKind,
+        partyType: _recordKind == TransactionRecordKind.procurement
+            ? TransactionPartyType.provider
+            : TransactionPartyType.customer,
+        productName: _productController.text.trim(),
+        quantity: double.tryParse(_quantityController.text.trim()) ?? 0,
+        unit: _unitController.text.trim().isEmpty ? 'unit' : _unitController.text.trim(),
+        unitPrice: double.tryParse(_unitPriceController.text.trim()) ?? 0,
+        counterpartyName: partner?.name ?? '',
+        counterpartyEmail: partner?.email ?? '',
+        counterpartyPhone: partner?.phone ?? '',
+        partnerId: partner?.id ?? '',
+        notes: _notesController.text.trim(),
+      ),
+    );
+  }
+}
+
+class _InventorySheet extends StatefulWidget {
+  const _InventorySheet({required this.farms});
+
+  final List<Farm> farms;
+
+  @override
+  State<_InventorySheet> createState() => _InventorySheetState();
+}
+
+class _InventorySheetState extends State<_InventorySheet> {
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _categoryController = TextEditingController(text: 'Farm produce');
+  final TextEditingController _quantityController = TextEditingController();
+  final TextEditingController _unitController = TextEditingController(text: 'bag');
+  final TextEditingController _unitPriceController = TextEditingController();
+  late String _farmId;
+
+  @override
+  void initState() {
+    super.initState();
+    _farmId = widget.farms.first.id;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _categoryController.dispose();
+    _quantityController.dispose();
+    _unitController.dispose();
+    _unitPriceController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            _DropdownField<String>(
+              label: 'Farm',
+              value: _farmId,
+              items: widget.farms.map((Farm farm) => farm.id).toList(),
+              itemLabel: (String value) => widget.farms.firstWhere((Farm item) => item.id == value).name,
+              onChanged: (String? value) {
+                if (value != null) {
+                  setState(() => _farmId = value);
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            AppTextField(controller: _nameController, label: 'Product name'),
+            const SizedBox(height: 12),
+            AppTextField(controller: _categoryController, label: 'Category'),
+            const SizedBox(height: 12),
+            AppTextField(controller: _quantityController, label: 'Available quantity'),
+            const SizedBox(height: 12),
+            AppTextField(controller: _unitController, label: 'Unit'),
+            const SizedBox(height: 12),
+            AppTextField(controller: _unitPriceController, label: 'Unit price'),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: AppButton.primary(
+                onPressed: _submit,
+                child: const Text('Save inventory'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  List<TransactionCategory> _categoriesForType(TransactionType type) {
-    if (type == TransactionType.income) {
-      return <TransactionCategory>[
-        TransactionCategory.cropSale,
-        TransactionCategory.livestockSale,
-        TransactionCategory.other,
-      ];
-    }
-    return <TransactionCategory>[
-      TransactionCategory.feed,
-      TransactionCategory.fertiliser,
-      TransactionCategory.labour,
-      TransactionCategory.veterinary,
-      TransactionCategory.other,
-    ];
+  void _submit() {
+    Navigator.of(context).pop(
+      _InventoryDraft(
+        farmId: _farmId,
+        name: _nameController.text.trim(),
+        category: _categoryController.text.trim(),
+        quantity: double.tryParse(_quantityController.text.trim()) ?? 0,
+        unit: _unitController.text.trim(),
+        unitPrice: double.tryParse(_unitPriceController.text.trim()) ?? 0,
+      ),
+    );
+  }
+}
+
+class _PartnerSheet extends StatefulWidget {
+  const _PartnerSheet();
+
+  @override
+  State<_PartnerSheet> createState() => _PartnerSheetState();
+}
+
+class _PartnerSheetState extends State<_PartnerSheet> {
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  BusinessPartnerType _type = BusinessPartnerType.customer;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    super.dispose();
   }
 
-  String _categoryLabel(TransactionCategory category) {
-    switch (category) {
-      case TransactionCategory.cropSale:
-        return 'Crop sale';
-      case TransactionCategory.livestockSale:
-        return 'Livestock sale';
-      case TransactionCategory.feed:
-        return 'Feed';
-      case TransactionCategory.fertiliser:
-        return 'Fertiliser';
-      case TransactionCategory.labour:
-        return 'Labour';
-      case TransactionCategory.veterinary:
-        return 'Veterinary';
-      case TransactionCategory.other:
-        return 'Other';
-    }
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            AppTextField(controller: _nameController, label: 'Name'),
+            const SizedBox(height: 12),
+            AppTextField(controller: _emailController, label: 'Email'),
+            const SizedBox(height: 12),
+            AppTextField(controller: _phoneController, label: 'Phone'),
+            const SizedBox(height: 12),
+            _DropdownField<BusinessPartnerType>(
+              label: 'Contact type',
+              value: _type,
+              items: BusinessPartnerType.values,
+              itemLabel: (BusinessPartnerType value) =>
+                  value == BusinessPartnerType.customer ? 'Customer' : 'Provider',
+              onChanged: (BusinessPartnerType? value) {
+                if (value != null) {
+                  setState(() => _type = value);
+                }
+              },
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: AppButton.primary(
+                onPressed: _submit,
+                child: const Text('Save contact'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _submit() {
+    Navigator.of(context).pop(
+      _PartnerDraft(
+        name: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        phone: _phoneController.text.trim(),
+        type: _type,
+      ),
+    );
   }
 }
 
@@ -899,6 +1300,17 @@ class _TransactionDraft {
     required this.amount,
     required this.description,
     required this.transactionDate,
+    required this.recordKind,
+    required this.partyType,
+    required this.productName,
+    required this.quantity,
+    required this.unit,
+    required this.unitPrice,
+    required this.counterpartyName,
+    required this.counterpartyEmail,
+    required this.counterpartyPhone,
+    required this.partnerId,
+    required this.notes,
   });
 
   final String farmId;
@@ -907,4 +1319,47 @@ class _TransactionDraft {
   final double amount;
   final String description;
   final DateTime transactionDate;
+  final TransactionRecordKind recordKind;
+  final TransactionPartyType partyType;
+  final String productName;
+  final double quantity;
+  final String unit;
+  final double unitPrice;
+  final String counterpartyName;
+  final String counterpartyEmail;
+  final String counterpartyPhone;
+  final String partnerId;
+  final String notes;
+}
+
+class _PartnerDraft {
+  const _PartnerDraft({
+    required this.name,
+    required this.email,
+    required this.phone,
+    required this.type,
+  });
+
+  final String name;
+  final String email;
+  final String phone;
+  final BusinessPartnerType type;
+}
+
+class _InventoryDraft {
+  const _InventoryDraft({
+    required this.farmId,
+    required this.name,
+    required this.category,
+    required this.quantity,
+    required this.unit,
+    required this.unitPrice,
+  });
+
+  final String farmId;
+  final String name;
+  final String category;
+  final double quantity;
+  final String unit;
+  final double unitPrice;
 }

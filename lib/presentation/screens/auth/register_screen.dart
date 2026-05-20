@@ -122,7 +122,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          const SizedBox(height: 14),
           AppTextField(
             controller: _confirmPasswordController,
             label: 'Confirm password',
@@ -230,7 +229,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       // Print the error code for debugging purposes
       debugPrint('Firebase Auth Error Code: ${error.code}');
       debugPrint('Firebase Auth Error Message: ${error.message}');
-      
+
       switch (error.code) {
         case 'email-already-in-use':
           return 'An account with that email already exists.';
@@ -254,7 +253,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       // Fallback to the error message from Firebase if code is not handled
       return error.message ?? 'Registration failed. Please try again.';
     }
-    
+
     // For non-Firebase errors, print for debugging
     debugPrint('Unexpected error during registration: $error');
     return 'Registration failed. Please try again.';
@@ -262,24 +261,24 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   List<String> get _countryCodeList => <String>[
     '+234', // Nigeria
-    '+1',   // USA
-    '+44',  // UK
-    '+91',  // India
-    '+27',  // South Africa
+    '+1', // USA
+    '+44', // UK
+    '+91', // India
+    '+27', // South Africa
     '+254', // Kenya
     '+256', // Uganda
     '+255', // Tanzania
     '+233', // Ghana
     '+237', // Cameroon
     '+212', // Morocco
-    '+20',  // Egypt
+    '+20', // Egypt
     '+880', // Bangladesh
-    '+86',  // China
-    '+81',  // Japan
-    '+33',  // France
-    '+49',  // Germany
-    '+39',  // Italy
-    '+34',  // Spain
-    '+31',  // Netherlands
+    '+86', // China
+    '+81', // Japan
+    '+33', // France
+    '+49', // Germany
+    '+39', // Italy
+    '+34', // Spain
+    '+31', // Netherlands
   ];
 }

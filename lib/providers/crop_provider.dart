@@ -44,6 +44,8 @@ class CropsNotifier extends StateNotifier<AsyncValue<List<Crop>>> {
     }
   }
 
+  Future<void> refresh() => _loadCrops();
+
   /// Adds a new crop.
   Future<void> addCrop(Crop crop) async {
     try {

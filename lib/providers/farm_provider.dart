@@ -44,6 +44,8 @@ class FarmsNotifier extends StateNotifier<AsyncValue<List<Farm>>> {
     }
   }
 
+  Future<void> refresh() => _loadFarms();
+
   /// Adds a new farm.
   Future<void> addFarm(Farm farm) async {
     try {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 
 import 'domain/models/notification.dart' as domain;
@@ -26,6 +27,7 @@ import 'presentation/screens/onboarding/onboarding_screen.dart';
 import 'presentation/screens/onboarding/app_tour_screen.dart';
 import 'presentation/screens/notifications/notifications_screen.dart';
 import 'presentation/screens/notifications/notification_detail_screen.dart';
+import 'providers/app_preferences_provider.dart';
 import 'providers/theme_provider.dart';
 
 /// The root widget of the Farmsync application.
@@ -34,13 +36,25 @@ class FarmsyncApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final themeMode = ref.watch(themeProvider);
+    final ThemeMode themeMode = ref.watch(themeProvider);
+    final AppLanguage language = ref.watch(appLanguageProvider);
 
     return MaterialApp.router(
       title: 'Farmsync',
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
+      locale: language.locale,
+      supportedLocales: const <Locale>[
+        Locale('en'),
+        Locale('ha'),
+        Locale('fr'),
+      ],
+      localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+        GlobalMaterialLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+      ],
       routerConfig: _router,
       debugShowCheckedModeBanner: false,
     );

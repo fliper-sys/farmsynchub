@@ -5,4 +5,10 @@ abstract class ReportFileSaver {
     required Uint8List bytes,
     required String fileName,
   });
+
+  Future<String> saveBytes({
+    required Uint8List bytes,
+    required String fileName,
+    required String mimeType,
+  });
 }

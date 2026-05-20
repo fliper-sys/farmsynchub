@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../domain/models/farm.dart';
+import '../../../../providers/farm_provider.dart';
 import '../../../common/widgets/farm_scene_artwork.dart';
 
 /// Illustrated weather summary card.
-class WeatherPill extends StatelessWidget {
+class WeatherPill extends ConsumerWidget {
   const WeatherPill({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final ThemeData theme = Theme.of(context);
+    final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
+    final _WeatherSnapshot snapshot = _WeatherSnapshot.fromFarms(farms);
 
     return Container(
       decoration: BoxDecoration(
@@ -48,26 +53,41 @@ class WeatherPill extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  '18°C',
+                  '${snapshot.temperature.toStringAsFixed(1)} C',
                   style: theme.textTheme.headlineMedium?.copyWith(
                     color: AppColors.primary,
                     fontSize: 30,
                   ),
                 ),
                 Text(
-                  'Cloudy',
+                  snapshot.summary,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: AppColors.primary.withOpacity(0.76),
                   ),
                 ),
                 const SizedBox(height: 18),
-                const Row(
+                Row(
                   children: <Widget>[
-                    Expanded(child: _MetricChip(label: 'Humidity', value: 'Good')),
-                    SizedBox(width: 10),
-                    Expanded(child: _MetricChip(label: 'Soil Moisture', value: 'Good')),
-                    SizedBox(width: 10),
-                    Expanded(child: _MetricChip(label: 'Precipitation', value: 'Low')),
+                    Expanded(
+                      child: _MetricChip(
+                        label: 'Humidity',
+                        value: '${snapshot.humidity.toStringAsFixed(0)}%',
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _MetricChip(
+                        label: 'Soil Moisture',
+                        value: '${snapshot.soilMoisture.toStringAsFixed(0)}%',
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _MetricChip(
+                        label: 'Precipitation',
+                        value: '${snapshot.precipitation.toStringAsFixed(0)} mm',
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -75,6 +95,63 @@ class WeatherPill extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _WeatherSnapshot {
+  const _WeatherSnapshot({
+    required this.temperature,
+    required this.humidity,
+    required this.soilMoisture,
+    required this.precipitation,
+    required this.summary,
+  });
+
+  final double temperature;
+  final double humidity;
+  final double soilMoisture;
+  final double precipitation;
+  final String summary;
+
+  factory _WeatherSnapshot.fromFarms(List<Farm> farms) {
+    if (farms.isEmpty) {
+      return const _WeatherSnapshot(
+        temperature: 24,
+        humidity: 60,
+        soilMoisture: 52,
+        precipitation: 6,
+        summary: 'Field-ready conditions',
+      );
+    }
+
+    double temp = 0;
+    double humidity = 0;
+    double soil = 0;
+    double rain = 0;
+    for (final Farm farm in farms) {
+      temp += farm.temperatureCelsius;
+      humidity += farm.humidityPercent;
+      soil += farm.soilMoisturePercent;
+      rain += farm.precipitationMm;
+    }
+
+    final double divisor = farms.length.toDouble();
+    final double temperature = temp / divisor;
+    final double humidityValue = humidity / divisor;
+    final double soilValue = soil / divisor;
+    final double rainValue = rain / divisor;
+
+    return _WeatherSnapshot(
+      temperature: temperature,
+      humidity: humidityValue,
+      soilMoisture: soilValue,
+      precipitation: rainValue,
+      summary: rainValue > 12
+          ? 'Rainfall watch'
+          : soilValue < 40
+              ? 'Irrigation recommended'
+              : 'Field-ready conditions',
     );
   }
 }

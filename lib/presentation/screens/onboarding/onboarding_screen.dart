@@ -7,7 +7,7 @@ import '../../../core/services/onboarding_preferences.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../common/widgets/app_button.dart';
 
-/// Onboarding screen with a branded carousel introduction.
+/// Theme-aware onboarding carousel for the first app launch.
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -20,34 +20,34 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   int _currentPage = 0;
   bool _isCompleting = false;
 
-  final List<OnboardingPageData> _pages = <OnboardingPageData>[
-    const OnboardingPageData(
-      title: 'Run your farm from one calm workspace',
-      subtitle: 'Track crops, livestock, records, and daily work without the clutter.',
+  final List<OnboardingPageData> _pages = const <OnboardingPageData>[
+    OnboardingPageData(
+      title: 'Manage every farm from one workspace',
+      subtitle: 'Create farms, track fields, store documents, and keep environmental readings close to the work.',
       animationAsset: AppAssets.onboardingWelcomeAnimation,
-      accentColor: AppColors.primaryMid,
-      chips: const <OnboardingChipData>[
-        OnboardingChipData(label: 'Field plans', assetPath: AppAssets.onboardingField),
-        OnboardingChipData(label: 'Farm records', assetPath: AppAssets.onboardingFarm),
+      accentColor: Color(0xFF5F9D58),
+      chips: <OnboardingChipData>[
+        OnboardingChipData(label: 'Farm profiles', assetPath: AppAssets.onboardingFarm),
+        OnboardingChipData(label: 'Field records', assetPath: AppAssets.onboardingField),
       ],
     ),
-    const OnboardingPageData(
-      title: 'Stay on top of tasks, harvests, and market flow',
-      subtitle: 'Organize activities, monitor produce, and keep everyone aligned from planting to pickup.',
+    OnboardingPageData(
+      title: 'Connect crops, animals, inventory, and sales',
+      subtitle: 'Follow produce from planning to buyer receipt, with livestock and procurement records in the same flow.',
       animationAsset: AppAssets.onboardingSyncAnimation,
-      accentColor: AppColors.amberAccent,
-      chips: const <OnboardingChipData>[
+      accentColor: Color(0xFFCE9B3A),
+      chips: <OnboardingChipData>[
         OnboardingChipData(label: 'Produce', assetPath: AppAssets.onboardingProduce),
         OnboardingChipData(label: 'Market', assetPath: AppAssets.onboardingMarket),
         OnboardingChipData(label: 'Logistics', assetPath: AppAssets.onboardingLogistics),
       ],
     ),
-    const OnboardingPageData(
-      title: 'Start with clarity and grow with confidence',
-      subtitle: 'Make smarter decisions with a simple dashboard built for real farm operations.',
+    OnboardingPageData(
+      title: 'Learn, ask AI, and act with confidence',
+      subtitle: 'Use lessons, field prompts, weather guidance, and notifications to keep farm decisions moving.',
       animationAsset: AppAssets.onboardingSuccessAnimation,
-      accentColor: AppColors.primary,
-      chips: const <OnboardingChipData>[
+      accentColor: Color(0xFF3D6FA8),
+      chips: <OnboardingChipData>[
         OnboardingChipData(label: 'Insights', assetPath: AppAssets.onboardingStrategy),
         OnboardingChipData(label: 'Harvest', assetPath: AppAssets.onboardingHarvest),
       ],
@@ -64,6 +64,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    final bool isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
       body: DecoratedBox(
@@ -71,64 +73,49 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: <Color>[
-              const Color(0xFFE8F6EA),
-              Colors.white,
-              AppColors.surfaceLight,
-            ],
+            colors: isDark
+                ? <Color>[
+                    const Color(0xFF07120C),
+                    const Color(0xFF102219),
+                    scheme.surface,
+                  ]
+                : const <Color>[
+                    Color(0xFFFFFBF2),
+                    Color(0xFFEFF8EA),
+                    Color(0xFFE4F1DD),
+                  ],
           ),
         ),
         child: SafeArea(
           child: Column(
             children: <Widget>[
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+                padding: const EdgeInsets.fromLTRB(22, 16, 22, 8),
                 child: Row(
                   children: <Widget>[
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      width: 42,
+                      height: 42,
+                      padding: const EdgeInsets.all(7),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.86),
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(color: AppColors.borderLight),
+                        color: scheme.surface.withOpacity(isDark ? 0.18 : 0.88),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: scheme.outlineVariant),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Container(
-                            width: 32,
-                            height: 32,
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceSoft,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Image.asset(AppAssets.appIcon),
-                          ),
-                          const SizedBox(width: 10),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Text(
-                                'AgriCare',
-                                style: theme.textTheme.labelLarge?.copyWith(
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                              Text(
-                                'Field-ready onboarding',
-                                style: theme.textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
-                        ],
+                      child: Image.asset(AppAssets.appIcon),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'FarmSync Hub',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: isDark ? Colors.white : AppColors.primary,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
-                    const Spacer(),
                     TextButton(
-                      onPressed: () {
-                        _completeOnboarding();
-                      },
+                      onPressed: _completeOnboarding,
                       child: const Text('Skip'),
                     ),
                   ],
@@ -144,98 +131,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   },
                 ),
               ),
-              _buildBottomSection(context),
+              _BottomControls(
+                currentPage: _currentPage,
+                pageCount: _pages.length,
+                isCompleting: _isCompleting,
+                onBack: _currentPage == 0 ? _completeOnboarding : _previousPage,
+                onNext: _currentPage == _pages.length - 1 ? _completeOnboarding : _nextPage,
+              ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildBottomSection(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final bool isLastPage = _currentPage == _pages.length - 1;
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-      padding: const EdgeInsets.fromLTRB(24, 22, 24, 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(34),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: AppColors.primary.withOpacity(0.10),
-            blurRadius: 24,
-            offset: const Offset(0, 14),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  isLastPage ? 'Everything is ready' : 'Step ${_currentPage + 1} of ${_pages.length}',
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-              Text(
-                isLastPage ? 'Let\'s go' : 'Swipe or tap next',
-                style: theme.textTheme.bodySmall,
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List<Widget>.generate(
-              _pages.length,
-              (int index) => AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                width: _currentPage == index ? 26 : 8,
-                height: 8,
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                decoration: BoxDecoration(
-                  color: _currentPage == index ? AppColors.primaryMid : AppColors.borderLight,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 22),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: TextButton(
-                  onPressed: _currentPage == 0
-                      ? () {
-                          _completeOnboarding();
-                        }
-                      : _previousPage,
-                  child: Text(_currentPage == 0 ? 'Skip' : 'Back'),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                flex: 2,
-                child: AppButton.primary(
-                  onPressed: _isCompleting
-                      ? null
-                      : (_currentPage == _pages.length - 1
-                          ? () {
-                              _completeOnboarding();
-                            }
-                          : _nextPage),
-                  child: Text(_currentPage == _pages.length - 1 ? 'Enter dashboard' : 'Next'),
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }
@@ -265,6 +170,91 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       return;
     }
     context.go('/login');
+  }
+}
+
+class _BottomControls extends StatelessWidget {
+  const _BottomControls({
+    required this.currentPage,
+    required this.pageCount,
+    required this.isCompleting,
+    required this.onBack,
+    required this.onNext,
+  });
+
+  final int currentPage;
+  final int pageCount;
+  final bool isCompleting;
+  final VoidCallback onBack;
+  final VoidCallback onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isLastPage = currentPage == pageCount - 1;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    isLastPage ? 'Ready to begin' : 'Step ${currentPage + 1} of $pageCount',
+                    style: theme.textTheme.labelLarge?.copyWith(color: AppColors.primary),
+                  ),
+                ),
+                Row(
+                  children: List<Widget>.generate(
+                    pageCount,
+                    (int index) => AnimatedContainer(
+                      duration: const Duration(milliseconds: 240),
+                      width: currentPage == index ? 26 : 8,
+                      height: 8,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: currentPage == index
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.outlineVariant,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: AppButton.secondary(
+                    onPressed: isCompleting ? null : onBack,
+                    child: Text(currentPage == 0 ? 'Skip' : 'Back'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: AppButton.primary(
+                    onPressed: isCompleting ? null : onNext,
+                    child: Text(isLastPage ? 'Enter FarmSync' : 'Next'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -304,90 +294,48 @@ class _OnboardingPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
       child: Column(
         children: <Widget>[
-          const SizedBox(height: 12),
           Expanded(
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.92),
-                borderRadius: BorderRadius.circular(38),
-                boxShadow: <BoxShadow>[
-                  BoxShadow(
-                    color: data.accentColor.withOpacity(0.12),
-                    blurRadius: 28,
-                    offset: const Offset(0, 18),
-                  ),
-                ],
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(32),
+                border: Border.all(color: theme.colorScheme.outlineVariant),
               ),
               child: Column(
                 children: <Widget>[
                   Row(
                     children: <Widget>[
-                      _MetricPill(
-                        icon: Icons.auto_awesome_rounded,
-                        label: data.isLastPage ? 'Ready to launch' : 'Smart farm flow',
+                      _FeaturePill(
+                        icon: data.isLastPage ? Icons.check_circle_rounded : Icons.auto_awesome_rounded,
+                        label: data.isLastPage ? 'Ready' : 'Farm workflow',
                         tint: data.accentColor,
                       ),
                       const Spacer(),
-                      Container(
-                        width: 54,
-                        height: 54,
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: AppColors.borderLight),
-                        ),
-                        child: Image.asset(AppAssets.appIcon),
-                      ),
+                      Icon(Icons.swipe_rounded, color: theme.colorScheme.onSurfaceVariant),
                     ],
                   ),
                   const SizedBox(height: 18),
                   Expanded(
                     child: Container(
-                      width: double.infinity,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(30),
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: <Color>[
-                            data.accentColor.withOpacity(0.16),
-                            Colors.white,
-                          ],
-                        ),
+                        color: data.accentColor.withOpacity(isDark ? 0.16 : 0.11),
+                        borderRadius: BorderRadius.circular(28),
                       ),
-                      child: Stack(
-                        children: <Widget>[
-                          Positioned(
-                            top: -12,
-                            right: -8,
-                            child: Container(
-                              width: 108,
-                              height: 108,
-                              decoration: BoxDecoration(
-                                color: data.accentColor.withOpacity(0.08),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ),
-                          Positioned.fill(
-                            child: Padding(
-                              padding: const EdgeInsets.all(18),
-                              child: Lottie.asset(
-                                data.animationAsset,
-                                fit: BoxFit.contain,
-                                repeat: !data.isLastPage,
-                              ),
-                            ),
-                          ),
-                        ],
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Lottie.asset(
+                          data.animationAsset,
+                          fit: BoxFit.contain,
+                          repeat: !data.isLastPage,
+                        ),
                       ),
                     ),
                   ),
@@ -397,10 +345,12 @@ class _OnboardingPage extends StatelessWidget {
                     spacing: 10,
                     runSpacing: 10,
                     children: data.chips
-                        .map((OnboardingChipData chip) => _AssetChip(
-                              chip: chip,
-                              tint: data.accentColor,
-                            ))
+                        .map(
+                          (OnboardingChipData chip) => _AssetChip(
+                            chip: chip,
+                            tint: data.accentColor,
+                          ),
+                        )
                         .toList(),
                   ),
                 ],
@@ -408,28 +358,21 @@ class _OnboardingPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 22),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Column(
-              children: <Widget>[
-                Text(
-                  data.title,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontSize: 32,
-                    color: AppColors.primary,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  data.subtitle,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    height: 1.6,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
+          Text(
+            data.title,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontSize: 31,
+              color: isDark ? Colors.white : AppColors.primary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            data.subtitle,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              height: 1.55,
+              color: isDark ? Colors.white70 : theme.colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -438,8 +381,8 @@ class _OnboardingPage extends StatelessWidget {
   }
 }
 
-class _MetricPill extends StatelessWidget {
-  const _MetricPill({
+class _FeaturePill extends StatelessWidget {
+  const _FeaturePill({
     required this.icon,
     required this.label,
     required this.tint,
@@ -454,22 +397,17 @@ class _MetricPill extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
-        color: tint.withOpacity(0.10),
-        borderRadius: BorderRadius.circular(18),
+        color: tint.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(icon, size: 16, color: AppColors.primary),
+          Icon(icon, size: 17, color: theme.colorScheme.primary),
           const SizedBox(width: 8),
-          Text(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: AppColors.primary,
-            ),
-          ),
+          Text(label, style: theme.textTheme.labelMedium),
         ],
       ),
     );
@@ -493,9 +431,9 @@ class _AssetChip extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 112),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.borderLight),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -505,7 +443,7 @@ class _AssetChip extends StatelessWidget {
             height: 28,
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: tint.withOpacity(0.10),
+              color: tint.withOpacity(0.14),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Image.asset(chip.assetPath, fit: BoxFit.contain),
@@ -515,9 +453,7 @@ class _AssetChip extends StatelessWidget {
             child: Text(
               chip.label,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.primary,
-              ),
+              style: theme.textTheme.bodySmall,
             ),
           ),
         ],

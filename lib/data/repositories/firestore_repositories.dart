@@ -169,7 +169,11 @@ class FirestoreCropRepository implements CropRepository {
       return <Crop>[];
     }
     final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('crops');
-    final List<Crop> crops = records.map(Crop.fromJson).toList()
+    final List<Crop> crops = records
+        .map(_tryParseCrop)
+        .whereType<Crop>()
+        .where((Crop crop) => crop.id.isNotEmpty)
+        .toList()
       ..sort((Crop a, Crop b) => b.updatedAt.compareTo(a.updatedAt));
     return crops;
   }
@@ -180,7 +184,7 @@ class FirestoreCropRepository implements CropRepository {
       return null;
     }
     final Map<String, dynamic>? record = await _firebaseService.getDocumentFromFirestore('crops', id);
-    return record == null ? null : Crop.fromJson(record);
+    return record == null ? null : _tryParseCrop(record);
   }
 
   @override
@@ -221,7 +225,11 @@ class FirestoreLivestockRepository implements LivestockRepository {
       return <Livestock>[];
     }
     final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('livestock');
-    final List<Livestock> items = records.map(Livestock.fromJson).toList()
+    final List<Livestock> items = records
+        .map(_tryParseLivestock)
+        .whereType<Livestock>()
+        .where((Livestock item) => item.id.isNotEmpty)
+        .toList()
       ..sort((Livestock a, Livestock b) => b.updatedAt.compareTo(a.updatedAt));
     return items;
   }
@@ -232,7 +240,7 @@ class FirestoreLivestockRepository implements LivestockRepository {
       return null;
     }
     final Map<String, dynamic>? record = await _firebaseService.getDocumentFromFirestore('livestock', id);
-    return record == null ? null : Livestock.fromJson(record);
+    return record == null ? null : _tryParseLivestock(record);
   }
 
   @override
@@ -251,6 +259,30 @@ class FirestoreLivestockRepository implements LivestockRepository {
     }
     final Map<String, dynamic> data = livestock.toJson()..['isSynced'] = true;
     await _firebaseService.syncToFirestore('livestock', data);
+  }
+}
+
+Crop? _tryParseCrop(Map<String, dynamic> record) {
+  try {
+    return Crop.fromJson(record);
+  } catch (_) {
+    return null;
+  }
+}
+
+Livestock? _tryParseLivestock(Map<String, dynamic> record) {
+  try {
+    return Livestock.fromJson(record);
+  } catch (_) {
+    return null;
+  }
+}
+
+Transaction? _tryParseTransaction(Map<String, dynamic> record) {
+  try {
+    return Transaction.fromJson(record);
+  } catch (_) {
+    return null;
   }
 }
 
@@ -273,7 +305,11 @@ class FirestoreFinanceRepository implements FinanceRepository {
       return <Transaction>[];
     }
     final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('transactions');
-    final List<Transaction> items = records.map(Transaction.fromJson).toList()
+    final List<Transaction> items = records
+        .map(_tryParseTransaction)
+        .whereType<Transaction>()
+        .where((Transaction item) => item.id.isNotEmpty)
+        .toList()
       ..sort((Transaction a, Transaction b) => b.transactionDate.compareTo(a.transactionDate));
     return items;
   }
@@ -284,7 +320,7 @@ class FirestoreFinanceRepository implements FinanceRepository {
       return null;
     }
     final Map<String, dynamic>? record = await _firebaseService.getDocumentFromFirestore('transactions', id);
-    return record == null ? null : Transaction.fromJson(record);
+    return record == null ? null : _tryParseTransaction(record);
   }
 
   @override

@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/services/user_walkthrough_preferences.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../domain/models/user_profile.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/user_profile_provider.dart';
+import '../../common/widgets/farm_scene_artwork.dart';
 
 class PostAuthGateScreen extends ConsumerStatefulWidget {
   const PostAuthGateScreen({super.key});
@@ -13,15 +16,42 @@ class PostAuthGateScreen extends ConsumerStatefulWidget {
   ConsumerState<PostAuthGateScreen> createState() => _PostAuthGateScreenState();
 }
 
-class _PostAuthGateScreenState extends ConsumerState<PostAuthGateScreen> {
+class _PostAuthGateScreenState extends ConsumerState<PostAuthGateScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
   bool _navigated = false;
 
   @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..forward();
+    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.04),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final profileAsync = ref.watch(userProfileProvider);
+    final AsyncValue<UserProfile?> profileAsync = ref.watch(userProfileProvider);
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    final bool isDark = theme.brightness == Brightness.dark;
 
     profileAsync.whenOrNull(
-      data: (profile) {
+      data: (UserProfile? profile) {
         if (_navigated || !mounted) {
           return;
         }
@@ -38,12 +68,103 @@ class _PostAuthGateScreenState extends ConsumerState<PostAuthGateScreen> {
       },
     );
 
-    return const Scaffold(
-      body: Center(
-        child: SizedBox(
-          width: 28,
-          height: 28,
-          child: CircularProgressIndicator(strokeWidth: 2.8),
+    return Scaffold(
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: isDark
+                ? <Color>[
+                    const Color(0xFF07120C),
+                    const Color(0xFF102219),
+                    scheme.surface,
+                  ]
+                : const <Color>[
+                    Color(0xFFFFFBF2),
+                    Color(0xFFEFF8EA),
+                    Color(0xFFDDEFD5),
+                  ],
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 18, 22, 26),
+            child: FadeTransition(
+              opacity: _fade,
+              child: SlideTransition(
+                position: _slide,
+                child: Column(
+                  children: <Widget>[
+                    Align(
+                      alignment: Alignment.topRight,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: scheme.surface.withOpacity(isDark ? 0.22 : 0.78),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: scheme.outlineVariant),
+                        ),
+                        child: Text(
+                          'Preparing workspace',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: isDark ? Colors.white : AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(32),
+                        border: Border.all(color: scheme.outlineVariant),
+                        boxShadow: <BoxShadow>[
+                          BoxShadow(
+                            color: AppColors.primary.withOpacity(isDark ? 0.18 : 0.10),
+                            blurRadius: 28,
+                            offset: const Offset(0, 16),
+                          ),
+                        ],
+                      ),
+                      child: FarmSceneArtwork(
+                        height: 260,
+                        variant: FarmArtworkVariant.dashboard,
+                        borderRadius: const BorderRadius.all(Radius.circular(32)),
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    Text(
+                      'Setting up FarmSync',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        color: isDark ? Colors.white : AppColors.primary,
+                        fontSize: 34,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'We are checking your profile, sync state, and walkthrough progress.',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        height: 1.6,
+                        color: isDark ? Colors.white70 : scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        color: isDark ? Colors.white : AppColors.primary,
+                      ),
+                    ),
+                    const Spacer(),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -52,9 +173,8 @@ class _PostAuthGateScreenState extends ConsumerState<PostAuthGateScreen> {
   Future<void> _handleNavigation(bool isComplete) async {
     _navigated = true;
     final String? userId = ref.read(firebaseServiceProvider).currentUser?.uid;
-    final bool hasCompletedWalkthrough = userId == null
-        ? false
-        : await UserWalkthroughPreferences.isCompleted(userId);
+    final bool hasCompletedWalkthrough =
+        userId == null ? false : await UserWalkthroughPreferences.isCompleted(userId);
     if (!mounted) {
       return;
     }

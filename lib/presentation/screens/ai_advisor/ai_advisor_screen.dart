@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_strings.dart';
@@ -51,6 +52,15 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: Navigator.of(context).canPop()
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_rounded),
+                onPressed: () => Navigator.of(context).pop(),
+              )
+            : IconButton(
+                icon: const Icon(Icons.arrow_back_rounded),
+                onPressed: () => context.go('/dashboard'),
+              ),
         title: const Text('AI Advisor'),
         actions: <Widget>[
           PopupMenuButton<String>(
@@ -133,7 +143,7 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
                 const SoftSectionTitle(title: 'Ask AI'),
                 _ComposerCard(
                   controller: _messageController,
-                  isLoading: ai.isActiveLoading,
+                  isLoading: ai.isActiveLoading || ai.isActiveCoolingDown,
                   selectedImageBytes: _selectedImageBytes,
                   selectedImageLabel: _selectedImageLabel,
                   onSend: () => _sendMessage(ai),
@@ -147,6 +157,15 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
                     message: 'AI requests are disabled until a Gemini API key is configured.',
                     tint: const Color(0xFFFFEBD3),
                     icon: Icons.key_off_rounded,
+                  ),
+                ],
+                if (ai.isActiveCoolingDown) ...<Widget>[
+                  const SizedBox(height: 12),
+                  _InfoNotice(
+                    message:
+                        'Gemini rate-limited the last request. Wait ${ai.cooldownRemainingFor(ai.activeTopic).inSeconds + 1} seconds, then try again.',
+                    tint: const Color(0xFFFFEBD3),
+                    icon: Icons.timer_outlined,
                   ),
                 ],
               ],

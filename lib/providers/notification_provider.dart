@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
@@ -21,21 +22,27 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
 
   /// Loads notifications from shared preferences.
   Future<void> _loadNotifications() async {
-    final prefs = await SharedPreferences.getInstance();
-    final notificationsJson = prefs.getStringList(_notificationsKey) ?? [];
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final List<String> notificationsJson = prefs.getStringList(_notificationsKey) ?? <String>[];
+    if (notificationsJson.isEmpty) {
+      state = _defaultNotifications();
+      await _saveNotifications();
+      return;
+    }
 
-    final notifications = notificationsJson
-        .map((jsonStr) => Notification.fromMap(jsonDecode(jsonStr) as Map<String, dynamic>))
-        .toList();
-
-    // For simplicity, let's use mock data for now
-    state = _getMockNotifications();
+    state = notificationsJson
+        .map((String jsonStr) => Notification.fromMap(jsonDecode(jsonStr) as Map<String, dynamic>))
+        .toList()
+      ..sort((Notification a, Notification b) => b.timestamp.compareTo(a.timestamp));
   }
 
   /// Saves notifications to shared preferences.
   Future<void> _saveNotifications() async {
-    final prefs = await SharedPreferences.getInstance();
-    // For now, skip saving, as mock data
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final List<String> payload = state
+        .map((Notification notification) => jsonEncode(notification.toMap()))
+        .toList(growable: false);
+    await prefs.setStringList(_notificationsKey, payload);
   }
 
   /// Adds a new notification.
@@ -71,6 +78,28 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
     _saveNotifications();
   }
 
+  /// Marks a notification as unread.
+  void markAsUnread(String notificationId) {
+    state = state.map((notification) {
+      if (notification.id == notificationId) {
+        return notification.copyWith(isRead: false);
+      }
+      return notification;
+    }).toList();
+    _saveNotifications();
+  }
+
+  /// Toggles a notification read state.
+  void toggleRead(String notificationId) {
+    state = state.map((notification) {
+      if (notification.id == notificationId) {
+        return notification.copyWith(isRead: !notification.isRead);
+      }
+      return notification;
+    }).toList();
+    _saveNotifications();
+  }
+
   /// Marks all notifications as read.
   void markAllAsRead() {
     state = state.map((notification) => notification.copyWith(isRead: true)).toList();
@@ -83,6 +112,16 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
     _saveNotifications();
   }
 
+  /// Restores an existing notification object, preserving its id and timestamp.
+  void restoreNotification(Notification notification) {
+    if (state.any((item) => item.id == notification.id)) {
+      return;
+    }
+    state = <Notification>[notification, ...state]
+      ..sort((Notification a, Notification b) => b.timestamp.compareTo(a.timestamp));
+    _saveNotifications();
+  }
+
   /// Clears all notifications.
   void clearAllNotifications() {
     state = [];
@@ -92,8 +131,11 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
   /// Gets unread notifications count.
   int get unreadCount => state.where((notification) => !notification.isRead).length;
 
+  /// Gets read notifications count.
+  int get readCount => state.where((notification) => notification.isRead).length;
+
   /// Mock notifications for demonstration.
-  List<Notification> _getMockNotifications() {
+  List<Notification> _defaultNotifications() {
     return [
       Notification(
         id: '1',
@@ -102,6 +144,7 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
         type: NotificationType.success,
         timestamp: DateTime.now().subtract(const Duration(hours: 1)),
         isRead: false,
+        actionUrl: '/dashboard',
       ),
       Notification(
         id: '2',
@@ -127,6 +170,11 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
         type: NotificationType.warning,
         timestamp: DateTime.now().subtract(const Duration(days: 2)),
         isRead: false,
+        actionUrl: '/farms',
+        metadata: <String, dynamic>{
+          'recommendedAction': 'Check drainage and raised beds',
+          'precipitation': '18 mm forecast',
+        },
       ),
       Notification(
         id: '5',
@@ -135,6 +183,7 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
         type: NotificationType.success,
         timestamp: DateTime.now().subtract(const Duration(days: 7)),
         isRead: true,
+        actionUrl: '/finance',
       ),
     ];
   }

@@ -44,6 +44,8 @@ class TransactionsNotifier extends StateNotifier<AsyncValue<List<Transaction>>> 
     }
   }
 
+  Future<void> refresh() => _loadTransactions();
+
   /// Adds a new transaction.
   Future<void> addTransaction(Transaction transaction) async {
     try {
