@@ -73,6 +73,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     final SyncOverview syncOverview = ref.watch(syncOverviewProvider);
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
+    final Color primaryTextColor = isDark ? Colors.white : AppColors.primary;
 
     final List<Farm> farms = farmsAsync.maybeWhen(
       data: (List<Farm> items) => items,
@@ -243,7 +244,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                       const SizedBox(height: 24),
                       Text(
                         language.tr(en: 'Farm launchpad', ha: 'Wurin fara aiki', fr: 'Centre de gestion'),
-                        style: theme.textTheme.titleLarge?.copyWith(color: AppColors.primary),
+                        style: theme.textTheme.titleLarge?.copyWith(color: primaryTextColor),
                       ),
                       const SizedBox(height: 14),
                       const QuickActionsGrid(),
@@ -393,7 +394,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                       const SizedBox(height: 24),
                       Text(
                         language.tr(en: 'Recent activity', ha: 'Ayyukan baya-bayan nan', fr: 'Activite recente'),
-                        style: theme.textTheme.titleLarge?.copyWith(color: AppColors.primary),
+                        style: theme.textTheme.titleLarge?.copyWith(color: primaryTextColor),
                       ),
                       const SizedBox(height: 14),
                       const ActivityFeed(),

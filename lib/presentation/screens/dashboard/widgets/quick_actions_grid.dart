@@ -10,7 +10,7 @@ class QuickActionsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GridView.count(
-      crossAxisCount: 2,
+      crossAxisCount: 3,
       shrinkWrap: true,
       childAspectRatio: 0.96,
       physics: const NeverScrollableScrollPhysics(),

@@ -22,6 +22,14 @@ enum WaterSource {
   irrigation,
 }
 
+/// Farm operation type enumeration.
+enum FarmType {
+  crop,
+  livestock,
+  greenhouse,
+  combined,
+}
+
 class FarmDocumentRecord {
   const FarmDocumentRecord({
     required this.id,
@@ -85,6 +93,7 @@ class Farm {
     required this.name,
     required this.ward,
     required this.sizeHa,
+    required this.farmType,
     required this.farmerCategory,
     required this.soilType,
     required this.waterSource,
@@ -97,6 +106,10 @@ class Farm {
     this.humidityPercent = 0,
     this.soilMoisturePercent = 0,
     this.precipitationMm = 0,
+    this.greenhouseCount = 0,
+    this.greenhouseAreaHa = 0,
+    this.cropCapacityHa = 0,
+    this.livestockCapacity = 0,
     this.documents = const <FarmDocumentRecord>[],
   });
 
@@ -104,6 +117,7 @@ class Farm {
   final String name;
   final String ward;
   final double sizeHa;
+  final FarmType farmType;
   final FarmerCategory farmerCategory;
   final SoilType soilType;
   final WaterSource waterSource;
@@ -116,13 +130,22 @@ class Farm {
   final double humidityPercent;
   final double soilMoisturePercent;
   final double precipitationMm;
+  final int greenhouseCount;
+  final double greenhouseAreaHa;
+  final double cropCapacityHa;
+  final int livestockCapacity;
   final List<FarmDocumentRecord> documents;
+
+  bool get supportsCrops => <FarmType>[FarmType.crop, FarmType.greenhouse, FarmType.combined].contains(farmType);
+  bool get supportsLivestock => <FarmType>[FarmType.livestock, FarmType.combined].contains(farmType);
+  bool get supportsGreenhouse => <FarmType>[FarmType.greenhouse, FarmType.combined].contains(farmType);
 
   Farm copyWith({
     String? id,
     String? name,
     String? ward,
     double? sizeHa,
+    FarmType? farmType,
     FarmerCategory? farmerCategory,
     SoilType? soilType,
     WaterSource? waterSource,
@@ -135,6 +158,10 @@ class Farm {
     double? humidityPercent,
     double? soilMoisturePercent,
     double? precipitationMm,
+    int? greenhouseCount,
+    double? greenhouseAreaHa,
+    double? cropCapacityHa,
+    int? livestockCapacity,
     List<FarmDocumentRecord>? documents,
   }) {
     return Farm(
@@ -142,6 +169,7 @@ class Farm {
       name: name ?? this.name,
       ward: ward ?? this.ward,
       sizeHa: sizeHa ?? this.sizeHa,
+      farmType: farmType ?? this.farmType,
       farmerCategory: farmerCategory ?? this.farmerCategory,
       soilType: soilType ?? this.soilType,
       waterSource: waterSource ?? this.waterSource,
@@ -154,6 +182,10 @@ class Farm {
       humidityPercent: humidityPercent ?? this.humidityPercent,
       soilMoisturePercent: soilMoisturePercent ?? this.soilMoisturePercent,
       precipitationMm: precipitationMm ?? this.precipitationMm,
+      greenhouseCount: greenhouseCount ?? this.greenhouseCount,
+      greenhouseAreaHa: greenhouseAreaHa ?? this.greenhouseAreaHa,
+      cropCapacityHa: cropCapacityHa ?? this.cropCapacityHa,
+      livestockCapacity: livestockCapacity ?? this.livestockCapacity,
       documents: documents ?? this.documents,
     );
   }
@@ -163,6 +195,7 @@ class Farm {
         'name': name,
         'ward': ward,
         'sizeHa': sizeHa,
+        'farmType': farmType.name,
         'farmerCategory': farmerCategory.name,
         'soilType': soilType.name,
         'waterSource': waterSource.name,
@@ -175,6 +208,10 @@ class Farm {
         'humidityPercent': humidityPercent,
         'soilMoisturePercent': soilMoisturePercent,
         'precipitationMm': precipitationMm,
+        'greenhouseCount': greenhouseCount,
+        'greenhouseAreaHa': greenhouseAreaHa,
+        'cropCapacityHa': cropCapacityHa,
+        'livestockCapacity': livestockCapacity,
         'documents': documents.map((FarmDocumentRecord item) => item.toJson()).toList(),
       };
 
@@ -183,6 +220,10 @@ class Farm {
         name: json['name'] as String,
         ward: json['ward'] as String,
         sizeHa: (json['sizeHa'] as num).toDouble(),
+        farmType: FarmType.values.firstWhere(
+          (e) => e.name == json['farmType'],
+          orElse: () => FarmType.combined,
+        ),
         farmerCategory: FarmerCategory.values.firstWhere(
           (e) => e.name == json['farmerCategory'],
         ),
@@ -201,6 +242,10 @@ class Farm {
         humidityPercent: (json['humidityPercent'] as num?)?.toDouble() ?? 0,
         soilMoisturePercent: (json['soilMoisturePercent'] as num?)?.toDouble() ?? 0,
         precipitationMm: (json['precipitationMm'] as num?)?.toDouble() ?? 0,
+        greenhouseCount: (json['greenhouseCount'] as num?)?.toInt() ?? 0,
+        greenhouseAreaHa: (json['greenhouseAreaHa'] as num?)?.toDouble() ?? 0,
+        cropCapacityHa: (json['cropCapacityHa'] as num?)?.toDouble() ?? 0,
+        livestockCapacity: (json['livestockCapacity'] as num?)?.toInt() ?? 0,
         documents: ((json['documents'] as List<dynamic>?) ?? <dynamic>[])
             .whereType<Map>()
             .map((Map item) => FarmDocumentRecord.fromJson(Map<String, dynamic>.from(item)))

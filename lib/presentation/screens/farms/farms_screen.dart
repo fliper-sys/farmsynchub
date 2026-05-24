@@ -296,6 +296,7 @@ class FarmsScreen extends ConsumerWidget {
       name: draft.name,
       ward: draft.ward,
       sizeHa: draft.sizeHa,
+      farmType: draft.farmType,
       farmerCategory: draft.farmerCategory,
       soilType: draft.soilType,
       waterSource: draft.waterSource,
@@ -308,6 +309,10 @@ class FarmsScreen extends ConsumerWidget {
       humidityPercent: farm?.humidityPercent ?? 60,
       soilMoisturePercent: farm?.soilMoisturePercent ?? 52,
       precipitationMm: farm?.precipitationMm ?? 6,
+      greenhouseCount: draft.greenhouseCount,
+      greenhouseAreaHa: draft.greenhouseAreaHa,
+      cropCapacityHa: draft.cropCapacityHa,
+      livestockCapacity: draft.livestockCapacity,
       documents: farm?.documents ?? const <FarmDocumentRecord>[],
     );
 
@@ -485,7 +490,7 @@ class _FarmManagementCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${farm.ward} ward | ${_categoryLabel(farm.farmerCategory)} | ${farm.sizeHa.toStringAsFixed(1)} ha',
+                  '${farm.ward} ward | ${_farmTypeLabel(farm.farmType)} | ${farm.sizeHa.toStringAsFixed(1)} ha',
                   style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
                 ),
                 const SizedBox(height: 14),
@@ -493,13 +498,20 @@ class _FarmManagementCard extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 8,
                   children: <Widget>[
+                    _MiniTag(text: _categoryLabel(farm.farmerCategory), color: const Color(0xFFEAF0DE)),
                     _MiniTag(text: _soilLabel(farm.soilType), color: const Color(0xFFFFEBD0)),
                     _MiniTag(text: _waterLabel(farm.waterSource), color: const Color(0xFFDFF1FF)),
-                    _MiniTag(text: '${crops.length} crop records', color: const Color(0xFFE8F4D8)),
-                    _MiniTag(
-                      text: '${livestock.fold(0, (int sum, Livestock item) => sum + item.count)} livestock',
-                      color: const Color(0xFFEAF0DE),
-                    ),
+                    if (farm.supportsCrops) _MiniTag(text: '${crops.length} crop records', color: const Color(0xFFE8F4D8)),
+                    if (farm.supportsLivestock)
+                      _MiniTag(
+                        text: '${livestock.fold(0, (int sum, Livestock item) => sum + item.count)} livestock',
+                        color: const Color(0xFFEAF0DE),
+                      ),
+                    if (farm.supportsGreenhouse)
+                      _MiniTag(
+                        text: '${farm.greenhouseCount} greenhouse${farm.greenhouseCount == 1 ? '' : 's'}',
+                        color: const Color(0xFFEDE8FF),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -594,6 +606,19 @@ class _FarmManagementCard extends StatelessWidget {
         return 'Market-oriented';
     }
   }
+
+  String _farmTypeLabel(FarmType type) {
+    switch (type) {
+      case FarmType.crop:
+        return 'Crop farm';
+      case FarmType.livestock:
+        return 'Livestock farm';
+      case FarmType.greenhouse:
+        return 'Greenhouse farm';
+      case FarmType.combined:
+        return 'Combined farm';
+    }
+  }
 }
 
 class _FarmFormSheet extends StatefulWidget {
@@ -611,7 +636,12 @@ class _FarmFormSheetState extends State<_FarmFormSheet> {
   late final TextEditingController _nameController;
   late final TextEditingController _wardController;
   late final TextEditingController _sizeController;
+  late final TextEditingController _cropCapacityController;
+  late final TextEditingController _livestockCapacityController;
+  late final TextEditingController _greenhouseCountController;
+  late final TextEditingController _greenhouseAreaController;
 
+  late FarmType _farmType;
   late FarmerCategory _farmerCategory;
   late SoilType _soilType;
   late WaterSource _waterSource;
@@ -626,6 +656,19 @@ class _FarmFormSheetState extends State<_FarmFormSheet> {
     _sizeController = TextEditingController(
       text: farm == null ? '' : farm.sizeHa.toStringAsFixed(1),
     );
+    _cropCapacityController = TextEditingController(
+      text: farm == null ? '' : farm.cropCapacityHa.toStringAsFixed(1),
+    );
+    _livestockCapacityController = TextEditingController(
+      text: farm?.livestockCapacity.toString() ?? '',
+    );
+    _greenhouseCountController = TextEditingController(
+      text: farm?.greenhouseCount.toString() ?? '',
+    );
+    _greenhouseAreaController = TextEditingController(
+      text: farm == null ? '' : farm.greenhouseAreaHa.toStringAsFixed(1),
+    );
+    _farmType = farm?.farmType ?? FarmType.combined;
     _farmerCategory = farm?.farmerCategory ?? FarmerCategory.subsistence;
     _soilType = farm?.soilType ?? SoilType.loamy;
     _waterSource = farm?.waterSource ?? WaterSource.rainfall;
@@ -636,6 +679,10 @@ class _FarmFormSheetState extends State<_FarmFormSheet> {
     _nameController.dispose();
     _wardController.dispose();
     _sizeController.dispose();
+    _cropCapacityController.dispose();
+    _livestockCapacityController.dispose();
+    _greenhouseCountController.dispose();
+    _greenhouseAreaController.dispose();
     super.dispose();
   }
 
@@ -700,6 +747,18 @@ class _FarmFormSheetState extends State<_FarmFormSheet> {
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 ),
                 const SizedBox(height: 14),
+                _DropdownField<FarmType>(
+                  label: 'Farm type',
+                  value: _farmType,
+                  items: FarmType.values,
+                  itemLabel: _farmTypeLabel,
+                  onChanged: (FarmType? value) {
+                    if (value != null) {
+                      setState(() => _farmType = value);
+                    }
+                  },
+                ),
+                const SizedBox(height: 14),
                 _DropdownField<FarmerCategory>(
                   label: 'Farmer category',
                   value: _farmerCategory,
@@ -735,6 +794,48 @@ class _FarmFormSheetState extends State<_FarmFormSheet> {
                     }
                   },
                 ),
+                if (_farmType == FarmType.crop || _farmType == FarmType.combined || _farmType == FarmType.greenhouse) ...<Widget>[
+                  const SizedBox(height: 14),
+                  AppTextField(
+                    controller: _cropCapacityController,
+                    label: 'Crop capacity (ha)',
+                    hint: '0.8',
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  ),
+                ],
+                if (_farmType == FarmType.livestock || _farmType == FarmType.combined) ...<Widget>[
+                  const SizedBox(height: 14),
+                  AppTextField(
+                    controller: _livestockCapacityController,
+                    label: 'Livestock capacity',
+                    hint: '120',
+                    keyboardType: TextInputType.number,
+                  ),
+                ],
+                if (_farmType == FarmType.greenhouse || _farmType == FarmType.combined) ...<Widget>[
+                  const SizedBox(height: 14),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: AppTextField(
+                          controller: _greenhouseCountController,
+                          label: 'Greenhouse units',
+                          hint: '2',
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: AppTextField(
+                          controller: _greenhouseAreaController,
+                          label: 'Greenhouse area (ha)',
+                          hint: '0.2',
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 22),
                 Row(
                   children: <Widget>[
@@ -810,11 +911,29 @@ class _FarmFormSheetState extends State<_FarmFormSheet> {
         name: _nameController.text.trim(),
         ward: _wardController.text.trim(),
         sizeHa: sizeHa,
+        farmType: _farmType,
         farmerCategory: _farmerCategory,
         soilType: _soilType,
         waterSource: _waterSource,
+        cropCapacityHa: double.tryParse(_cropCapacityController.text.trim()) ?? 0,
+        livestockCapacity: int.tryParse(_livestockCapacityController.text.trim()) ?? 0,
+        greenhouseCount: int.tryParse(_greenhouseCountController.text.trim()) ?? 0,
+        greenhouseAreaHa: double.tryParse(_greenhouseAreaController.text.trim()) ?? 0,
       ),
     );
+  }
+
+  String _farmTypeLabel(FarmType value) {
+    switch (value) {
+      case FarmType.crop:
+        return 'Crop farm';
+      case FarmType.livestock:
+        return 'Livestock farm';
+      case FarmType.greenhouse:
+        return 'Greenhouse farm';
+      case FarmType.combined:
+        return 'Combined farm';
+    }
   }
 
   String _farmerCategoryLabel(FarmerCategory value) {
@@ -1253,15 +1372,25 @@ class FarmDraft {
     required this.name,
     required this.ward,
     required this.sizeHa,
+    required this.farmType,
     required this.farmerCategory,
     required this.soilType,
     required this.waterSource,
+    required this.cropCapacityHa,
+    required this.livestockCapacity,
+    required this.greenhouseCount,
+    required this.greenhouseAreaHa,
   });
 
   final String name;
   final String ward;
   final double sizeHa;
+  final FarmType farmType;
   final FarmerCategory farmerCategory;
   final SoilType soilType;
   final WaterSource waterSource;
+  final double cropCapacityHa;
+  final int livestockCapacity;
+  final int greenhouseCount;
+  final double greenhouseAreaHa;
 }

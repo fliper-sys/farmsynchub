@@ -20,6 +20,8 @@ import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
+import '../crops/crop_detail_screen.dart';
+import '../livestock/livestock_detail_screen.dart';
 
 class FarmDetailScreen extends ConsumerWidget {
   const FarmDetailScreen({
@@ -80,7 +82,7 @@ class FarmDetailScreen extends ConsumerWidget {
       ),
       body: SoftScreenScaffold(
         heroTitle: farm.name,
-        heroSubtitle: '${farm.ward} ward - ${farm.sizeHa.toStringAsFixed(1)} ha - ${farm.documents.length} documents',
+        heroSubtitle: '${farm.ward} ward - ${_farmTypeLabel(farm.farmType)} - ${farm.sizeHa.toStringAsFixed(1)} ha',
         heroIcon: Icons.agriculture_rounded,
         heroVariant: farm.coverImageBase64.isEmpty
             ? FarmArtworkVariant.field
@@ -195,6 +197,28 @@ class FarmDetailScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 18),
+          const SoftSectionTitle(title: 'Operation profile'),
+          AppCard(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: <Widget>[
+                  _Tag(text: _farmTypeLabel(farm.farmType), color: const Color(0xFFE8F4D8)),
+                  if (farm.supportsCrops) _Tag(text: '${farm.cropCapacityHa.toStringAsFixed(1)} ha crop capacity', color: const Color(0xFFDFF1FF)),
+                  if (farm.supportsLivestock) _Tag(text: '${farm.livestockCapacity} livestock capacity', color: const Color(0xFFFFEBD0)),
+                  if (farm.supportsGreenhouse)
+                    _Tag(
+                      text: '${farm.greenhouseCount} greenhouse units on ${farm.greenhouseAreaHa.toStringAsFixed(1)} ha',
+                      color: const Color(0xFFEDE8FF),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
           const SoftSectionTitle(title: 'Farm notes'),
           AppCard(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -280,6 +304,71 @@ class FarmDetailScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 18),
+          const SoftSectionTitle(title: 'Cycle tracking'),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: _FarmMetricCard(
+                  title: 'Crop progress',
+                  value: crops.isEmpty ? 'No crops' : '${((crops.fold<double>(0, (double sum, Crop item) => sum + item.growthProgress) / crops.length) * 100).round()}%',
+                  note: 'Average growth cycle',
+                  icon: Icons.timeline_rounded,
+                  tint: const Color(0xFFE8F4D8),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _FarmMetricCard(
+                  title: 'Animal growth',
+                  value: livestock.isEmpty ? 'No groups' : '${((livestock.fold<double>(0, (double sum, Livestock item) => sum + item.growthProgress) / livestock.length) * 100).round()}%',
+                  note: 'Average maturity cycle',
+                  icon: Icons.monitor_heart_rounded,
+                  tint: const Color(0xFFDFF1FF),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          const SoftSectionTitle(title: 'Linked crops'),
+          if (crops.isEmpty)
+            const _EmptyInfoCard(message: 'No crops linked to this farm yet.')
+          else
+            ...crops.take(4).map(
+              (Crop item) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _LinkedEntityTile(
+                  icon: Icons.spa_rounded,
+                  title: item.name,
+                  subtitle: '${item.variety} - ${_cropStageLabel(item.currentStage)} - ${item.daysToHarvest >= 0 ? '${item.daysToHarvest} days to harvest' : 'Harvest due'}',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => CropDetailScreen(cropId: item.id),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(height: 18),
+          const SoftSectionTitle(title: 'Linked livestock'),
+          if (livestock.isEmpty)
+            const _EmptyInfoCard(message: 'No livestock groups linked to this farm yet.')
+          else
+            ...livestock.take(4).map(
+              (Livestock item) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _LinkedEntityTile(
+                  icon: Icons.pets_rounded,
+                  title: _speciesLabel(item.species),
+                  subtitle: '${item.breed} - ${_growthStageLabel(item.growthStage)} - ${item.count} animals',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => LivestockDetailScreen(livestockId: item.id),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(height: 18),
           const SoftSectionTitle(title: 'Farm suggestions'),
           _SuggestionCard(
             icon: Icons.water_drop_rounded,
@@ -307,6 +396,17 @@ class FarmDetailScreen extends ConsumerWidget {
                 : 'No sale has been registered for this farm yet. Add produce inventory from Finance when harvest starts.',
             tint: const Color(0xFFE5F5D8),
           ),
+          if (farm.supportsGreenhouse) ...<Widget>[
+            const SizedBox(height: 12),
+            _SuggestionCard(
+              icon: Icons.wb_sunny_outlined,
+              title: 'Greenhouse management',
+              detail: farm.temperatureCelsius > 30
+                  ? 'Heat is rising for enclosed production. Vent early, inspect humidity, and avoid late heavy watering.'
+                  : 'Keep venting, sanitation, and disease scouting consistent inside protected structures.',
+              tint: const Color(0xFFEDE8FF),
+            ),
+          ],
         ],
       ),
     );
@@ -443,6 +543,28 @@ class FarmDetailScreen extends ConsumerWidget {
   }
 }
 
+class _Tag extends StatelessWidget {
+  const _Tag({
+    required this.text,
+    required this.color,
+  });
+
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(text),
+    );
+  }
+}
+
 class _FarmMetricCard extends StatelessWidget {
   const _FarmMetricCard({
     required this.title,
@@ -505,6 +627,51 @@ class _LinkedRow extends StatelessWidget {
         Expanded(child: Text(label)),
         Text(value, style: Theme.of(context).textTheme.titleMedium),
       ],
+    );
+  }
+}
+
+class _LinkedEntityTile extends StatelessWidget {
+  const _LinkedEntityTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      onTap: onTap,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: ListTile(
+        leading: Icon(icon),
+        title: Text(title),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.chevron_right_rounded),
+      ),
+    );
+  }
+}
+
+class _EmptyInfoCard extends StatelessWidget {
+  const _EmptyInfoCard({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(message),
+      ),
     );
   }
 }
@@ -774,4 +941,62 @@ class _FarmDocumentDraft {
   final String type;
   final String reference;
   final String notes;
+}
+
+String _farmTypeLabel(FarmType type) {
+  switch (type) {
+    case FarmType.crop:
+      return 'Crop farm';
+    case FarmType.livestock:
+      return 'Livestock farm';
+    case FarmType.greenhouse:
+      return 'Greenhouse farm';
+    case FarmType.combined:
+      return 'Combined farm';
+  }
+}
+
+String _cropStageLabel(CropStage stage) {
+  switch (stage) {
+    case CropStage.seeding:
+      return 'Seeding';
+    case CropStage.germination:
+      return 'Germination';
+    case CropStage.vegetative:
+      return 'Vegetative';
+    case CropStage.flowering:
+      return 'Flowering';
+    case CropStage.fruiting:
+      return 'Fruiting';
+  }
+}
+
+String _speciesLabel(LivestockSpecies species) {
+  switch (species) {
+    case LivestockSpecies.goat:
+      return 'Goats';
+    case LivestockSpecies.chicken:
+      return 'Chickens';
+    case LivestockSpecies.pig:
+      return 'Pigs';
+    case LivestockSpecies.cattle:
+      return 'Cattle';
+    case LivestockSpecies.sheep:
+      return 'Sheep';
+  }
+}
+
+String _growthStageLabel(AnimalGrowthStage stage) {
+  switch (stage) {
+    case AnimalGrowthStage.starter:
+      return 'Starter';
+    case AnimalGrowthStage.grower:
+      return 'Grower';
+    case AnimalGrowthStage.mature:
+      return 'Mature';
+    case AnimalGrowthStage.breeding:
+      return 'Breeding';
+    case AnimalGrowthStage.finishing:
+      return 'Finishing';
+  }
 }

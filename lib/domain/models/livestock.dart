@@ -25,6 +25,15 @@ enum HousingType {
   coop,
 }
 
+/// Animal growth stage enumeration.
+enum AnimalGrowthStage {
+  starter,
+  grower,
+  mature,
+  breeding,
+  finishing,
+}
+
 /// Livestock model representing animals on a farm.
 class Livestock {
   const Livestock({
@@ -41,10 +50,14 @@ class Livestock {
     required this.estimatedValue,
     required this.vaccinationStatus,
     required this.healthScore,
+    required this.growthStage,
+    required this.averageAgeMonths,
+    required this.targetMaturityMonths,
     required this.createdAt,
     required this.updatedAt,
     required this.isSynced,
     this.profileImageBase64 = '',
+    this.mortalityCount = 0,
     this.todoItems = const <FarmTodoItem>[],
     this.inputRecords = const <FarmInputRecord>[],
     this.stockNotes = '',
@@ -65,10 +78,14 @@ class Livestock {
   final double estimatedValue;
   final int vaccinationStatus;
   final int healthScore;
+  final AnimalGrowthStage growthStage;
+  final int averageAgeMonths;
+  final int targetMaturityMonths;
   final DateTime createdAt;
   final DateTime updatedAt;
   final bool isSynced;
   final String profileImageBase64;
+  final int mortalityCount;
   final List<FarmTodoItem> todoItems;
   final List<FarmInputRecord> inputRecords;
   final String stockNotes;
@@ -77,6 +94,13 @@ class Livestock {
 
   int get openTaskCount => todoItems.where((FarmTodoItem item) => !item.isCompleted).length;
   double get syncedInputCost => inputRecords.fold<double>(0, (double sum, FarmInputRecord item) => sum + item.totalCost);
+  double get growthProgress {
+    if (targetMaturityMonths <= 0) {
+      return 0;
+    }
+    final double progress = averageAgeMonths / targetMaturityMonths;
+    return progress.clamp(0, 1).toDouble();
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -92,10 +116,14 @@ class Livestock {
         'estimatedValue': estimatedValue,
         'vaccinationStatus': vaccinationStatus,
         'healthScore': healthScore,
+        'growthStage': growthStage.name,
+        'averageAgeMonths': averageAgeMonths,
+        'targetMaturityMonths': targetMaturityMonths,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
         'isSynced': isSynced,
         'profileImageBase64': profileImageBase64,
+        'mortalityCount': mortalityCount,
         'todoItems': todoItems.map((FarmTodoItem item) => item.toJson()).toList(),
         'inputRecords': inputRecords.map((FarmInputRecord item) => item.toJson()).toList(),
         'stockNotes': stockNotes,
@@ -126,10 +154,17 @@ class Livestock {
         estimatedValue: (json['estimatedValue'] as num?)?.toDouble() ?? 0,
         vaccinationStatus: (json['vaccinationStatus'] as num?)?.toInt() ?? 0,
         healthScore: (json['healthScore'] as num?)?.toInt() ?? 0,
+        growthStage: AnimalGrowthStage.values.firstWhere(
+          (e) => e.name == json['growthStage'],
+          orElse: () => AnimalGrowthStage.grower,
+        ),
+        averageAgeMonths: (json['averageAgeMonths'] as num?)?.toInt() ?? 0,
+        targetMaturityMonths: (json['targetMaturityMonths'] as num?)?.toInt() ?? 12,
         createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
         updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
         isSynced: json['isSynced'] as bool? ?? false,
         profileImageBase64: json['profileImageBase64'] as String? ?? '',
+        mortalityCount: (json['mortalityCount'] as num?)?.toInt() ?? 0,
         todoItems: _jsonObjectList(json['todoItems'])
             .map(FarmTodoItem.fromJson)
             .toList(),
@@ -154,9 +189,13 @@ class Livestock {
     double? estimatedValue,
     int? vaccinationStatus,
     int? healthScore,
+    AnimalGrowthStage? growthStage,
+    int? averageAgeMonths,
+    int? targetMaturityMonths,
     DateTime? updatedAt,
     bool? isSynced,
     String? profileImageBase64,
+    int? mortalityCount,
     List<FarmTodoItem>? todoItems,
     List<FarmInputRecord>? inputRecords,
     String? stockNotes,
@@ -177,10 +216,14 @@ class Livestock {
         estimatedValue: estimatedValue ?? this.estimatedValue,
         vaccinationStatus: vaccinationStatus ?? this.vaccinationStatus,
         healthScore: healthScore ?? this.healthScore,
+        growthStage: growthStage ?? this.growthStage,
+        averageAgeMonths: averageAgeMonths ?? this.averageAgeMonths,
+        targetMaturityMonths: targetMaturityMonths ?? this.targetMaturityMonths,
         createdAt: createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
         isSynced: isSynced ?? this.isSynced,
         profileImageBase64: profileImageBase64 ?? this.profileImageBase64,
+        mortalityCount: mortalityCount ?? this.mortalityCount,
         todoItems: todoItems ?? this.todoItems,
         inputRecords: inputRecords ?? this.inputRecords,
         stockNotes: stockNotes ?? this.stockNotes,

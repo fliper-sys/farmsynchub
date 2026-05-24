@@ -19,6 +19,7 @@ import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
+import 'livestock_detail_screen.dart';
 
 class LivestockScreen extends ConsumerWidget {
   const LivestockScreen({super.key});
@@ -38,6 +39,7 @@ class LivestockScreen extends ConsumerWidget {
     final Map<String, Farm> farmById = <String, Farm>{
       for (final Farm farm in farms) farm.id: farm,
     };
+    final List<Farm> eligibleFarms = farms.where((Farm farm) => farm.supportsLivestock).toList(growable: false);
 
     final int animalCount = livestock.fold(0, (int sum, Livestock item) => sum + item.count);
     final int vaccinatedAverage = livestock.isEmpty
@@ -56,11 +58,11 @@ class LivestockScreen extends ConsumerWidget {
       heroVariant: FarmArtworkVariant.field,
       heroBadge: '${livestock.length} linked groups',
       trailing: IconButton(
-        onPressed: farms.isEmpty ? null : () => _openLivestockSheet(context, ref, farms: farms),
+        onPressed: eligibleFarms.isEmpty ? null : () => _openLivestockSheet(context, ref, farms: eligibleFarms),
         icon: const Icon(Icons.add_circle_outline_rounded),
       ),
       sections: <Widget>[
-        if (farms.isEmpty) ...<Widget>[
+        if (eligibleFarms.isEmpty) ...<Widget>[
           _InlineNotice(
             label: 'Farm link required',
             message: 'Create a farm first before adding livestock groups so each record belongs to a real farm.',
@@ -120,7 +122,7 @@ class LivestockScreen extends ConsumerWidget {
         SoftSectionTitle(
           title: 'Groups',
           action: TextButton.icon(
-            onPressed: farms.isEmpty ? null : () => _openLivestockSheet(context, ref, farms: farms),
+            onPressed: eligibleFarms.isEmpty ? null : () => _openLivestockSheet(context, ref, farms: eligibleFarms),
             icon: const Icon(Icons.add_rounded),
             label: const Text('Add group'),
           ),
@@ -130,11 +132,11 @@ class LivestockScreen extends ConsumerWidget {
         else if (livestock.isEmpty)
           _EmptyState(
             title: 'No livestock groups yet',
-            message: farms.isEmpty
-                ? 'Create a farm first, then come back to add livestock groups.'
+            message: eligibleFarms.isEmpty
+                ? 'Create a livestock or combined farm first, then come back to add livestock groups.'
                 : 'Add your first livestock group and link it to a specific farm.',
             actionLabel: 'Add first group',
-            onPressed: farms.isEmpty ? null : () => _openLivestockSheet(context, ref, farms: farms),
+            onPressed: eligibleFarms.isEmpty ? null : () => _openLivestockSheet(context, ref, farms: eligibleFarms),
           )
         else
           ...livestock.map(
@@ -143,6 +145,11 @@ class LivestockScreen extends ConsumerWidget {
               child: _AnimalGroupCard(
                 livestock: item,
                 farmName: farmById[item.farmId]?.name ?? 'Unknown farm',
+                onOpen: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => LivestockDetailScreen(livestockId: item.id),
+                  ),
+                ),
                 onEdit: () => _openLivestockSheet(context, ref, farms: farms, livestock: item),
                 onDelete: () => _confirmDelete(context, ref, item),
                 onAddTask: () => _openLivestockTaskSheet(context, ref, item),
@@ -191,14 +198,18 @@ class LivestockScreen extends ConsumerWidget {
       estimatedValue: draft.estimatedValue,
       vaccinationStatus: draft.vaccinationStatus,
       healthScore: draft.healthScore,
+      growthStage: draft.growthStage,
+      averageAgeMonths: draft.averageAgeMonths,
+      targetMaturityMonths: draft.targetMaturityMonths,
       createdAt: livestock?.createdAt ?? now,
       updatedAt: now,
       isSynced: livestock?.isSynced ?? false,
       profileImageBase64: livestock?.profileImageBase64 ?? '',
+      mortalityCount: draft.mortalityCount,
       todoItems: livestock?.todoItems ?? const <FarmTodoItem>[],
       inputRecords: livestock?.inputRecords ?? const <FarmInputRecord>[],
       stockNotes: livestock?.stockNotes ?? _stockSummary(draft.count, draft.maleCount, draft.femaleCount),
-      intelligenceNotes: livestock?.intelligenceNotes ?? _livestockIntelligenceSummary(draft.species, draft.healthScore, draft.vaccinationStatus),
+      intelligenceNotes: _livestockIntelligenceSummary(draft.species, draft.healthScore, draft.vaccinationStatus),
       lastIntelligenceSyncAt: now,
     );
 
@@ -422,11 +433,15 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
   late final TextEditingController _estimatedValueController;
   late final TextEditingController _vaccinationController;
   late final TextEditingController _healthScoreController;
+  late final TextEditingController _ageMonthsController;
+  late final TextEditingController _targetMaturityController;
+  late final TextEditingController _mortalityController;
 
   late String _farmId;
   late LivestockSpecies _species;
   late LivestockPurpose _purpose;
   late HousingType _housingType;
+  late AnimalGrowthStage _growthStage;
   late DateTime _acquisitionDate;
 
   @override
@@ -446,10 +461,14 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
     _healthScoreController = TextEditingController(
       text: livestock?.healthScore.toString() ?? '80',
     );
+    _ageMonthsController = TextEditingController(text: livestock?.averageAgeMonths.toString() ?? '0');
+    _targetMaturityController = TextEditingController(text: livestock?.targetMaturityMonths.toString() ?? '12');
+    _mortalityController = TextEditingController(text: livestock?.mortalityCount.toString() ?? '0');
     _farmId = livestock?.farmId ?? widget.farms.first.id;
     _species = livestock?.species ?? LivestockSpecies.goat;
     _purpose = livestock?.purpose ?? LivestockPurpose.meat;
     _housingType = livestock?.housingLocation ?? HousingType.shed;
+    _growthStage = livestock?.growthStage ?? AnimalGrowthStage.grower;
     _acquisitionDate = livestock?.acquisitionDate ?? DateTime.now();
   }
 
@@ -462,6 +481,9 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
     _estimatedValueController.dispose();
     _vaccinationController.dispose();
     _healthScoreController.dispose();
+    _ageMonthsController.dispose();
+    _targetMaturityController.dispose();
+    _mortalityController.dispose();
     super.dispose();
   }
 
@@ -634,6 +656,47 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 14),
+                _DropdownField<AnimalGrowthStage>(
+                  label: 'Growth stage',
+                  value: _growthStage,
+                  items: AnimalGrowthStage.values,
+                  itemLabel: _growthStageLabel,
+                  onChanged: (AnimalGrowthStage? value) {
+                    if (value != null) {
+                      setState(() => _growthStage = value);
+                    }
+                  },
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: AppTextField(
+                        controller: _ageMonthsController,
+                        label: 'Average age (months)',
+                        hint: '7',
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: AppTextField(
+                        controller: _targetMaturityController,
+                        label: 'Target maturity (months)',
+                        hint: '12',
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                AppTextField(
+                  controller: _mortalityController,
+                  label: 'Mortality recorded',
+                  hint: '0',
+                  keyboardType: TextInputType.number,
+                ),
                 const SizedBox(height: 22),
                 Row(
                   children: <Widget>[
@@ -717,6 +780,9 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
     final int femaleCount = int.parse(_femaleCountController.text.trim());
     final int vaccination = int.tryParse(_vaccinationController.text.trim()) ?? 0;
     final int healthScore = int.tryParse(_healthScoreController.text.trim()) ?? 0;
+    final int ageMonths = int.tryParse(_ageMonthsController.text.trim()) ?? -1;
+    final int targetMaturityMonths = int.tryParse(_targetMaturityController.text.trim()) ?? -1;
+    final int mortalityCount = int.tryParse(_mortalityController.text.trim()) ?? -1;
 
     if (maleCount + femaleCount > count) {
       context.showSnackBar('Male and female totals cannot exceed total count', isError: true);
@@ -724,6 +790,10 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
     }
     if (vaccination < 0 || vaccination > 100 || healthScore < 0 || healthScore > 100) {
       context.showSnackBar('Vaccination and health scores must be between 0 and 100', isError: true);
+      return;
+    }
+    if (ageMonths < 0 || targetMaturityMonths <= 0 || mortalityCount < 0) {
+      context.showSnackBar('Age, maturity target, and mortality must be valid numbers', isError: true);
       return;
     }
 
@@ -741,6 +811,10 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
         estimatedValue: double.parse(_estimatedValueController.text.trim()),
         vaccinationStatus: vaccination,
         healthScore: healthScore,
+        growthStage: _growthStage,
+        averageAgeMonths: ageMonths,
+        targetMaturityMonths: targetMaturityMonths,
+        mortalityCount: mortalityCount,
       ),
     );
   }
@@ -772,12 +846,28 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
         return 'Coop';
     }
   }
+
+  String _growthStageLabel(AnimalGrowthStage stage) {
+    switch (stage) {
+      case AnimalGrowthStage.starter:
+        return 'Starter';
+      case AnimalGrowthStage.grower:
+        return 'Grower';
+      case AnimalGrowthStage.mature:
+        return 'Mature';
+      case AnimalGrowthStage.breeding:
+        return 'Breeding';
+      case AnimalGrowthStage.finishing:
+        return 'Finishing';
+    }
+  }
 }
 
 class _AnimalGroupCard extends StatelessWidget {
   const _AnimalGroupCard({
     required this.livestock,
     required this.farmName,
+    required this.onOpen,
     required this.onEdit,
     required this.onDelete,
     required this.onAddTask,
@@ -788,6 +878,7 @@ class _AnimalGroupCard extends StatelessWidget {
 
   final Livestock livestock;
   final String farmName;
+  final VoidCallback onOpen;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onAddTask;
@@ -801,6 +892,7 @@ class _AnimalGroupCard extends StatelessWidget {
     final Color accent = _accentForSpecies(livestock.species);
 
     return AppCard(
+      onTap: onOpen,
       color: theme.colorScheme.surfaceContainerHighest,
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -876,6 +968,7 @@ class _AnimalGroupCard extends StatelessWidget {
                       _MiniTag(text: farmName, color: const Color(0xFFDFF1FF)),
                       _MiniTag(text: '${livestock.vaccinationStatus}% vaccinated', color: const Color(0xFFE9F4DB)),
                       _MiniTag(text: CurrencyUtils.formatCurrency(livestock.estimatedValue), color: const Color(0xFFFFE9D0)),
+                      _MiniTag(text: '${(livestock.growthProgress * 100).round()}% maturity', color: const Color(0xFFEDE8FF)),
                       _MiniTag(text: '${livestock.openTaskCount} open tasks', color: const Color(0xFFFFF2C7)),
                       _MiniTag(text: '${livestock.inputRecords.length} inputs', color: const Color(0xFFEDE8FF)),
                     ],
@@ -1726,6 +1819,10 @@ class LivestockDraft {
     required this.estimatedValue,
     required this.vaccinationStatus,
     required this.healthScore,
+    required this.growthStage,
+    required this.averageAgeMonths,
+    required this.targetMaturityMonths,
+    required this.mortalityCount,
   });
 
   final String farmId;
@@ -1740,4 +1837,8 @@ class LivestockDraft {
   final double estimatedValue;
   final int vaccinationStatus;
   final int healthScore;
+  final AnimalGrowthStage growthStage;
+  final int averageAgeMonths;
+  final int targetMaturityMonths;
+  final int mortalityCount;
 }

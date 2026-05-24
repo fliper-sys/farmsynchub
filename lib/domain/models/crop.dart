@@ -31,11 +31,14 @@ class Crop {
     required this.currentStage,
     required this.status,
     required this.totalInputCost,
+    required this.cycleLengthDays,
     required this.notes,
     required this.createdAt,
     required this.updatedAt,
     required this.isSynced,
     this.profileImageBase64 = '',
+    this.targetYieldKg = 0,
+    this.protectedEnvironment = false,
     this.todoItems = const <FarmTodoItem>[],
     this.inputRecords = const <FarmInputRecord>[],
     this.intelligenceNotes = '',
@@ -52,11 +55,14 @@ class Crop {
   final CropStage currentStage;
   final CropStatus status;
   final double totalInputCost;
+  final int cycleLengthDays;
   final String notes;
   final DateTime createdAt;
   final DateTime updatedAt;
   final bool isSynced;
   final String profileImageBase64;
+  final double targetYieldKg;
+  final bool protectedEnvironment;
   final List<FarmTodoItem> todoItems;
   final List<FarmInputRecord> inputRecords;
   final String intelligenceNotes;
@@ -64,6 +70,15 @@ class Crop {
 
   int get openTaskCount => todoItems.where((FarmTodoItem item) => !item.isCompleted).length;
   double get syncedInputCost => inputRecords.fold<double>(0, (double sum, FarmInputRecord item) => sum + item.totalCost);
+  int get daysSincePlanting => DateTime.now().difference(plantingDate).inDays;
+  int get daysToHarvest => expectedHarvestDate.difference(DateTime.now()).inDays;
+  double get growthProgress {
+    if (cycleLengthDays <= 0) {
+      return 0;
+    }
+    final double progress = daysSincePlanting / cycleLengthDays;
+    return progress.clamp(0, 1).toDouble();
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -76,11 +91,14 @@ class Crop {
         'currentStage': currentStage.name,
         'status': status.name,
         'totalInputCost': totalInputCost,
+        'cycleLengthDays': cycleLengthDays,
         'notes': notes,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
         'isSynced': isSynced,
         'profileImageBase64': profileImageBase64,
+        'targetYieldKg': targetYieldKg,
+        'protectedEnvironment': protectedEnvironment,
         'todoItems': todoItems.map((FarmTodoItem item) => item.toJson()).toList(),
         'inputRecords': inputRecords.map((FarmInputRecord item) => item.toJson()).toList(),
         'intelligenceNotes': intelligenceNotes,
@@ -105,11 +123,17 @@ class Crop {
           orElse: () => CropStatus.planted,
         ),
         totalInputCost: (json['totalInputCost'] as num?)?.toDouble() ?? 0,
+        cycleLengthDays: (json['cycleLengthDays'] as num?)?.toInt() ??
+            (DateTime.tryParse(json['expectedHarvestDate'] as String? ?? '') ?? DateTime.now().add(const Duration(days: 90)))
+                .difference(DateTime.tryParse(json['plantingDate'] as String? ?? '') ?? DateTime.now())
+                .inDays,
         notes: json['notes'] as String? ?? '',
         createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
         updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
         isSynced: json['isSynced'] as bool? ?? false,
         profileImageBase64: json['profileImageBase64'] as String? ?? '',
+        targetYieldKg: (json['targetYieldKg'] as num?)?.toDouble() ?? 0,
+        protectedEnvironment: json['protectedEnvironment'] as bool? ?? false,
         todoItems: _jsonObjectList(json['todoItems'])
             .map(FarmTodoItem.fromJson)
             .toList(),
@@ -130,10 +154,13 @@ class Crop {
     CropStage? currentStage,
     CropStatus? status,
     double? totalInputCost,
+    int? cycleLengthDays,
     String? notes,
     DateTime? updatedAt,
     bool? isSynced,
     String? profileImageBase64,
+    double? targetYieldKg,
+    bool? protectedEnvironment,
     List<FarmTodoItem>? todoItems,
     List<FarmInputRecord>? inputRecords,
     String? intelligenceNotes,
@@ -150,11 +177,14 @@ class Crop {
         currentStage: currentStage ?? this.currentStage,
         status: status ?? this.status,
         totalInputCost: totalInputCost ?? this.totalInputCost,
+        cycleLengthDays: cycleLengthDays ?? this.cycleLengthDays,
         notes: notes ?? this.notes,
         createdAt: createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
         isSynced: isSynced ?? this.isSynced,
         profileImageBase64: profileImageBase64 ?? this.profileImageBase64,
+        targetYieldKg: targetYieldKg ?? this.targetYieldKg,
+        protectedEnvironment: protectedEnvironment ?? this.protectedEnvironment,
         todoItems: todoItems ?? this.todoItems,
         inputRecords: inputRecords ?? this.inputRecords,
         intelligenceNotes: intelligenceNotes ?? this.intelligenceNotes,

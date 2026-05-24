@@ -416,6 +416,7 @@ class _ReceiptDetailScreenState extends ConsumerState<ReceiptDetailScreen> {
             name: 'Unknown farm',
             ward: '',
             sizeHa: 0,
+            farmType: FarmType.combined,
             farmerCategory: FarmerCategory.subsistence,
             soilType: SoilType.loamy,
             waterSource: WaterSource.rainfall,
