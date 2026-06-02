@@ -58,17 +58,40 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       heroIcon: Icons.point_of_sale_rounded,
       heroVariant: FarmArtworkVariant.dashboard,
       heroBadge: '${sales.length} sales - ${procurement.length} procurement',
-      trailing: _FinanceHeroActions(
-        isExporting: _isExporting,
-        onOpenWorkspace: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => const FinanceWorkspaceScreen(),
+      showArtwork: false,
+      sections: <Widget>[
+        AppCard(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: <Widget>[
+                _ActionTile(
+                  label: 'Open workspace',
+                  icon: Icons.grid_view_rounded,
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const FinanceWorkspaceScreen(),
+                    ),
+                  ),
+                ),
+                _ActionTile(
+                  label: 'Record deal',
+                  icon: Icons.add_card_rounded,
+                  onTap: farms.isEmpty ? null : () => _openTransactionSheet(context, farms: farms),
+                ),
+                _ActionTile(
+                  label: 'Export PDF',
+                  icon: Icons.picture_as_pdf_rounded,
+                  onTap: _isExporting || transactions.isEmpty ? null : () => _exportReport(snapshot, transactions),
+                ),
+              ],
+            ),
           ),
         ),
-        onRecordDeal: farms.isEmpty ? null : () => _openTransactionSheet(context, farms: farms),
-        onExportPdf: _isExporting || transactions.isEmpty ? null : () => _exportReport(snapshot, transactions),
-      ),
-      sections: <Widget>[
+        const SizedBox(height: 18),
         Row(
           children: <Widget>[
             Expanded(
@@ -399,59 +422,37 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
   }
 }
 
-class _FinanceHeroActions extends StatelessWidget {
-  const _FinanceHeroActions({
-    required this.isExporting,
-    required this.onOpenWorkspace,
-    required this.onRecordDeal,
-    required this.onExportPdf,
+class _ActionTile extends StatelessWidget {
+  const _ActionTile({
+    required this.label,
+    required this.icon,
+    required this.onTap,
   });
 
-  final bool isExporting;
-  final VoidCallback onOpenWorkspace;
-  final VoidCallback? onRecordDeal;
-  final VoidCallback? onExportPdf;
+  final String label;
+  final IconData icon;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final bool compact = constraints.maxWidth < 230;
-        final Widget openButton = SizedBox(
-          width: compact ? double.infinity : 160,
-          child: AppButton.primary(
-            onPressed: onOpenWorkspace,
-            child: const Text('Open workspace'),
-          ),
-        );
-        final Widget recordButton = SizedBox(
-          width: compact ? double.infinity : 160,
-          child: AppButton.primary(
-            onPressed: onRecordDeal,
-            child: const Text('Record deal'),
-          ),
-        );
-        final Widget exportButton = SizedBox(
-          width: compact ? double.infinity : 160,
-          child: AppButton.secondary(
-            onPressed: onExportPdf,
-            child: Text(isExporting ? 'Exporting...' : 'Export PDF'),
-          ),
-        );
-
-        return SizedBox(
-          width: compact ? 180 : 320,
-          child: Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: <Widget>[
-              openButton,
-              recordButton,
-              exportButton,
-            ],
-          ),
-        );
-      },
+    return SizedBox(
+      width: 160,
+      child: AppButton.primary(
+        onPressed: onTap,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Icon(icon, size: 18),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
