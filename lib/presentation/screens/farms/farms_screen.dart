@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -141,11 +143,16 @@ class FarmsScreen extends ConsumerWidget {
                 crops: crops.where((Crop crop) => crop.farmId == farm.id).toList(),
                 livestock: livestock.where((Livestock animal) => animal.farmId == farm.id).toList(),
                 transactions: transactions.where((Transaction item) => item.farmId == farm.id).toList(),
-                onOpen: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => FarmDetailScreen(farmId: farm.id),
-                  ),
-                ),
+                onOpen: () async {
+                  await ref.read(activeFarmProvider.notifier).setActiveFarm(farm.id);
+                  if (context.mounted) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => FarmDetailScreen(farmId: farm.id),
+                      ),
+                    );
+                  }
+                },
                 onEdit: () => _openFarmSheet(context, ref, farm: farm),
                 onDelete: () => _confirmDelete(context, ref, farm),
               ),
@@ -651,6 +658,7 @@ class _FarmFormSheet extends StatefulWidget {
 }
 
 class _FarmFormSheetState extends State<_FarmFormSheet> {
+  late final VoidCallback _formListener;
   late final TextEditingController _nameController;
   late final TextEditingController _wardController;
   late final TextEditingController _sizeController;
@@ -690,10 +698,29 @@ class _FarmFormSheetState extends State<_FarmFormSheet> {
     _farmerCategory = farm?.farmerCategory ?? FarmerCategory.subsistence;
     _soilType = farm?.soilType ?? SoilType.loamy;
     _waterSource = farm?.waterSource ?? WaterSource.rainfall;
+    _formListener = () {
+      if (mounted) {
+        setState(() {});
+      }
+    };
+    _nameController.addListener(_formListener);
+    _wardController.addListener(_formListener);
+    _sizeController.addListener(_formListener);
+    _cropCapacityController.addListener(_formListener);
+    _livestockCapacityController.addListener(_formListener);
+    _greenhouseCountController.addListener(_formListener);
+    _greenhouseAreaController.addListener(_formListener);
   }
 
   @override
   void dispose() {
+    _nameController.removeListener(_formListener);
+    _wardController.removeListener(_formListener);
+    _sizeController.removeListener(_formListener);
+    _cropCapacityController.removeListener(_formListener);
+    _livestockCapacityController.removeListener(_formListener);
+    _greenhouseCountController.removeListener(_formListener);
+    _greenhouseAreaController.removeListener(_formListener);
     _nameController.dispose();
     _wardController.dispose();
     _sizeController.dispose();
@@ -854,6 +881,8 @@ class _FarmFormSheetState extends State<_FarmFormSheet> {
                     ],
                   ),
                 ],
+                const SizedBox(height: 14),
+                _FarmPlanningCard(summary: _farmPlanningSummary()),
                 const SizedBox(height: 22),
                 Row(
                   children: <Widget>[
@@ -878,6 +907,80 @@ class _FarmFormSheetState extends State<_FarmFormSheet> {
         ),
       ),
     );
+  }
+
+  _FarmPlanningSummary _farmPlanningSummary() {
+    final double sizeHa = double.tryParse(_sizeController.text.trim()) ?? 0;
+    final double cropCapacity = _suggestedCropCapacity(sizeHa, _farmType);
+    final int livestockCapacity = _suggestedLivestockCapacity(sizeHa, _farmType);
+    final double greenhouseArea = _suggestedGreenhouseArea(sizeHa, _farmType);
+    final int greenhouseUnits = _suggestedGreenhouseUnits(sizeHa, _farmType);
+    final String note = switch (_farmType) {
+      FarmType.crop => 'Crop farms usually reserve most of the land for planting, then leave room for paths and water access.',
+      FarmType.livestock => 'Livestock farms should keep capacity conservative so housing, hygiene, and feed handling stay manageable.',
+      FarmType.greenhouse => 'Greenhouses work best when area is used intensively and the shelter plan stays compact.',
+      FarmType.combined => 'Combined farms should split space between crops, stock, and movement corridors to keep the workflow calm.',
+    };
+
+    return _FarmPlanningSummary(
+      cropCapacityHa: cropCapacity,
+      livestockCapacity: livestockCapacity,
+      greenhouseAreaHa: greenhouseArea,
+      greenhouseUnits: greenhouseUnits,
+      landUseNote: note,
+      formulaNote: 'Formulas use farm size as the starting point, then adjust by the selected farm type.',
+    );
+  }
+
+  double _suggestedCropCapacity(double sizeHa, FarmType farmType) {
+    if (sizeHa <= 0) {
+      return 0;
+    }
+    final double factor = switch (farmType) {
+      FarmType.crop => 0.8,
+      FarmType.livestock => 0.0,
+      FarmType.greenhouse => 0.25,
+      FarmType.combined => 0.55,
+    };
+    return sizeHa * factor;
+  }
+
+  int _suggestedLivestockCapacity(double sizeHa, FarmType farmType) {
+    if (sizeHa <= 0) {
+      return 0;
+    }
+    final double factor = switch (farmType) {
+      FarmType.crop => 0.0,
+      FarmType.livestock => 18,
+      FarmType.greenhouse => 0.0,
+      FarmType.combined => 10,
+    };
+    return (sizeHa * factor).round();
+  }
+
+  double _suggestedGreenhouseArea(double sizeHa, FarmType farmType) {
+    if (sizeHa <= 0) {
+      return 0;
+    }
+    final double factor = switch (farmType) {
+      FarmType.crop => 0.0,
+      FarmType.livestock => 0.0,
+      FarmType.greenhouse => 0.18,
+      FarmType.combined => 0.12,
+    };
+    return sizeHa * factor;
+  }
+
+  int _suggestedGreenhouseUnits(double sizeHa, FarmType farmType) {
+    if (sizeHa <= 0) {
+      return 0;
+    }
+    return switch (farmType) {
+      FarmType.crop => 0,
+      FarmType.livestock => 0,
+      FarmType.greenhouse => math.max(1, (sizeHa / 0.2).floor()),
+      FarmType.combined => math.max(1, (sizeHa / 0.35).floor()),
+    };
   }
 
   void _submit() {
@@ -1039,6 +1142,102 @@ class _DropdownField<T> extends StatelessWidget {
               )
               .toList(),
           onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+}
+
+class _FarmPlanningSummary {
+  const _FarmPlanningSummary({
+    required this.cropCapacityHa,
+    required this.livestockCapacity,
+    required this.greenhouseAreaHa,
+    required this.greenhouseUnits,
+    required this.landUseNote,
+    required this.formulaNote,
+  });
+
+  final double cropCapacityHa;
+  final int livestockCapacity;
+  final double greenhouseAreaHa;
+  final int greenhouseUnits;
+  final String landUseNote;
+  final String formulaNote;
+}
+
+class _FarmPlanningCard extends StatelessWidget {
+  const _FarmPlanningCard({
+    required this.summary,
+  });
+
+  final _FarmPlanningSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return AppCard(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F4D8),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.insights_rounded),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Farm planning estimate',
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                _MiniTag(text: '${summary.cropCapacityHa.toStringAsFixed(1)} ha crop space', color: const Color(0xFFE8F4D8)),
+                _MiniTag(text: '${summary.livestockCapacity} livestock units', color: const Color(0xFFDFF1FF)),
+                _MiniTag(text: '${summary.greenhouseUnits} greenhouse unit${summary.greenhouseUnits == 1 ? '' : 's'}', color: const Color(0xFFFFEBD0)),
+                _MiniTag(text: '${summary.greenhouseAreaHa.toStringAsFixed(1)} ha greenhouse area', color: const Color(0xFFEDE8FF)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Formula: farm size × type factor = planning estimate.',
+              style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              summary.landUseNote,
+              style: theme.textTheme.bodySmall?.copyWith(height: 1.5),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              summary.formulaNote,
+              style: theme.textTheme.bodySmall?.copyWith(height: 1.5),
+            ),
+            if (summary.greenhouseUnits > 0) ...<Widget>[
+              const SizedBox(height: 8),
+              Text(
+                'Greenhouse values are starter estimates only. Experienced growers can use tighter spacing, different media, or a custom irrigation layout and continue with their own plan.',
+                style: theme.textTheme.bodySmall?.copyWith(height: 1.5),
+              ),
+            ],
+          ],
         ),
       ),
     );

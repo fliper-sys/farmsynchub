@@ -38,7 +38,7 @@ class SettingsScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Settings',
+          appLanguage.tr(en: 'Settings', ha: 'Saituna', fr: 'Parametres'),
           style: theme.textTheme.titleLarge?.copyWith(
             color: theme.brightness == Brightness.dark
                 ? theme.colorScheme.onSurface
@@ -56,11 +56,19 @@ class SettingsScreen extends ConsumerWidget {
         label: const Text(''),
       ),
       body: SoftScreenScaffold(
-        heroTitle: 'Settings that feel calm',
-        heroSubtitle: 'Adjust appearance, language, sync, and notifications in one polished control room.',
+        heroTitle: appLanguage.tr(
+          en: 'Settings that feel calm',
+          ha: 'Saituna cikin sauki',
+          fr: 'Parametres calmes',
+        ),
+        heroSubtitle: appLanguage.tr(
+          en: 'Adjust appearance, language, sync, and notifications in one polished control room.',
+          ha: 'Daidaita bayyanar, harshe, sync, da sanarwa a wuri guda mai kyau.',
+          fr: 'Ajustez apparence, langue, sync et notifications dans un seul espace.',
+        ),
         heroIcon: Icons.tune_rounded,
         heroVariant: FarmArtworkVariant.dashboard,
-        heroBadge: 'Preferences',
+        heroBadge: appLanguage.tr(en: 'Preferences', ha: 'Zabuka', fr: 'Preferences'),
         trailing: Container(
           width: 48,
           height: 48,
@@ -73,7 +81,7 @@ class SettingsScreen extends ConsumerWidget {
         ),
         sections: <Widget>[
           SoftSectionTitle(
-            title: 'Appearance',
+            title: appLanguage.tr(en: 'Appearance', ha: 'Kallo', fr: 'Apparence'),
             titleStyle: theme.textTheme.titleMedium?.copyWith(
               color: theme.brightness == Brightness.dark
                   ? theme.colorScheme.onSurface
@@ -114,7 +122,7 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'AI preferences'),
+          SoftSectionTitle(title: appLanguage.tr(en: 'AI preferences', ha: 'Zabukan AI', fr: 'Preferences IA')),
           AppCard(
             color: theme.colorScheme.surfaceContainerHighest,
             child: Padding(
@@ -148,7 +156,7 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Farm preferences'),
+          SoftSectionTitle(title: appLanguage.tr(en: 'Farm preferences', ha: 'Zabukan gona', fr: 'Preferences de ferme')),
           AppCard(
             color: theme.colorScheme.surfaceContainerHighest,
             child: Padding(
@@ -157,7 +165,7 @@ class SettingsScreen extends ConsumerWidget {
                 children: <Widget>[
                   _SettingsRow(
                     icon: Icons.translate_rounded,
-                    title: 'Language',
+                    title: appLanguage.tr(en: 'Language', ha: 'Harshe', fr: 'Langue'),
                     value: appLanguage.label,
                     tint: const Color(0xFFDFF1FF),
                     onTap: () => _showAppLanguageSheet(context, ref),
@@ -165,8 +173,12 @@ class SettingsScreen extends ConsumerWidget {
                   const SizedBox(height: 12),
                   _ToggleSettingsRow(
                     icon: Icons.notifications_active_rounded,
-                    title: 'Push notifications',
-                    subtitle: 'Receive app alerts and farm updates.',
+                    title: appLanguage.tr(en: 'Push notifications', ha: 'Sanarwar waya', fr: 'Notifications push'),
+                    subtitle: appLanguage.tr(
+                      en: 'Receive app alerts and farm updates.',
+                      ha: 'Karbar sanarwar app da sabuntawar gona.',
+                      fr: 'Recevez alertes de l application et mises a jour de la ferme.',
+                    ),
                     value: appSettings.notificationsEnabled,
                     tint: const Color(0xFFE9F4DB),
                     onChanged: (bool value) => ref.read(appSettingsProvider.notifier).setNotificationsEnabled(value),
@@ -174,8 +186,12 @@ class SettingsScreen extends ConsumerWidget {
                   const SizedBox(height: 12),
                   _ToggleSettingsRow(
                     icon: Icons.alarm_on_rounded,
-                    title: 'Reminder notifications',
-                    subtitle: 'Crop and livestock reminders can notify you on time.',
+                    title: appLanguage.tr(en: 'Reminder notifications', ha: 'Sanarwar tunatarwa', fr: 'Notifications de rappel'),
+                    subtitle: appLanguage.tr(
+                      en: 'Crop and livestock reminders can notify you on time.',
+                      ha: 'Tunatarwar amfanin gona da dabbobi na iya sanar da kai da wuri.',
+                      fr: 'Les rappels cultures et betail peuvent vous avertir a temps.',
+                    ),
                     value: appSettings.reminderNotificationsEnabled,
                     tint: const Color(0xFFDFF1FF),
                     onChanged: (bool value) =>
@@ -184,8 +200,12 @@ class SettingsScreen extends ConsumerWidget {
                   const SizedBox(height: 12),
                   _ToggleSettingsRow(
                     icon: Icons.sync_rounded,
-                    title: 'Auto sync when online',
-                    subtitle: 'Sync offline records as soon as internet is available.',
+                    title: appLanguage.tr(en: 'Auto sync when online', ha: 'Auto sync idan akwai intanet', fr: 'Synchronisation auto'),
+                    subtitle: appLanguage.tr(
+                      en: 'Sync offline records as soon as internet is available.',
+                      ha: 'Aika bayanan da aka rubuta offline da zarar an samu intanet.',
+                      fr: 'Synchronisez les donnees hors ligne des que la connexion revient.',
+                    ),
                     value: appSettings.autoSyncEnabled,
                     tint: const Color(0xFFFFEBD0),
                     onChanged: (bool value) => ref.read(appSettingsProvider.notifier).setAutoSyncEnabled(value),
@@ -193,26 +213,30 @@ class SettingsScreen extends ConsumerWidget {
                   const SizedBox(height: 12),
                   _ToggleSettingsRow(
                     icon: Icons.fingerprint_rounded,
-                    title: 'Biometric lock',
-                    subtitle: 'Require device biometric unlock on supported phones.',
+                    title: appLanguage.tr(en: 'Biometric lock', ha: 'Kulle da biometrik', fr: 'Verrou biometrique'),
+                    subtitle: appLanguage.tr(
+                      en: 'Require device biometric unlock on supported phones.',
+                      ha: 'Bukaci budewa da sawun yatsa ko fuska a wayoyin da ke goyon baya.',
+                      fr: 'Exige le deblocage biometrique sur les telephones pris en charge.',
+                    ),
                     value: appSettings.biometricLockEnabled,
                     tint: const Color(0xFFEAD9FF),
                     onChanged: (bool value) =>
                         ref.read(appSettingsProvider.notifier).setBiometricLockEnabled(value),
                   ),
                   const SizedBox(height: 12),
-                  const _SettingsRow(
+                  _SettingsRow(
                     icon: Icons.download_rounded,
-                    title: 'Export reports',
-                    value: 'Weekly PDF',
-                    tint: Color(0xFFFFEBD0),
+                    title: appLanguage.tr(en: 'Export reports', ha: 'Fitar da rahoto', fr: 'Exporter les rapports'),
+                    value: appLanguage.tr(en: 'Weekly PDF', ha: 'PDF na mako', fr: 'PDF hebdo'),
+                    tint: const Color(0xFFFFEBD0),
                   ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Security'),
+          SoftSectionTitle(title: appLanguage.tr(en: 'Security', ha: 'Tsaro', fr: 'Securite')),
           AppCard(
             color: theme.colorScheme.surfaceContainerHighest,
             child: Padding(
@@ -221,16 +245,16 @@ class SettingsScreen extends ConsumerWidget {
                 children: <Widget>[
                   _SettingsRow(
                     icon: Icons.lock_reset_rounded,
-                    title: 'Change password',
-                    value: currentUser?.email ?? 'Update account password',
+                    title: appLanguage.tr(en: 'Change password', ha: 'Canza kalmar sirri', fr: 'Changer le mot de passe'),
+                    value: currentUser?.email ?? appLanguage.tr(en: 'Update account password', ha: 'Sabunta kalmar sirri', fr: 'Mettre a jour le mot de passe'),
                     tint: const Color(0xFFEAD9FF),
                     onTap: () => _showChangePasswordSheet(context, ref),
                   ),
                   const SizedBox(height: 12),
                   _SettingsRow(
                     icon: Icons.email_rounded,
-                    title: 'Send password reset',
-                    value: currentUser?.email ?? 'Reset via email',
+                    title: appLanguage.tr(en: 'Send password reset', ha: 'Aika sabon kalmar sirri', fr: 'Envoyer la reinitialisation'),
+                    value: currentUser?.email ?? appLanguage.tr(en: 'Reset via email', ha: 'Sake saitin ta imel', fr: 'Reinitialiser par e-mail'),
                     tint: const Color(0xFFDFF1FF),
                     onTap: currentUser?.email == null
                         ? null
@@ -239,8 +263,10 @@ class SettingsScreen extends ConsumerWidget {
                   const SizedBox(height: 12),
                   _SettingsRow(
                     icon: Icons.verified_user_rounded,
-                    title: 'Email verification status',
-                    value: currentUser?.emailVerified == true ? 'Verified' : 'Pending',
+                    title: appLanguage.tr(en: 'Email verification status', ha: 'Matsayin tabbatar da imel', fr: 'Statut de verification'),
+                    value: currentUser?.emailVerified == true
+                        ? appLanguage.tr(en: 'Verified', ha: 'An tabbatar', fr: 'Verifie')
+                        : appLanguage.tr(en: 'Pending', ha: 'Ana jira', fr: 'En attente'),
                     tint: const Color(0xFFE9F4DB),
                   ),
                 ],
@@ -248,7 +274,7 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Support'),
+          SoftSectionTitle(title: appLanguage.tr(en: 'Support', ha: 'Taimako', fr: 'Support')),
           AppCard(
             color: theme.colorScheme.surfaceContainerHighest,
             child: Padding(
@@ -257,7 +283,7 @@ class SettingsScreen extends ConsumerWidget {
                 children: <Widget>[
                   _SettingsRow(
                     icon: Icons.support_agent_rounded,
-                    title: 'Email support',
+                    title: appLanguage.tr(en: 'Email support', ha: 'Taimako ta imel', fr: 'Support par e-mail'),
                     value: 'support@farmsync.lbtech.site',
                     tint: const Color(0xFFFFEBD0),
                     onTap: () => _launchUri(context, _supportEmailUri),
@@ -265,8 +291,8 @@ class SettingsScreen extends ConsumerWidget {
                   const SizedBox(height: 12),
                   _SettingsRow(
                     icon: Icons.chat_rounded,
-                    title: 'Join WhatsApp support',
-                    value: 'Open community',
+                    title: appLanguage.tr(en: 'Join WhatsApp support', ha: 'Shiga taimakon WhatsApp', fr: 'Rejoindre WhatsApp'),
+                    value: appLanguage.tr(en: 'Open community', ha: 'Bude al umma', fr: 'Ouvrir la communaute'),
                     tint: const Color(0xFFDDF7E4),
                     onTap: () => _launchUri(context, _whatsAppUri),
                   ),
@@ -275,7 +301,7 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Connection and alerts'),
+          SoftSectionTitle(title: appLanguage.tr(en: 'Connection and alerts', ha: 'Hada da sanarwa', fr: 'Connexion et alertes')),
           Row(
             children: <Widget>[
               Expanded(

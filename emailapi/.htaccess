@@ -1,0 +1,5 @@
+Options -Indexes
+RewriteEngine On
+
+RewriteRule ^email-notifications/?$ mail.php [L,QSA]
+RewriteRule ^$ mail.php [L,QSA]

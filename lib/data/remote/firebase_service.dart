@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:uuid/uuid.dart';
+import 'dart:async';
 
 import '../../domain/models/user_profile.dart';
 
@@ -8,6 +11,10 @@ import '../../domain/models/user_profile.dart';
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final Uuid _uuid = const Uuid();
+  ConfirmationResult? _webPhoneConfirmationResult;
+  static const String _googleWebClientId =
+      '190353139949-8vjnn71ku91tvp75kpl2q5ete9hcpnd1.apps.googleusercontent.com';
 
   /// Get current user
   User? get currentUser => _auth.currentUser;
@@ -50,6 +57,45 @@ class FirebaseService {
       email: email,
       password: password,
     );
+  }
+
+  /// Sign in with Google.
+  Future<UserCredential> signInWithGoogle() async {
+    final GoogleSignIn googleSignIn = GoogleSignIn(
+      scopes: <String>['email'],
+      clientId: kIsWeb ? _googleWebClientId : null,
+    );
+
+    final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+    if (googleUser == null) {
+      throw FirebaseAuthException(
+        code: 'sign-in-cancelled',
+        message: 'Google sign-in was cancelled.',
+      );
+    }
+
+    try {
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+      final UserCredential userCredential = await _auth.signInWithCredential(credential);
+      await _createDefaultUserProfile(
+        uid: userCredential.user?.uid,
+        email: userCredential.user?.email ?? '',
+        displayName: userCredential.user?.displayName,
+        phoneNumber: userCredential.user?.phoneNumber,
+      );
+      return userCredential;
+    } on FirebaseAuthException {
+      rethrow;
+    } catch (error) {
+      throw FirebaseAuthException(
+        code: 'google-sign-in-failed',
+        message: _googleSignInErrorMessage(error),
+      );
+    }
   }
 
   /// Sends a password reset email.
@@ -115,6 +161,32 @@ class FirebaseService {
     }
   }
 
+  Future<List<UserProfile>> getAllUserProfiles() async {
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore.collection('users').get();
+    return snapshot.docs
+        .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) => UserProfile.fromJson(doc.data()))
+        .toList(growable: false);
+  }
+
+  Future<void> deleteUserProfile(String uid) async {
+    await _firestore.collection('users').doc(uid).delete();
+  }
+
+  Future<void> updateUserRestrictions({
+    required String uid,
+    required bool isDisabled,
+    required List<String> restrictedFeatures,
+  }) async {
+    await _firestore.collection('users').doc(uid).set(
+      <String, dynamic>{
+        'isDisabled': isDisabled,
+        'restrictedFeatures': restrictedFeatures,
+        'updatedAt': DateTime.now().toIso8601String(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
   Future<String> runProfileWriteDebugCheck(UserProfile profile) async {
     final String? userId = currentUser?.uid;
     if (userId == null) {
@@ -170,36 +242,81 @@ class FirebaseService {
     return log.toString();
   }
 
-  /// Sign in with phone number
-  Future<void> signInWithPhoneNumber(String phoneNumber) async {
+  /// Start a phone-number verification flow and return the verification ID.
+  Future<String> signInWithPhoneNumber(String phoneNumber) async {
+    if (kIsWeb) {
+      final ConfirmationResult confirmationResult = await _auth.signInWithPhoneNumber(phoneNumber);
+      _webPhoneConfirmationResult = confirmationResult;
+      return 'web-phone-confirmation';
+    }
+
+    final Completer<String> verificationIdCompleter = Completer<String>();
     await _auth.verifyPhoneNumber(
       phoneNumber: phoneNumber,
       verificationCompleted: (PhoneAuthCredential credential) async {
         await _auth.signInWithCredential(credential);
+        if (!verificationIdCompleter.isCompleted) {
+          verificationIdCompleter.complete('');
+        }
       },
       verificationFailed: (FirebaseAuthException e) {
-        throw e;
+        if (!verificationIdCompleter.isCompleted) {
+          verificationIdCompleter.completeError(e);
+        }
       },
       codeSent: (String verificationId, int? resendToken) {
-        // Handle code sent - this would be handled in the UI
+        if (!verificationIdCompleter.isCompleted) {
+          verificationIdCompleter.complete(verificationId);
+        }
       },
       codeAutoRetrievalTimeout: (String verificationId) {
-        // Handle timeout
+        if (!verificationIdCompleter.isCompleted) {
+          verificationIdCompleter.complete(verificationId);
+        }
       },
     );
+    return verificationIdCompleter.future;
   }
 
   /// Verify OTP
   Future<UserCredential> verifyOTP(String verificationId, String smsCode) async {
+    if (kIsWeb) {
+      final ConfirmationResult? confirmationResult = _webPhoneConfirmationResult;
+      if (confirmationResult == null) {
+        throw FirebaseAuthException(
+          code: 'session-expired',
+          message: 'Phone verification session has expired. Please request a new code.',
+        );
+      }
+
+      final UserCredential userCredential = await confirmationResult.confirm(smsCode);
+      _webPhoneConfirmationResult = null;
+      await _createDefaultUserProfile(
+        uid: userCredential.user?.uid,
+        email: userCredential.user?.email ?? '',
+        displayName: userCredential.user?.displayName,
+        phoneNumber: userCredential.user?.phoneNumber,
+      );
+      return userCredential;
+    }
+
     final credential = PhoneAuthProvider.credential(
       verificationId: verificationId,
       smsCode: smsCode,
     );
-    return await _auth.signInWithCredential(credential);
+    final UserCredential userCredential = await _auth.signInWithCredential(credential);
+    await _createDefaultUserProfile(
+      uid: userCredential.user?.uid,
+      email: userCredential.user?.email ?? '',
+      displayName: userCredential.user?.displayName,
+      phoneNumber: userCredential.user?.phoneNumber,
+    );
+    return userCredential;
   }
 
   /// Sign out
   Future<void> signOut() async {
+    _webPhoneConfirmationResult = null;
     await _auth.signOut();
   }
 
@@ -269,6 +386,43 @@ class FirebaseService {
     await _firestore.collection(collection).doc(documentId).set(data, SetOptions(merge: true));
   }
 
+  Future<void> sendBroadcastNotification({
+    required String title,
+    required String message,
+    required String type,
+    String audience = 'all',
+    String? targetUserId,
+    Map<String, dynamic>? metadata,
+  }) async {
+    final String id = _uuid.v4();
+    await syncGlobalToFirestore('app_notifications', <String, dynamic>{
+      'id': id,
+      'title': title,
+      'message': message,
+      'type': type,
+      'timestamp': DateTime.now().toIso8601String(),
+      'isRead': false,
+      'actionUrl': '/notifications',
+      'metadata': <String, dynamic>{
+        'audience': audience,
+        if (targetUserId != null) 'targetUserId': targetUserId,
+        if (metadata != null) ...metadata,
+      },
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getAdminAccounts() async {
+    return getGlobalFromFirestore('app_admins');
+  }
+
+  Future<void> saveAdminAccount(Map<String, dynamic> data) async {
+    await syncGlobalToFirestore('app_admins', data);
+  }
+
+  Future<void> deleteAdminAccount(String id) async {
+    await deleteGlobalFromFirestore('app_admins', id);
+  }
+
   Future<List<Map<String, dynamic>>> getGlobalFromFirestore(String collection) async {
     final QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore.collection(collection).get();
     return snapshot.docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) => doc.data()).toList(growable: false);
@@ -309,5 +463,12 @@ class FirebaseService {
     );
 
     await _firestore.collection('users').doc(uid).set(profile.toJson(), SetOptions(merge: true));
+  }
+
+  String _googleSignInErrorMessage(Object error) {
+    if (kIsWeb) {
+      return 'Google sign-in is not fully configured for web yet. Make sure the web OAuth client ID is added in web/index.html and the domain is authorized in Firebase.';
+    }
+    return 'Google sign-in failed. Check Firebase Google provider settings and your Android SHA-1/SHA-256 fingerprints.';
   }
 }

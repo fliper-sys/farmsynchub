@@ -6,7 +6,7 @@ import '../../../../domain/models/farm.dart';
 import '../../../../providers/farm_provider.dart';
 import '../../../common/widgets/farm_scene_artwork.dart';
 
-/// Illustrated weather summary card.
+/// Illustrated environmental snapshot card for the selected farm.
 class WeatherPill extends ConsumerWidget {
   const WeatherPill({super.key});
 
@@ -14,7 +14,95 @@ class WeatherPill extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ThemeData theme = Theme.of(context);
     final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
-    final _WeatherSnapshot snapshot = _WeatherSnapshot.fromFarms(farms);
+    final String? activeFarmId = ref.watch(activeFarmProvider);
+    Farm? activeFarm;
+    if (activeFarmId != null && activeFarmId.trim().isNotEmpty) {
+      for (final Farm farm in farms) {
+        if (farm.id == activeFarmId) {
+          activeFarm = farm;
+          break;
+        }
+      }
+    }
+    activeFarm ??= farms.isNotEmpty ? farms.first : null;
+
+    if (activeFarm == null) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              'No farm readings yet',
+              style: theme.textTheme.titleLarge?.copyWith(color: AppColors.primary),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Create a farm and record its environmental readings to see temperature and humidity here.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+        );
+    }
+
+    if (_looksLikeSeededPlaceholder(activeFarm)) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                const Icon(Icons.thermostat_rounded, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    activeFarm.name,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'No live readings yet',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Update the farm metrics with the latest temperature, humidity, soil moisture, and rainfall values to populate this feed.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final _WeatherSnapshot snapshot = _WeatherSnapshot.fromFarm(activeFarm);
 
     return Container(
       decoration: BoxDecoration(
@@ -52,6 +140,24 @@ class WeatherPill extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    const Icon(Icons.thermostat_rounded, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        activeFarm.name,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 Text(
                   '${snapshot.temperature.toStringAsFixed(1)} C',
                   style: theme.textTheme.headlineMedium?.copyWith(
@@ -114,46 +220,38 @@ class _WeatherSnapshot {
   final double precipitation;
   final String summary;
 
-  factory _WeatherSnapshot.fromFarms(List<Farm> farms) {
-    if (farms.isEmpty) {
-      return const _WeatherSnapshot(
-        temperature: 24,
-        humidity: 60,
-        soilMoisture: 52,
-        precipitation: 6,
-        summary: 'Field-ready conditions',
-      );
-    }
+  factory _WeatherSnapshot.fromFarm(Farm farm) {
+    final double temperature = farm.temperatureCelsius;
+    final double humidityValue = farm.humidityPercent;
+    final double soilValue = farm.soilMoisturePercent;
+    final double rainValue = farm.precipitationMm;
 
-    double temp = 0;
-    double humidity = 0;
-    double soil = 0;
-    double rain = 0;
-    for (final Farm farm in farms) {
-      temp += farm.temperatureCelsius;
-      humidity += farm.humidityPercent;
-      soil += farm.soilMoisturePercent;
-      rain += farm.precipitationMm;
+    String summary;
+    if (rainValue > 12) {
+      summary = 'Rainfall watch';
+    } else if (temperature >= 32) {
+      summary = 'Heat stress watch';
+    } else if (soilValue < 40) {
+      summary = 'Irrigation recommended';
+    } else {
+      summary = 'Field-ready conditions';
     }
-
-    final double divisor = farms.length.toDouble();
-    final double temperature = temp / divisor;
-    final double humidityValue = humidity / divisor;
-    final double soilValue = soil / divisor;
-    final double rainValue = rain / divisor;
 
     return _WeatherSnapshot(
       temperature: temperature,
       humidity: humidityValue,
       soilMoisture: soilValue,
       precipitation: rainValue,
-      summary: rainValue > 12
-          ? 'Rainfall watch'
-          : soilValue < 40
-              ? 'Irrigation recommended'
-              : 'Field-ready conditions',
+      summary: summary,
     );
   }
+}
+
+bool _looksLikeSeededPlaceholder(Farm farm) {
+  return farm.temperatureCelsius == 24 &&
+      farm.humidityPercent == 60 &&
+      farm.soilMoisturePercent == 52 &&
+      farm.precipitationMm == 6;
 }
 
 class _MetricChip extends StatelessWidget {

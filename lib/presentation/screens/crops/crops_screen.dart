@@ -511,6 +511,7 @@ class _CropFormSheetState extends State<_CropFormSheet> {
   late DateTime _plantingDate;
   late DateTime _expectedHarvestDate;
   late bool _protectedEnvironment;
+  late final VoidCallback _formListener;
 
   @override
   void initState() {
@@ -535,10 +536,25 @@ class _CropFormSheetState extends State<_CropFormSheet> {
     _plantingDate = crop?.plantingDate ?? DateTime.now();
     _expectedHarvestDate = crop?.expectedHarvestDate ?? DateTime.now().add(const Duration(days: 90));
     _protectedEnvironment = crop?.protectedEnvironment ?? widget.farms.first.supportsGreenhouse;
+    _formListener = () {
+      if (mounted) {
+        setState(() {});
+      }
+    };
+    _nameController.addListener(_formListener);
+    _varietyController.addListener(_formListener);
+    _landSizeController.addListener(_formListener);
+    _cycleController.addListener(_formListener);
+    _targetYieldController.addListener(_formListener);
   }
 
   @override
   void dispose() {
+    _nameController.removeListener(_formListener);
+    _varietyController.removeListener(_formListener);
+    _landSizeController.removeListener(_formListener);
+    _cycleController.removeListener(_formListener);
+    _targetYieldController.removeListener(_formListener);
     _nameController.dispose();
     _varietyController.dispose();
     _landSizeController.dispose();
@@ -668,6 +684,11 @@ class _CropFormSheetState extends State<_CropFormSheet> {
                   ],
                 ),
                 const SizedBox(height: 14),
+                _CropPlanningCard(
+                  summary: _cropPlanningSummary(),
+                  onApply: _applyCropSuggestions,
+                ),
+                const SizedBox(height: 14),
                 _DropdownField<CropStage>(
                   label: 'Growth stage',
                   value: _stage,
@@ -766,6 +787,159 @@ class _CropFormSheetState extends State<_CropFormSheet> {
         ),
       ),
     );
+  }
+
+  _CropPlanningSummary _cropPlanningSummary() {
+    final double enteredLand = double.tryParse(_landSizeController.text.trim()) ?? 0;
+    final double areaHa = _landSizeUnit == LandSizeUnit.plots
+        ? enteredLand * CropAdviceCatalog.plotToHa
+        : enteredLand;
+    final CropAdviceProfile? profile = CropAdviceCatalog.detect(_nameController.text);
+    final int suggestedCycleDays = _suggestedCycleDays(profile, _stage, _protectedEnvironment);
+    final int stageOffset = _stageOffsetDays(_stage);
+    final int remainingDays = (suggestedCycleDays - stageOffset).clamp(0, 3650);
+    final DateTime suggestedHarvestDate = _plantingDate.add(Duration(days: suggestedCycleDays));
+    final double suggestedYield = _suggestedYieldKg(profile, areaHa, _stage, _protectedEnvironment);
+    final String stageNote = switch (_stage) {
+      CropStage.seeding => 'Cycle is at the start; keep moisture steady and confirm stand establishment.',
+      CropStage.germination => 'Stand establishment is underway, so the app shortens the remaining window slightly.',
+      CropStage.vegetative => 'Vegetative growth is active; nutrition and weed control protect the cycle now.',
+      CropStage.flowering => 'Flowering means the crop is entering a yield-critical window and harvest prep should start earlier.',
+      CropStage.fruiting => 'Fruiting suggests the crop is close to harvest, so the remaining window is short.',
+    };
+
+    final Crop tempCrop = Crop(
+      id: widget.initialCrop?.id ?? 'preview',
+      farmId: _farmId,
+      name: _nameController.text.trim().isEmpty ? 'Crop' : _nameController.text.trim(),
+      variety: _varietyController.text.trim().isEmpty ? 'Variety' : _varietyController.text.trim(),
+      areaHa: areaHa,
+      plantingDate: _plantingDate,
+      expectedHarvestDate: suggestedHarvestDate,
+      currentStage: _stage,
+      status: _status,
+      totalInputCost: double.tryParse(_costController.text.trim()) ?? 0,
+      cycleLengthDays: suggestedCycleDays,
+      notes: _notesController.text.trim(),
+      createdAt: widget.initialCrop?.createdAt ?? DateTime.now(),
+      updatedAt: DateTime.now(),
+      isSynced: false,
+      landSizeValue: enteredLand,
+      landSizeUnit: _landSizeUnit,
+      targetYieldKg: suggestedYield,
+      protectedEnvironment: _protectedEnvironment,
+    );
+    final CropAdviceSummary advice = CropAdviceCatalog.summarize(tempCrop);
+
+    return _CropPlanningSummary(
+      profileName: advice.profile.name,
+      seedRequirementLabel: advice.seedRequirementLabel,
+      fertiliserSummary: advice.fertiliserSummary,
+      otherInputs: advice.otherInputs,
+      cycleDays: suggestedCycleDays,
+      remainingDays: remainingDays,
+      suggestedHarvestDate: suggestedHarvestDate,
+      suggestedYieldKg: suggestedYield,
+      stageNote: stageNote,
+      referenceNote: advice.referenceNote,
+      matchConfidence: advice.matchConfidence,
+      areaLabel: tempCrop.landSizeLabel,
+      reminders: advice.reminders.length,
+    );
+  }
+
+  void _applyCropSuggestions() {
+    final _CropPlanningSummary summary = _cropPlanningSummary();
+    setState(() {
+      _cycleController.text = summary.cycleDays.toString();
+      _targetYieldController.text = summary.suggestedYieldKg.toStringAsFixed(0);
+      _expectedHarvestDate = summary.suggestedHarvestDate;
+    });
+  }
+
+  int _suggestedCycleDays(
+    CropAdviceProfile? profile,
+    CropStage stage,
+    bool protectedEnvironment,
+  ) {
+    final String key = profile?.name.toLowerCase().trim() ?? '';
+    final Map<String, int> baseCycleDays = <String, int>{
+      'maize': 110,
+      'rice': 120,
+      'sorghum': 110,
+      'millet': 90,
+      'wheat': 125,
+      'cassava': 360,
+      'yam': 270,
+      'sweet potato': 120,
+      'potato': 100,
+      'bean': 70,
+      'cowpea': 75,
+      'groundnut': 110,
+      'soybean': 100,
+      'tomato': 110,
+      'pepper': 150,
+      'onion': 150,
+      'okra': 65,
+      'cabbage': 90,
+    };
+    final int base = baseCycleDays[key] ?? 90;
+    final int protectedBonus = protectedEnvironment ? -7 : 0;
+    return ((base + protectedBonus).clamp(45, 540) as int);
+  }
+
+  int _stageOffsetDays(CropStage stage) {
+    switch (stage) {
+      case CropStage.seeding:
+        return 0;
+      case CropStage.germination:
+        return 10;
+      case CropStage.vegetative:
+        return 25;
+      case CropStage.flowering:
+        return 45;
+      case CropStage.fruiting:
+        return 60;
+    }
+  }
+
+  double _suggestedYieldKg(
+    CropAdviceProfile? profile,
+    double areaHa,
+    CropStage stage,
+    bool protectedEnvironment,
+  ) {
+    final String key = profile?.name.toLowerCase().trim() ?? '';
+    final Map<String, double> yieldPerHa = <String, double>{
+      'maize': 4200,
+      'rice': 5200,
+      'sorghum': 2600,
+      'millet': 1800,
+      'wheat': 3500,
+      'cassava': 24000,
+      'yam': 12000,
+      'sweet potato': 15000,
+      'potato': 17000,
+      'bean': 1200,
+      'cowpea': 1000,
+      'groundnut': 1700,
+      'soybean': 2400,
+      'tomato': 22000,
+      'pepper': 13000,
+      'onion': 20000,
+      'okra': 8500,
+      'cabbage': 28000,
+    };
+    final double base = yieldPerHa[key] ?? 2500;
+    final double stageFactor = switch (stage) {
+      CropStage.seeding => 1.0,
+      CropStage.germination => 0.98,
+      CropStage.vegetative => 1.0,
+      CropStage.flowering => 0.96,
+      CropStage.fruiting => 0.92,
+    };
+    final double environmentFactor = protectedEnvironment ? 1.1 : 1.0;
+    return areaHa * base * stageFactor * environmentFactor;
   }
 
   void _submit() {
@@ -1217,6 +1391,148 @@ class _DateTile extends StatelessWidget {
           children: <Widget>[
             Expanded(child: Text('${value.day}/${value.month}/${value.year}')),
             const Icon(Icons.calendar_today_rounded, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CropPlanningSummary {
+  const _CropPlanningSummary({
+    required this.profileName,
+    required this.seedRequirementLabel,
+    required this.fertiliserSummary,
+    required this.otherInputs,
+    required this.cycleDays,
+    required this.remainingDays,
+    required this.suggestedHarvestDate,
+    required this.suggestedYieldKg,
+    required this.stageNote,
+    required this.referenceNote,
+    required this.matchConfidence,
+    required this.areaLabel,
+    required this.reminders,
+  });
+
+  final String profileName;
+  final String seedRequirementLabel;
+  final String fertiliserSummary;
+  final List<String> otherInputs;
+  final int cycleDays;
+  final int remainingDays;
+  final DateTime suggestedHarvestDate;
+  final double suggestedYieldKg;
+  final String stageNote;
+  final String referenceNote;
+  final double matchConfidence;
+  final String areaLabel;
+  final int reminders;
+}
+
+class _CropPlanningCard extends StatelessWidget {
+  const _CropPlanningCard({
+    required this.summary,
+    required this.onApply,
+  });
+
+  final _CropPlanningSummary summary;
+  final VoidCallback onApply;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return AppCard(
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F4D8),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.insights_rounded),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        'Planning estimate',
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        summary.profileName,
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: onApply,
+                  child: const Text('Use suggestion'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                _MiniTag(text: '${summary.cycleDays} day cycle', color: const Color(0xFFE8F4D8)),
+                _MiniTag(text: '${summary.remainingDays} days left', color: const Color(0xFFDFF1FF)),
+                _MiniTag(text: '${summary.suggestedYieldKg.toStringAsFixed(0)} kg target', color: const Color(0xFFFFEBD0)),
+                _MiniTag(text: summary.areaLabel, color: const Color(0xFFEDE8FF)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Formula: planting date + cycle length = expected harvest date.',
+              style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Suggested harvest date: ${MaterialLocalizations.of(context).formatFullDate(summary.suggestedHarvestDate)}',
+              style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Seed need: ${summary.seedRequirementLabel}',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Fertiliser: ${summary.fertiliserSummary}',
+              style: theme.textTheme.bodySmall?.copyWith(height: 1.5),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              summary.stageNote,
+              style: theme.textTheme.bodySmall?.copyWith(height: 1.5),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Reminder plan: ${summary.reminders} checkpoints built from the selected crop profile.',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              summary.referenceNote,
+              style: theme.textTheme.bodySmall?.copyWith(
+                height: 1.5,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ],
         ),
       ),

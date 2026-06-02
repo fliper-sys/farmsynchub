@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/validators.dart';
 import '../../../providers/auth_provider.dart';
+import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_text_field.dart';
 import 'auth_shared.dart';
 
@@ -20,6 +21,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  int _brandTapCount = 0;
 
   @override
   void dispose() {
@@ -35,7 +37,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         data: (_) {
           if (previous is AsyncLoading && mounted) {
             final User? user = FirebaseAuth.instance.currentUser;
-            if (user != null && !user.emailVerified) {
+            if (user != null && user.email?.isNotEmpty == true && !user.emailVerified) {
               context.go('/verify-email');
             } else {
               context.go('/post-auth');
@@ -53,6 +55,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return AuthScaffold(
       title: 'Log in',
       subtitle: 'Sign in to your farm workspace and pick up right where your last field update ended.',
+      onBrandTap: _handleBrandTap,
       footer: const AuthPageFooter(
         text: 'Secure access for crop records, livestock tracking, finance, and advisory tools.',
       ),
@@ -94,6 +97,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             isLoading: isLoading,
             onPressed: _submit,
           ),
+          const SizedBox(height: 14),
+          AppButton.secondary(
+            onPressed: isLoading
+                ? null
+                : () async {
+                    await ref.read(authControllerProvider.notifier).signInWithGoogle();
+                  },
+            child: const _AuthActionLabel(
+              label: 'Continue with Google',
+              icon: _GoogleBadge(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          AppButton.secondary(
+            onPressed: () => context.go('/phone-auth'),
+            child: const _AuthActionLabel(
+              label: 'Use phone number',
+              icon: Icon(Icons.phone_rounded, size: 20),
+            ),
+          ),
           const SizedBox(height: 18),
           const AuthSecondaryLinkRow(
             prompt: 'Don\'t have an account?',
@@ -103,6 +126,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ],
       ),
     );
+  }
+
+  void _handleBrandTap() {
+    _brandTapCount += 1;
+    if (_brandTapCount >= 8) {
+      _brandTapCount = 0;
+      context.go('/admin-login');
+    }
   }
 
   Future<void> _submit() async {
@@ -150,8 +181,66 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           return 'Email or password is incorrect.';
         case 'too-many-requests':
           return 'Too many login attempts. Please wait and try again.';
+        case 'google-sign-in-failed':
+          return error.message ?? 'Google sign-in failed. Please check Firebase configuration.';
       }
+      return error.message ?? 'Login failed. Please try again.';
     }
     return 'Login failed. Please try again.';
+  }
+}
+
+class _AuthActionLabel extends StatelessWidget {
+  const _AuthActionLabel({
+    required this.label,
+    required this.icon,
+  });
+
+  final String label;
+  final Widget icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        icon,
+        const SizedBox(width: 10),
+        Text(label),
+      ],
+    );
+  }
+}
+
+class _GoogleBadge extends StatelessWidget {
+  const _GoogleBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: const Text(
+        'G',
+        style: TextStyle(
+          fontSize: 13,
+          height: 1,
+          fontWeight: FontWeight.w800,
+          color: Color(0xFF4285F4),
+        ),
+      ),
+    );
   }
 }

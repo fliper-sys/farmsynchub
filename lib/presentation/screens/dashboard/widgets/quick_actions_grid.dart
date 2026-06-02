@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../providers/app_preferences_provider.dart';
 
 /// Grid of quick action buttons for common tasks.
-class QuickActionsGrid extends StatelessWidget {
+class QuickActionsGrid extends ConsumerWidget {
   const QuickActionsGrid({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final AppLanguage language = ref.watch(appLanguageProvider);
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final double width = constraints.maxWidth;
@@ -29,65 +32,65 @@ class QuickActionsGrid extends StatelessWidget {
           children: <Widget>[
             _QuickActionButton(
               compact: compact,
+              label: language.tr(en: 'My Farm', ha: 'Gonaki na', fr: 'Ma ferme'),
+              subtitle: language.tr(en: 'Land records and setup', ha: 'Takardun gona da saitin aiki', fr: 'Parcelles et configuration'),
               icon: Icons.landscape_rounded,
-              label: 'My Farm',
-              subtitle: 'Land records and setup',
               tint: const Color(0xFFDDF2C9),
               route: '/farms',
             ),
             _QuickActionButton(
               compact: compact,
+              label: language.tr(en: 'Crops', ha: 'Amfanin gona', fr: 'Cultures'),
+              subtitle: language.tr(en: 'Stages and planting', ha: 'Matakai da shuka', fr: 'Etapes et plantation'),
               icon: Icons.spa_rounded,
-              label: 'Crops',
-              subtitle: 'Stages and planting',
               tint: const Color(0xFFD8F2E5),
               route: '/crops',
             ),
             _QuickActionButton(
               compact: compact,
+              label: language.tr(en: 'Livestock', ha: 'Dabbobi', fr: 'Bétail'),
+              subtitle: language.tr(en: 'Animals and count', ha: 'Dabbobi da kidaya', fr: 'Animaux et nombre'),
               icon: Icons.inventory_2_rounded,
-              label: 'Livestock',
-              subtitle: 'Animals and count',
               tint: const Color(0xFFE4F1FF),
               route: '/livestock',
             ),
             _QuickActionButton(
               compact: compact,
+              label: language.tr(en: 'Sales', ha: 'Siyarwa', fr: 'Ventes'),
+              subtitle: language.tr(en: 'Receipts and finance', ha: 'Karbar kudi da kudi', fr: 'Reçus et finances'),
               icon: Icons.savings_rounded,
-              label: 'Sales',
-              subtitle: 'Receipts and finance',
               tint: const Color(0xFFFFE9BF),
               route: '/finance',
             ),
             _QuickActionButton(
               compact: compact,
+              label: language.tr(en: 'Learn', ha: 'Koyo', fr: 'Apprendre'),
+              subtitle: language.tr(en: 'Lessons and practice', ha: 'Darussa da atisaye', fr: 'Leçons et pratique'),
               icon: Icons.school_rounded,
-              label: 'Learn',
-              subtitle: 'Lessons and practice',
               tint: const Color(0xFFFFEEE4),
               route: '/learn',
             ),
             _QuickActionButton(
               compact: compact,
+              label: language.tr(en: 'AI Advisor', ha: 'Mai ba da shawara', fr: 'Conseiller IA'),
+              subtitle: language.tr(en: 'Ask for field help', ha: 'Tambayi taimakon gona', fr: 'Demander de l aide'),
               icon: Icons.auto_awesome_rounded,
-              label: 'AI Advisor',
-              subtitle: 'Ask for field help',
               tint: const Color(0xFFEDE8FF),
               route: '/ai-advisor',
             ),
             _QuickActionButton(
               compact: compact,
+              label: language.tr(en: 'News', ha: 'Labarai', fr: 'Actualites'),
+              subtitle: language.tr(en: 'Feeds and updates', ha: 'Rahotanni da sabuntawa', fr: 'Flux et mises a jour'),
               icon: Icons.newspaper_rounded,
-              label: 'News',
-              subtitle: 'Feeds and updates',
               tint: const Color(0xFFEDE8FF),
               route: '/news',
             ),
             _QuickActionButton(
               compact: compact,
+              label: language.tr(en: 'Profile', ha: 'Bayanan kaina', fr: 'Profil'),
+              subtitle: language.tr(en: 'Account and setup', ha: 'Asusu da saitin aiki', fr: 'Compte et configuration'),
               icon: Icons.person_rounded,
-              label: 'Profile',
-              subtitle: 'Account and setup',
               tint: const Color(0xFFE5F5D8),
               route: '/profile',
             ),

@@ -4,36 +4,74 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+import '../data/remote/firebase_service.dart';
 import '../../domain/models/notification.dart';
+import 'auth_provider.dart';
 
 /// Provider for managing notifications.
 final notificationsProvider = StateNotifierProvider<NotificationsNotifier, List<Notification>>((ref) {
-  return NotificationsNotifier();
+  return NotificationsNotifier(
+    ref.read(firebaseServiceProvider),
+    ref.watch(authStateProvider).valueOrNull?.uid,
+  );
 });
 
 /// State notifier for notifications management.
 class NotificationsNotifier extends StateNotifier<List<Notification>> {
-  NotificationsNotifier() : super([]) {
+  NotificationsNotifier(this._firebaseService, this._currentUserId) : super([]) {
     _loadNotifications();
   }
 
+  final FirebaseService _firebaseService;
+  final String? _currentUserId;
   static const String _notificationsKey = 'notifications';
+  static const String _remoteCollection = 'app_notifications';
   final _uuid = const Uuid();
 
   /// Loads notifications from shared preferences.
   Future<void> _loadNotifications() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final List<String> notificationsJson = prefs.getStringList(_notificationsKey) ?? <String>[];
-    if (notificationsJson.isEmpty) {
-      state = _defaultNotifications();
-      await _saveNotifications();
-      return;
-    }
-
-    state = notificationsJson
+    final List<Notification> localNotifications = notificationsJson
         .map((String jsonStr) => Notification.fromMap(jsonDecode(jsonStr) as Map<String, dynamic>))
-        .toList()
+        .toList();
+    final List<Notification> remoteNotifications = await _loadRemoteNotifications();
+    final Map<String, Notification> merged = <String, Notification>{
+      for (final Notification notification in _defaultNotifications()) notification.id: notification,
+      for (final Notification notification in localNotifications) notification.id: notification,
+      for (final Notification notification in remoteNotifications) notification.id: notification,
+    };
+    state = merged.values.toList()
       ..sort((Notification a, Notification b) => b.timestamp.compareTo(a.timestamp));
+
+    if (notificationsJson.isEmpty && remoteNotifications.isEmpty) {
+      await _saveNotifications();
+    }
+  }
+
+  Future<List<Notification>> _loadRemoteNotifications() async {
+    try {
+      final List<Map<String, dynamic>> records = await _firebaseService.getGlobalFromFirestore(_remoteCollection);
+      return records
+          .map(Notification.fromMap)
+          .where((Notification notification) => _shouldShowRemoteNotification(notification))
+          .toList(growable: false);
+    } catch (_) {
+      return <Notification>[];
+    }
+  }
+
+  bool _shouldShowRemoteNotification(Notification notification) {
+    final Map<String, dynamic>? metadata = notification.metadata;
+    if (metadata == null) {
+      return true;
+    }
+    final String audience = metadata['audience'] as String? ?? 'all';
+    if (audience == 'all') {
+      return true;
+    }
+    final String? targetUserId = metadata['targetUserId'] as String?;
+    return targetUserId != null && targetUserId == _currentUserId;
   }
 
   /// Saves notifications to shared preferences.

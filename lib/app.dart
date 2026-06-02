@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 
 import 'domain/models/notification.dart' as domain;
@@ -10,15 +11,28 @@ import 'presentation/common/layouts/main_scaffold.dart';
 import 'presentation/screens/ai_advisor/ai_advisor_screen.dart';
 import 'presentation/screens/auth/forgot_password_screen.dart';
 import 'presentation/screens/auth/login_screen.dart';
+import 'presentation/screens/auth/account_restricted_screen.dart';
 import 'presentation/screens/auth/post_auth_gate_screen.dart';
+import 'presentation/screens/auth/phone_auth_screen.dart';
 import 'presentation/screens/auth/register_screen.dart';
 import 'presentation/screens/auth/verify_email_screen.dart';
+import 'presentation/screens/admin/admin_dashboard_screen.dart';
+import 'presentation/screens/admin/admin_login_screen.dart';
+import 'presentation/screens/admin/admin_notifications_screen.dart';
+import 'presentation/screens/admin/admin_news_screen.dart';
+import 'presentation/screens/admin/admin_notes_screen.dart';
+import 'presentation/screens/admin/admin_recovery_screen.dart';
+import 'presentation/screens/admin/admin_admins_screen.dart';
+import 'presentation/screens/admin/admin_metrics_screen.dart';
+import 'presentation/screens/admin/admin_user_detail_screen.dart';
+import 'presentation/screens/admin/admin_users_screen.dart';
 import 'presentation/screens/dashboard/dashboard_screen.dart';
 import 'presentation/screens/farms/farms_screen.dart';
 import 'presentation/screens/crops/crops_screen.dart';
 import 'presentation/screens/learn/learn_screen.dart';
 import 'presentation/screens/livestock/livestock_screen.dart';
 import 'presentation/screens/finance/finance_screen.dart';
+import 'presentation/screens/finance/market_trends_screen.dart';
 import 'presentation/screens/news/news_screen.dart';
 import 'presentation/screens/profile/profile_screen.dart';
 import 'presentation/screens/profile/account_setup_screen.dart';
@@ -39,16 +53,16 @@ class FarmsyncApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ThemeMode themeMode = ref.watch(themeProvider);
     final AppLanguage language = ref.watch(appLanguageProvider);
+    final Locale materialLocale = _materialLocaleFor(language);
 
     return MaterialApp.router(
       title: 'Farmsync',
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
-      locale: language.locale,
+      locale: materialLocale,
       supportedLocales: const <Locale>[
         Locale('en'),
-        Locale('ha'),
         Locale('fr'),
       ],
       localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
@@ -59,6 +73,16 @@ class FarmsyncApp extends ConsumerWidget {
       routerConfig: _router,
       debugShowCheckedModeBanner: false,
     );
+  }
+}
+
+Locale _materialLocaleFor(AppLanguage language) {
+  switch (language) {
+    case AppLanguage.french:
+      return const Locale('fr');
+    case AppLanguage.hausa:
+    case AppLanguage.english:
+      return const Locale('en');
   }
 }
 
@@ -78,22 +102,28 @@ final GoRouter _router = GoRouter(
       path: '/login',
       builder: (context, state) => const LoginScreen(),
       redirect: (context, state) {
-        final user = FirebaseService().currentUser;
-        if (user == null) {
-          return null;
-        }
-        return user.emailVerified ? '/post-auth' : '/verify-email';
+        return _postAuthRouteForUser(FirebaseService().currentUser);
       },
     ),
     GoRoute(
       path: '/register',
       builder: (context, state) => const RegisterScreen(),
       redirect: (context, state) {
-        final user = FirebaseService().currentUser;
+        return _postAuthRouteForUser(FirebaseService().currentUser);
+      },
+    ),
+    GoRoute(
+      path: '/phone-auth',
+      builder: (context, state) => const PhoneAuthScreen(),
+      redirect: (context, state) {
+        final User? user = FirebaseService().currentUser;
         if (user == null) {
           return null;
         }
-        return user.emailVerified ? '/post-auth' : '/verify-email';
+        if (user.email?.isNotEmpty == true && !user.emailVerified) {
+          return '/verify-email';
+        }
+        return '/post-auth';
       },
     ),
     GoRoute(
@@ -101,26 +131,80 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => const ForgotPasswordScreen(),
     ),
     GoRoute(
+      path: '/admin-login',
+      builder: (context, state) => const AdminLoginScreen(),
+    ),
+    GoRoute(
+      path: '/admin-recovery',
+      builder: (context, state) => const AdminRecoveryScreen(),
+    ),
+    GoRoute(
+      path: '/admin-dashboard',
+      builder: (context, state) => const AdminDashboardScreen(),
+    ),
+    GoRoute(
+      path: '/admin-users',
+      builder: (context, state) => const AdminUsersScreen(),
+    ),
+    GoRoute(
+      path: '/admin-users/:id',
+      builder: (context, state) {
+        final String userId = state.pathParameters['id'] ?? '';
+        return AdminUserDetailScreen(userId: userId);
+      },
+    ),
+    GoRoute(
+      path: '/admin-admins',
+      builder: (context, state) => const AdminAdminsScreen(),
+    ),
+    GoRoute(
+      path: '/admin-news',
+      builder: (context, state) => const AdminNewsScreen(),
+    ),
+    GoRoute(
+      path: '/admin-notes',
+      builder: (context, state) => const AdminNotesScreen(),
+    ),
+    GoRoute(
+      path: '/admin-notifications',
+      builder: (context, state) => const AdminNotificationsScreen(),
+    ),
+    GoRoute(
+      path: '/admin-metrics',
+      builder: (context, state) => const AdminMetricsScreen(),
+    ),
+    GoRoute(
       path: '/verify-email',
       builder: (context, state) => const VerifyEmailScreen(),
       redirect: (context, state) {
-        final user = FirebaseService().currentUser;
+        final User? user = FirebaseService().currentUser;
         if (user == null) {
           return '/login';
         }
-        return user.emailVerified ? '/post-auth' : null;
+        if (user.email?.isNotEmpty == true && !user.emailVerified) {
+          return null;
+        }
+        return '/post-auth';
       },
     ),
     GoRoute(
       path: '/post-auth',
       builder: (context, state) => const PostAuthGateScreen(),
       redirect: (context, state) {
-        final user = FirebaseService().currentUser;
+        final User? user = FirebaseService().currentUser;
         if (user == null) {
           return '/login';
         }
-        return user.emailVerified ? null : '/verify-email';
+        if (user.email?.isNotEmpty == true && !user.emailVerified) {
+          return '/verify-email';
+        }
+        return null;
       },
+    ),
+    GoRoute(
+      path: '/account-restricted',
+      builder: (context, state) => const AccountRestrictedScreen(),
+      redirect: _authRedirect,
     ),
     GoRoute(
       path: '/account-setup',
@@ -165,14 +249,19 @@ final GoRouter _router = GoRouter(
           builder: (context, state) => const LivestockScreen(),
           redirect: _authRedirect,
         ),
-        GoRoute(
-          path: '/finance',
-          builder: (context, state) => const FinanceScreen(),
-          redirect: _authRedirect,
-        ),
-        GoRoute(
-          path: '/news',
-          builder: (context, state) => const NewsScreen(),
+    GoRoute(
+      path: '/finance',
+      builder: (context, state) => const FinanceScreen(),
+      redirect: _authRedirect,
+    ),
+    GoRoute(
+      path: '/market-trends',
+      builder: (context, state) => const MarketTrendsScreen(),
+      redirect: _authRedirect,
+    ),
+    GoRoute(
+      path: '/news',
+      builder: (context, state) => const NewsScreen(),
           redirect: _authRedirect,
         ),
         GoRoute(
@@ -222,10 +311,20 @@ String? _authRedirect(BuildContext context, GoRouterState state) {
   if (user == null) {
     return '/login';
   }
-  if (!user.emailVerified) {
+  if (user.email?.isNotEmpty == true && !user.emailVerified) {
     return '/verify-email';
   }
   return null;
+}
+
+String? _postAuthRouteForUser(User? user) {
+  if (user == null) {
+    return null;
+  }
+  if (user.email?.isNotEmpty == true && !user.emailVerified) {
+    return '/verify-email';
+  }
+  return '/post-auth';
 }
 
 int _getCurrentIndex(String path) {

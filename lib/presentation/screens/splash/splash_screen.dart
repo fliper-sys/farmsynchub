@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -47,10 +48,16 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   }
 
   Future<void> _handleNavigation() async {
-    await Future<void>.delayed(const Duration(milliseconds: 2300));
+    await Future<void>.delayed(const Duration(milliseconds: 4300));
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final String? adminSessionEmail = prefs.getString('admin_session_email');
     final bool hasCompletedOnboarding = await OnboardingPreferences.isCompleted();
     final FirebaseService firebaseService = FirebaseService();
     if (!mounted) {
+      return;
+    }
+    if (adminSessionEmail != null && adminSessionEmail.trim().isNotEmpty) {
+      context.go('/admin-dashboard');
       return;
     }
     if (!hasCompletedOnboarding) {
@@ -151,7 +158,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                               border: Border.all(color: Colors.white.withOpacity(0.26)),
                             ),
                             child: Text(
-                              'Jos South',
+                              'Nigeria',
                               style: theme.textTheme.labelMedium?.copyWith(color: Colors.white),
                             ),
                           ),
@@ -182,7 +189,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                                 Image.asset(AppAssets.appIcon, width: 58, height: 58),
                                 const SizedBox(height: 26),
                                 Text(
-                                  'The best app for your farms',
+                                  'Your smart farm companion',
                                   textAlign: TextAlign.left,
                                   style: GoogleFonts.plusJakartaSans(
                                     color: Colors.white,

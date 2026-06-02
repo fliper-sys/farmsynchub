@@ -530,6 +530,7 @@ class _LivestockFormSheet extends StatefulWidget {
 
 class _LivestockFormSheetState extends State<_LivestockFormSheet> {
   final ImagePicker _imagePicker = ImagePicker();
+  late final VoidCallback _formListener;
   late final TextEditingController _breedController;
   late final TextEditingController _countController;
   late final TextEditingController _maleCountController;
@@ -585,10 +586,27 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
     _growthStage = livestock?.growthStage ?? AnimalGrowthStage.grower;
     _acquisitionDate = livestock?.acquisitionDate ?? DateTime.now();
     _coverImageBase64 = livestock?.coverImageBase64 ?? livestock?.profileImageBase64 ?? '';
+    _formListener = () {
+      if (mounted) {
+        setState(() {});
+      }
+    };
+    _countController.addListener(_formListener);
+    _ageMonthsController.addListener(_formListener);
+    _targetMaturityController.addListener(_formListener);
+    _weightController.addListener(_formListener);
+    _feedController.addListener(_formListener);
+    _waterController.addListener(_formListener);
   }
 
   @override
   void dispose() {
+    _countController.removeListener(_formListener);
+    _ageMonthsController.removeListener(_formListener);
+    _targetMaturityController.removeListener(_formListener);
+    _weightController.removeListener(_formListener);
+    _feedController.removeListener(_formListener);
+    _waterController.removeListener(_formListener);
     _breedController.dispose();
     _countController.dispose();
     _maleCountController.dispose();
@@ -892,6 +910,11 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
                   },
                 ),
                 const SizedBox(height: 14),
+                _LivestockPlanningCard(
+                  summary: _livestockPlanningSummary(),
+                  onApply: _applyLivestockSuggestions,
+                ),
+                const SizedBox(height: 14),
                 Row(
                   children: <Widget>[
                     Expanded(
@@ -944,6 +967,189 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
         ),
       ),
     );
+  }
+
+  _LivestockPlanningSummary _livestockPlanningSummary() {
+    final int count = int.tryParse(_countController.text.trim()) ?? 0;
+    final int ageMonths = int.tryParse(_ageMonthsController.text.trim()) ?? 0;
+    final int maturityMonths = _suggestedMaturityMonths(_species, _purpose, ageMonths, _growthStage);
+    final double feedPerAnimal = _feedPerAnimalKg(_species, _growthStage, ageMonths, _purpose);
+    final double waterPerAnimal = _waterPerAnimalLitres(_species, _growthStage, ageMonths, _purpose);
+    final double groupFeed = feedPerAnimal * count;
+    final double groupWater = waterPerAnimal * count;
+    final double maturityProgress = maturityMonths <= 0 ? 0 : (ageMonths / maturityMonths).clamp(0, 1).toDouble();
+    final String stageNote = switch (_growthStage) {
+      AnimalGrowthStage.starter => 'Starter animals need smaller, frequent rations and closer health checks.',
+      AnimalGrowthStage.grower => 'Grower stage is for consistent feed, clean water, and quick weight tracking.',
+      AnimalGrowthStage.mature => 'Mature animals should stay on stable feed and hygiene routines.',
+      AnimalGrowthStage.breeding => 'Breeding stock needs strong body condition and careful water access.',
+      AnimalGrowthStage.finishing => 'Finishing stock should be monitored for weight gain and market timing.',
+    };
+    final String purposeNote = switch (_purpose) {
+      LivestockPurpose.meat => 'Plan weight gain and market timing around body condition.',
+      LivestockPurpose.milk => 'Milk animals need steady feed and water to keep output stable.',
+      LivestockPurpose.eggs => 'Layers benefit from regular feed, calcium support, and daily egg collection.',
+      LivestockPurpose.breeding => 'Breeding groups need balanced nutrition, housing hygiene, and fertility checks.',
+    };
+    final String speciesNote = switch (_species) {
+      LivestockSpecies.chicken => _purpose == LivestockPurpose.eggs
+          ? 'Use the feed estimate to support laying birds and track crates or loose eggs in inventory.'
+          : 'Chicken groups respond best to stable feed, dry litter, and fast health checks.',
+      LivestockSpecies.goat => 'Goats need clean water, fibre, and steady body-condition checks.',
+      LivestockSpecies.pig => 'Pigs need clean housing, strict feed hygiene, and quick growth tracking.',
+      LivestockSpecies.cattle => 'Cattle need more water and a slower maturity plan than small stock.',
+      LivestockSpecies.sheep => 'Sheep do best with regular grazing, shelter, and parasite checks.',
+    };
+
+    return _LivestockPlanningSummary(
+      maturityMonths: maturityMonths,
+      maturityProgress: maturityProgress,
+      feedPerAnimal: feedPerAnimal,
+      waterPerAnimal: waterPerAnimal,
+      groupFeedKg: groupFeed,
+      groupWaterLitres: groupWater,
+      stageNote: stageNote,
+      purposeNote: purposeNote,
+      speciesNote: speciesNote,
+      ageNote: ageMonths == 0
+          ? 'Enter age to refine the estimate.'
+          : 'Age is being compared with the target maturity window to keep the plan practical.',
+      eggNote: _species == LivestockSpecies.chicken && _purpose == LivestockPurpose.eggs
+          ? 'For layers, collect eggs daily and track crates or loose egg counts in inventory.'
+          : 'Egg collection guidance will appear automatically if you switch to layers.',
+      vaccinationNote: 'Use vaccination and health scores as a quick check, then keep them updated in production logs.',
+    );
+  }
+
+  void _applyLivestockSuggestions() {
+    final _LivestockPlanningSummary summary = _livestockPlanningSummary();
+    setState(() {
+      _targetMaturityController.text = summary.maturityMonths.toString();
+      _feedController.text = summary.groupFeedKg.toStringAsFixed(1);
+      _waterController.text = summary.groupWaterLitres.toStringAsFixed(1);
+    });
+  }
+
+  int _suggestedMaturityMonths(
+    LivestockSpecies species,
+    LivestockPurpose purpose,
+    int ageMonths,
+    AnimalGrowthStage stage,
+  ) {
+    final int base = switch (species) {
+      LivestockSpecies.chicken => switch (purpose) {
+          LivestockPurpose.eggs => 5,
+          LivestockPurpose.meat => 2,
+          LivestockPurpose.breeding => 6,
+          LivestockPurpose.milk => 3,
+        },
+      LivestockSpecies.goat => switch (purpose) {
+          LivestockPurpose.milk => 18,
+          LivestockPurpose.breeding => 24,
+          LivestockPurpose.meat => 12,
+          LivestockPurpose.eggs => 12,
+        },
+      LivestockSpecies.pig => switch (purpose) {
+          LivestockPurpose.breeding => 10,
+          LivestockPurpose.meat => 7,
+          LivestockPurpose.milk => 7,
+          LivestockPurpose.eggs => 7,
+        },
+      LivestockSpecies.cattle => switch (purpose) {
+          LivestockPurpose.milk => 24,
+          LivestockPurpose.breeding => 30,
+          LivestockPurpose.meat => 24,
+          LivestockPurpose.eggs => 24,
+        },
+      LivestockSpecies.sheep => switch (purpose) {
+          LivestockPurpose.meat => 12,
+          LivestockPurpose.milk => 18,
+          LivestockPurpose.breeding => 18,
+          LivestockPurpose.eggs => 12,
+        },
+    };
+    final int stageAdjustment = switch (stage) {
+      AnimalGrowthStage.starter => -1,
+      AnimalGrowthStage.grower => 0,
+      AnimalGrowthStage.mature => 2,
+      AnimalGrowthStage.breeding => 4,
+      AnimalGrowthStage.finishing => 1,
+    };
+    final int ageAdjustment = ageMonths >= base ? 0 : -1;
+    return (base + stageAdjustment + ageAdjustment).clamp(1, 120);
+  }
+
+  double _feedPerAnimalKg(
+    LivestockSpecies species,
+    AnimalGrowthStage stage,
+    int ageMonths,
+    LivestockPurpose purpose,
+  ) {
+    final double ageFactor = ageMonths < 4 ? 0.85 : ageMonths < 12 ? 1.0 : 1.15;
+    final double purposeFactor = purpose == LivestockPurpose.breeding ? 1.05 : 1.0;
+    final double base = switch (species) {
+      LivestockSpecies.chicken => switch (stage) {
+          AnimalGrowthStage.starter => 0.05,
+          AnimalGrowthStage.grower => 0.09,
+          AnimalGrowthStage.mature => 0.12,
+          AnimalGrowthStage.breeding => 0.13,
+          AnimalGrowthStage.finishing => 0.10,
+        },
+      LivestockSpecies.goat => switch (stage) {
+          AnimalGrowthStage.starter => 0.6,
+          AnimalGrowthStage.grower => 0.9,
+          AnimalGrowthStage.mature => 1.1,
+          AnimalGrowthStage.breeding => 1.2,
+          AnimalGrowthStage.finishing => 1.0,
+        },
+      LivestockSpecies.pig => switch (stage) {
+          AnimalGrowthStage.starter => 0.8,
+          AnimalGrowthStage.grower => 1.6,
+          AnimalGrowthStage.mature => 2.2,
+          AnimalGrowthStage.breeding => 2.0,
+          AnimalGrowthStage.finishing => 2.3,
+        },
+      LivestockSpecies.cattle => switch (stage) {
+          AnimalGrowthStage.starter => 4.0,
+          AnimalGrowthStage.grower => 6.0,
+          AnimalGrowthStage.mature => 8.0,
+          AnimalGrowthStage.breeding => 9.0,
+          AnimalGrowthStage.finishing => 7.0,
+        },
+      LivestockSpecies.sheep => switch (stage) {
+          AnimalGrowthStage.starter => 0.5,
+          AnimalGrowthStage.grower => 0.8,
+          AnimalGrowthStage.mature => 1.0,
+          AnimalGrowthStage.breeding => 1.1,
+          AnimalGrowthStage.finishing => 0.9,
+        },
+    };
+    return base * ageFactor * purposeFactor;
+  }
+
+  double _waterPerAnimalLitres(
+    LivestockSpecies species,
+    AnimalGrowthStage stage,
+    int ageMonths,
+    LivestockPurpose purpose,
+  ) {
+    final double ageFactor = ageMonths < 4 ? 0.9 : ageMonths < 12 ? 1.0 : 1.1;
+    final double stageFactor = switch (stage) {
+      AnimalGrowthStage.starter => 0.9,
+      AnimalGrowthStage.grower => 1.0,
+      AnimalGrowthStage.mature => 1.05,
+      AnimalGrowthStage.breeding => 1.1,
+      AnimalGrowthStage.finishing => 1.0,
+    };
+    final double purposeFactor = purpose == LivestockPurpose.milk ? 1.1 : 1.0;
+    final double base = switch (species) {
+      LivestockSpecies.chicken => 0.25,
+      LivestockSpecies.goat => 4.0,
+      LivestockSpecies.pig => 6.0,
+      LivestockSpecies.cattle => 25.0,
+      LivestockSpecies.sheep => 2.5,
+    };
+    return base * ageFactor * stageFactor * purposeFactor;
   }
 
   void _submit() {
@@ -1313,6 +1519,136 @@ class _DropdownField<T> extends StatelessWidget {
               )
               .toList(),
           onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+}
+
+class _LivestockPlanningSummary {
+  const _LivestockPlanningSummary({
+    required this.maturityMonths,
+    required this.maturityProgress,
+    required this.feedPerAnimal,
+    required this.waterPerAnimal,
+    required this.groupFeedKg,
+    required this.groupWaterLitres,
+    required this.stageNote,
+    required this.purposeNote,
+    required this.speciesNote,
+    required this.ageNote,
+    required this.eggNote,
+    required this.vaccinationNote,
+  });
+
+  final int maturityMonths;
+  final double maturityProgress;
+  final double feedPerAnimal;
+  final double waterPerAnimal;
+  final double groupFeedKg;
+  final double groupWaterLitres;
+  final String stageNote;
+  final String purposeNote;
+  final String speciesNote;
+  final String ageNote;
+  final String eggNote;
+  final String vaccinationNote;
+}
+
+class _LivestockPlanningCard extends StatelessWidget {
+  const _LivestockPlanningCard({
+    required this.summary,
+    required this.onApply,
+  });
+
+  final _LivestockPlanningSummary summary;
+  final VoidCallback onApply;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return AppCard(
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDFF1FF),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.insights_rounded),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        'Production estimate',
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Feed, water, and maturity are estimated from the selected species, purpose, age, and stage.',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: onApply,
+                  child: const Text('Use suggestion'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                _MiniTag(text: '${summary.maturityMonths} month maturity', color: const Color(0xFFE8F4D8)),
+                _MiniTag(text: '${(summary.maturityProgress * 100).round()}% of target', color: const Color(0xFFDFF1FF)),
+                _MiniTag(text: '${summary.groupFeedKg.toStringAsFixed(1)} kg feed/day', color: const Color(0xFFFFEBD0)),
+                _MiniTag(text: '${summary.groupWaterLitres.toStringAsFixed(1)} L water/day', color: const Color(0xFFEDE8FF)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            LinearProgressIndicator(
+              value: summary.maturityProgress,
+              minHeight: 8,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Formula: age compared to target maturity gives maturity progress.',
+              style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Feed formula: feed per animal x animal count = group feed requirement.',
+              style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
+            ),
+            const SizedBox(height: 8),
+            Text(summary.stageNote, style: theme.textTheme.bodySmall?.copyWith(height: 1.5)),
+            const SizedBox(height: 8),
+            Text(summary.purposeNote, style: theme.textTheme.bodySmall?.copyWith(height: 1.5)),
+            const SizedBox(height: 8),
+            Text(summary.speciesNote, style: theme.textTheme.bodySmall?.copyWith(height: 1.5)),
+            const SizedBox(height: 8),
+            Text(summary.ageNote, style: theme.textTheme.bodySmall),
+            const SizedBox(height: 8),
+            Text(summary.eggNote, style: theme.textTheme.bodySmall?.copyWith(height: 1.5)),
+            const SizedBox(height: 8),
+            Text(summary.vaccinationNote, style: theme.textTheme.bodySmall),
+          ],
         ),
       ),
     );

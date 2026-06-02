@@ -32,11 +32,17 @@ class ProfileScreen extends ConsumerWidget {
     final ColorScheme scheme = theme.colorScheme;
 
     return SoftScreenScaffold(
-      heroTitle: 'Farmer profile',
-      heroSubtitle: 'Keep account details, language choices, and farm identity in one softer settings space.',
+      heroTitle: language.tr(en: 'Farmer profile', ha: 'Bayanan manomi', fr: 'Profil du fermier'),
+      heroSubtitle: language.tr(
+        en: 'Keep account details, language choices, and farm identity in one softer settings space.',
+        ha: 'Rike bayanan asusu, zabin harshe, da sunan gona wuri guda mai sauki.',
+        fr: 'Gardez les details du compte, la langue et l identite de la ferme au meme endroit.',
+      ),
       heroIcon: Icons.person_rounded,
       heroVariant: FarmArtworkVariant.welcome,
-      heroBadge: isProfileComplete ? 'Account ready' : 'Complete setup',
+      heroBadge: isProfileComplete
+          ? language.tr(en: 'Account ready', ha: 'Asusu a shirye', fr: 'Compte pret')
+          : language.tr(en: 'Complete setup', ha: 'Cika saitin', fr: 'Terminer la configuration'),
       trailing: Column(
         children: <Widget>[
           CircleAvatar(
@@ -85,21 +91,27 @@ class ProfileScreen extends ConsumerWidget {
                 child: Icon(Icons.person_add_alt_1_rounded),
               ),
               title: Text(
-                'Complete your account setup',
+                language.tr(en: 'Complete your account setup', ha: 'Kammala saitin asusunka', fr: 'Completer la configuration du compte'),
                 style: theme.textTheme.titleMedium?.copyWith(
                   color: theme.brightness == Brightness.dark
                       ? theme.colorScheme.onSurface
                       : theme.colorScheme.primary,
                 ),
               ),
-              subtitle: const Text('Add your ward, production focus, and contact details for a fuller workspace.'),
+              subtitle: Text(
+                language.tr(
+                  en: 'Add your ward, production focus, and contact details for a fuller workspace.',
+                  ha: 'Saka unguwa, fannin aiki, da bayanan tuntuɓa domin cike filin aiki.',
+                  fr: 'Ajoutez quartier, domaine de production et contacts pour un espace complet.',
+                ),
+              ),
               trailing: const Icon(Icons.chevron_right_rounded),
             ),
           ),
           const SizedBox(height: 18),
         ],
         SoftSectionTitle(
-          title: 'Account hub',
+          title: language.tr(en: 'Account hub', ha: 'Cibiyar asusu', fr: 'Centre du compte'),
           titleStyle: theme.textTheme.titleMedium?.copyWith(
             color: theme.brightness == Brightness.dark
                 ? theme.colorScheme.onSurface
@@ -107,7 +119,7 @@ class ProfileScreen extends ConsumerWidget {
           ),
           action: TextButton(
             onPressed: () => context.push('/settings'),
-            child: const Text('Open settings'),
+            child: Text(language.tr(en: 'Open settings', ha: 'Bude saituna', fr: 'Ouvrir les parametres')),
           ),
         ),
         AppCard(
@@ -120,20 +132,26 @@ class ProfileScreen extends ConsumerWidget {
               child: Icon(Icons.settings_suggest_rounded),
             ),
             title: Text(
-              'App settings',
+              language.tr(en: 'App settings', ha: 'Saitunan app', fr: 'Parametres de l app'),
               style: theme.textTheme.titleMedium?.copyWith(
                 color: theme.brightness == Brightness.dark
                     ? theme.colorScheme.onSurface
                     : theme.colorScheme.primary,
               ),
             ),
-            subtitle: const Text('Theme, language, sync status, alerts, and exports'),
+            subtitle: Text(
+              language.tr(
+                en: 'Theme, language, sync status, alerts, and exports',
+                ha: 'Jigo, harshe, matsayin sync, sanarwa, da fitar da rahoto',
+                fr: 'Theme, langue, synchro, alertes et exports',
+              ),
+            ),
             trailing: const Icon(Icons.chevron_right_rounded),
           ),
         ),
         const SizedBox(height: 18),
         SoftSectionTitle(
-          title: 'Personal details',
+          title: language.tr(en: 'Personal details', ha: 'Bayanan kanka', fr: 'Informations personnelles'),
           titleStyle: theme.textTheme.titleMedium?.copyWith(
             color: theme.brightness == Brightness.dark
                 ? theme.colorScheme.onSurface
@@ -146,32 +164,39 @@ class ProfileScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(18),
             child: Column(
               children: <Widget>[
-                _ProfileDetailRow(label: 'Farmer name', value: profile?.fullName.isNotEmpty == true ? profile!.fullName : displayName),
                 const SizedBox(height: 12),
                 _ProfileDetailRow(
-                  label: 'Email',
+                  label: language.tr(en: 'Farmer name', ha: 'Sunan manomi', fr: 'Nom du fermier'),
+                  value: profile?.fullName.isNotEmpty == true ? profile!.fullName : displayName,
+                ),
+                const SizedBox(height: 12),
+                _ProfileDetailRow(
+                  label: language.tr(en: 'Email', ha: 'Imel', fr: 'E-mail'),
                   value: profile?.email.isNotEmpty == true
                       ? profile!.email
                       : (currentUser?.email ?? 'farmer@example.com'),
                 ),
                 const SizedBox(height: 12),
-                _ProfileDetailRow(label: 'Ward', value: profile?.ward.isNotEmpty == true ? profile!.ward : 'Not set'),
-                const SizedBox(height: 12),
                 _ProfileDetailRow(
-                  label: 'Primary focus',
-                  value: profile?.primaryFocus.isNotEmpty == true ? profile!.primaryFocus : 'Not set',
+                  label: language.tr(en: 'Ward', ha: 'Unguwa', fr: 'Quartier'),
+                  value: profile?.ward.isNotEmpty == true ? profile!.ward : language.tr(en: 'Not set', ha: 'Babu shi', fr: 'Non defini'),
                 ),
                 const SizedBox(height: 12),
                 _ProfileDetailRow(
-                  label: 'Phone',
-                  value: profile?.phoneNumber.isNotEmpty == true ? profile!.phoneNumber : 'Not set',
+                  label: language.tr(en: 'Primary focus', ha: 'Babban fanni', fr: 'Domaine principal'),
+                  value: profile?.primaryFocus.isNotEmpty == true ? profile!.primaryFocus : language.tr(en: 'Not set', ha: 'Babu shi', fr: 'Non defini'),
+                ),
+                const SizedBox(height: 12),
+                _ProfileDetailRow(
+                  label: language.tr(en: 'Phone', ha: 'Waya', fr: 'Telephone'),
+                  value: profile?.phoneNumber.isNotEmpty == true ? profile!.phoneNumber : language.tr(en: 'Not set', ha: 'Babu shi', fr: 'Non defini'),
                 ),
               ],
             ),
           ),
         ),
         const SizedBox(height: 18),
-        const SoftSectionTitle(title: 'Preferences'),
+        SoftSectionTitle(title: language.tr(en: 'Preferences', ha: 'Zabuka', fr: 'Preferences')),
         Row(
           children: <Widget>[
             Expanded(
@@ -200,7 +225,7 @@ class ProfileScreen extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 18),
-        const SoftSectionTitle(title: 'Access'),
+        SoftSectionTitle(title: language.tr(en: 'Access', ha: 'Shiga', fr: 'Acces')),
         AppCard(
           color: theme.colorScheme.surfaceContainerHighest,
           child: Padding(
@@ -211,14 +236,22 @@ class ProfileScreen extends ConsumerWidget {
                 Text(
                   profile?.email.isNotEmpty == true
                       ? profile!.email
-                      : (currentUser?.email ?? 'No signed-in account'),
+                      : (currentUser?.email ?? language.tr(en: 'No signed-in account', ha: 'Babu asusun da aka shiga', fr: 'Aucun compte connecte')),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   currentUser?.emailVerified == true
-                      ? 'Email verified and ready for full account access.'
-                      : 'Email verification is still pending for this account.',
+                    ? language.tr(
+                        en: 'Email verified and ready for full account access.',
+                        ha: 'An tabbatar da imel kuma asusun a shirye yake.',
+                        fr: 'E-mail verifie et acces complet pret.',
+                      )
+                    : language.tr(
+                        en: 'Email verification is still pending for this account.',
+                        ha: 'Har yanzu ana jiran tabbatar da imel.',
+                        fr: 'La verification de l e-mail est toujours en attente.',
+                      ),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.5),
                 ),
                 if (profile?.bio.isNotEmpty == true) ...<Widget>[
@@ -248,7 +281,7 @@ class ProfileScreen extends ConsumerWidget {
                               context.go('/login');
                             }
                           },
-                    child: const Text('Sign out'),
+                    child: Text(language.tr(en: 'Sign out', ha: 'Fita', fr: 'Deconnexion')),
                   ),
                 ),
               ],

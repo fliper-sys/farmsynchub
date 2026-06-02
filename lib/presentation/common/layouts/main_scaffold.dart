@@ -1,9 +1,16 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../domain/models/user_profile.dart';
+import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/sync_provider.dart';
+import '../../../providers/user_profile_provider.dart';
 
 /// Connection state used for the app-wide sync indicator.
 enum SyncStatus {
@@ -73,8 +80,47 @@ class MainScaffold extends ConsumerWidget {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colorScheme = theme.colorScheme;
     final SyncOverview syncOverview = ref.watch(syncOverviewProvider);
+    final AppLanguage language = ref.watch(appLanguageProvider);
+    final UserProfile? profile = ref.watch(userProfileProvider).valueOrNull;
     final double screenWidth = MediaQuery.sizeOf(context).width;
     final bool isCompactNavigation = screenWidth < 420;
+    final List<NavigationDestination> destinations = <NavigationDestination>[
+      NavigationDestination(
+        icon: const Icon(Icons.home_outlined),
+        selectedIcon: const Icon(Icons.home_rounded),
+        label: language.tr(en: AppStrings.home, ha: 'Gida', fr: 'Accueil'),
+      ),
+      NavigationDestination(
+        icon: const Icon(Icons.agriculture_outlined),
+        selectedIcon: const Icon(Icons.agriculture_rounded),
+        label: language.tr(en: AppStrings.farms, ha: 'Gonaki', fr: 'Fermes'),
+      ),
+      NavigationDestination(
+        icon: const Icon(Icons.grass_outlined),
+        selectedIcon: const Icon(Icons.grass_rounded),
+        label: language.tr(en: AppStrings.crops, ha: 'Amfanin gona', fr: 'Cultures'),
+      ),
+      NavigationDestination(
+        icon: const Icon(Icons.pets_outlined),
+        selectedIcon: const Icon(Icons.pets),
+        label: language.tr(en: AppStrings.livestock, ha: 'Dabbobi', fr: 'Bétail'),
+      ),
+      NavigationDestination(
+        icon: const Icon(Icons.account_balance_wallet_outlined),
+        selectedIcon: const Icon(Icons.account_balance_wallet_rounded),
+        label: language.tr(en: AppStrings.finance, ha: 'Kudi', fr: 'Finance'),
+      ),
+      NavigationDestination(
+        icon: const Icon(Icons.newspaper_outlined),
+        selectedIcon: const Icon(Icons.newspaper_rounded),
+        label: language.tr(en: AppStrings.news, ha: 'Labarai', fr: 'Nouvelles'),
+      ),
+      NavigationDestination(
+        icon: const Icon(Icons.person_outline_rounded),
+        selectedIcon: const Icon(Icons.person_rounded),
+        label: language.tr(en: AppStrings.profile, ha: 'Bayanan kaina', fr: 'Profil'),
+      ),
+    ];
 
     return Scaffold(
       extendBody: extendBody,
@@ -90,9 +136,15 @@ class MainScaffold extends ConsumerWidget {
               actions: <Widget>[
                 _SyncStatusPill(
                   syncStatus: _resolveSyncStatus(syncOverview),
+                  language: language,
                   pendingCount: syncOverview.pendingCount,
                   isSyncing: syncOverview.isSyncing,
                   onTap: () => _showSyncSheet(context, ref, syncOverview),
+                ),
+                const SizedBox(width: 10),
+                _ProfileAvatarButton(
+                  profile: profile,
+                  onTap: () => context.go('/profile'),
                 ),
                 if (actions != null) ...actions!,
                 const SizedBox(width: 8),
@@ -141,44 +193,25 @@ class MainScaffold extends ConsumerWidget {
                           : NavigationDestinationLabelBehavior.alwaysShow,
                       animationDuration: const Duration(milliseconds: 220),
                       selectedIndex: currentIndex,
-                      destinations: const <NavigationDestination>[
-                        NavigationDestination(
-                          icon: Icon(Icons.home_outlined),
-                          selectedIcon: Icon(Icons.home_rounded),
-                          label: AppStrings.home,
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.agriculture_outlined),
-                          selectedIcon: Icon(Icons.agriculture_rounded),
-                          label: AppStrings.farms,
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.grass_outlined),
-                          selectedIcon: Icon(Icons.grass_rounded),
-                          label: AppStrings.crops,
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.pets_outlined),
-                          selectedIcon: Icon(Icons.pets),
-                          label: AppStrings.livestock,
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.account_balance_wallet_outlined),
-                          selectedIcon: Icon(Icons.account_balance_wallet_rounded),
-                          label: AppStrings.finance,
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.newspaper_outlined),
-                          selectedIcon: Icon(Icons.newspaper_rounded),
-                          label: AppStrings.news,
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.person_outline_rounded),
-                          selectedIcon: Icon(Icons.person_rounded),
-                          label: AppStrings.profile,
-                        ),
-                      ],
-                      onDestinationSelected: onDestinationSelected,
+                      destinations: destinations,
+                      onDestinationSelected: (int index) {
+                        final String featureKey = _featureKeyForIndex(index);
+                        if (profile?.restrictedFeatures.contains(featureKey) == true) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                language.tr(
+                                  en: 'This section is restricted for your account.',
+                                  ha: 'An takaita wannan sashe a asusun ka.',
+                                  fr: 'Cette section est restreinte pour votre compte.',
+                                ),
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        onDestinationSelected(index);
+                      },
                     ),
                   ),
                 ),
@@ -306,6 +339,25 @@ class MainScaffold extends ConsumerWidget {
   }
 }
 
+String _featureKeyForIndex(int index) {
+  switch (index) {
+    case 1:
+      return 'farms';
+    case 2:
+      return 'crops';
+    case 3:
+      return 'livestock';
+    case 4:
+      return 'finance';
+    case 5:
+      return 'news';
+    case 6:
+      return 'profile';
+    default:
+      return 'dashboard';
+  }
+}
+
 class _MenuButton extends StatelessWidget {
   const _MenuButton();
 
@@ -322,12 +374,14 @@ class _MenuButton extends StatelessWidget {
 class _SyncStatusPill extends StatelessWidget {
   const _SyncStatusPill({
     required this.syncStatus,
+    required this.language,
     required this.pendingCount,
     required this.isSyncing,
     required this.onTap,
   });
 
   final SyncStatus syncStatus;
+  final AppLanguage language;
   final int pendingCount;
   final bool isSyncing;
   final VoidCallback onTap;
@@ -335,7 +389,7 @@ class _SyncStatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
-    final _SyncVisualState visualState = _resolveState(colorScheme);
+    final _SyncVisualState visualState = _resolveState(colorScheme, language);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -417,11 +471,11 @@ class _SyncStatusPill extends StatelessWidget {
     );
   }
 
-  _SyncVisualState _resolveState(ColorScheme colorScheme) {
+  _SyncVisualState _resolveState(ColorScheme colorScheme, AppLanguage language) {
     switch (syncStatus) {
       case SyncStatus.synced:
         return _SyncVisualState(
-          label: AppStrings.syncStatusSynced,
+          label: language.tr(en: AppStrings.syncStatusSynced, ha: 'An daidaita', fr: 'Synchronise'),
           backgroundColor: colorScheme.primary.withOpacity(0.10),
           borderColor: colorScheme.primary.withOpacity(0.18),
           dotColor: colorScheme.primary,
@@ -429,7 +483,7 @@ class _SyncStatusPill extends StatelessWidget {
         );
       case SyncStatus.pending:
         return _SyncVisualState(
-          label: AppStrings.syncStatusPending,
+          label: language.tr(en: AppStrings.syncStatusPending, ha: 'Ana jira', fr: 'En attente'),
           backgroundColor: colorScheme.tertiary.withOpacity(0.12),
           borderColor: colorScheme.tertiary.withOpacity(0.20),
           dotColor: colorScheme.tertiary,
@@ -437,13 +491,85 @@ class _SyncStatusPill extends StatelessWidget {
         );
       case SyncStatus.offline:
         return _SyncVisualState(
-          label: AppStrings.syncStatusOffline,
+          label: language.tr(en: AppStrings.syncStatusOffline, ha: 'Babu layi', fr: 'Hors ligne'),
           backgroundColor: colorScheme.outlineVariant.withOpacity(0.26),
           borderColor: colorScheme.outlineVariant.withOpacity(0.40),
           dotColor: colorScheme.onSurfaceVariant,
           foregroundColor: colorScheme.onSurfaceVariant,
         );
     }
+  }
+}
+
+class _ProfileAvatarButton extends StatelessWidget {
+  const _ProfileAvatarButton({
+    required this.profile,
+    required this.onTap,
+  });
+
+  final UserProfile? profile;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+    final String initials = _initialsFor(profile?.fullName ?? '');
+    final Uint8List? imageBytes = _profileImageBytes(profile?.profileImageBase64);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: colorScheme.outlineVariant),
+            ),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: imageBytes != null
+                    ? Image.memory(
+                        imageBytes,
+                        fit: BoxFit.cover,
+                        errorBuilder: (BuildContext context, Object error, StackTrace? stackTrace) {
+                          return Center(
+                            child: Text(
+                              initials,
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          );
+                        },
+                      )
+                    : Center(
+                        child: Text(
+                          initials,
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -513,4 +639,30 @@ class _SyncVisualState {
   final Color borderColor;
   final Color dotColor;
   final Color foregroundColor;
+}
+
+String _initialsFor(String name) {
+  final List<String> parts = name.trim().split(RegExp(r'\s+')).where((String part) => part.isNotEmpty).toList();
+  if (parts.isEmpty) {
+    return 'U';
+  }
+  if (parts.length == 1) {
+    final String value = parts.first.trim();
+    return value.length >= 2 ? value.substring(0, 2).toUpperCase() : value.substring(0, 1).toUpperCase();
+  }
+  final String first = parts.first.trim();
+  final String last = parts.last.trim();
+  return '${first.isNotEmpty ? first[0] : 'U'}${last.isNotEmpty ? last[0] : 'U'}'.toUpperCase();
+}
+
+Uint8List? _profileImageBytes(String? base64Image) {
+  final String value = base64Image?.trim() ?? '';
+  if (value.isEmpty) {
+    return null;
+  }
+  try {
+    return base64Decode(value);
+  } catch (_) {
+    return null;
+  }
 }

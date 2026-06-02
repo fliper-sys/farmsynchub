@@ -16,9 +16,11 @@ import '../../../core/utils/validators.dart';
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/transaction.dart';
 import '../../../providers/auth_provider.dart';
+import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/finance_provider.dart';
 import '../../../providers/operations_hub_provider.dart';
+import 'market_trends_screen.dart';
 import 'product_detail_screen.dart';
 import 'finance_workspace_screen.dart';
 import '../../common/widgets/app_button.dart';
@@ -41,6 +43,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final AppLanguage language = ref.watch(appLanguageProvider);
     final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
     final List<Transaction> transactions = ref.watch(transactionsProvider).valueOrNull ?? <Transaction>[];
     final OperationsHubState operations = ref.watch(operationsHubProvider);
@@ -53,11 +56,23 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         .toList(growable: false);
 
     return SoftScreenScaffold(
-      heroTitle: 'Sales and finance hub',
-      heroSubtitle: 'Track inventory, register customers and providers, record sales or procurement, and export clean receipts.',
+      heroTitle: language.tr(
+        en: 'Sales and finance hub',
+        ha: 'Cibiyar siyarwa da kudi',
+        fr: 'Centre des ventes et finances',
+      ),
+      heroSubtitle: language.tr(
+        en: 'Track inventory, register customers and providers, record sales or procurement, and export clean receipts.',
+        ha: 'Bibiyi kaya, rijista kwastomomi da masu kawo kaya, rubuta siyarwa ko saye, sannan fitar da takardun karbar kudi masu tsafta.',
+        fr: 'Suivre les stocks, enregistrer clients et fournisseurs, noter ventes ou achats et exporter des reçus propres.',
+      ),
       heroIcon: Icons.point_of_sale_rounded,
       heroVariant: FarmArtworkVariant.dashboard,
-      heroBadge: '${sales.length} sales - ${procurement.length} procurement',
+      heroBadge: language.tr(
+        en: '${sales.length} sales - ${procurement.length} procurement',
+        ha: '${sales.length} siyarwa - ${procurement.length} saye',
+        fr: '${sales.length} ventes - ${procurement.length} achats',
+      ),
       showArtwork: false,
       sections: <Widget>[
         AppCard(
@@ -69,7 +84,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
               runSpacing: 12,
               children: <Widget>[
                 _ActionTile(
-                  label: 'Open workspace',
+                  label: language.tr(en: 'Open workspace', ha: 'Bude wurin aiki', fr: 'Ouvrir l espace'),
                   icon: Icons.grid_view_rounded,
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
@@ -78,14 +93,23 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                   ),
                 ),
                 _ActionTile(
-                  label: 'Record deal',
+                  label: language.tr(en: 'Record deal', ha: 'Rubuta maamala', fr: 'Enregistrer'),
                   icon: Icons.add_card_rounded,
                   onTap: farms.isEmpty ? null : () => _openTransactionSheet(context, farms: farms),
                 ),
                 _ActionTile(
-                  label: 'Export PDF',
+                  label: language.tr(en: 'Export PDF', ha: 'Fitar da PDF', fr: 'Exporter PDF'),
                   icon: Icons.picture_as_pdf_rounded,
                   onTap: _isExporting || transactions.isEmpty ? null : () => _exportReport(snapshot, transactions),
+                ),
+                _ActionTile(
+                  label: language.tr(en: 'Market trends', ha: 'Yanayin kasuwa', fr: 'Tendances'),
+                  icon: Icons.show_chart_rounded,
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const MarketTrendsScreen(),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -95,24 +119,24 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         Row(
           children: <Widget>[
             Expanded(
-              child: SoftInfoChip(
-                label: 'Income',
+            child: SoftInfoChip(
+                label: language.tr(en: 'Income', ha: 'Shiga kudi', fr: 'Revenus'),
                 value: CurrencyUtils.formatCompactCurrency(snapshot.income),
                 color: const Color(0xFFE5F5D8),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: SoftInfoChip(
-                label: 'Expenses',
+            child: SoftInfoChip(
+                label: language.tr(en: 'Expenses', ha: 'Fito kudi', fr: 'Dépenses'),
                 value: CurrencyUtils.formatCompactCurrency(snapshot.expenses),
                 color: const Color(0xFFFFE7D7),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: SoftInfoChip(
-                label: 'Open balance',
+            child: SoftInfoChip(
+                label: language.tr(en: 'Open balance', ha: 'Ragowar kudi', fr: 'Solde'),
                 value: CurrencyUtils.formatCompactCurrency(snapshot.balance),
                 color: const Color(0xFFDFF1FF),
               ),
@@ -120,7 +144,9 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
           ],
         ),
         const SizedBox(height: 18),
-        const SoftSectionTitle(title: 'Quick tools'),
+        SoftSectionTitle(
+          title: language.tr(en: 'Quick tools', ha: 'Kayan aiki masu sauri', fr: 'Outils rapides'),
+        ),
         AppCard(
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
           child: Padding(
@@ -130,21 +156,21 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                 Expanded(
                   child: AppButton.primary(
                     onPressed: farms.isEmpty ? null : () => _openTransactionSheet(context, farms: farms),
-                    child: const Text('Add sale or buy'),
+                    child: Text(language.tr(en: 'Add sale or buy', ha: 'Saka siyarwa ko saya', fr: 'Ajouter vente ou achat')),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: AppButton.secondary(
                     onPressed: farms.isEmpty ? null : () => _openInventorySheet(context, farms),
-                    child: const Text('Add inventory'),
+                    child: Text(language.tr(en: 'Add inventory', ha: 'Saka kaya', fr: 'Ajouter stock')),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: AppButton.secondary(
                     onPressed: () => _openPartnerSheet(context),
-                    child: const Text('Add contact'),
+                    child: Text(language.tr(en: 'Add contact', ha: 'Saka lamba', fr: 'Ajouter contact')),
                   ),
                 ),
               ],
@@ -152,7 +178,9 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
           ),
         ),
         const SizedBox(height: 18),
-        const SoftSectionTitle(title: 'Products for sale'),
+        SoftSectionTitle(
+          title: language.tr(en: 'Products for sale', ha: 'Kayayyakin siyarwa', fr: 'Produits a vendre'),
+        ),
         if (operations.inventory.isEmpty)
           const _EmptyFinanceCard(
             message: 'No inventory items yet. Add a farm product so sales can deduct available stock.',
@@ -196,7 +224,9 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
             ),
           ),
         const SizedBox(height: 18),
-        const SoftSectionTitle(title: 'Customers and providers'),
+        SoftSectionTitle(
+          title: language.tr(en: 'Customers and providers', ha: 'Kwastomomi da masu kawo kaya', fr: 'Clients et fournisseurs'),
+        ),
         if (operations.partners.isEmpty)
           const _EmptyFinanceCard(
             message: 'No registered buyers or providers yet. Add contacts so receipts and email notices can reuse them.',
@@ -231,7 +261,9 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
             ),
           ),
         const SizedBox(height: 18),
-        const SoftSectionTitle(title: 'Sales history'),
+        SoftSectionTitle(
+          title: language.tr(en: 'Sales history', ha: 'Tarihin siyarwa', fr: 'Historique des ventes'),
+        ),
         if (sales.isEmpty)
           const _EmptyFinanceCard(
             message: 'No sales recorded yet.',
@@ -247,7 +279,9 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
             ),
           ),
         const SizedBox(height: 18),
-        const SoftSectionTitle(title: 'Procurement'),
+        SoftSectionTitle(
+          title: language.tr(en: 'Procurement', ha: 'Sayen kaya', fr: 'Approvisionnement'),
+        ),
         if (procurement.isEmpty)
           const _EmptyFinanceCard(
             message: 'No procurement records yet.',

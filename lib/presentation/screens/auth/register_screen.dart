@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/validators.dart';
 import '../../../providers/auth_provider.dart';
+import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_text_field.dart';
 import 'auth_shared.dart';
 
@@ -42,7 +43,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       next.whenOrNull(
         data: (_) {
           if (previous is AsyncLoading && mounted) {
-            context.go('/verify-email');
+            final User? user = FirebaseAuth.instance.currentUser;
+            if (user != null && user.email?.isNotEmpty == true && !user.emailVerified) {
+              context.go('/verify-email');
+            } else {
+              context.go('/post-auth');
+            }
           }
         },
         error: (Object error, StackTrace stackTrace) {
@@ -140,6 +146,26 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             icon: Icons.mail_outline_rounded,
             message: 'After signup, we will send a verification email before full access is granted.',
             color: Color(0xFFE7F7DE),
+          ),
+          const SizedBox(height: 14),
+          AppButton.secondary(
+            onPressed: isLoading
+                ? null
+                : () async {
+                    await ref.read(authControllerProvider.notifier).signInWithGoogle();
+                  },
+            child: const _AuthActionLabel(
+              label: 'Use Google instead',
+              icon: _GoogleBadge(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          AppButton.secondary(
+            onPressed: () => context.go('/phone-auth'),
+            child: const _AuthActionLabel(
+              label: 'Register with phone',
+              icon: Icon(Icons.phone_rounded, size: 20),
+            ),
           ),
           const SizedBox(height: 18),
           AuthPrimaryButton(
@@ -249,6 +275,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           return 'Invalid credentials. Please try again.';
         case 'configuration-not-found':
           return 'Firebase Auth email action settings are incomplete. In Firebase Console, enable Email/Password sign-in and check Authentication email templates/authorized domains.';
+        case 'google-sign-in-failed':
+          return error.message ?? 'Google sign-in failed. Please check Firebase configuration.';
       }
       // Fallback to the error message from Firebase if code is not handled
       return error.message ?? 'Registration failed. Please try again.';
@@ -281,4 +309,59 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     '+34', // Spain
     '+31', // Netherlands
   ];
+}
+
+class _AuthActionLabel extends StatelessWidget {
+  const _AuthActionLabel({
+    required this.label,
+    required this.icon,
+  });
+
+  final String label;
+  final Widget icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        icon,
+        const SizedBox(width: 10),
+        Text(label),
+      ],
+    );
+  }
+}
+
+class _GoogleBadge extends StatelessWidget {
+  const _GoogleBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: const Text(
+        'G',
+        style: TextStyle(
+          fontSize: 13,
+          height: 1,
+          fontWeight: FontWeight.w800,
+          color: Color(0xFF4285F4),
+        ),
+      ),
+    );
+  }
 }

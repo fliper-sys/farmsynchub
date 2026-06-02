@@ -56,7 +56,7 @@ class SoftScreenScaffold extends StatelessWidget {
           child: LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
               final bool compact = constraints.maxWidth < 560;
-              final double titleSize = compact ? 24 : 30;
+              final double titleSize = compact ? 22 : 30;
               final double artworkHeight = compact ? 170 : 200;
 
               return Column(
@@ -110,6 +110,8 @@ class SoftScreenScaffold extends StatelessWidget {
                                           fontSize: titleSize,
                                           color: AppColors.primary,
                                         ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                       const SizedBox(height: 8),
                                       Text(
@@ -118,6 +120,8 @@ class SoftScreenScaffold extends StatelessWidget {
                                           height: 1.6,
                                           color: theme.colorScheme.onSurfaceVariant,
                                         ),
+                                        maxLines: compact ? 4 : 3,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
                                   ),
@@ -172,6 +176,8 @@ class SoftScreenScaffold extends StatelessWidget {
                                           fontSize: titleSize,
                                           color: AppColors.primary,
                                         ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                       const SizedBox(height: 8),
                                       Text(
@@ -180,6 +186,8 @@ class SoftScreenScaffold extends StatelessWidget {
                                           height: 1.6,
                                           color: theme.colorScheme.onSurfaceVariant,
                                         ),
+                                        maxLines: compact ? 4 : 3,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
                                   ),

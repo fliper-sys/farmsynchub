@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -17,6 +18,7 @@ import '../../../providers/auth_provider.dart';
 import '../../../providers/crop_provider.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/finance_provider.dart';
+import '../../../providers/email_notification_provider.dart';
 import '../../../providers/livestock_provider.dart';
 import '../../../providers/user_profile_provider.dart';
 import '../../common/widgets/app_button.dart';
@@ -54,6 +56,8 @@ class FarmDetailScreen extends ConsumerWidget {
       );
     }
 
+    ref.read(activeFarmProvider.notifier).setActiveFarm(farm.id);
+
     if (!_canAccessFarm(farm, currentUser?.uid, currentUser?.email, profile?.accountRole)) {
       return Scaffold(
         appBar: AppBar(),
@@ -70,6 +74,7 @@ class FarmDetailScreen extends ConsumerWidget {
     final List<Transaction> transactions = (ref.watch(transactionsProvider).valueOrNull ?? <Transaction>[])
         .where((Transaction item) => item.farmId == farmId)
         .toList(growable: false);
+    final _GreenhousePlanSummary? greenhousePlan = farm.supportsGreenhouse ? _greenhousePlanSummary(farm) : null;
 
     final double income = transactions
         .where((Transaction item) => item.type == TransactionType.income)
@@ -261,6 +266,137 @@ class FarmDetailScreen extends ConsumerWidget {
               ),
             ),
           ),
+          if (greenhousePlan != null) ...<Widget>[
+            const SizedBox(height: 18),
+            const SoftSectionTitle(title: 'Greenhouse planner'),
+            AppCard(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Live greenhouse sizing is based on the farm area, current weather readings, and a conservative production layout. Farmers can keep these suggestions or override them if they already run a tighter system.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: SoftInfoChip(
+                            label: 'Plant slots',
+                            value: '${greenhousePlan.estimatedPlantSlots}',
+                            color: const Color(0xFFE5F5D8),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: SoftInfoChip(
+                            label: 'Water/day',
+                            value: '${greenhousePlan.dailyWaterLitres.toStringAsFixed(0)} L',
+                            color: const Color(0xFFDFF1FF),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: SoftInfoChip(
+                            label: 'Substrate',
+                            value: '${greenhousePlan.substrateVolumeLitres.toStringAsFixed(0)} L',
+                            color: const Color(0xFFEDE8FF),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: SoftInfoChip(
+                            label: 'Seed trays',
+                            value: '${greenhousePlan.seedlingTrayCount}',
+                            color: const Color(0xFFFFEBD0),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: SoftInfoChip(
+                            label: 'Usable area',
+                            value: '${greenhousePlan.usableAreaM2.toStringAsFixed(0)} m²',
+                            color: const Color(0xFFE5F5D8),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: <Widget>[
+                        _Tag(text: '${greenhousePlan.bedWidthM.toStringAsFixed(1)} m bed width', color: const Color(0xFFE8F4D8)),
+                        _Tag(text: '${greenhousePlan.plantSpacingM.toStringAsFixed(2)} m plant spacing', color: const Color(0xFFDFF1FF)),
+                        _Tag(text: '${greenhousePlan.interRowSpacingM.toStringAsFixed(2)} m inter-row space', color: const Color(0xFFFFEBD0)),
+                        _Tag(text: '${greenhousePlan.irrigationRoundsPerDay} irrigation rounds/day', color: const Color(0xFFEDE8FF)),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    _SuggestionCard(
+                      icon: Icons.view_compact_alt_rounded,
+                      title: 'Layout formula',
+                      detail: greenhousePlan.layoutNote,
+                      tint: const Color(0xFFE8F4D8),
+                    ),
+                    const SizedBox(height: 12),
+                    _SuggestionCard(
+                      icon: Icons.water_drop_rounded,
+                      title: 'Irrigation schedule',
+                      detail: greenhousePlan.irrigationNote,
+                      tint: const Color(0xFFDFF1FF),
+                    ),
+                    const SizedBox(height: 12),
+                    _SuggestionCard(
+                      icon: Icons.grass_rounded,
+                      title: 'Soilless mix example',
+                      detail: greenhousePlan.mixNote,
+                      tint: const Color(0xFFEDE8FF),
+                    ),
+                    const SizedBox(height: 12),
+                    _SuggestionCard(
+                      icon: Icons.inventory_2_rounded,
+                      title: 'Inventory to record',
+                      detail: 'Log seedlings, coco coir, mature compost, rice husk, drip line, emitters, grow bags, pH meter, trays, and nutrient salts. Start with about ${greenhousePlan.dripLineMeters.toStringAsFixed(0)} m of drip line and ${greenhousePlan.seedlingTrayCount} nursery trays for this setup.',
+                      tint: const Color(0xFFFFEBD0),
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: <Widget>[
+                        SizedBox(
+                          width: 180,
+                          child: AppButton.primary(
+                            onPressed: () => _logGreenhousePlan(context, ref, farm!, override: false),
+                            child: const Text('Save plan note'),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 180,
+                          child: AppButton.secondary(
+                            onPressed: () => _logGreenhousePlan(context, ref, farm!, override: true),
+                            child: const Text('I know my setup'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           Wrap(
             spacing: 12,
@@ -564,6 +700,45 @@ class FarmDetailScreen extends ConsumerWidget {
         );
   }
 
+  Future<void> _logGreenhousePlan(
+    BuildContext context,
+    WidgetRef ref,
+    Farm farm, {
+    required bool override,
+  }) async {
+    if (!farm.supportsGreenhouse) {
+      return;
+    }
+    final _GreenhousePlanSummary summary = _greenhousePlanSummary(farm);
+    final DateTime now = DateTime.now();
+    final String action = override ? 'Overrode greenhouse plan' : 'Reviewed greenhouse plan';
+    final String detail = override
+        ? 'The farmer chose to continue with a custom greenhouse setup after reviewing the live spacing, irrigation, and substrate suggestions.'
+        : 'Suggested spacing, irrigation, substrate mix, and inventory notes were saved for greenhouse planning.';
+    final Farm updated = farm.copyWith(
+      activityLog: <FarmActivityRecord>[
+        FarmActivityRecord(
+          id: const Uuid().v4(),
+          actorName: farm.ownerName.isEmpty ? 'Farm owner' : farm.ownerName,
+          actorRole: FarmWorkspaceRole.owner,
+          action: action,
+          detail: '$detail Layout: ${summary.estimatedPlantSlots} plant slots, ${summary.dailyWaterLitres.toStringAsFixed(0)} L/day, ${summary.substrateVolumeLitres.toStringAsFixed(0)} L substrate.',
+          audience: farm.ownerCount > 1 ? FarmActivityAudience.owners : FarmActivityAudience.workspace,
+          createdAt: now,
+        ),
+        ...farm.activityLog,
+      ],
+      updatedAt: now,
+      isSynced: false,
+    );
+    await ref.read(farmsProvider.notifier).updateFarm(updated);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(override ? 'Custom greenhouse plan kept.' : 'Greenhouse plan saved to activity log.')),
+      );
+    }
+  }
+
   Future<void> _openNotesSheet(BuildContext context, WidgetRef ref, Farm farm) async {
     final TextEditingController controller = TextEditingController(text: farm.notes);
     await showModalBottomSheet<void>(
@@ -694,6 +869,12 @@ class FarmDetailScreen extends ConsumerWidget {
       isSynced: false,
     );
     await ref.read(farmsProvider.notifier).updateFarm(updated);
+    if (member.email.isNotEmpty) {
+      await ref.read(farmEmailServiceProvider).sendWelcomeNotification(
+            toEmail: member.email,
+            recipientName: member.name,
+          );
+    }
   }
 
   Future<void> _openTaskSheet(BuildContext context, WidgetRef ref, Farm farm) async {
@@ -742,6 +923,16 @@ class FarmDetailScreen extends ConsumerWidget {
       isSynced: false,
     );
     await ref.read(farmsProvider.notifier).updateFarm(updated);
+    if (farm.ownerEmail.isNotEmpty) {
+      await ref.read(farmEmailServiceProvider).sendScheduleNotification(
+            toEmail: farm.ownerEmail,
+            recipientName: farm.ownerName.isNotEmpty ? farm.ownerName : 'Farm owner',
+            farmName: farm.name,
+            taskTitle: task.title,
+            dueLabel: app_date.DateUtils.formatDateTime(task.dueAt),
+            detail: task.details.isEmpty ? 'A new farm task has been scheduled for review.' : task.details,
+          );
+    }
   }
 
   Future<void> _openActivitySheet(BuildContext context, WidgetRef ref, Farm farm) async {
@@ -772,6 +963,15 @@ class FarmDetailScreen extends ConsumerWidget {
       isSynced: false,
     );
     await ref.read(farmsProvider.notifier).updateFarm(updated);
+    if (farm.ownerEmail.isNotEmpty && draft.sentToOwners) {
+      await ref.read(farmEmailServiceProvider).sendWorkerLogNotification(
+            toEmail: farm.ownerEmail,
+            recipientName: farm.ownerName.isNotEmpty ? farm.ownerName : 'Farm owner',
+            farmName: farm.name,
+            action: draft.action,
+            detail: draft.detail,
+          );
+    }
   }
 
   Future<void> _toggleWorkspaceTask(BuildContext context, WidgetRef ref, Farm farm, FarmWorkspaceTask task) async {
@@ -806,6 +1006,15 @@ class FarmDetailScreen extends ConsumerWidget {
       isSynced: false,
     );
     await ref.read(farmsProvider.notifier).updateFarm(updated);
+    if (farm.ownerEmail.isNotEmpty) {
+      await ref.read(farmEmailServiceProvider).sendWorkerLogNotification(
+            toEmail: farm.ownerEmail,
+            recipientName: farm.ownerName.isNotEmpty ? farm.ownerName : 'Farm owner',
+            farmName: farm.name,
+            action: markDone ? 'Completed task' : 'Reopened task',
+            detail: '${updatedTask.title} was ${markDone ? 'marked done' : 'reopened'}.',
+          );
+    }
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(markDone ? 'Task completed.' : 'Task reopened.')),
@@ -2042,6 +2251,96 @@ class _FarmDocumentDraft {
   final String type;
   final String reference;
   final String notes;
+}
+
+class _GreenhousePlanSummary {
+  const _GreenhousePlanSummary({
+    required this.usableAreaM2,
+    required this.plantSpacingM,
+    required this.interRowSpacingM,
+    required this.bedWidthM,
+    required this.estimatedPlantSlots,
+    required this.seedlingTrayCount,
+    required this.irrigationRoundsPerDay,
+    required this.dailyWaterLitres,
+    required this.substrateVolumeLitres,
+    required this.compostLitres,
+    required this.cocoCoirLitres,
+    required this.riceHuskLitres,
+    required this.sandLitres,
+    required this.dripLineMeters,
+    required this.layoutNote,
+    required this.irrigationNote,
+    required this.mixNote,
+  });
+
+  final double usableAreaM2;
+  final double plantSpacingM;
+  final double interRowSpacingM;
+  final double bedWidthM;
+  final int estimatedPlantSlots;
+  final int seedlingTrayCount;
+  final int irrigationRoundsPerDay;
+  final double dailyWaterLitres;
+  final double substrateVolumeLitres;
+  final double compostLitres;
+  final double cocoCoirLitres;
+  final double riceHuskLitres;
+  final double sandLitres;
+  final double dripLineMeters;
+  final String layoutNote;
+  final String irrigationNote;
+  final String mixNote;
+}
+
+_GreenhousePlanSummary _greenhousePlanSummary(Farm farm) {
+  final double greenhouseAreaHa = farm.greenhouseAreaHa > 0 ? farm.greenhouseAreaHa : math.max(farm.sizeHa * 0.12, 0.05);
+  final double usableAreaM2 = greenhouseAreaHa * 10000 * 0.72;
+  final double plantSpacingM = farm.temperatureCelsius >= 32 ? 0.40 : 0.35;
+  final double interRowSpacingM = farm.temperatureCelsius >= 32 ? 0.70 : 0.60;
+  final double bedWidthM = 1.20;
+  final int estimatedPlantSlots = math.max(1, (usableAreaM2 / (plantSpacingM * interRowSpacingM)).floor());
+  final int seedlingTrayCount = math.max(1, (estimatedPlantSlots / 98).ceil());
+  final int irrigationRoundsPerDay = (farm.temperatureCelsius >= 32 || farm.soilMoisturePercent < 35) ? 3 : 2;
+  double waterPerPlantLitres = 0.20;
+  if (farm.temperatureCelsius >= 32) {
+    waterPerPlantLitres += 0.05;
+  }
+  if (farm.humidityPercent <= 45) {
+    waterPerPlantLitres += 0.03;
+  }
+  if (farm.soilMoisturePercent <= 35) {
+    waterPerPlantLitres += 0.04;
+  }
+  final double dailyWaterLitres = estimatedPlantSlots * waterPerPlantLitres;
+  final double substrateVolumeLitres = usableAreaM2 * 45;
+  final double compostLitres = substrateVolumeLitres * 0.30;
+  final double cocoCoirLitres = substrateVolumeLitres * 0.40;
+  final double riceHuskLitres = substrateVolumeLitres * 0.20;
+  final double sandLitres = substrateVolumeLitres * 0.10;
+  final double dripLineMeters = usableAreaM2 / interRowSpacingM;
+  return _GreenhousePlanSummary(
+    usableAreaM2: usableAreaM2,
+    plantSpacingM: plantSpacingM,
+    interRowSpacingM: interRowSpacingM,
+    bedWidthM: bedWidthM,
+    estimatedPlantSlots: estimatedPlantSlots,
+    seedlingTrayCount: seedlingTrayCount,
+    irrigationRoundsPerDay: irrigationRoundsPerDay,
+    dailyWaterLitres: dailyWaterLitres,
+    substrateVolumeLitres: substrateVolumeLitres,
+    compostLitres: compostLitres,
+    cocoCoirLitres: cocoCoirLitres,
+    riceHuskLitres: riceHuskLitres,
+    sandLitres: sandLitres,
+    dripLineMeters: dripLineMeters,
+    layoutNote:
+        'Use about ${plantSpacingM.toStringAsFixed(2)} m between plants and ${interRowSpacingM.toStringAsFixed(2)} m between rows. That gives roughly ${estimatedPlantSlots} plants across ${usableAreaM2.toStringAsFixed(0)} m² of usable greenhouse area. Growers can widen the spacing for fruiting crops or tighten it slightly for leafy greens.',
+    irrigationNote:
+        'Start with ${irrigationRoundsPerDay} short irrigation rounds per day. Each plant needs about ${waterPerPlantLitres.toStringAsFixed(2)} L daily from the current temperature, humidity, and moisture profile. In hotter weather, split watering into morning and afternoon cycles instead of one long run.',
+    mixNote:
+        'For a practical 100 L soilless batch, mix 40 L coco coir, 30 L well-rotted compost, 20 L rice husk or biochar, and 10 L sand or perlite. For this greenhouse, the starting substrate demand is ${substrateVolumeLitres.toStringAsFixed(0)} L in total, with ${compostLitres.toStringAsFixed(0)} L compost, ${cocoCoirLitres.toStringAsFixed(0)} L coco coir, ${riceHuskLitres.toStringAsFixed(0)} L rice husk, and ${sandLitres.toStringAsFixed(0)} L sand/perlite. Use only mature compost and pre-wet the mix before transplanting.',
+  );
 }
 
 String _farmTypeLabel(FarmType type) {

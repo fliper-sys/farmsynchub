@@ -18,6 +18,8 @@ class UserProfile {
     required this.profileImageBase64,
     required this.createdAt,
     required this.updatedAt,
+    this.isDisabled = false,
+    this.restrictedFeatures = const <String>[],
   });
 
   final String uid;
@@ -31,6 +33,8 @@ class UserProfile {
   final String profileImageBase64;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final bool isDisabled;
+  final List<String> restrictedFeatures;
 
   bool get isComplete =>
       fullName.trim().isNotEmpty &&
@@ -50,6 +54,8 @@ class UserProfile {
     String? profileImageBase64,
     DateTime? createdAt,
     DateTime? updatedAt,
+    bool? isDisabled,
+    List<String>? restrictedFeatures,
   }) {
     return UserProfile(
       uid: uid ?? this.uid,
@@ -63,6 +69,8 @@ class UserProfile {
       profileImageBase64: profileImageBase64 ?? this.profileImageBase64,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      isDisabled: isDisabled ?? this.isDisabled,
+      restrictedFeatures: restrictedFeatures ?? this.restrictedFeatures,
     );
   }
 
@@ -78,6 +86,8 @@ class UserProfile {
         'profileImageBase64': profileImageBase64,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
+        'isDisabled': isDisabled,
+        'restrictedFeatures': restrictedFeatures,
       };
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
@@ -96,6 +106,11 @@ class UserProfile {
       profileImageBase64: json['profileImageBase64'] as String? ?? '',
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
       updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
+      isDisabled: json['isDisabled'] as bool? ?? false,
+      restrictedFeatures: (json['restrictedFeatures'] as List<dynamic>?)
+              ?.whereType<String>()
+              .toList(growable: false) ??
+          <String>[],
     );
   }
 }

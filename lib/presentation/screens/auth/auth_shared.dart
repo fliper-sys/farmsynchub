@@ -13,6 +13,7 @@ class AuthScaffold extends StatelessWidget {
     required this.child,
     this.footer,
     this.badge = 'FarmSync Hub',
+    this.onBrandTap,
   });
 
   final String title;
@@ -20,6 +21,7 @@ class AuthScaffold extends StatelessWidget {
   final Widget child;
   final Widget? footer;
   final String badge;
+  final VoidCallback? onBrandTap;
 
   @override
   Widget build(BuildContext context) {
@@ -68,10 +70,11 @@ class AuthScaffold extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 430),
-                  child: _PhoneAuthPanel(
+              child: _PhoneAuthPanel(
                     title: title,
                     subtitle: subtitle,
                     badge: badge,
+                    onBrandTap: onBrandTap,
                     footer: footer,
                     scheme: scheme,
                     isDark: isDark,
@@ -93,6 +96,7 @@ class _PhoneAuthPanel extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.badge,
+    required this.onBrandTap,
     required this.child,
     required this.footer,
     required this.scheme,
@@ -103,6 +107,7 @@ class _PhoneAuthPanel extends StatelessWidget {
   final String title;
   final String subtitle;
   final String badge;
+  final VoidCallback? onBrandTap;
   final Widget child;
   final Widget? footer;
   final ColorScheme scheme;
@@ -126,14 +131,17 @@ class _PhoneAuthPanel extends StatelessWidget {
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: Stack(
+        child: Stack(
         children: <Widget>[
           Positioned(
             top: 0,
             left: 0,
             right: 0,
             height: 238,
-            child: _LeafHero(badge: badge),
+            child: _LeafHero(
+              badge: badge,
+              onBrandTap: onBrandTap,
+            ),
           ),
           Positioned(
             top: 0,
@@ -196,9 +204,10 @@ class _PhoneAuthPanel extends StatelessWidget {
 }
 
 class _LeafHero extends StatelessWidget {
-  const _LeafHero({required this.badge});
+  const _LeafHero({required this.badge, this.onBrandTap});
 
   final String badge;
+  final VoidCallback? onBrandTap;
 
   @override
   Widget build(BuildContext context) {
@@ -231,26 +240,30 @@ class _LeafHero extends StatelessWidget {
         Positioned(
           left: 24,
           top: 32,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.18),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: Colors.white.withOpacity(0.28)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Image.asset(AppAssets.appIcon, width: 20, height: 20),
-                const SizedBox(width: 8),
-                Text(
-                  badge,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onBrandTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.white.withOpacity(0.28)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Image.asset(AppAssets.appIcon, width: 20, height: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    badge,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

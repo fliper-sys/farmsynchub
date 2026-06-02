@@ -96,9 +96,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     );
     final String balance = CurrencyUtils.formatCompactCurrency(_calculateBalance(transactions));
     final int pendingSync = syncOverview.pendingCount;
-    final String activeFarmName = farms.isEmpty
-        ? language.tr(en: 'No farms yet', ha: 'Babu gona tukuna', fr: 'Aucune ferme pour le moment')
-        : farms.first.name;
+    final String? activeFarmId = ref.watch(activeFarmProvider);
+    Farm? activeFarm;
+    if (activeFarmId != null && activeFarmId.trim().isNotEmpty) {
+      for (final Farm farm in farms) {
+        if (farm.id == activeFarmId) {
+          activeFarm = farm;
+          break;
+        }
+      }
+    }
+    activeFarm ??= farms.isNotEmpty ? farms.first : null;
+    final String activeFarmName = activeFarm?.name ??
+        language.tr(en: 'No farms yet', ha: 'Babu gona tukuna', fr: 'Aucune ferme pour le moment');
     final int unreadNotifications = notifications.where((notification) => !notification.isRead).length;
 
     return Scaffold(

@@ -55,7 +55,7 @@ class _PostAuthGateScreenState extends ConsumerState<PostAuthGateScreen>
         if (_navigated || !mounted) {
           return;
         }
-        _handleNavigation(profile?.isComplete == true);
+        _handleNavigation(profile);
       },
       error: (_, __) {
         if (_navigated || !mounted) {
@@ -170,7 +170,7 @@ class _PostAuthGateScreenState extends ConsumerState<PostAuthGateScreen>
     );
   }
 
-  Future<void> _handleNavigation(bool isComplete) async {
+  Future<void> _handleNavigation(UserProfile? profile) async {
     _navigated = true;
     final String? userId = ref.read(firebaseServiceProvider).currentUser?.uid;
     final bool hasCompletedWalkthrough =
@@ -179,7 +179,11 @@ class _PostAuthGateScreenState extends ConsumerState<PostAuthGateScreen>
       return;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!isComplete) {
+      if (profile?.isDisabled == true) {
+        context.go('/account-restricted');
+        return;
+      }
+      if (profile?.isComplete != true) {
         context.go('/account-setup');
         return;
       }

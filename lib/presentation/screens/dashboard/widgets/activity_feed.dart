@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../domain/models/crop.dart';
@@ -10,6 +11,10 @@ import '../../../../providers/crop_provider.dart';
 import '../../../../providers/farm_provider.dart';
 import '../../../../providers/finance_provider.dart';
 import '../../../../providers/livestock_provider.dart';
+import '../../crops/crop_detail_screen.dart';
+import '../../farms/farm_detail_screen.dart';
+import '../../livestock/livestock_detail_screen.dart';
+
 
 class ActivityFeed extends ConsumerWidget {
   const ActivityFeed({super.key});
@@ -28,6 +33,11 @@ class ActivityFeed extends ConsumerWidget {
                     icon: Icons.agriculture_rounded,
                     tint: const Color(0xFFE4F5D6),
                     sortDate: farm.updatedAt,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => FarmDetailScreen(farmId: farm.id),
+                      ),
+                    ),
                   ),
                 )
                 .toList(),
@@ -44,6 +54,11 @@ class ActivityFeed extends ConsumerWidget {
                     icon: Icons.spa_rounded,
                     tint: const Color(0xFFD9EEFF),
                     sortDate: crop.updatedAt,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => CropDetailScreen(cropId: crop.id),
+                      ),
+                    ),
                   ),
                 )
                 .toList(),
@@ -60,6 +75,11 @@ class ActivityFeed extends ConsumerWidget {
                     icon: Icons.pets_rounded,
                     tint: const Color(0xFFFFE0D3),
                     sortDate: item.updatedAt,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => LivestockDetailScreen(livestockId: item.id),
+                      ),
+                    ),
                   ),
                 )
                 .toList(),
@@ -82,6 +102,7 @@ class ActivityFeed extends ConsumerWidget {
                         ? const Color(0xFFE4F5D6)
                         : const Color(0xFFFFE0D3),
                     sortDate: transaction.updatedAt,
+                    onTap: () => context.go('/finance'),
                   ),
                 )
                 .toList(),
@@ -170,6 +191,7 @@ class _ActivityData {
     required this.icon,
     required this.tint,
     required this.sortDate,
+    required this.onTap,
   });
 
   final String title;
@@ -178,6 +200,7 @@ class _ActivityData {
   final IconData icon;
   final Color tint;
   final DateTime sortDate;
+  final VoidCallback onTap;
 }
 
 class _ActivityItem extends StatelessWidget {
@@ -189,51 +212,68 @@ class _ActivityItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
+    return Material(
+      color: theme.colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: activity.onTap,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Row(
-        children: <Widget>[
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: activity.tint,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Icon(activity.icon, color: AppColors.primary),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: theme.colorScheme.outlineVariant),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  activity.title,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
+          child: Row(
+            children: <Widget>[
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: activity.tint,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Icon(activity.icon, color: AppColors.primary),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      activity.title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      activity.subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(height: 1.5),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: <Widget>[
+                  Text(
+                    activity.time,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: AppColors.primaryMid,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  activity.subtitle,
-                  style: theme.textTheme.bodySmall?.copyWith(height: 1.5),
-                ),
-              ],
-            ),
+                  const SizedBox(height: 4),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Text(
-            activity.time,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: AppColors.primaryMid,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

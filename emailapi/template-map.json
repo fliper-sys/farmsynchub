@@ -1,21 +1,69 @@
 {
   "templates": [
     {
+      "id": "login",
+      "file": "templates/security-alert.html",
+      "subject": "New login to {{app_name}}",
+      "variables": ["app_name", "user_name", "event_name", "event_time", "event_location", "support_email", "current_year"]
+    },
+    {
       "id": "welcome",
       "file": "templates/welcome.html",
       "subject": "Welcome to {{app_name}}",
       "variables": ["app_name", "user_name", "login_url", "support_email", "current_year"]
     },
     {
-      "id": "verify_email",
-      "file": "templates/verify-email.html",
-      "subject": "Verify your email for {{app_name}}",
+      "id": "password_reset",
+      "file": "templates/reset-password.html",
+      "subject": "Reset your {{app_name}} password",
       "variables": ["app_name", "user_name", "action_url", "expiration_text", "support_email", "current_year"]
     },
     {
-      "id": "reset_password",
-      "file": "templates/reset-password.html",
-      "subject": "Reset your {{app_name}} password",
+      "id": "news_update",
+      "file": "templates/welcome.html",
+      "subject": "News update from {{app_name}}",
+      "variables": ["app_name", "user_name", "login_url", "support_email", "current_year"]
+    },
+    {
+      "id": "worker_log",
+      "file": "templates/security-alert.html",
+      "subject": "Work activity update from {{app_name}}",
+      "variables": ["app_name", "user_name", "event_name", "event_time", "event_location", "support_email", "current_year"]
+    },
+    {
+      "id": "schedule",
+      "file": "templates/security-alert.html",
+      "subject": "Schedule update from {{app_name}}",
+      "variables": ["app_name", "user_name", "event_name", "event_time", "event_location", "support_email", "current_year"]
+    },
+    {
+      "id": "sale",
+      "file": "templates/security-alert.html",
+      "subject": "Sale recorded in {{app_name}}",
+      "variables": ["app_name", "user_name", "event_name", "event_time", "event_location", "support_email", "current_year"]
+    },
+    {
+      "id": "procurement",
+      "file": "templates/security-alert.html",
+      "subject": "Procurement recorded in {{app_name}}",
+      "variables": ["app_name", "user_name", "event_name", "event_time", "event_location", "support_email", "current_year"]
+    },
+    {
+      "id": "expense",
+      "file": "templates/security-alert.html",
+      "subject": "Expense recorded in {{app_name}}",
+      "variables": ["app_name", "user_name", "event_name", "event_time", "event_location", "support_email", "current_year"]
+    },
+    {
+      "id": "system_notification",
+      "file": "templates/security-alert.html",
+      "subject": "System notice from {{app_name}}",
+      "variables": ["app_name", "user_name", "event_name", "event_time", "event_location", "support_email", "current_year"]
+    },
+    {
+      "id": "verify_email",
+      "file": "templates/verify-email.html",
+      "subject": "Verify your email for {{app_name}}",
       "variables": ["app_name", "user_name", "action_url", "expiration_text", "support_email", "current_year"]
     },
     {

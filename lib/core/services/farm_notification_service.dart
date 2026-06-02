@@ -20,10 +20,9 @@ class FarmNotificationService {
     try {
       tzdata.initializeTimeZones();
 
-      final dynamic timeZoneInfo = await FlutterTimezone.getLocalTimezone();
-      final String timeZoneName = timeZoneInfo is String
-          ? timeZoneInfo
-          : (timeZoneInfo?.identifier as String?) ?? 'UTC';
+        // FlutterTimezone.getLocalTimezone() returns a String with the timezone name.
+        final dynamic timeZoneInfo = await FlutterTimezone.getLocalTimezone();
+        final String timeZoneName = (timeZoneInfo is String) ? timeZoneInfo : (timeZoneInfo?.toString() ?? 'UTC');
       tz.setLocalLocation(tz.getLocation(timeZoneName));
     } catch (error) {
       debugPrint('[Notifications] Falling back to UTC timezone: $error');
@@ -40,7 +39,7 @@ class FarmNotificationService {
       );
 
       await _plugin.initialize(
-        settings: const InitializationSettings(
+        const InitializationSettings(
           android: androidInitializationSettings,
           iOS: darwinInitializationSettings,
           macOS: darwinInitializationSettings,
@@ -86,11 +85,11 @@ class FarmNotificationService {
       await initialize();
     }
     await _plugin.zonedSchedule(
-      id: id,
-      title: title,
-      body: body,
-      scheduledDate: tz.TZDateTime.from(scheduledAt, tz.local),
-      notificationDetails: const NotificationDetails(
+      id,
+      title,
+      body,
+      tz.TZDateTime.from(scheduledAt, tz.local),
+      const NotificationDetails(
         android: AndroidNotificationDetails(
           'crop_reminders',
           'Crop reminders',
@@ -102,6 +101,8 @@ class FarmNotificationService {
         macOS: DarwinNotificationDetails(),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      // The `uiLocalNotificationDateInterpretation` parameter was removed
+      // in newer versions of flutter_local_notifications. Defaults are used.
       payload: payload,
     );
   }
@@ -110,7 +111,7 @@ class FarmNotificationService {
     if (!_isInitialized) {
       return;
     }
-    await _plugin.cancel(id: id);
+    await _plugin.cancel(id);
   }
 
   Future<void> cancelAll() async {

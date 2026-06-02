@@ -3,10 +3,13 @@ import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
+
+import '../core/services/farm_email_service.dart';
 import '../data/remote/firebase_service.dart';
 import '../domain/models/news_post.dart';
 import '../domain/models/user_profile.dart';
 import 'auth_provider.dart';
+import 'email_notification_provider.dart';
 import 'user_profile_provider.dart';
 
 final newsFeedProvider =
@@ -45,12 +48,14 @@ class NewsFeedState {
 class NewsFeedController extends StateNotifier<AsyncValue<NewsFeedState>> {
   NewsFeedController(this._ref)
       : _firebaseService = _ref.read(firebaseServiceProvider),
+        _emailService = _ref.read(farmEmailServiceProvider),
         super(const AsyncValue.loading()) {
     loadFeed();
   }
 
   final Ref _ref;
   final FirebaseService _firebaseService;
+  final FarmEmailService _emailService;
   static const String _followKey = 'news_followed_authors';
   static const String _followCollection = 'news_following';
   static const String _followDocId = 'current';
@@ -237,6 +242,7 @@ class NewsFeedController extends StateNotifier<AsyncValue<NewsFeedState>> {
     required String category,
     required List<String> tags,
     required String whatsappHandle,
+    bool isAdminPost = false,
     String coverImageBase64 = '',
     String coverImageName = '',
     String location = '',
@@ -248,8 +254,12 @@ class NewsFeedController extends StateNotifier<AsyncValue<NewsFeedState>> {
     final DateTime now = DateTime.now();
     final NewsPost post = NewsPost(
       id: _uuid.v4(),
-      authorId: firebaseService.currentUser?.uid ?? profile?.uid ?? 'local-user',
-      authorName: profile?.fullName.isNotEmpty == true ? profile!.fullName : (firebaseService.currentUser?.displayName ?? 'Farmer'),
+      authorId: isAdminPost ? 'admin' : (firebaseService.currentUser?.uid ?? profile?.uid ?? 'local-user'),
+      authorName: isAdminPost
+          ? 'FarmSync Admin'
+          : (profile?.fullName.isNotEmpty == true
+              ? profile!.fullName
+              : (firebaseService.currentUser?.displayName ?? 'Farmer')),
       authorWhatsapp: whatsappHandle,
       authorAvatar: profile?.profileImageBase64 ?? '',
       title: title,
@@ -262,7 +272,7 @@ class NewsFeedController extends StateNotifier<AsyncValue<NewsFeedState>> {
       linkUrl: linkUrl,
       createdAt: now,
       updatedAt: now,
-      isAdminPost: false,
+      isAdminPost: isAdminPost,
       repostCount: 0,
       commentCount: 0,
       likeCount: 0,
@@ -271,6 +281,12 @@ class NewsFeedController extends StateNotifier<AsyncValue<NewsFeedState>> {
 
     await _firebaseService.syncGlobalToFirestore(_collection, post.toJson());
     await _insertLocalPost(post);
+    await _sendNewsEmail(
+      title: title,
+      category: category,
+      summary: body.length > 160 ? '${body.substring(0, 160)}...' : body,
+      isPost: true,
+    );
   }
 
   Future<void> updatePost(NewsPost post) async {
@@ -278,6 +294,12 @@ class NewsFeedController extends StateNotifier<AsyncValue<NewsFeedState>> {
     final NewsPost updated = post.copyWith(updatedAt: now, isEdited: true);
     await _firebaseService.syncGlobalToFirestore(_collection, updated.toJson());
     await _replaceLocalPost(updated);
+    await _sendNewsEmail(
+      title: post.title,
+      category: post.category,
+      summary: 'A new comment was added to your post.',
+      isPost: false,
+    );
   }
 
   Future<void> deletePost(String postId) async {
@@ -413,5 +435,26 @@ class NewsFeedController extends StateNotifier<AsyncValue<NewsFeedState>> {
     if (current != null) {
       state = AsyncValue.data(current.copyWith(posts: next, lastUpdatedAt: DateTime.now()));
     }
+  }
+
+  Future<void> _sendNewsEmail({
+    required String title,
+    required String category,
+    required String summary,
+    required bool isPost,
+  }) async {
+    final String email = _firebaseService.currentUser?.email ?? '';
+    if (email.isEmpty) {
+      return;
+    }
+    final String displayName = _firebaseService.currentUser?.displayName?.trim() ?? '';
+    final String recipientName = displayName.isNotEmpty ? displayName : email.split('@').first;
+    await _emailService.sendNewsUpdateNotification(
+      toEmail: email,
+      recipientName: recipientName,
+      title: title,
+      category: isPost ? 'News update' : 'Community response',
+      summary: summary,
+    );
   }
 }
