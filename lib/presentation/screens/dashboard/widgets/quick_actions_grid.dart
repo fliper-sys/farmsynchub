@@ -9,70 +9,98 @@ class QuickActionsGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 3,
-      shrinkWrap: true,
-      childAspectRatio: 0.96,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 16,
-      crossAxisSpacing: 16,
-      children: const <Widget>[
-        _QuickActionButton(
-          icon: Icons.landscape_rounded,
-          label: 'My Farm',
-          subtitle: 'Land records and setup',
-          tint: Color(0xFFDDF2C9),
-          route: '/farms',
-        ),
-        _QuickActionButton(
-          icon: Icons.spa_rounded,
-          label: 'Crops',
-          subtitle: 'Stages and planting',
-          tint: Color(0xFFD8F2E5),
-          route: '/crops',
-        ),
-        _QuickActionButton(
-          icon: Icons.inventory_2_rounded,
-          label: 'Livestock',
-          subtitle: 'Animals and count',
-          tint: Color(0xFFE4F1FF),
-          route: '/livestock',
-        ),
-        _QuickActionButton(
-          icon: Icons.savings_rounded,
-          label: 'Sales',
-          subtitle: 'Receipts and finance',
-          tint: Color(0xFFFFE9BF),
-          route: '/finance',
-        ),
-        _QuickActionButton(
-          icon: Icons.school_rounded,
-          label: 'Learn',
-          subtitle: 'Lessons and practice',
-          tint: Color(0xFFFFEEE4),
-          route: '/learn',
-        ),
-        _QuickActionButton(
-          icon: Icons.auto_awesome_rounded,
-          label: 'AI Advisor',
-          subtitle: 'Ask for field help',
-          tint: Color(0xFFEDE8FF),
-          route: '/ai-advisor',
-        ),
-        _QuickActionButton(
-          icon: Icons.person_rounded,
-          label: 'Profile',
-          subtitle: 'Account and setup',
-          tint: Color(0xFFE5F5D8),
-          route: '/profile',
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double width = constraints.maxWidth;
+        final bool compact = width < 420;
+        final int crossAxisCount = compact ? 2 : 3;
+        final double spacing = compact ? 12 : 16;
+        final double childAspectRatio = compact ? 1.08 : 0.96;
+
+        return GridView.count(
+          crossAxisCount: crossAxisCount,
+          childAspectRatio: childAspectRatio,
+          mainAxisSpacing: spacing,
+          crossAxisSpacing: spacing,
+          shrinkWrap: true,
+          primary: false,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          children: <Widget>[
+            _QuickActionButton(
+              compact: compact,
+              icon: Icons.landscape_rounded,
+              label: 'My Farm',
+              subtitle: 'Land records and setup',
+              tint: const Color(0xFFDDF2C9),
+              route: '/farms',
+            ),
+            _QuickActionButton(
+              compact: compact,
+              icon: Icons.spa_rounded,
+              label: 'Crops',
+              subtitle: 'Stages and planting',
+              tint: const Color(0xFFD8F2E5),
+              route: '/crops',
+            ),
+            _QuickActionButton(
+              compact: compact,
+              icon: Icons.inventory_2_rounded,
+              label: 'Livestock',
+              subtitle: 'Animals and count',
+              tint: const Color(0xFFE4F1FF),
+              route: '/livestock',
+            ),
+            _QuickActionButton(
+              compact: compact,
+              icon: Icons.savings_rounded,
+              label: 'Sales',
+              subtitle: 'Receipts and finance',
+              tint: const Color(0xFFFFE9BF),
+              route: '/finance',
+            ),
+            _QuickActionButton(
+              compact: compact,
+              icon: Icons.school_rounded,
+              label: 'Learn',
+              subtitle: 'Lessons and practice',
+              tint: const Color(0xFFFFEEE4),
+              route: '/learn',
+            ),
+            _QuickActionButton(
+              compact: compact,
+              icon: Icons.auto_awesome_rounded,
+              label: 'AI Advisor',
+              subtitle: 'Ask for field help',
+              tint: const Color(0xFFEDE8FF),
+              route: '/ai-advisor',
+            ),
+            _QuickActionButton(
+              compact: compact,
+              icon: Icons.newspaper_rounded,
+              label: 'News',
+              subtitle: 'Feeds and updates',
+              tint: const Color(0xFFEDE8FF),
+              route: '/news',
+            ),
+            _QuickActionButton(
+              compact: compact,
+              icon: Icons.person_rounded,
+              label: 'Profile',
+              subtitle: 'Account and setup',
+              tint: const Color(0xFFE5F5D8),
+              route: '/profile',
+            ),
+          ],
+        );
+      },
     );
   }
 }
 
 class _QuickActionButton extends StatelessWidget {
   const _QuickActionButton({
+    required this.compact,
     required this.icon,
     required this.label,
     required this.subtitle,
@@ -80,6 +108,7 @@ class _QuickActionButton extends StatelessWidget {
     required this.route,
   });
 
+  final bool compact;
   final IconData icon;
   final String label;
   final String subtitle;
@@ -107,37 +136,44 @@ class _QuickActionButton extends StatelessWidget {
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.all(18),
+          padding: EdgeInsets.all(compact ? 14 : 18),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
               Container(
-                width: 70,
-                height: 70,
+                width: compact ? 56 : 70,
+                height: compact ? 56 : 70,
                 decoration: BoxDecoration(
                   color: tint,
                   borderRadius: BorderRadius.circular(22),
                 ),
                 child: Icon(
                   icon,
-                  size: 34,
+                  size: compact ? 28 : 34,
                   color: AppColors.primary,
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: compact ? 10 : 16),
               Text(
                 label,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
+                  fontSize: compact ? 14 : null,
                 ),
                 textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 6),
-              Text(
-                subtitle,
-                style: theme.textTheme.bodySmall,
-                textAlign: TextAlign.center,
-              ),
+              if (!compact) ...<Widget>[
+                const SizedBox(height: 6),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ],
           ),
         ),

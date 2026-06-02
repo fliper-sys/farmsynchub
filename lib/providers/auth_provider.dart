@@ -59,6 +59,19 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
     });
   }
 
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      await _firebaseService.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+    });
+  }
+
   Future<void> resendVerificationEmail() async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {

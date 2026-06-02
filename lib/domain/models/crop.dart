@@ -1,5 +1,30 @@
 import 'farm_activity.dart';
 
+enum LandSizeUnit {
+  hectares,
+  plots,
+}
+
+extension LandSizeUnitX on LandSizeUnit {
+  String get label {
+    switch (this) {
+      case LandSizeUnit.hectares:
+        return 'Hectares';
+      case LandSizeUnit.plots:
+        return 'Plots';
+    }
+  }
+
+  String get shortLabel {
+    switch (this) {
+      case LandSizeUnit.hectares:
+        return 'ha';
+      case LandSizeUnit.plots:
+        return 'plots';
+    }
+  }
+}
+
 /// Crop growth stage enumeration.
 enum CropStage {
   seeding,
@@ -37,6 +62,8 @@ class Crop {
     required this.updatedAt,
     required this.isSynced,
     this.profileImageBase64 = '',
+    this.landSizeValue = 0,
+    this.landSizeUnit = LandSizeUnit.hectares,
     this.targetYieldKg = 0,
     this.protectedEnvironment = false,
     this.todoItems = const <FarmTodoItem>[],
@@ -50,6 +77,8 @@ class Crop {
   final String name;
   final String variety;
   final double areaHa;
+  final double landSizeValue;
+  final LandSizeUnit landSizeUnit;
   final DateTime plantingDate;
   final DateTime expectedHarvestDate;
   final CropStage currentStage;
@@ -72,6 +101,10 @@ class Crop {
   double get syncedInputCost => inputRecords.fold<double>(0, (double sum, FarmInputRecord item) => sum + item.totalCost);
   int get daysSincePlanting => DateTime.now().difference(plantingDate).inDays;
   int get daysToHarvest => expectedHarvestDate.difference(DateTime.now()).inDays;
+  double get areaInPlots => areaHa / 0.0648;
+  String get landSizeLabel => landSizeUnit == LandSizeUnit.plots
+      ? '${landSizeValue.toStringAsFixed(1)} plots'
+      : '${landSizeValue.toStringAsFixed(2)} ha';
   double get growthProgress {
     if (cycleLengthDays <= 0) {
       return 0;
@@ -97,6 +130,8 @@ class Crop {
         'updatedAt': updatedAt.toIso8601String(),
         'isSynced': isSynced,
         'profileImageBase64': profileImageBase64,
+        'landSizeValue': landSizeValue,
+        'landSizeUnit': landSizeUnit.name,
         'targetYieldKg': targetYieldKg,
         'protectedEnvironment': protectedEnvironment,
         'todoItems': todoItems.map((FarmTodoItem item) => item.toJson()).toList(),
@@ -132,6 +167,11 @@ class Crop {
         updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
         isSynced: json['isSynced'] as bool? ?? false,
         profileImageBase64: json['profileImageBase64'] as String? ?? '',
+        landSizeValue: _landSizeValueFromJson(json),
+        landSizeUnit: LandSizeUnit.values.firstWhere(
+          (LandSizeUnit value) => value.name == json['landSizeUnit'],
+          orElse: () => LandSizeUnit.hectares,
+        ),
         targetYieldKg: (json['targetYieldKg'] as num?)?.toDouble() ?? 0,
         protectedEnvironment: json['protectedEnvironment'] as bool? ?? false,
         todoItems: _jsonObjectList(json['todoItems'])
@@ -159,6 +199,8 @@ class Crop {
     DateTime? updatedAt,
     bool? isSynced,
     String? profileImageBase64,
+    double? landSizeValue,
+    LandSizeUnit? landSizeUnit,
     double? targetYieldKg,
     bool? protectedEnvironment,
     List<FarmTodoItem>? todoItems,
@@ -183,6 +225,8 @@ class Crop {
         updatedAt: updatedAt ?? this.updatedAt,
         isSynced: isSynced ?? this.isSynced,
         profileImageBase64: profileImageBase64 ?? this.profileImageBase64,
+        landSizeValue: landSizeValue ?? this.landSizeValue,
+        landSizeUnit: landSizeUnit ?? this.landSizeUnit,
         targetYieldKg: targetYieldKg ?? this.targetYieldKg,
         protectedEnvironment: protectedEnvironment ?? this.protectedEnvironment,
         todoItems: todoItems ?? this.todoItems,
@@ -200,4 +244,14 @@ List<Map<String, dynamic>> _jsonObjectList(Object? value) {
       .whereType<Map>()
       .map((Map item) => Map<String, dynamic>.from(item))
       .toList(growable: false);
+}
+
+double _landSizeValueFromJson(Map<String, dynamic> json) {
+  final double areaHa = (json['areaHa'] as num?)?.toDouble() ?? 0;
+  final String unit = json['landSizeUnit'] as String? ?? LandSizeUnit.hectares.name;
+  final double raw = (json['landSizeValue'] as num?)?.toDouble() ?? areaHa;
+  if (unit == LandSizeUnit.plots.name) {
+    return raw == areaHa ? areaHa / 0.0648 : raw;
+  }
+  return raw;
 }

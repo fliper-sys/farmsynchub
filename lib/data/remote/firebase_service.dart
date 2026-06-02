@@ -57,6 +57,27 @@ class FirebaseService {
     await _auth.sendPasswordResetEmail(email: email);
   }
 
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final User? user = currentUser;
+    final String email = user?.email?.trim() ?? '';
+    if (user == null || email.isEmpty) {
+      throw FirebaseAuthException(
+        code: 'no-current-user',
+        message: 'You need to be signed in to change your password.',
+      );
+    }
+
+    final AuthCredential credential = EmailAuthProvider.credential(
+      email: email,
+      password: currentPassword,
+    );
+    await user.reauthenticateWithCredential(credential);
+    await user.updatePassword(newPassword);
+  }
+
   /// Sends a verification email to the current user.
   Future<void> sendEmailVerification() async {
     await currentUser?.sendEmailVerification();
@@ -240,6 +261,28 @@ class FirebaseService {
         .delete();
   }
 
+  Future<void> syncGlobalToFirestore(String collection, Map<String, dynamic> data) async {
+    final String? documentId = data['id'] as String?;
+    if (documentId == null || documentId.trim().isEmpty) {
+      throw Exception('Cannot sync $collection record without a valid id');
+    }
+    await _firestore.collection(collection).doc(documentId).set(data, SetOptions(merge: true));
+  }
+
+  Future<List<Map<String, dynamic>>> getGlobalFromFirestore(String collection) async {
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore.collection(collection).get();
+    return snapshot.docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) => doc.data()).toList(growable: false);
+  }
+
+  Future<Map<String, dynamic>?> getGlobalDocumentFromFirestore(String collection, String id) async {
+    final DocumentSnapshot<Map<String, dynamic>> snapshot = await _firestore.collection(collection).doc(id).get();
+    return snapshot.data();
+  }
+
+  Future<void> deleteGlobalFromFirestore(String collection, String id) async {
+    await _firestore.collection(collection).doc(id).delete();
+  }
+
   Future<void> _createDefaultUserProfile({
     required String? uid,
     required String email,
@@ -256,6 +299,7 @@ class FirebaseService {
       fullName: displayName?.trim() ?? '',
       email: email,
       phoneNumber: phoneNumber?.trim() ?? '',
+      accountRole: UserAccountRole.owner,
       ward: '',
       primaryFocus: '',
       bio: '',

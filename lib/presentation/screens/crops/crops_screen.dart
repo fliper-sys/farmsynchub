@@ -5,15 +5,19 @@ import 'package:uuid/uuid.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/validators.dart';
+import '../../../core/services/farm_notification_service.dart';
+import '../../../data/services/crop_advice_catalog.dart';
 import '../../../domain/models/crop.dart';
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/farm_activity.dart';
 import '../../../domain/models/notification.dart' as farm_notification;
 import '../../../domain/models/transaction.dart';
+import '../../../domain/models/user_profile.dart';
 import '../../../providers/crop_provider.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/finance_provider.dart';
 import '../../../providers/notification_provider.dart';
+import '../../../providers/user_profile_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
@@ -37,6 +41,7 @@ class CropsScreen extends ConsumerWidget {
       data: (List<Farm> items) => items,
       orElse: () => <Farm>[],
     );
+    final Map<String, CropAdviceSummary> adviceByCrop = <String, CropAdviceSummary>{};
     final Map<String, Farm> farmById = <String, Farm>{
       for (final Farm farm in farms) farm.id: farm,
     };
@@ -53,6 +58,9 @@ class CropsScreen extends ConsumerWidget {
     final int readyCount = crops.where((Crop crop) => crop.status == CropStatus.ready).length;
     final int openTaskCount = crops.fold<int>(0, (int sum, Crop crop) => sum + crop.openTaskCount);
     final double inputSpend = crops.fold<double>(0, (double sum, Crop crop) => sum + crop.syncedInputCost);
+    for (final Crop crop in crops) {
+      adviceByCrop[crop.id] = CropAdviceCatalog.summarize(crop);
+    }
 
     return SoftScreenScaffold(
       heroTitle: 'Crop records',
@@ -66,9 +74,9 @@ class CropsScreen extends ConsumerWidget {
       ),
       sections: <Widget>[
         if (eligibleFarms.isEmpty) ...<Widget>[
-          _InlineNotice(
+          const _InlineNotice(
             icon: Icons.agriculture_rounded,
-            color: const Color(0xFFFFEBD0),
+            color: Color(0xFFFFEBD0),
             message: 'Create a farm first before adding crops so each record can be linked to a real field.',
           ),
           const SizedBox(height: 18),
@@ -117,6 +125,7 @@ class CropsScreen extends ConsumerWidget {
               child: _CropCard(
                 crop: crop,
                 farmName: farmById[crop.farmId]?.name ?? 'Unknown farm',
+                advice: adviceByCrop[crop.id],
                 onOpen: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => CropDetailScreen(cropId: crop.id),
@@ -197,11 +206,13 @@ class CropsScreen extends ConsumerWidget {
       updatedAt: now,
       isSynced: crop?.isSynced ?? false,
       profileImageBase64: crop?.profileImageBase64 ?? '',
+      landSizeValue: draft.landSizeValue,
+      landSizeUnit: draft.landSizeUnit,
       targetYieldKg: draft.targetYieldKg,
       protectedEnvironment: draft.protectedEnvironment,
       todoItems: crop?.todoItems ?? const <FarmTodoItem>[],
       inputRecords: crop?.inputRecords ?? const <FarmInputRecord>[],
-      intelligenceNotes: _cropIntelligenceSummary(draft.name, draft.currentStage, draft.expectedHarvestDate),
+      intelligenceNotes: _cropIntelligenceSummary(draft.name, draft.currentStage, draft.expectedHarvestDate, landSizeText: draft.landSizeLabel),
       lastIntelligenceSyncAt: now,
     );
 
@@ -234,10 +245,30 @@ class CropsScreen extends ConsumerWidget {
             todoItems: <FarmTodoItem>[task, ...crop.todoItems],
             updatedAt: DateTime.now(),
             isSynced: false,
-            intelligenceNotes: _cropIntelligenceSummary(crop.name, crop.currentStage, crop.expectedHarvestDate),
+            intelligenceNotes: _cropIntelligenceSummary(crop.name, crop.currentStage, crop.expectedHarvestDate, landSizeText: crop.landSizeLabel),
             lastIntelligenceSyncAt: DateTime.now(),
           ),
         );
+    await _appendFarmActivity(
+      ref,
+      crop.farmId,
+      action: 'Crop reminder added',
+      detail: '${crop.name}: ${task.title}',
+      audience: FarmActivityAudience.owners,
+      relatedTaskId: task.id,
+    );
+    if (task.pushNotificationEnabled) {
+      final DateTime scheduledAt = task.dueDate.isBefore(DateTime.now())
+          ? DateTime.now().add(const Duration(minutes: 1))
+          : task.dueDate;
+      await FarmNotificationService.instance.scheduleAt(
+        id: task.id.hashCode,
+        title: 'Crop reminder: ${task.title}',
+        body: '${crop.name} is due on ${_dateLabel(task.dueDate)}.',
+        scheduledAt: scheduledAt,
+        payload: '/crops',
+      );
+    }
     if (task.pushNotificationEnabled) {
       ref.read(notificationsProvider.notifier).addNotification(
             title: 'Crop reminder: ${task.title}',
@@ -319,10 +350,17 @@ class CropsScreen extends ConsumerWidget {
             inputRecords: <FarmInputRecord>[syncedInput, ...crop.inputRecords],
             updatedAt: DateTime.now(),
             isSynced: false,
-            intelligenceNotes: _cropIntelligenceSummary(crop.name, crop.currentStage, crop.expectedHarvestDate),
+            intelligenceNotes: _cropIntelligenceSummary(crop.name, crop.currentStage, crop.expectedHarvestDate, landSizeText: crop.landSizeLabel),
             lastIntelligenceSyncAt: DateTime.now(),
           ),
         );
+    await _appendFarmActivity(
+      ref,
+      crop.farmId,
+      action: 'Crop input logged',
+      detail: '${input.name} added to ${crop.name}',
+      audience: FarmActivityAudience.workspace,
+    );
     if (context.mounted) {
       context.showSnackBar(input.totalCost > 0 ? 'Input saved and synced to finance.' : 'Input stock record saved.');
     }
@@ -330,13 +368,14 @@ class CropsScreen extends ConsumerWidget {
 
   Future<void> _toggleCropTask(BuildContext context, WidgetRef ref, Crop crop, FarmTodoItem task) async {
     final DateTime now = DateTime.now();
+    final bool nowCompleted = !task.isCompleted;
     final List<FarmTodoItem> tasks = crop.todoItems
         .map(
           (FarmTodoItem item) => item.id == task.id
               ? item.copyWith(
-                  isCompleted: !item.isCompleted,
-                  completedAt: item.isCompleted ? null : now,
-                  clearCompletedAt: item.isCompleted,
+                  isCompleted: nowCompleted,
+                  completedAt: nowCompleted ? now : null,
+                  clearCompletedAt: !nowCompleted,
                   updatedAt: now,
                 )
               : item,
@@ -345,6 +384,17 @@ class CropsScreen extends ConsumerWidget {
     await ref.read(cropsProvider.notifier).updateCrop(
           crop.copyWith(todoItems: tasks, updatedAt: now, isSynced: false),
         );
+    if (nowCompleted) {
+      await FarmNotificationService.instance.cancel(task.id.hashCode);
+      await _appendFarmActivity(
+        ref,
+        crop.farmId,
+        action: 'Crop reminder completed',
+        detail: '${crop.name}: ${task.title}',
+        audience: FarmActivityAudience.owners,
+        relatedTaskId: task.id,
+      );
+    }
     if (context.mounted) {
       context.showSnackBar('Crop task updated.');
     }
@@ -378,6 +428,58 @@ class CropsScreen extends ConsumerWidget {
       context.showSnackBar('Crop deleted');
     }
   }
+
+  Future<void> _appendFarmActivity(
+    WidgetRef ref,
+    String farmId, {
+    required String action,
+    required String detail,
+    required FarmActivityAudience audience,
+    String relatedTaskId = '',
+    String relatedMemberId = '',
+  }) async {
+    final List<Farm> farms = ref.read(farmsProvider).valueOrNull ?? <Farm>[];
+    final int index = farms.indexWhere((Farm farm) => farm.id == farmId);
+    if (index == -1) {
+      return;
+    }
+    final Farm farm = farms[index];
+    final UserProfile? profile = ref.read(userProfileProvider).valueOrNull;
+    final DateTime now = DateTime.now();
+    final FarmActivityRecord activity = FarmActivityRecord(
+      id: const Uuid().v4(),
+      actorName: profile?.fullName ?? 'You',
+      actorRole: _workspaceRoleForAccount(profile?.accountRole),
+      action: action,
+      detail: detail,
+      audience: audience,
+      relatedTaskId: relatedTaskId,
+      relatedMemberId: relatedMemberId,
+      sentToOwners: audience == FarmActivityAudience.owners,
+      createdAt: now,
+    );
+    await ref.read(farmsProvider.notifier).updateFarm(
+          farm.copyWith(
+            activityLog: <FarmActivityRecord>[activity, ...farm.activityLog],
+            updatedAt: now,
+            isSynced: false,
+          ),
+        );
+  }
+}
+
+FarmWorkspaceRole _workspaceRoleForAccount(UserAccountRole? role) {
+  switch (role) {
+    case UserAccountRole.worker:
+      return FarmWorkspaceRole.worker;
+    case UserAccountRole.partner:
+      return FarmWorkspaceRole.partner;
+    case UserAccountRole.viewer:
+      return FarmWorkspaceRole.viewer;
+    case UserAccountRole.owner:
+    case null:
+      return FarmWorkspaceRole.owner;
+  }
 }
 
 class _CropFormSheet extends StatefulWidget {
@@ -396,13 +498,14 @@ class _CropFormSheet extends StatefulWidget {
 class _CropFormSheetState extends State<_CropFormSheet> {
   late final TextEditingController _nameController;
   late final TextEditingController _varietyController;
-  late final TextEditingController _areaController;
+  late final TextEditingController _landSizeController;
   late final TextEditingController _costController;
   late final TextEditingController _cycleController;
   late final TextEditingController _targetYieldController;
   late final TextEditingController _notesController;
 
   late String _farmId;
+  late LandSizeUnit _landSizeUnit;
   late CropStage _stage;
   late CropStatus _status;
   late DateTime _plantingDate;
@@ -415,7 +518,13 @@ class _CropFormSheetState extends State<_CropFormSheet> {
     final Crop? crop = widget.initialCrop;
     _nameController = TextEditingController(text: crop?.name ?? '');
     _varietyController = TextEditingController(text: crop?.variety ?? '');
-    _areaController = TextEditingController(text: crop == null ? '' : crop.areaHa.toStringAsFixed(1));
+    _landSizeUnit = crop?.landSizeUnit ?? LandSizeUnit.hectares;
+    _landSizeController = TextEditingController(
+      text: crop == null
+          ? ''
+          : (_landSizeUnit == LandSizeUnit.plots ? crop.landSizeValue : crop.areaHa)
+              .toStringAsFixed(_landSizeUnit == LandSizeUnit.plots ? 1 : 2),
+    );
     _costController = TextEditingController(text: crop == null ? '' : crop.totalInputCost.toStringAsFixed(0));
     _cycleController = TextEditingController(text: crop?.cycleLengthDays.toString() ?? '90');
     _targetYieldController = TextEditingController(text: crop == null ? '' : crop.targetYieldKg.toStringAsFixed(0));
@@ -432,7 +541,7 @@ class _CropFormSheetState extends State<_CropFormSheet> {
   void dispose() {
     _nameController.dispose();
     _varietyController.dispose();
-    _areaController.dispose();
+    _landSizeController.dispose();
     _costController.dispose();
     _cycleController.dispose();
     _targetYieldController.dispose();
@@ -505,10 +614,29 @@ class _CropFormSheetState extends State<_CropFormSheet> {
                 ),
                 const SizedBox(height: 14),
                 AppTextField(
-                  controller: _areaController,
-                  label: 'Area planted (ha)',
-                  hint: '0.3',
+                  controller: _landSizeController,
+                  label: 'Land size',
+                  hint: _landSizeUnit == LandSizeUnit.plots ? '4.0' : '0.3',
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                ),
+                const SizedBox(height: 12),
+                _DropdownField<LandSizeUnit>(
+                  label: 'Land size unit',
+                  value: _landSizeUnit,
+                  items: LandSizeUnit.values,
+                  itemLabel: (LandSizeUnit value) => value.label,
+                  onChanged: (LandSizeUnit? value) {
+                    if (value == null) return;
+                    setState(() {
+                      final double entered = double.tryParse(_landSizeController.text.trim()) ?? 0;
+                      if (_landSizeUnit == LandSizeUnit.hectares && value == LandSizeUnit.plots) {
+                        _landSizeController.text = (entered / CropAdviceCatalog.plotToHa).toStringAsFixed(1);
+                      } else if (_landSizeUnit == LandSizeUnit.plots && value == LandSizeUnit.hectares) {
+                        _landSizeController.text = (entered * CropAdviceCatalog.plotToHa).toStringAsFixed(2);
+                      }
+                      _landSizeUnit = value;
+                    });
+                  },
                 ),
                 const SizedBox(height: 14),
                 AppTextField(
@@ -645,10 +773,10 @@ class _CropFormSheetState extends State<_CropFormSheet> {
     final String? varietyError = Validators.required(_varietyController.text, fieldName: 'Variety');
     final String? areaError = Validators.combine(
       <String? Function(String?)>[
-        (String? value) => Validators.required(value, fieldName: 'Area'),
+        (String? value) => Validators.required(value, fieldName: 'Land size'),
         Validators.cropArea,
       ],
-      _areaController.text,
+      _landSizeController.text,
     );
     final String? costError = Validators.combine(
       <String? Function(String?)>[
@@ -694,7 +822,11 @@ class _CropFormSheetState extends State<_CropFormSheet> {
         farmId: _farmId,
         name: _nameController.text.trim(),
         variety: _varietyController.text.trim(),
-        areaHa: double.parse(_areaController.text.trim()),
+        areaHa: _landSizeUnit == LandSizeUnit.plots
+            ? double.parse(_landSizeController.text.trim()) * CropAdviceCatalog.plotToHa
+            : double.parse(_landSizeController.text.trim()),
+        landSizeValue: double.parse(_landSizeController.text.trim()),
+        landSizeUnit: _landSizeUnit,
         plantingDate: _plantingDate,
         expectedHarvestDate: _expectedHarvestDate,
         currentStage: _stage,
@@ -783,6 +915,7 @@ class _CropCard extends StatelessWidget {
   const _CropCard({
     required this.crop,
     required this.farmName,
+    required this.advice,
     required this.onOpen,
     required this.onEdit,
     required this.onDelete,
@@ -793,6 +926,7 @@ class _CropCard extends StatelessWidget {
 
   final Crop crop;
   final String farmName;
+  final CropAdviceSummary? advice;
   final VoidCallback onOpen;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -866,6 +1000,7 @@ class _CropCard extends StatelessWidget {
                     runSpacing: 8,
                     children: <Widget>[
                       _MiniTag(text: _stageTag(crop.currentStage), color: const Color(0xFFE8F4D8)),
+                      _MiniTag(text: crop.landSizeLabel, color: const Color(0xFFDFF1FF)),
                       _MiniTag(
                         text: '${(crop.growthProgress * 100).round()}% cycle',
                         color: const Color(0xFFDCEEFF),
@@ -884,10 +1019,11 @@ class _CropCard extends StatelessWidget {
                   const SizedBox(height: 12),
                   _SmartRecordStrip(
                     title: crop.intelligenceNotes.isEmpty
-                        ? _cropIntelligenceSummary(crop.name, crop.currentStage, crop.expectedHarvestDate)
+                        ? _cropIntelligenceSummary(crop.name, crop.currentStage, crop.expectedHarvestDate, landSizeText: crop.landSizeLabel)
                         : crop.intelligenceNotes,
                     tasks: crop.todoItems,
                     inputs: crop.inputRecords,
+                    advice: advice,
                     onAddTask: onAddTask,
                     onAddInput: onAddInput,
                     onToggleTask: onToggleTask,
@@ -922,6 +1058,7 @@ class _SmartRecordStrip extends StatelessWidget {
     required this.title,
     required this.tasks,
     required this.inputs,
+    required this.advice,
     required this.onAddTask,
     required this.onAddInput,
     required this.onToggleTask,
@@ -930,6 +1067,7 @@ class _SmartRecordStrip extends StatelessWidget {
   final String title;
   final List<FarmTodoItem> tasks;
   final List<FarmInputRecord> inputs;
+  final CropAdviceSummary? advice;
   final VoidCallback onAddTask;
   final VoidCallback onAddInput;
   final ValueChanged<FarmTodoItem> onToggleTask;
@@ -947,6 +1085,13 @@ class _SmartRecordStrip extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(title, style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.45)),
+          if (advice != null) ...<Widget>[
+            const SizedBox(height: 8),
+            Text(
+              'Seed need: ${advice!.seedRequirementLabel} | ${advice!.fertiliserSummary}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.45),
+            ),
+          ],
           const SizedBox(height: 10),
           if (openTasks.isEmpty)
             Text('No open crop reminders. Add irrigation, scouting, harvest, or input tasks.', style: Theme.of(context).textTheme.bodySmall)
@@ -1515,7 +1660,12 @@ class _SheetShell extends StatelessWidget {
   }
 }
 
-String _cropIntelligenceSummary(String name, CropStage stage, DateTime harvestDate) {
+String _cropIntelligenceSummary(
+  String name,
+  CropStage stage,
+  DateTime harvestDate, {
+  String landSizeText = '',
+}) {
   final int days = harvestDate.difference(DateTime.now()).inDays;
   final String stageLabel = switch (stage) {
     CropStage.seeding => 'protect seedlings from heat and birds',
@@ -1524,7 +1674,8 @@ String _cropIntelligenceSummary(String name, CropStage stage, DateTime harvestDa
     CropStage.flowering => 'avoid moisture stress during flowering',
     CropStage.fruiting => 'watch harvest quality, pests, and market timing',
   };
-  return '$name intelligence: $stageLabel. ${days >= 0 ? 'Harvest window in $days days.' : 'Harvest is due; update sale or storage records.'}';
+  final String areaSnippet = landSizeText.isEmpty ? '' : ' Current land size is $landSizeText.';
+  return '$name intelligence: $stageLabel.$areaSnippet ${days >= 0 ? 'Harvest window in $days days.' : 'Harvest is due; update sale or storage records.'}';
 }
 
 String _priorityLabel(FarmTodoPriority priority) {
@@ -1584,6 +1735,8 @@ class CropDraft {
     required this.name,
     required this.variety,
     required this.areaHa,
+    required this.landSizeValue,
+    required this.landSizeUnit,
     required this.plantingDate,
     required this.expectedHarvestDate,
     required this.currentStage,
@@ -1599,6 +1752,8 @@ class CropDraft {
   final String name;
   final String variety;
   final double areaHa;
+  final double landSizeValue;
+  final LandSizeUnit landSizeUnit;
   final DateTime plantingDate;
   final DateTime expectedHarvestDate;
   final CropStage currentStage;
@@ -1608,4 +1763,8 @@ class CropDraft {
   final double targetYieldKg;
   final bool protectedEnvironment;
   final String notes;
+
+  String get landSizeLabel => landSizeUnit == LandSizeUnit.plots
+      ? '${landSizeValue.toStringAsFixed(1)} plots'
+      : '${landSizeValue.toStringAsFixed(2)} ha';
 }

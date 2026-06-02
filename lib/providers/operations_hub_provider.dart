@@ -60,6 +60,8 @@ class InventoryItem {
     required this.unitPrice,
     required this.createdAt,
     required this.updatedAt,
+    this.costPrice = 0,
+    this.emoji = '🌾',
   });
 
   final String id;
@@ -71,6 +73,8 @@ class InventoryItem {
   final double unitPrice;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final double costPrice;
+  final String emoji;
 
   InventoryItem copyWith({
     String? id,
@@ -82,6 +86,8 @@ class InventoryItem {
     double? unitPrice,
     DateTime? createdAt,
     DateTime? updatedAt,
+    double? costPrice,
+    String? emoji,
   }) {
     return InventoryItem(
       id: id ?? this.id,
@@ -93,6 +99,8 @@ class InventoryItem {
       unitPrice: unitPrice ?? this.unitPrice,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      costPrice: costPrice ?? this.costPrice,
+      emoji: emoji ?? this.emoji,
     );
   }
 
@@ -106,6 +114,8 @@ class InventoryItem {
         'unitPrice': unitPrice,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
+        'costPrice': costPrice,
+        'emoji': emoji,
       };
 
   factory InventoryItem.fromJson(Map<String, dynamic> json) {
@@ -119,6 +129,8 @@ class InventoryItem {
       unitPrice: (json['unitPrice'] as num?)?.toDouble() ?? 0,
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
       updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
+      costPrice: (json['costPrice'] as num?)?.toDouble() ?? 0,
+      emoji: json['emoji'] as String? ?? '🌾',
     );
   }
 }
@@ -210,12 +222,21 @@ class OperationsHubNotifier extends StateNotifier<OperationsHubState> {
     await _save();
   }
 
+  Future<void> deleteInventoryItem(String itemId) async {
+    final List<InventoryItem> next = state.inventory
+        .where((InventoryItem item) => item.id != itemId)
+        .toList(growable: false);
+    state = state.copyWith(inventory: next);
+    await _save();
+  }
+
   Future<void> adjustInventoryQuantity({
     required String farmId,
     required String productName,
     required String unit,
     required double deltaQuantity,
     required double unitPrice,
+    double? costPrice,
   }) async {
     final String normalizedName = productName.trim().toLowerCase();
     final int index = state.inventory.indexWhere(
@@ -240,6 +261,8 @@ class OperationsHubNotifier extends StateNotifier<OperationsHubState> {
           unitPrice: unitPrice,
           createdAt: now,
           updatedAt: now,
+          costPrice: costPrice ?? unitPrice,
+          emoji: _emojiForProductName(productName),
         ),
       );
       return;
@@ -251,8 +274,23 @@ class OperationsHubNotifier extends StateNotifier<OperationsHubState> {
       current.copyWith(
         availableQuantity: nextQuantity,
         unitPrice: unitPrice == 0 ? current.unitPrice : unitPrice,
+        costPrice: costPrice ?? current.costPrice,
         updatedAt: now,
       ),
     );
+  }
+
+  String _emojiForProductName(String name) {
+    final String lower = name.trim().toLowerCase();
+    if (lower.contains('egg')) return '🥚';
+    if (lower.contains('milk')) return '🥛';
+    if (lower.contains('goat')) return '🐐';
+    if (lower.contains('sheep')) return '🐑';
+    if (lower.contains('fish')) return '🐟';
+    if (lower.contains('feed')) return '🌽';
+    if (lower.contains('fertil')) return '🧪';
+    if (lower.contains('veg') || lower.contains('leaf') || lower.contains('lettuce')) return '🥬';
+    if (lower.contains('tomato') || lower.contains('pepper') || lower.contains('pepper')) return '🍅';
+    return '🌾';
   }
 }

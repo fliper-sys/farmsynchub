@@ -57,6 +57,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     return AuthScaffold(
       title: 'Create account',
       subtitle: 'Open your FarmSync Hub account and start organizing farm operations with a clean setup.',
+      footer: const AuthPageFooter(
+        text: 'By creating an account, you prepare your dashboard, farm records, and notifications for secure sync.',
+      ),
       child: Column(
         children: <Widget>[
           AppTextField(
@@ -151,9 +154,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             route: '/login',
           ),
         ],
-      ),
-      footer: const AuthPageFooter(
-        text: 'By creating an account, you prepare your dashboard, farm records, and notifications for secure sync.',
       ),
     );
   }

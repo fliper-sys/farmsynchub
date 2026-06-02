@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/extensions/context_extensions.dart';
@@ -10,10 +11,13 @@ import '../../../domain/models/crop.dart';
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/livestock.dart';
 import '../../../domain/models/transaction.dart';
+import '../../../domain/models/user_profile.dart';
+import '../../../providers/auth_provider.dart';
 import '../../../providers/crop_provider.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/finance_provider.dart';
 import '../../../providers/livestock_provider.dart';
+import '../../../providers/user_profile_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
@@ -27,26 +31,36 @@ class FarmsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
+    final currentUser = ref.watch(firebaseServiceProvider).currentUser;
+    final profile = ref.watch(userProfileProvider).valueOrNull;
     final AsyncValue<List<Farm>> farmsAsync = ref.watch(farmsProvider);
     final List<Farm> farms = farmsAsync.maybeWhen(
       data: (List<Farm> items) => items,
       orElse: () => <Farm>[],
     );
+    final List<Farm> visibleFarms = _visibleFarms(
+      farms,
+      currentUser: currentUser,
+      profile: profile,
+    );
+    final Set<String> visibleFarmIds = visibleFarms.map((Farm farm) => farm.id).toSet();
     final List<Crop> crops = ref.watch(cropsProvider).maybeWhen(
-      data: (List<Crop> items) => items,
+      data: (List<Crop> items) => items.where((Crop item) => visibleFarmIds.contains(item.farmId)).toList(growable: false),
       orElse: () => <Crop>[],
     );
     final List<Livestock> livestock = ref.watch(livestockProvider).maybeWhen(
-      data: (List<Livestock> items) => items,
+      data: (List<Livestock> items) =>
+          items.where((Livestock item) => visibleFarmIds.contains(item.farmId)).toList(growable: false),
       orElse: () => <Livestock>[],
     );
     final List<Transaction> transactions = ref.watch(transactionsProvider).maybeWhen(
-      data: (List<Transaction> items) => items,
+      data: (List<Transaction> items) =>
+          items.where((Transaction item) => visibleFarmIds.contains(item.farmId)).toList(growable: false),
       orElse: () => <Transaction>[],
     );
 
-    final double totalHectares = farms.fold(0, (double sum, Farm farm) => sum + farm.sizeHa);
-    final int pendingSync = farms.where((Farm farm) => !farm.isSynced).length;
+    final double totalHectares = visibleFarms.fold(0, (double sum, Farm farm) => sum + farm.sizeHa);
+    final int pendingSync = visibleFarms.where((Farm farm) => !farm.isSynced).length;
     final double inventoryValue = livestock.fold(
           0.0,
           (double sum, Livestock item) => sum + item.estimatedValue,
@@ -61,16 +75,16 @@ class FarmsScreen extends ConsumerWidget {
       heroSubtitle: 'Create farm records, update land profiles, and keep crop, livestock, and finance activity linked to the right place.',
       heroIcon: Icons.agriculture_rounded,
       heroVariant: FarmArtworkVariant.field,
-      heroBadge: '${farms.length} managed farms',
+      heroBadge: '${visibleFarms.length} managed farms',
       trailing: _HeroActionButton(
         icon: Icons.add_rounded,
         onTap: () => _openFarmSheet(context, ref),
       ),
       sections: <Widget>[
         if (farmsAsync.hasError) ...<Widget>[
-          _InlineNotice(
+          const _InlineNotice(
             message: 'Could not load farms right now. Please try again.',
-            color: const Color(0xFFFFEBD3),
+            color: Color(0xFFFFEBD3),
             icon: Icons.error_outline_rounded,
           ),
           const SizedBox(height: 18),
@@ -112,14 +126,14 @@ class FarmsScreen extends ConsumerWidget {
             label: const Text('Add farm'),
           ),
         ),
-        if (farmsAsync.isLoading && farms.isEmpty)
+        if (farmsAsync.isLoading && visibleFarms.isEmpty)
           const _FarmLoadingCard()
-        else if (farms.isEmpty)
+        else if (visibleFarms.isEmpty)
           _EmptyFarmState(
             onCreate: () => _openFarmSheet(context, ref),
           )
         else
-          ...farms.map(
+          ...visibleFarms.map(
             (Farm farm) => Padding(
               padding: const EdgeInsets.only(bottom: 14),
               child: _FarmManagementCard(
@@ -139,8 +153,8 @@ class FarmsScreen extends ConsumerWidget {
           ),
         const SizedBox(height: 18),
         const SoftSectionTitle(title: 'Farm processes'),
-        Row(
-          children: const <Widget>[
+        const Row(
+          children: <Widget>[
             Expanded(
               child: _ProcessCard(
                 title: 'Land preparation',
@@ -163,8 +177,8 @@ class FarmsScreen extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 12),
-        Row(
-          children: const <Widget>[
+        const Row(
+          children: <Widget>[
             Expanded(
               child: _ProcessCard(
                 title: 'Input management',
@@ -213,7 +227,7 @@ class FarmsScreen extends ConsumerWidget {
                 _DocumentationRow(
                   title: 'Compliance records',
                   subtitle: 'Farmer category, water source, and farm condition snapshots.',
-                  trailing: '${farms.length} profiles',
+                  trailing: '${visibleFarms.length} profiles',
                   icon: Icons.verified_user_rounded,
                   color: const Color(0xFFFFEBD0),
                 ),
@@ -291,6 +305,7 @@ class FarmsScreen extends ConsumerWidget {
 
     final FarmsNotifier notifier = ref.read(farmsProvider.notifier);
     final DateTime now = DateTime.now();
+    final currentUser = ref.read(firebaseServiceProvider).currentUser;
     final Farm nextFarm = Farm(
       id: farm?.id ?? const Uuid().v4(),
       name: draft.name,
@@ -303,6 +318,9 @@ class FarmsScreen extends ConsumerWidget {
       createdAt: farm?.createdAt ?? now,
       updatedAt: now,
       isSynced: farm?.isSynced ?? false,
+      ownerUid: farm?.ownerUid ?? currentUser?.uid ?? '',
+      ownerEmail: farm?.ownerEmail ?? currentUser?.email ?? '',
+      ownerName: farm?.ownerName ?? currentUser?.displayName ?? '',
       coverImageBase64: farm?.coverImageBase64 ?? '',
       notes: farm?.notes ?? '',
       temperatureCelsius: farm?.temperatureCelsius ?? 24,
@@ -1365,6 +1383,40 @@ class _MiniTag extends StatelessWidget {
       child: Text(text),
     );
   }
+}
+
+List<Farm> _visibleFarms(
+  List<Farm> farms, {
+  required User? currentUser,
+  required UserProfile? profile,
+}) {
+  if (currentUser == null) {
+    return farms;
+  }
+
+  final List<Farm> accessibleFarms = farms
+      .where(
+        (Farm farm) =>
+            farm.ownerUid == currentUser.uid ||
+            farm.ownerEmail == currentUser.email ||
+            farm.workspaceMembers.any(
+              (FarmWorkspaceMember member) =>
+                  member.email == currentUser.email ||
+                  member.id == currentUser.uid ||
+                  member.allowedFarmIds.contains(farm.id),
+            ),
+      )
+      .toList(growable: false);
+
+  if (accessibleFarms.isNotEmpty) {
+    return accessibleFarms;
+  }
+
+  if (profile?.accountRole != null && profile!.accountRole != UserAccountRole.owner) {
+    return <Farm>[];
+  }
+
+  return farms;
 }
 
 class FarmDraft {

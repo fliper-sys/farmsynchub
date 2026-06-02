@@ -25,19 +25,19 @@ class AppButton extends StatelessWidget {
     this.autofocus = false,
     this.clipBehavior = Clip.none,
   }) : style = ButtonStyle(
-         backgroundColor: MaterialStatePropertyAll(AppColors.primary),
-         foregroundColor: MaterialStatePropertyAll(AppColors.surfaceLight),
-         elevation: MaterialStatePropertyAll(0),
-         shadowColor: MaterialStatePropertyAll(AppColors.primary.withOpacity(0.2)),
-         shape: MaterialStatePropertyAll(
+         backgroundColor: WidgetStatePropertyAll(AppColors.primary),
+         foregroundColor: WidgetStatePropertyAll(AppColors.surfaceLight),
+         elevation: WidgetStatePropertyAll(0),
+         shadowColor: WidgetStatePropertyAll(AppColors.primary.withOpacity(0.2)),
+         shape: WidgetStatePropertyAll(
            RoundedRectangleBorder(
              borderRadius: BorderRadius.circular(24),
            ),
          ),
-         padding: MaterialStatePropertyAll(
-           EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+         padding: WidgetStatePropertyAll(
+           const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
          ),
-         textStyle: MaterialStatePropertyAll(
+         textStyle: WidgetStatePropertyAll(
            GoogleFonts.plusJakartaSans(
               fontSize: 16,
               fontWeight: FontWeight.w700,
@@ -55,17 +55,17 @@ class AppButton extends StatelessWidget {
     this.autofocus = false,
     this.clipBehavior = Clip.none,
   }) : style = ButtonStyle(
-         foregroundColor: MaterialStatePropertyAll(AppColors.primary),
-         elevation: MaterialStatePropertyAll(0),
-         shape: MaterialStatePropertyAll(
+         foregroundColor: WidgetStatePropertyAll(AppColors.primary),
+         elevation: WidgetStatePropertyAll(0),
+         shape: WidgetStatePropertyAll(
            RoundedRectangleBorder(
              borderRadius: BorderRadius.circular(24),
            ),
          ),
-         padding: MaterialStatePropertyAll(
-           EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+         padding: WidgetStatePropertyAll(
+           const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
          ),
-         textStyle: MaterialStatePropertyAll(
+         textStyle: WidgetStatePropertyAll(
            GoogleFonts.plusJakartaSans(
               fontSize: 16,
               fontWeight: FontWeight.w700,
@@ -86,15 +86,15 @@ class AppButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ButtonStyle fallbackStyle = ButtonStyle(
-      padding: const MaterialStatePropertyAll(
+      padding: const WidgetStatePropertyAll(
         EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       ),
-      shape: MaterialStatePropertyAll(
+      shape: WidgetStatePropertyAll(
         RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
         ),
       ),
-      textStyle: MaterialStatePropertyAll(
+      textStyle: WidgetStatePropertyAll(
         GoogleFonts.plusJakartaSans(
           fontSize: 16,
           fontWeight: FontWeight.w700,
@@ -104,9 +104,9 @@ class AppButton extends StatelessWidget {
     final ButtonStyle baseStyle = style ?? fallbackStyle;
     final ButtonStyle resolvedStyle = isSecondary
         ? baseStyle.copyWith(
-            backgroundColor: MaterialStatePropertyAll(Theme.of(context).colorScheme.surface),
-            foregroundColor: MaterialStatePropertyAll(Theme.of(context).colorScheme.primary),
-            side: MaterialStatePropertyAll(
+            backgroundColor: WidgetStatePropertyAll(Theme.of(context).colorScheme.surface),
+            foregroundColor: WidgetStatePropertyAll(Theme.of(context).colorScheme.primary),
+            side: WidgetStatePropertyAll(
               BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
             ),
           )

@@ -1,4 +1,5 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/remote/sync_service.dart';
@@ -12,6 +13,10 @@ import 'crop_provider.dart';
 import 'farm_provider.dart';
 import 'finance_provider.dart';
 import 'livestock_provider.dart';
+
+final connectivityProvider = StreamProvider<ConnectivityResult>((Ref ref) {
+  return Connectivity().onConnectivityChanged.distinct();
+});
 
 class SyncOverview {
   const SyncOverview({
@@ -50,7 +55,28 @@ final syncServiceProvider = Provider<SyncService>((Ref ref) {
 
 final syncOverviewProvider =
     StateNotifierProvider<SyncOverviewNotifier, SyncOverview>((Ref ref) {
-  return SyncOverviewNotifier(ref);
+  final SyncOverviewNotifier notifier = SyncOverviewNotifier(ref);
+
+  ref.listen<AsyncValue<List<Farm>>>(farmsProvider, (_, __) {
+    notifier.refreshOverview();
+  });
+  ref.listen<AsyncValue<List<Crop>>>(cropsProvider, (_, __) {
+    notifier.refreshOverview();
+  });
+  ref.listen<AsyncValue<List<Livestock>>>(livestockProvider, (_, __) {
+    notifier.refreshOverview();
+  });
+  ref.listen<AsyncValue<List<Transaction>>>(transactionsProvider, (_, __) {
+    notifier.refreshOverview();
+  });
+  ref.listen<AsyncValue<User?>>(authStateProvider, (_, __) {
+    notifier.refreshOverview();
+  });
+  ref.listen<AsyncValue<ConnectivityResult>>(connectivityProvider, (_, __) {
+    notifier.refreshOverview();
+  });
+
+  return notifier;
 });
 
 class SyncOverviewNotifier extends StateNotifier<SyncOverview> {

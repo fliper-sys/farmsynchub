@@ -19,6 +19,7 @@ import 'presentation/screens/crops/crops_screen.dart';
 import 'presentation/screens/learn/learn_screen.dart';
 import 'presentation/screens/livestock/livestock_screen.dart';
 import 'presentation/screens/finance/finance_screen.dart';
+import 'presentation/screens/news/news_screen.dart';
 import 'presentation/screens/profile/profile_screen.dart';
 import 'presentation/screens/profile/account_setup_screen.dart';
 import 'presentation/screens/settings/settings_screen.dart';
@@ -170,9 +171,14 @@ final GoRouter _router = GoRouter(
           redirect: _authRedirect,
         ),
         GoRoute(
-      path: '/profile',
-      builder: (context, state) => const ProfileScreen(),
-      redirect: _authRedirect,
+          path: '/news',
+          builder: (context, state) => const NewsScreen(),
+          redirect: _authRedirect,
+        ),
+        GoRoute(
+          path: '/profile',
+          builder: (context, state) => const ProfileScreen(),
+          redirect: _authRedirect,
         ),
       ],
     ),
@@ -234,8 +240,10 @@ int _getCurrentIndex(String path) {
       return 3;
     case '/finance':
       return 4;
-    case '/profile':
+    case '/news':
       return 5;
+    case '/profile':
+      return 6;
     default:
       return 0;
   }
@@ -254,6 +262,8 @@ String _getPathForIndex(int index) {
     case 4:
       return '/finance';
     case 5:
+      return '/news';
+    case 6:
       return '/profile';
     default:
       return '/dashboard';

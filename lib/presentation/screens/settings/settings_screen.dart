@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../providers/ai_chat_provider.dart';
 import '../../../providers/app_preferences_provider.dart';
+import '../../../providers/auth_provider.dart';
 import '../../../providers/sync_provider.dart';
 import '../../../providers/theme_provider.dart';
 import '../../common/widgets/app_card.dart';
@@ -28,12 +30,23 @@ class SettingsScreen extends ConsumerWidget {
     final ThemeMode themeMode = ref.watch(themeProvider);
     final ai = ref.watch(aiChatProvider);
     final AppLanguage appLanguage = ref.watch(appLanguageProvider);
+    final AppSettings appSettings = ref.watch(appSettingsProvider);
     final SyncOverview syncOverview = ref.watch(syncOverviewProvider);
+    final User? currentUser = ref.watch(firebaseServiceProvider).currentUser;
     final ThemeData theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: Text(
+          'Settings',
+          style: theme.textTheme.titleLarge?.copyWith(
+            color: theme.brightness == Brightness.dark
+                ? theme.colorScheme.onSurface
+                : theme.colorScheme.primary,
+          ),
+        ),
+        backgroundColor: theme.colorScheme.surface,
+        iconTheme: IconThemeData(color: theme.colorScheme.primary),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _launchUri(context, _whatsAppUri),
@@ -59,7 +72,14 @@ class SettingsScreen extends ConsumerWidget {
           child: const Icon(Icons.settings_suggest_rounded),
         ),
         sections: <Widget>[
-          const SoftSectionTitle(title: 'Appearance'),
+          SoftSectionTitle(
+            title: 'Appearance',
+            titleStyle: theme.textTheme.titleMedium?.copyWith(
+              color: theme.brightness == Brightness.dark
+                  ? theme.colorScheme.onSurface
+                  : theme.colorScheme.primary,
+            ),
+          ),
           AppCard(
             color: theme.colorScheme.surfaceContainerHighest,
             child: Padding(
@@ -143,11 +163,42 @@ class SettingsScreen extends ConsumerWidget {
                     onTap: () => _showAppLanguageSheet(context, ref),
                   ),
                   const SizedBox(height: 12),
-                  const _SettingsRow(
-                    icon: Icons.record_voice_over_rounded,
-                    title: 'Voice mode',
-                    value: 'Enabled',
-                    tint: Color(0xFFE9F4DB),
+                  _ToggleSettingsRow(
+                    icon: Icons.notifications_active_rounded,
+                    title: 'Push notifications',
+                    subtitle: 'Receive app alerts and farm updates.',
+                    value: appSettings.notificationsEnabled,
+                    tint: const Color(0xFFE9F4DB),
+                    onChanged: (bool value) => ref.read(appSettingsProvider.notifier).setNotificationsEnabled(value),
+                  ),
+                  const SizedBox(height: 12),
+                  _ToggleSettingsRow(
+                    icon: Icons.alarm_on_rounded,
+                    title: 'Reminder notifications',
+                    subtitle: 'Crop and livestock reminders can notify you on time.',
+                    value: appSettings.reminderNotificationsEnabled,
+                    tint: const Color(0xFFDFF1FF),
+                    onChanged: (bool value) =>
+                        ref.read(appSettingsProvider.notifier).setReminderNotificationsEnabled(value),
+                  ),
+                  const SizedBox(height: 12),
+                  _ToggleSettingsRow(
+                    icon: Icons.sync_rounded,
+                    title: 'Auto sync when online',
+                    subtitle: 'Sync offline records as soon as internet is available.',
+                    value: appSettings.autoSyncEnabled,
+                    tint: const Color(0xFFFFEBD0),
+                    onChanged: (bool value) => ref.read(appSettingsProvider.notifier).setAutoSyncEnabled(value),
+                  ),
+                  const SizedBox(height: 12),
+                  _ToggleSettingsRow(
+                    icon: Icons.fingerprint_rounded,
+                    title: 'Biometric lock',
+                    subtitle: 'Require device biometric unlock on supported phones.',
+                    value: appSettings.biometricLockEnabled,
+                    tint: const Color(0xFFEAD9FF),
+                    onChanged: (bool value) =>
+                        ref.read(appSettingsProvider.notifier).setBiometricLockEnabled(value),
                   ),
                   const SizedBox(height: 12),
                   const _SettingsRow(
@@ -155,6 +206,42 @@ class SettingsScreen extends ConsumerWidget {
                     title: 'Export reports',
                     value: 'Weekly PDF',
                     tint: Color(0xFFFFEBD0),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          const SoftSectionTitle(title: 'Security'),
+          AppCard(
+            color: theme.colorScheme.surfaceContainerHighest,
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                children: <Widget>[
+                  _SettingsRow(
+                    icon: Icons.lock_reset_rounded,
+                    title: 'Change password',
+                    value: currentUser?.email ?? 'Update account password',
+                    tint: const Color(0xFFEAD9FF),
+                    onTap: () => _showChangePasswordSheet(context, ref),
+                  ),
+                  const SizedBox(height: 12),
+                  _SettingsRow(
+                    icon: Icons.email_rounded,
+                    title: 'Send password reset',
+                    value: currentUser?.email ?? 'Reset via email',
+                    tint: const Color(0xFFDFF1FF),
+                    onTap: currentUser?.email == null
+                        ? null
+                        : () => _sendPasswordReset(context, ref, currentUser!.email!),
+                  ),
+                  const SizedBox(height: 12),
+                  _SettingsRow(
+                    icon: Icons.verified_user_rounded,
+                    title: 'Email verification status',
+                    value: currentUser?.emailVerified == true ? 'Verified' : 'Pending',
+                    tint: const Color(0xFFE9F4DB),
                   ),
                 ],
               ),
@@ -282,7 +369,7 @@ class SettingsScreen extends ConsumerWidget {
         return Container(
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           ),
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
           child: Column(
@@ -309,6 +396,164 @@ class SettingsScreen extends ConsumerWidget {
         );
       },
     );
+  }
+
+  Future<void> _showChangePasswordSheet(BuildContext context, WidgetRef ref) async {
+    final TextEditingController currentPasswordController = TextEditingController();
+    final TextEditingController newPasswordController = TextEditingController();
+    final TextEditingController confirmPasswordController = TextEditingController();
+    bool isSaving = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext sheetContext) {
+        return StatefulBuilder(
+          builder: (BuildContext context, void Function(void Function()) setState) {
+            Future<void> submit() async {
+              final String currentPassword = currentPasswordController.text.trim();
+              final String newPassword = newPasswordController.text.trim();
+              final String confirmPassword = confirmPasswordController.text.trim();
+
+              if (currentPassword.isEmpty || newPassword.isEmpty || confirmPassword.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Fill all password fields first.')),
+                );
+                return;
+              }
+              if (newPassword.length < 6) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Choose a stronger password with at least 6 characters.')),
+                );
+                return;
+              }
+              if (newPassword != confirmPassword) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('New passwords do not match.')),
+                );
+                return;
+              }
+
+              setState(() => isSaving = true);
+              try {
+                await ref.read(authControllerProvider.notifier).changePassword(
+                      currentPassword: currentPassword,
+                      newPassword: newPassword,
+                    );
+                if (context.mounted) {
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Password changed successfully.')),
+                  );
+                }
+              } catch (error) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Could not change password: $error')),
+                  );
+                }
+              } finally {
+                if (context.mounted) {
+                  setState(() => isSaving = false);
+                }
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                ),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Center(
+                      child: Container(
+                        width: 42,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      'Change password',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Enter your current password, then choose a new one.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 18),
+                    TextField(
+                      controller: currentPasswordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Current password',
+                        prefixIcon: Icon(Icons.lock_outline_rounded),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: newPasswordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'New password',
+                        prefixIcon: Icon(Icons.lock_reset_rounded),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: confirmPasswordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Confirm new password',
+                        prefixIcon: Icon(Icons.verified_user_rounded),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: isSaving ? null : submit,
+                        child: Text(isSaving ? 'Saving...' : 'Update password'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _sendPasswordReset(BuildContext context, WidgetRef ref, String email) async {
+    try {
+      await ref.read(authControllerProvider.notifier).sendPasswordResetEmail(email);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Password reset email sent to $email')),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not send reset email: $error')),
+        );
+      }
+    }
   }
 }
 
@@ -448,6 +693,71 @@ class _SettingsRow extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ToggleSettingsRow extends StatelessWidget {
+  const _ToggleSettingsRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.tint,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final Color tint;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: tint,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(icon),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: value,
+            onChanged: onChanged,
+          ),
+        ],
       ),
     );
   }

@@ -1,9 +1,17 @@
+enum UserAccountRole {
+  owner,
+  worker,
+  partner,
+  viewer,
+}
+
 class UserProfile {
   const UserProfile({
     required this.uid,
     required this.fullName,
     required this.email,
     required this.phoneNumber,
+    required this.accountRole,
     required this.ward,
     required this.primaryFocus,
     required this.bio,
@@ -16,6 +24,7 @@ class UserProfile {
   final String fullName;
   final String email;
   final String phoneNumber;
+  final UserAccountRole accountRole;
   final String ward;
   final String primaryFocus;
   final String bio;
@@ -34,6 +43,7 @@ class UserProfile {
     String? fullName,
     String? email,
     String? phoneNumber,
+    UserAccountRole? accountRole,
     String? ward,
     String? primaryFocus,
     String? bio,
@@ -46,6 +56,7 @@ class UserProfile {
       fullName: fullName ?? this.fullName,
       email: email ?? this.email,
       phoneNumber: phoneNumber ?? this.phoneNumber,
+      accountRole: accountRole ?? this.accountRole,
       ward: ward ?? this.ward,
       primaryFocus: primaryFocus ?? this.primaryFocus,
       bio: bio ?? this.bio,
@@ -60,6 +71,7 @@ class UserProfile {
         'fullName': fullName,
         'email': email,
         'phoneNumber': phoneNumber,
+        'accountRole': accountRole.name,
         'ward': ward,
         'primaryFocus': primaryFocus,
         'bio': bio,
@@ -74,6 +86,10 @@ class UserProfile {
       fullName: json['fullName'] as String? ?? '',
       email: json['email'] as String? ?? '',
       phoneNumber: json['phoneNumber'] as String? ?? '',
+      accountRole: UserAccountRole.values.firstWhere(
+        (UserAccountRole value) => value.name == json['accountRole'],
+        orElse: () => UserAccountRole.owner,
+      ),
       ward: json['ward'] as String? ?? '',
       primaryFocus: json['primaryFocus'] as String? ?? '',
       bio: json['bio'] as String? ?? '',

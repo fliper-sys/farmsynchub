@@ -19,6 +19,8 @@ import '../../../providers/auth_provider.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/finance_provider.dart';
 import '../../../providers/operations_hub_provider.dart';
+import 'product_detail_screen.dart';
+import 'finance_workspace_screen.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
@@ -56,18 +58,15 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       heroIcon: Icons.point_of_sale_rounded,
       heroVariant: FarmArtworkVariant.dashboard,
       heroBadge: '${sales.length} sales - ${procurement.length} procurement',
-      trailing: Column(
-        children: <Widget>[
-          AppButton.primary(
-            onPressed: farms.isEmpty ? null : () => _openTransactionSheet(context, farms: farms),
-            child: const Text('Record deal'),
+      trailing: _FinanceHeroActions(
+        isExporting: _isExporting,
+        onOpenWorkspace: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const FinanceWorkspaceScreen(),
           ),
-          const SizedBox(height: 10),
-          AppButton.secondary(
-            onPressed: _isExporting || transactions.isEmpty ? null : () => _exportReport(snapshot, transactions),
-            child: Text(_isExporting ? 'Exporting...' : 'Export PDF'),
-          ),
-        ],
+        ),
+        onRecordDeal: farms.isEmpty ? null : () => _openTransactionSheet(context, farms: farms),
+        onExportPdf: _isExporting || transactions.isEmpty ? null : () => _exportReport(snapshot, transactions),
       ),
       sections: <Widget>[
         Row(
@@ -132,7 +131,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         const SizedBox(height: 18),
         const SoftSectionTitle(title: 'Products for sale'),
         if (operations.inventory.isEmpty)
-          _EmptyFinanceCard(
+          const _EmptyFinanceCard(
             message: 'No inventory items yet. Add a farm product so sales can deduct available stock.',
           )
         else
@@ -141,6 +140,11 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
               padding: const EdgeInsets.only(bottom: 12),
               child: AppCard(
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ProductDetailScreen(productId: item.id),
+                  ),
+                ),
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                   leading: Container(
@@ -150,13 +154,17 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                       color: const Color(0xFFE5F5D8),
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: const Icon(Icons.inventory_2_rounded),
+                    alignment: Alignment.center,
+                    child: Text(
+                      item.emoji,
+                      style: const TextStyle(fontSize: 22),
+                    ),
                   ),
                   title: Text(item.name),
                   subtitle: Padding(
                     padding: const EdgeInsets.only(top: 6),
                     child: Text(
-                      '${item.availableQuantity.toStringAsFixed(2)} ${item.unit} available - ${CurrencyUtils.formatCurrency(item.unitPrice)} per ${item.unit}',
+                      '${item.availableQuantity.toStringAsFixed(2)} ${item.unit} available - Cost ${CurrencyUtils.formatCurrency(item.costPrice)} / Sell ${CurrencyUtils.formatCurrency(item.unitPrice)}',
                     ),
                   ),
                   trailing: Text(item.category),
@@ -167,7 +175,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         const SizedBox(height: 18),
         const SoftSectionTitle(title: 'Customers and providers'),
         if (operations.partners.isEmpty)
-          _EmptyFinanceCard(
+          const _EmptyFinanceCard(
             message: 'No registered buyers or providers yet. Add contacts so receipts and email notices can reuse them.',
           )
         else
@@ -202,7 +210,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         const SizedBox(height: 18),
         const SoftSectionTitle(title: 'Sales history'),
         if (sales.isEmpty)
-          _EmptyFinanceCard(
+          const _EmptyFinanceCard(
             message: 'No sales recorded yet.',
           )
         else
@@ -218,7 +226,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         const SizedBox(height: 18),
         const SoftSectionTitle(title: 'Procurement'),
         if (procurement.isEmpty)
-          _EmptyFinanceCard(
+          const _EmptyFinanceCard(
             message: 'No procurement records yet.',
           )
         else
@@ -302,6 +310,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
             category: draft.category,
             unit: draft.unit,
             availableQuantity: draft.quantity,
+            costPrice: draft.costPrice,
             unitPrice: draft.unitPrice,
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
@@ -386,6 +395,63 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       MaterialPageRoute<void>(
         builder: (_) => ReceiptDetailScreen(transaction: transaction),
       ),
+    );
+  }
+}
+
+class _FinanceHeroActions extends StatelessWidget {
+  const _FinanceHeroActions({
+    required this.isExporting,
+    required this.onOpenWorkspace,
+    required this.onRecordDeal,
+    required this.onExportPdf,
+  });
+
+  final bool isExporting;
+  final VoidCallback onOpenWorkspace;
+  final VoidCallback? onRecordDeal;
+  final VoidCallback? onExportPdf;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final bool compact = constraints.maxWidth < 230;
+        final Widget openButton = SizedBox(
+          width: compact ? double.infinity : 160,
+          child: AppButton.primary(
+            onPressed: onOpenWorkspace,
+            child: const Text('Open workspace'),
+          ),
+        );
+        final Widget recordButton = SizedBox(
+          width: compact ? double.infinity : 160,
+          child: AppButton.primary(
+            onPressed: onRecordDeal,
+            child: const Text('Record deal'),
+          ),
+        );
+        final Widget exportButton = SizedBox(
+          width: compact ? double.infinity : 160,
+          child: AppButton.secondary(
+            onPressed: onExportPdf,
+            child: Text(isExporting ? 'Exporting...' : 'Export PDF'),
+          ),
+        );
+
+        return SizedBox(
+          width: compact ? 180 : 320,
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: <Widget>[
+              openButton,
+              recordButton,
+              exportButton,
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -838,7 +904,7 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
   late String _farmId;
   TransactionRecordKind _recordKind = TransactionRecordKind.sale;
   TransactionCategory _category = TransactionCategory.cropSale;
-  DateTime _transactionDate = DateTime.now();
+  final DateTime _transactionDate = DateTime.now();
   String? _partnerId;
 
   @override
@@ -1083,6 +1149,7 @@ class _InventorySheetState extends State<_InventorySheet> {
   final TextEditingController _categoryController = TextEditingController(text: 'Farm produce');
   final TextEditingController _quantityController = TextEditingController();
   final TextEditingController _unitController = TextEditingController(text: 'bag');
+  final TextEditingController _costPriceController = TextEditingController();
   final TextEditingController _unitPriceController = TextEditingController();
   late String _farmId;
 
@@ -1098,6 +1165,7 @@ class _InventorySheetState extends State<_InventorySheet> {
     _categoryController.dispose();
     _quantityController.dispose();
     _unitController.dispose();
+    _costPriceController.dispose();
     _unitPriceController.dispose();
     super.dispose();
   }
@@ -1135,7 +1203,9 @@ class _InventorySheetState extends State<_InventorySheet> {
             const SizedBox(height: 12),
             AppTextField(controller: _unitController, label: 'Unit'),
             const SizedBox(height: 12),
-            AppTextField(controller: _unitPriceController, label: 'Unit price'),
+            AppTextField(controller: _costPriceController, label: 'Cost price'),
+            const SizedBox(height: 12),
+            AppTextField(controller: _unitPriceController, label: 'Selling price'),
             const SizedBox(height: 18),
             SizedBox(
               width: double.infinity,
@@ -1158,6 +1228,7 @@ class _InventorySheetState extends State<_InventorySheet> {
         category: _categoryController.text.trim(),
         quantity: double.tryParse(_quantityController.text.trim()) ?? 0,
         unit: _unitController.text.trim(),
+        costPrice: double.tryParse(_costPriceController.text.trim()) ?? 0,
         unitPrice: double.tryParse(_unitPriceController.text.trim()) ?? 0,
       ),
     );
@@ -1354,6 +1425,7 @@ class _InventoryDraft {
     required this.category,
     required this.quantity,
     required this.unit,
+    required this.costPrice,
     required this.unitPrice,
   });
 
@@ -1362,5 +1434,6 @@ class _InventoryDraft {
   final String category;
   final double quantity;
   final String unit;
+  final double costPrice;
   final double unitPrice;
 }

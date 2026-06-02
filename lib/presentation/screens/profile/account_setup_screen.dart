@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -7,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/validators.dart';
@@ -39,6 +37,7 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
   bool _isSaving = false;
   bool _isRunningFirestoreCheck = false;
   String _selectedCountryCode = '+234';
+  UserAccountRole _accountRole = UserAccountRole.owner;
   String _profileImageBase64 = '';
   String? _debugMessage;
 
@@ -84,6 +83,7 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
         _wardController.text = profile?.ward ?? '';
         _focusController.text = profile?.primaryFocus ?? '';
         _bioController.text = profile?.bio ?? '';
+        _accountRole = profile?.accountRole ?? UserAccountRole.owner;
         _profileImageBase64 = profile?.profileImageBase64 ?? '';
       },
     );
@@ -191,6 +191,42 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
                   hint: 'Smallholder farmer focused on tomatoes, peppers, and broilers.',
                   maxLines: 3,
                   textCapitalization: TextCapitalization.sentences,
+                ),
+                const SizedBox(height: 14),
+                InputDecorator(
+                  decoration: InputDecoration(
+                    labelText: 'Account role',
+                    filled: true,
+                    fillColor: theme.colorScheme.surface,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<UserAccountRole>(
+                      value: _accountRole,
+                      isExpanded: true,
+                      items: UserAccountRole.values
+                          .map(
+                            (UserAccountRole role) => DropdownMenuItem<UserAccountRole>(
+                              value: role,
+                              child: Text(_accountRoleLabel(role)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (UserAccountRole? value) {
+                        if (value != null) {
+                          setState(() => _accountRole = value);
+                        }
+                      },
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -337,6 +373,7 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
           fullName: '',
           email: currentUser.email ?? '',
           phoneNumber: '',
+          accountRole: UserAccountRole.owner,
           ward: '',
           primaryFocus: '',
           bio: '',
@@ -350,6 +387,7 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
       fullName: _nameController.text.trim(),
       email: _emailController.text.trim(),
       phoneNumber: '$_selectedCountryCode${_phoneController.text.trim()}',
+      accountRole: _accountRole,
       ward: _wardController.text.trim(),
       primaryFocus: _focusController.text.trim(),
       bio: _bioController.text.trim(),
@@ -401,6 +439,7 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
       fullName: _nameController.text.trim(),
       email: _emailController.text.trim().isEmpty ? (currentUser.email ?? '') : _emailController.text.trim(),
       phoneNumber: '$_selectedCountryCode${_phoneController.text.trim()}',
+      accountRole: _accountRole,
       ward: _wardController.text.trim(),
       primaryFocus: _focusController.text.trim(),
       bio: _bioController.text.trim(),
@@ -493,6 +532,19 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
       return error.message ?? 'Could not save to Firestore right now.';
     }
     return 'Could not save profile right now. ${error.toString()}';
+  }
+
+  String _accountRoleLabel(UserAccountRole role) {
+    switch (role) {
+      case UserAccountRole.owner:
+        return 'Owner';
+      case UserAccountRole.worker:
+        return 'Worker';
+      case UserAccountRole.partner:
+        return 'Partner';
+      case UserAccountRole.viewer:
+        return 'Viewer';
+    }
   }
 }
 

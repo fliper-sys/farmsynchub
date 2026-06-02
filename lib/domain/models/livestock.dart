@@ -34,6 +34,94 @@ enum AnimalGrowthStage {
   finishing,
 }
 
+enum LivestockRecordPeriod {
+  daily,
+  weekly,
+  monthly,
+}
+
+class LivestockProductionRecord {
+  const LivestockProductionRecord({
+    required this.id,
+    required this.period,
+    required this.recordedAt,
+    required this.createdAt,
+    required this.updatedAt,
+    this.weightKg = 0,
+    this.feedKg = 0,
+    this.eggCount = 0,
+    this.eggUnit = '',
+    this.notes = '',
+  });
+
+  final String id;
+  final LivestockRecordPeriod period;
+  final DateTime recordedAt;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final double weightKg;
+  final double feedKg;
+  final int eggCount;
+  final String eggUnit;
+  final String notes;
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'id': id,
+        'period': period.name,
+        'recordedAt': recordedAt.toIso8601String(),
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
+        'weightKg': weightKg,
+        'feedKg': feedKg,
+        'eggCount': eggCount,
+        'eggUnit': eggUnit,
+        'notes': notes,
+      };
+
+  factory LivestockProductionRecord.fromJson(Map<String, dynamic> json) {
+    return LivestockProductionRecord(
+      id: json['id'] as String? ?? '',
+      period: LivestockRecordPeriod.values.firstWhere(
+        (LivestockRecordPeriod value) => value.name == json['period'],
+        orElse: () => LivestockRecordPeriod.daily,
+      ),
+      recordedAt: DateTime.tryParse(json['recordedAt'] as String? ?? '') ?? DateTime.now(),
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
+      weightKg: (json['weightKg'] as num?)?.toDouble() ?? 0,
+      feedKg: (json['feedKg'] as num?)?.toDouble() ?? 0,
+      eggCount: (json['eggCount'] as num?)?.toInt() ?? 0,
+      eggUnit: json['eggUnit'] as String? ?? '',
+      notes: json['notes'] as String? ?? '',
+    );
+  }
+
+  LivestockProductionRecord copyWith({
+    LivestockRecordPeriod? period,
+    DateTime? recordedAt,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    double? weightKg,
+    double? feedKg,
+    int? eggCount,
+    String? eggUnit,
+    String? notes,
+  }) {
+    return LivestockProductionRecord(
+      id: id,
+      period: period ?? this.period,
+      recordedAt: recordedAt ?? this.recordedAt,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      weightKg: weightKg ?? this.weightKg,
+      feedKg: feedKg ?? this.feedKg,
+      eggCount: eggCount ?? this.eggCount,
+      eggUnit: eggUnit ?? this.eggUnit,
+      notes: notes ?? this.notes,
+    );
+  }
+}
+
 /// Livestock model representing animals on a farm.
 class Livestock {
   const Livestock({
@@ -56,10 +144,16 @@ class Livestock {
     required this.createdAt,
     required this.updatedAt,
     required this.isSynced,
+    this.emoji = '🐾',
     this.profileImageBase64 = '',
+    this.coverImageBase64 = '',
+    this.averageWeightKg = 0,
+    this.dailyFeedKg = 0,
+    this.dailyWaterLitres = 0,
     this.mortalityCount = 0,
     this.todoItems = const <FarmTodoItem>[],
     this.inputRecords = const <FarmInputRecord>[],
+    this.productionLogs = const <LivestockProductionRecord>[],
     this.stockNotes = '',
     this.intelligenceNotes = '',
     this.lastIntelligenceSyncAt,
@@ -84,10 +178,16 @@ class Livestock {
   final DateTime createdAt;
   final DateTime updatedAt;
   final bool isSynced;
+  final String emoji;
   final String profileImageBase64;
+  final String coverImageBase64;
+  final double averageWeightKg;
+  final double dailyFeedKg;
+  final double dailyWaterLitres;
   final int mortalityCount;
   final List<FarmTodoItem> todoItems;
   final List<FarmInputRecord> inputRecords;
+  final List<LivestockProductionRecord> productionLogs;
   final String stockNotes;
   final String intelligenceNotes;
   final DateTime? lastIntelligenceSyncAt;
@@ -122,10 +222,16 @@ class Livestock {
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
         'isSynced': isSynced,
+        'emoji': emoji,
         'profileImageBase64': profileImageBase64,
+        'coverImageBase64': coverImageBase64,
+        'averageWeightKg': averageWeightKg,
+        'dailyFeedKg': dailyFeedKg,
+        'dailyWaterLitres': dailyWaterLitres,
         'mortalityCount': mortalityCount,
         'todoItems': todoItems.map((FarmTodoItem item) => item.toJson()).toList(),
         'inputRecords': inputRecords.map((FarmInputRecord item) => item.toJson()).toList(),
+        'productionLogs': productionLogs.map((LivestockProductionRecord item) => item.toJson()).toList(),
         'stockNotes': stockNotes,
         'intelligenceNotes': intelligenceNotes,
         'lastIntelligenceSyncAt': lastIntelligenceSyncAt?.toIso8601String(),
@@ -163,13 +269,21 @@ class Livestock {
         createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
         updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
         isSynced: json['isSynced'] as bool? ?? false,
+        emoji: json['emoji'] as String? ?? '🐾',
         profileImageBase64: json['profileImageBase64'] as String? ?? '',
+        coverImageBase64: json['coverImageBase64'] as String? ?? '',
+        averageWeightKg: (json['averageWeightKg'] as num?)?.toDouble() ?? 0,
+        dailyFeedKg: (json['dailyFeedKg'] as num?)?.toDouble() ?? 0,
+        dailyWaterLitres: (json['dailyWaterLitres'] as num?)?.toDouble() ?? 0,
         mortalityCount: (json['mortalityCount'] as num?)?.toInt() ?? 0,
         todoItems: _jsonObjectList(json['todoItems'])
             .map(FarmTodoItem.fromJson)
             .toList(),
         inputRecords: _jsonObjectList(json['inputRecords'])
             .map(FarmInputRecord.fromJson)
+            .toList(),
+        productionLogs: _jsonObjectList(json['productionLogs'])
+            .map(LivestockProductionRecord.fromJson)
             .toList(),
         stockNotes: json['stockNotes'] as String? ?? '',
         intelligenceNotes: json['intelligenceNotes'] as String? ?? '',
@@ -194,10 +308,16 @@ class Livestock {
     int? targetMaturityMonths,
     DateTime? updatedAt,
     bool? isSynced,
+    String? emoji,
     String? profileImageBase64,
+    String? coverImageBase64,
+    double? averageWeightKg,
+    double? dailyFeedKg,
+    double? dailyWaterLitres,
     int? mortalityCount,
     List<FarmTodoItem>? todoItems,
     List<FarmInputRecord>? inputRecords,
+    List<LivestockProductionRecord>? productionLogs,
     String? stockNotes,
     String? intelligenceNotes,
     DateTime? lastIntelligenceSyncAt,
@@ -222,10 +342,16 @@ class Livestock {
         createdAt: createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
         isSynced: isSynced ?? this.isSynced,
+        emoji: emoji ?? this.emoji,
         profileImageBase64: profileImageBase64 ?? this.profileImageBase64,
+        coverImageBase64: coverImageBase64 ?? this.coverImageBase64,
+        averageWeightKg: averageWeightKg ?? this.averageWeightKg,
+        dailyFeedKg: dailyFeedKg ?? this.dailyFeedKg,
+        dailyWaterLitres: dailyWaterLitres ?? this.dailyWaterLitres,
         mortalityCount: mortalityCount ?? this.mortalityCount,
         todoItems: todoItems ?? this.todoItems,
         inputRecords: inputRecords ?? this.inputRecords,
+        productionLogs: productionLogs ?? this.productionLogs,
         stockNotes: stockNotes ?? this.stockNotes,
         intelligenceNotes: intelligenceNotes ?? this.intelligenceNotes,
         lastIntelligenceSyncAt: lastIntelligenceSyncAt ?? this.lastIntelligenceSyncAt,

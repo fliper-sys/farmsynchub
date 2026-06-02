@@ -78,21 +78,33 @@ class ProfileScreen extends ConsumerWidget {
           AppCard(
             color: theme.colorScheme.surfaceContainerHighest,
             onTap: () => context.push('/account-setup'),
-            child: const ListTile(
-              contentPadding: EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-              leading: CircleAvatar(
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              leading: const CircleAvatar(
                 backgroundColor: Color(0xFFFFEBD0),
                 child: Icon(Icons.person_add_alt_1_rounded),
               ),
-              title: Text('Complete your account setup'),
-              subtitle: Text('Add your ward, production focus, and contact details for a fuller workspace.'),
-              trailing: Icon(Icons.chevron_right_rounded),
+              title: Text(
+                'Complete your account setup',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: theme.brightness == Brightness.dark
+                      ? theme.colorScheme.onSurface
+                      : theme.colorScheme.primary,
+                ),
+              ),
+              subtitle: const Text('Add your ward, production focus, and contact details for a fuller workspace.'),
+              trailing: const Icon(Icons.chevron_right_rounded),
             ),
           ),
           const SizedBox(height: 18),
         ],
         SoftSectionTitle(
           title: 'Account hub',
+          titleStyle: theme.textTheme.titleMedium?.copyWith(
+            color: theme.brightness == Brightness.dark
+                ? theme.colorScheme.onSurface
+                : theme.colorScheme.primary,
+          ),
           action: TextButton(
             onPressed: () => context.push('/settings'),
             child: const Text('Open settings'),
@@ -101,19 +113,33 @@ class ProfileScreen extends ConsumerWidget {
         AppCard(
           color: theme.colorScheme.surfaceContainerHighest,
           onTap: () => context.push('/settings'),
-          child: const ListTile(
-            contentPadding: EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-            leading: CircleAvatar(
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+            leading: const CircleAvatar(
               backgroundColor: Color(0xFFDFF1FF),
               child: Icon(Icons.settings_suggest_rounded),
             ),
-            title: Text('App settings'),
-            subtitle: Text('Theme, language, sync status, alerts, and exports'),
-            trailing: Icon(Icons.chevron_right_rounded),
+            title: Text(
+              'App settings',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: theme.brightness == Brightness.dark
+                    ? theme.colorScheme.onSurface
+                    : theme.colorScheme.primary,
+              ),
+            ),
+            subtitle: const Text('Theme, language, sync status, alerts, and exports'),
+            trailing: const Icon(Icons.chevron_right_rounded),
           ),
         ),
         const SizedBox(height: 18),
-        const SoftSectionTitle(title: 'Personal details'),
+        SoftSectionTitle(
+          title: 'Personal details',
+          titleStyle: theme.textTheme.titleMedium?.copyWith(
+            color: theme.brightness == Brightness.dark
+                ? theme.colorScheme.onSurface
+                : theme.colorScheme.primary,
+          ),
+        ),
         AppCard(
           color: theme.colorScheme.surfaceContainerHighest,
           child: Padding(
@@ -152,23 +178,23 @@ class ProfileScreen extends ConsumerWidget {
               child: SoftInfoChip(
                 label: 'Language',
                 value: language.label,
-                color: Color(0xFFDFF1FF),
+                color: const Color(0xFFDFF1FF),
               ),
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: 10),
             Expanded(
               child: SoftInfoChip(
                 label: 'Theme',
                 value: Theme.of(context).brightness == Brightness.dark ? 'Dark' : 'Light',
-                color: Color(0xFFE9F4DB),
+                color: const Color(0xFFE9F4DB),
               ),
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: 10),
             Expanded(
               child: SoftInfoChip(
                 label: 'Setup',
                 value: isProfileComplete ? 'Complete' : 'Pending',
-                color: Color(0xFFFFEBD0),
+                color: const Color(0xFFFFEBD0),
               ),
             ),
           ],

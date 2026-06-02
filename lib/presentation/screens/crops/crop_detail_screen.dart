@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/utils/currency_utils.dart';
+import '../../../data/services/crop_advice_catalog.dart';
 import '../../../domain/models/crop.dart';
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/farm_activity.dart';
 import '../../../providers/crop_provider.dart';
 import '../../../providers/farm_provider.dart';
+import '../../../providers/operations_hub_provider.dart';
 import '../../common/widgets/app_card.dart';
+import '../../common/widgets/app_button.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
 
@@ -51,6 +55,7 @@ class CropDetailScreen extends ConsumerWidget {
     final double progress = crop.growthProgress;
     final List<_CyclePoint> cycle = _buildCropCycle(crop.currentStage);
     final Iterable<FarmTodoItem> openTasks = crop.todoItems.where((FarmTodoItem item) => !item.isCompleted);
+    final CropAdviceSummary advice = CropAdviceCatalog.summarize(crop);
 
     return Scaffold(
       appBar: AppBar(title: Text(crop.name)),
@@ -100,6 +105,37 @@ class CropDetailScreen extends ConsumerWidget {
                         isActive: point.isActive,
                       ),
                     ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          const SoftSectionTitle(title: 'Crop intelligence'),
+          AppCard(
+            color: theme.colorScheme.surfaceContainerHighest,
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text('${advice.profile.name} guidance', style: theme.textTheme.titleLarge),
+                  const SizedBox(height: 8),
+                  Text('Detected land size: ${advice.areaLabel}', style: theme.textTheme.bodyMedium),
+                  const SizedBox(height: 8),
+                  Text('Seed requirement: ${advice.seedRequirementLabel}', style: theme.textTheme.bodyMedium),
+                  const SizedBox(height: 8),
+                  Text('Fertiliser: ${advice.fertiliserSummary}', style: theme.textTheme.bodyMedium?.copyWith(height: 1.5)),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: advice.otherInputs.map((String item) => _Pill(text: item, color: const Color(0xFFE8F4D8))).toList(growable: false),
+                  ),
+                  const SizedBox(height: 12),
+                  AppButton.secondary(
+                    onPressed: () => _openPreviousRecommendations(context, crop!),
+                    child: const Text('Previous recommendations'),
                   ),
                 ],
               ),
@@ -199,9 +235,139 @@ class CropDetailScreen extends ConsumerWidget {
               tint: Color(0xFFFFEBD0),
             ),
           ],
+          const SizedBox(height: 18),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: AppButton.primary(
+                  onPressed: () => _openHarvestSheet(context, ref, crop!),
+                  child: const Text('Record harvest'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: AppButton.secondary(
+                  onPressed: () => _renewCrop(context, ref, crop!),
+                  child: const Text('Renew crop'),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
+  }
+
+  Future<void> _openPreviousRecommendations(BuildContext context, Crop crop) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PreviousCropRecommendationsScreen(cropName: crop.name),
+      ),
+    );
+  }
+
+  Future<void> _openHarvestSheet(BuildContext context, WidgetRef ref, Crop crop) async {
+    final _HarvestDraft? draft = await showModalBottomSheet<_HarvestDraft>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _HarvestSheet(crop: crop),
+    );
+    if (draft == null) {
+      return;
+    }
+
+    final DateTime now = DateTime.now();
+    final double quantityHa = draft.quantity;
+    await ref.read(operationsHubProvider.notifier).adjustInventoryQuantity(
+          farmId: crop.farmId,
+          productName: crop.name,
+          unit: draft.unit,
+          deltaQuantity: quantityHa,
+          unitPrice: 0,
+          costPrice: crop.areaHa > 0 ? crop.totalInputCost / crop.areaHa : 0,
+        );
+    await ref.read(cropsProvider.notifier).updateCrop(
+          crop.copyWith(
+            status: CropStatus.harvested,
+            currentStage: CropStage.fruiting,
+            updatedAt: now,
+            isSynced: false,
+            intelligenceNotes: '${crop.name} harvested in ${draft.quantityLabel}.',
+            lastIntelligenceSyncAt: now,
+          ),
+        );
+    final List<Farm> farms = ref.read(farmsProvider).valueOrNull ?? <Farm>[];
+    Farm? farm;
+    for (final Farm item in farms) {
+      if (item.id == crop.farmId) {
+        farm = item;
+        break;
+      }
+    }
+    if (farm != null) {
+      await ref.read(farmsProvider.notifier).updateFarm(
+            farm.copyWith(
+              activityLog: <FarmActivityRecord>[
+                FarmActivityRecord(
+                  id: const Uuid().v4(),
+                  actorName: 'You',
+                  actorRole: FarmWorkspaceRole.owner,
+                  action: 'Crop harvested',
+                  detail: '${crop.name} recorded as ${draft.quantityLabel}',
+                  audience: FarmActivityAudience.owners,
+                  createdAt: now,
+                ),
+                ...farm.activityLog,
+              ],
+              updatedAt: now,
+              isSynced: false,
+            ),
+          );
+    }
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Harvest recorded and stock updated.')),
+      );
+    }
+  }
+
+  Future<void> _renewCrop(BuildContext context, WidgetRef ref, Crop crop) async {
+    final DateTime now = DateTime.now();
+    final Crop nextCrop = Crop(
+      id: const Uuid().v4(),
+      farmId: crop.farmId,
+      name: crop.name,
+      variety: crop.variety,
+      areaHa: crop.areaHa,
+      plantingDate: now,
+      expectedHarvestDate: now.add(Duration(days: crop.cycleLengthDays)),
+      currentStage: CropStage.seeding,
+      status: CropStatus.planted,
+      totalInputCost: 0,
+      cycleLengthDays: crop.cycleLengthDays,
+      notes: crop.notes,
+      createdAt: now,
+      updatedAt: now,
+      isSynced: false,
+      profileImageBase64: crop.profileImageBase64,
+      landSizeValue: crop.landSizeValue,
+      landSizeUnit: crop.landSizeUnit,
+      targetYieldKg: crop.targetYieldKg,
+      protectedEnvironment: crop.protectedEnvironment,
+      todoItems: const <FarmTodoItem>[],
+      inputRecords: const <FarmInputRecord>[],
+      intelligenceNotes: 'Renewed from previous ${crop.name} cycle.',
+      lastIntelligenceSyncAt: now,
+    );
+    await ref.read(cropsProvider.notifier).addCrop(
+          nextCrop,
+        );
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('New crop cycle created from this profile.')),
+      );
+    }
   }
 }
 
@@ -264,6 +430,157 @@ String _stageAdvice(CropStage stage) {
     case CropStage.fruiting:
       return 'Track quality, picking window, and market prep.';
   }
+}
+
+class PreviousCropRecommendationsScreen extends ConsumerWidget {
+  const PreviousCropRecommendationsScreen({
+    super.key,
+    required this.cropName,
+  });
+
+  final String cropName;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final List<Crop> crops = ref.watch(cropsProvider).valueOrNull ?? <Crop>[];
+    final String normalized = cropName.trim().toLowerCase();
+    final List<Crop> previous = crops
+        .where((Crop crop) => crop.name.trim().toLowerCase() == normalized)
+        .toList(growable: false)
+      ..sort((Crop a, Crop b) => b.updatedAt.compareTo(a.updatedAt));
+
+    return Scaffold(
+      appBar: AppBar(title: Text('$cropName history')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: <Widget>[
+          const SoftSectionTitle(title: 'Previous recommendations'),
+          AppCard(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'This page collects earlier $cropName cycles so you can reuse what worked, adjust fertilizer plans, and avoid repeating problems.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (previous.isEmpty)
+            const AppCard(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('No previous crop profiles found yet. Once you complete a cycle, its notes and recommendations will appear here.'),
+              ),
+            )
+          else
+            ...previous.map(
+              (Crop crop) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: AppCard(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(crop.variety, style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 8),
+                        Text('Land: ${crop.landSizeLabel} | Stage: ${_stageLabel(crop.currentStage)}'),
+                        const SizedBox(height: 6),
+                        Text(crop.intelligenceNotes.isEmpty ? 'No stored notes for this cycle.' : crop.intelligenceNotes),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HarvestSheet extends StatefulWidget {
+  const _HarvestSheet({required this.crop});
+
+  final Crop crop;
+
+  @override
+  State<_HarvestSheet> createState() => _HarvestSheetState();
+}
+
+class _HarvestSheetState extends State<_HarvestSheet> {
+  final TextEditingController _quantityController = TextEditingController(text: '1');
+  String _unit = 'kg';
+
+  @override
+  void dispose() {
+    _quantityController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text('Record harvest', style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _quantityController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Quantity'),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: _unit,
+              items: const <String>['kg', 'ton', 'bags']
+                  .map((String value) => DropdownMenuItem<String>(value: value, child: Text(value)))
+                  .toList(growable: false),
+              onChanged: (String? value) {
+                if (value != null) setState(() => _unit = value);
+              },
+              decoration: const InputDecoration(labelText: 'Unit'),
+            ),
+            const SizedBox(height: 18),
+            AppButton.primary(
+              onPressed: () {
+                final double quantity = double.tryParse(_quantityController.text.trim()) ?? 0;
+                Navigator.of(context).pop(
+                  _HarvestDraft(
+                    quantity: quantity,
+                    unit: _unit,
+                  ),
+                );
+              },
+              child: const Text('Save harvest'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HarvestDraft {
+  const _HarvestDraft({
+    required this.quantity,
+    required this.unit,
+  });
+
+  final double quantity;
+  final String unit;
+
+  String get quantityLabel => '${quantity.toStringAsFixed(quantity >= 10 ? 0 : 1)} $unit';
 }
 
 class _MetricCard extends StatelessWidget {

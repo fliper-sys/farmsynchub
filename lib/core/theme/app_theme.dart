@@ -178,20 +178,20 @@ abstract final class AppTheme {
             : colorScheme.primary.withOpacity(0.18),
         height: 86,
         elevation: 0,
-        labelTextStyle: MaterialStateProperty.resolveWith(
-          (Set<MaterialState> states) => GoogleFonts.plusJakartaSans(
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (Set<WidgetState> states) => GoogleFonts.plusJakartaSans(
             fontSize: 12,
-            fontWeight: states.contains(MaterialState.selected)
+            fontWeight: states.contains(WidgetState.selected)
                 ? FontWeight.w700
                 : FontWeight.w600,
-            color: states.contains(MaterialState.selected)
+            color: states.contains(WidgetState.selected)
                 ? colorScheme.primary
                 : colorScheme.onSurfaceVariant,
           ),
         ),
-        iconTheme: MaterialStateProperty.resolveWith(
-          (Set<MaterialState> states) => IconThemeData(
-            color: states.contains(MaterialState.selected)
+        iconTheme: WidgetStateProperty.resolveWith(
+          (Set<WidgetState> states) => IconThemeData(
+            color: states.contains(WidgetState.selected)
                 ? colorScheme.primary
                 : colorScheme.onSurfaceVariant,
             size: 24,

@@ -8,6 +8,7 @@ abstract final class AppStrings {
   static const String crops = 'Crops';
   static const String livestock = 'Livestock';
   static const String finance = 'Finance';
+  static const String news = 'News';
   static const String profile = 'Profile';
 
   // Sync Status

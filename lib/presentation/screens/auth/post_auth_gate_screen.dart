@@ -126,10 +126,10 @@ class _PostAuthGateScreenState extends ConsumerState<PostAuthGateScreen>
                           ),
                         ],
                       ),
-                      child: FarmSceneArtwork(
+                      child: const FarmSceneArtwork(
                         height: 260,
                         variant: FarmArtworkVariant.dashboard,
-                        borderRadius: const BorderRadius.all(Radius.circular(32)),
+                        borderRadius: BorderRadius.all(Radius.circular(32)),
                       ),
                     ),
                     const SizedBox(height: 28),

@@ -48,31 +48,31 @@ class LoadingShimmerCard extends StatelessWidget {
           color: Theme.of(context).colorScheme.outlineVariant,
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+      child: const Padding(
+        padding: EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const LoadingShimmer(width: 40, height: 40, borderRadius: 20),
-                const SizedBox(width: 12),
+                LoadingShimmer(width: 40, height: 40, borderRadius: 20),
+                SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const LoadingShimmer(width: double.infinity, height: 16),
-                      const SizedBox(height: 8),
-                      const LoadingShimmer(width: 100, height: 12),
+                      LoadingShimmer(width: double.infinity, height: 16),
+                      SizedBox(height: 8),
+                      LoadingShimmer(width: 100, height: 12),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            const LoadingShimmer(width: double.infinity, height: 12),
-            const SizedBox(height: 8),
-            const LoadingShimmer(width: 150, height: 12),
+            SizedBox(height: 12),
+            LoadingShimmer(width: double.infinity, height: 12),
+            SizedBox(height: 8),
+            LoadingShimmer(width: 150, height: 12),
           ],
         ),
       ),

@@ -6,15 +6,19 @@ import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/utils/currency_utils.dart';
+import '../../../core/utils/date_utils.dart' as app_date;
 import '../../../core/utils/validators.dart';
 import '../../../domain/models/crop.dart';
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/livestock.dart';
 import '../../../domain/models/transaction.dart';
+import '../../../domain/models/user_profile.dart';
+import '../../../providers/auth_provider.dart';
 import '../../../providers/crop_provider.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/finance_provider.dart';
 import '../../../providers/livestock_provider.dart';
+import '../../../providers/user_profile_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
@@ -33,6 +37,8 @@ class FarmDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final currentUser = ref.watch(firebaseServiceProvider).currentUser;
+    final UserProfile? profile = ref.watch(userProfileProvider).valueOrNull;
     final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
     Farm? farm;
     for (final Farm item in farms) {
@@ -45,6 +51,13 @@ class FarmDetailScreen extends ConsumerWidget {
       return Scaffold(
         appBar: AppBar(),
         body: const Center(child: Text('Farm not found.')),
+      );
+    }
+
+    if (!_canAccessFarm(farm, currentUser?.uid, currentUser?.email, profile?.accountRole)) {
+      return Scaffold(
+        appBar: AppBar(),
+        body: const Center(child: Text('You do not have access to this farm.')),
       );
     }
 
@@ -87,7 +100,7 @@ class FarmDetailScreen extends ConsumerWidget {
         heroVariant: farm.coverImageBase64.isEmpty
             ? FarmArtworkVariant.field
             : FarmArtworkVariant.crops,
-        heroBadge: farm.isSynced ? 'Synced profile' : 'Pending sync',
+        heroBadge: '${farm.workspaceMembers.length} members - ${farm.openWorkspaceTaskCount} open tasks',
         trailing: Column(
           children: <Widget>[
             SizedBox(
@@ -218,6 +231,100 @@ class FarmDetailScreen extends ConsumerWidget {
               ),
             ),
           ),
+          const SizedBox(height: 18),
+          const SoftSectionTitle(title: 'Workspace board'),
+          AppCard(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: <Widget>[
+                  _Tag(
+                    text: '${farm.workspaceMembers.length} members',
+                    color: const Color(0xFFE5F5D8),
+                  ),
+                  _Tag(
+                    text: '${farm.ownerCount} owners',
+                    color: const Color(0xFFDFF1FF),
+                  ),
+                  _Tag(
+                    text: '${farm.openWorkspaceTaskCount} open tasks',
+                    color: const Color(0xFFFFEBD0),
+                  ),
+                  _Tag(
+                    text: '${farm.financeEnabledMemberCount} finance users',
+                    color: const Color(0xFFEDE8FF),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: <Widget>[
+              SizedBox(
+                width: 180,
+                child: AppButton.primary(
+                  onPressed: () => _openMemberSheet(context, ref, farm!),
+                  child: const Text('Add member'),
+                ),
+              ),
+              SizedBox(
+                width: 180,
+                child: AppButton.secondary(
+                  onPressed: () => _openTaskSheet(context, ref, farm!),
+                  child: const Text('Add task'),
+                ),
+              ),
+              SizedBox(
+                width: 180,
+                child: AppButton.secondary(
+                  onPressed: () => _openActivitySheet(context, ref, farm!),
+                  child: const Text('Log update'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          const SoftSectionTitle(title: 'Workspace members'),
+          if (farm.workspaceMembers.isEmpty)
+            const _EmptyInfoCard(message: 'Invite workers, partners, or co-owners to share access to this farm.')
+          else
+            ...farm.workspaceMembers.take(6).map(
+              (FarmWorkspaceMember member) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _WorkspaceMemberTile(member: member),
+              ),
+            ),
+          const SizedBox(height: 18),
+          const SoftSectionTitle(title: 'Task board'),
+          if (farm.workspaceTasks.isEmpty)
+            const _EmptyInfoCard(message: 'No shared tasks yet. Add a schedule, assign it, and let the team update progress here.')
+          else
+            ...farm.workspaceTasks.take(6).map(
+              (FarmWorkspaceTask task) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _WorkspaceTaskTile(
+                  task: task,
+                  onToggle: () => _toggleWorkspaceTask(context, ref, farm!, task),
+                ),
+              ),
+            ),
+          const SizedBox(height: 18),
+          const SoftSectionTitle(title: 'Activity log'),
+          if (farm.activityLog.isEmpty)
+            const _EmptyInfoCard(message: 'Activity updates from workers and partners will appear here for the farm owner or co-owners.')
+          else
+            ...farm.activityLog.take(6).map(
+              (FarmActivityRecord activity) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _ActivityLogTile(activity: activity),
+              ),
+            ),
           const SizedBox(height: 18),
           const SoftSectionTitle(title: 'Farm notes'),
           AppCard(
@@ -540,6 +647,1000 @@ class FarmDetailScreen extends ConsumerWidget {
             isSynced: false,
           ),
         );
+  }
+
+  Future<void> _openMemberSheet(BuildContext context, WidgetRef ref, Farm farm) async {
+    final _WorkspaceMemberDraft? draft = await showModalBottomSheet<_WorkspaceMemberDraft>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) => _WorkspaceMemberSheet(farm: farm),
+    );
+    if (draft == null) {
+      return;
+    }
+
+    final DateTime now = DateTime.now();
+    final FarmWorkspaceMember member = FarmWorkspaceMember(
+      id: const Uuid().v4(),
+      name: draft.name,
+      email: draft.email,
+      phone: draft.phone,
+      role: draft.role,
+      allowedFarmIds: draft.allowedFarmIds.isEmpty ? <String>[farm.id] : draft.allowedFarmIds,
+      financeAccess: draft.financeAccess,
+      canManageTasks: draft.canManageTasks,
+      canManageSchedule: draft.canManageSchedule,
+      canPostUpdates: draft.canPostUpdates,
+      canViewActivityLog: draft.canViewActivityLog,
+      createdAt: now,
+      updatedAt: now,
+    );
+    final Farm updated = farm.copyWith(
+      workspaceMembers: <FarmWorkspaceMember>[member, ...farm.workspaceMembers],
+      activityLog: <FarmActivityRecord>[
+        FarmActivityRecord(
+          id: const Uuid().v4(),
+          actorName: 'System',
+          actorRole: FarmWorkspaceRole.owner,
+          action: 'Added member',
+          detail: '${member.name} joined as ${member.roleLabel} with ${member.financeAccessLabel}.',
+          audience: farm.ownerCount > 1 ? FarmActivityAudience.owners : FarmActivityAudience.workspace,
+          createdAt: now,
+        ),
+        ...farm.activityLog,
+      ],
+      updatedAt: now,
+      isSynced: false,
+    );
+    await ref.read(farmsProvider.notifier).updateFarm(updated);
+  }
+
+  Future<void> _openTaskSheet(BuildContext context, WidgetRef ref, Farm farm) async {
+    final _WorkspaceTaskDraft? draft = await showModalBottomSheet<_WorkspaceTaskDraft>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) => _WorkspaceTaskSheet(farm: farm),
+    );
+    if (draft == null) {
+      return;
+    }
+
+    final DateTime now = DateTime.now();
+    final FarmWorkspaceTask task = FarmWorkspaceTask(
+      id: const Uuid().v4(),
+      title: draft.title,
+      details: draft.details,
+      assigneeName: draft.assigneeName,
+      assigneeRole: draft.assigneeRole,
+      dueAt: draft.dueAt,
+      status: FarmTaskStatus.open,
+      reminderEnabled: draft.reminderEnabled,
+      reminderLeadMinutes: draft.reminderLeadMinutes,
+      createdBy: draft.createdBy,
+      updatedBy: draft.createdBy,
+      createdAt: now,
+      updatedAt: now,
+    );
+    final Farm updated = farm.copyWith(
+      workspaceTasks: <FarmWorkspaceTask>[task, ...farm.workspaceTasks],
+      activityLog: <FarmActivityRecord>[
+        FarmActivityRecord(
+          id: const Uuid().v4(),
+          actorName: draft.createdBy,
+          actorRole: FarmWorkspaceRole.owner,
+          action: 'Added task',
+          detail: '${task.title} is due ${app_date.DateUtils.formatDateTime(task.dueAt)}.',
+          audience: FarmActivityAudience.owners,
+          relatedTaskId: task.id,
+          createdAt: now,
+        ),
+        ...farm.activityLog,
+      ],
+      updatedAt: now,
+      isSynced: false,
+    );
+    await ref.read(farmsProvider.notifier).updateFarm(updated);
+  }
+
+  Future<void> _openActivitySheet(BuildContext context, WidgetRef ref, Farm farm) async {
+    final _WorkspaceActivityDraft? draft = await showModalBottomSheet<_WorkspaceActivityDraft>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) => _WorkspaceActivitySheet(farm: farm),
+    );
+    if (draft == null) {
+      return;
+    }
+
+    final DateTime now = DateTime.now();
+    final FarmActivityRecord activity = FarmActivityRecord(
+      id: const Uuid().v4(),
+      actorName: draft.actorName,
+      actorRole: draft.actorRole,
+      action: draft.action,
+      detail: draft.detail,
+      audience: draft.audience,
+      sentToOwners: draft.sentToOwners || draft.audience == FarmActivityAudience.owners,
+      createdAt: now,
+    );
+    final Farm updated = farm.copyWith(
+      activityLog: <FarmActivityRecord>[activity, ...farm.activityLog],
+      updatedAt: now,
+      isSynced: false,
+    );
+    await ref.read(farmsProvider.notifier).updateFarm(updated);
+  }
+
+  Future<void> _toggleWorkspaceTask(BuildContext context, WidgetRef ref, Farm farm, FarmWorkspaceTask task) async {
+    final DateTime now = DateTime.now();
+    final bool markDone = !task.isCompleted;
+    final FarmWorkspaceTask updatedTask = task.copyWith(
+      status: markDone ? FarmTaskStatus.done : FarmTaskStatus.open,
+      completedAt: markDone ? now : null,
+      clearCompletedAt: !markDone,
+      updatedBy: 'Workspace',
+      updatedAt: now,
+    );
+    final List<FarmWorkspaceTask> nextTasks = farm.workspaceTasks
+        .map((FarmWorkspaceTask current) => current.id == task.id ? updatedTask : current)
+        .toList(growable: false);
+    final Farm updated = farm.copyWith(
+      workspaceTasks: nextTasks,
+      activityLog: <FarmActivityRecord>[
+        FarmActivityRecord(
+          id: const Uuid().v4(),
+          actorName: updatedTask.assigneeName.isEmpty ? 'Workspace team' : updatedTask.assigneeName,
+          actorRole: updatedTask.assigneeRole,
+          action: markDone ? 'Completed task' : 'Reopened task',
+          detail: '${updatedTask.title} was ${markDone ? 'marked done' : 'reopened'}.',
+          audience: FarmActivityAudience.owners,
+          relatedTaskId: updatedTask.id,
+          createdAt: now,
+        ),
+        ...farm.activityLog,
+      ],
+      updatedAt: now,
+      isSynced: false,
+    );
+    await ref.read(farmsProvider.notifier).updateFarm(updated);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(markDone ? 'Task completed.' : 'Task reopened.')),
+      );
+    }
+  }
+}
+
+bool _canAccessFarm(
+  Farm farm,
+  String? currentUserId,
+  String? currentUserEmail,
+  UserAccountRole? accountRole,
+) {
+  if (currentUserId == null && currentUserEmail == null) {
+    return true;
+  }
+  if (accountRole == null || accountRole == UserAccountRole.owner) {
+    return true;
+  }
+  return farm.ownerUid == currentUserId ||
+      farm.ownerEmail == currentUserEmail ||
+      farm.workspaceMembers.any(
+        (FarmWorkspaceMember member) =>
+            member.email == currentUserEmail ||
+            member.id == currentUserId ||
+            member.allowedFarmIds.contains(farm.id),
+      );
+}
+
+class _WorkspaceMemberDraft {
+  const _WorkspaceMemberDraft({
+    required this.name,
+    required this.email,
+    required this.phone,
+    required this.role,
+    required this.allowedFarmIds,
+    required this.financeAccess,
+    required this.canManageTasks,
+    required this.canManageSchedule,
+    required this.canPostUpdates,
+    required this.canViewActivityLog,
+  });
+
+  final String name;
+  final String email;
+  final String phone;
+  final FarmWorkspaceRole role;
+  final List<String> allowedFarmIds;
+  final FarmFinanceAccess financeAccess;
+  final bool canManageTasks;
+  final bool canManageSchedule;
+  final bool canPostUpdates;
+  final bool canViewActivityLog;
+}
+
+class _WorkspaceTaskDraft {
+  const _WorkspaceTaskDraft({
+    required this.title,
+    required this.details,
+    required this.assigneeName,
+    required this.assigneeRole,
+    required this.dueAt,
+    required this.reminderEnabled,
+    required this.reminderLeadMinutes,
+    required this.createdBy,
+  });
+
+  final String title;
+  final String details;
+  final String assigneeName;
+  final FarmWorkspaceRole assigneeRole;
+  final DateTime dueAt;
+  final bool reminderEnabled;
+  final int reminderLeadMinutes;
+  final String createdBy;
+}
+
+class _WorkspaceActivityDraft {
+  const _WorkspaceActivityDraft({
+    required this.actorName,
+    required this.actorRole,
+    required this.action,
+    required this.detail,
+    required this.audience,
+    required this.sentToOwners,
+  });
+
+  final String actorName;
+  final FarmWorkspaceRole actorRole;
+  final String action;
+  final String detail;
+  final FarmActivityAudience audience;
+  final bool sentToOwners;
+}
+
+class _WorkspaceMemberSheet extends StatefulWidget {
+  const _WorkspaceMemberSheet({required this.farm});
+
+  final Farm farm;
+
+  @override
+  State<_WorkspaceMemberSheet> createState() => _WorkspaceMemberSheetState();
+}
+
+class _WorkspaceMemberSheetState extends State<_WorkspaceMemberSheet> {
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _farmsController = TextEditingController();
+  FarmWorkspaceRole _role = FarmWorkspaceRole.worker;
+  FarmFinanceAccess _financeAccess = FarmFinanceAccess.viewOnly;
+  bool _canManageTasks = true;
+  bool _canManageSchedule = true;
+  bool _canPostUpdates = true;
+  bool _canViewActivityLog = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _farmsController.text = widget.farm.id;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _farmsController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SingleChildScrollView(
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text('Add workspace member', style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 14),
+              AppTextField(controller: _nameController, label: 'Full name', hint: 'Worker, partner, or co-owner'),
+              const SizedBox(height: 12),
+              AppTextField(controller: _emailController, label: 'Email', hint: 'member@farm.com'),
+              const SizedBox(height: 12),
+              AppTextField(controller: _phoneController, label: 'Phone', hint: '+234 or local number'),
+              const SizedBox(height: 12),
+              _EnumDropdownField<FarmWorkspaceRole>(
+                label: 'Role',
+                value: _role,
+                items: FarmWorkspaceRole.values,
+                itemLabel: _roleLabel,
+                onChanged: (FarmWorkspaceRole? value) {
+                  if (value != null) {
+                    setState(() => _role = value);
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              _EnumDropdownField<FarmFinanceAccess>(
+                label: 'Finance access',
+                value: _financeAccess,
+                items: FarmFinanceAccess.values,
+                itemLabel: _financeAccessLabel,
+                onChanged: (FarmFinanceAccess? value) {
+                  if (value != null) {
+                    setState(() => _financeAccess = value);
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              AppTextField(
+                controller: _farmsController,
+                label: 'Accessible farms',
+                hint: 'Comma-separated farm IDs',
+              ),
+              const SizedBox(height: 12),
+              AppCard(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                child: Column(
+                  children: <Widget>[
+                    CheckboxListTile(
+                      value: _canManageTasks,
+                      onChanged: (bool? value) => setState(() => _canManageTasks = value ?? false),
+                      title: const Text('Can manage tasks'),
+                      dense: true,
+                    ),
+                    CheckboxListTile(
+                      value: _canManageSchedule,
+                      onChanged: (bool? value) => setState(() => _canManageSchedule = value ?? false),
+                      title: const Text('Can manage schedules'),
+                      dense: true,
+                    ),
+                    CheckboxListTile(
+                      value: _canPostUpdates,
+                      onChanged: (bool? value) => setState(() => _canPostUpdates = value ?? false),
+                      title: const Text('Can post updates'),
+                      dense: true,
+                    ),
+                    CheckboxListTile(
+                      value: _canViewActivityLog,
+                      onChanged: (bool? value) => setState(() => _canViewActivityLog = value ?? false),
+                      title: const Text('Can view activity log'),
+                      dense: true,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: AppButton.primary(
+                  onPressed: _submit,
+                  child: const Text('Save member'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _submit() {
+    final String? nameError = Validators.required(_nameController.text.trim(), fieldName: 'Full name');
+    if (nameError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(nameError)));
+      return;
+    }
+    final String? emailError = Validators.required(_emailController.text.trim(), fieldName: 'Email') ?? Validators.email(_emailController.text.trim());
+    if (emailError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(emailError)));
+      return;
+    }
+
+    final List<String> farmIds = _farmsController.text
+        .split(',')
+        .map((String value) => value.trim())
+        .where((String value) => value.isNotEmpty)
+        .toList(growable: false);
+
+    Navigator.of(context).pop(
+      _WorkspaceMemberDraft(
+        name: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        phone: _phoneController.text.trim(),
+        role: _role,
+        allowedFarmIds: farmIds.isEmpty ? <String>[widget.farm.id] : farmIds,
+        financeAccess: _financeAccess,
+        canManageTasks: _canManageTasks,
+        canManageSchedule: _canManageSchedule,
+        canPostUpdates: _canPostUpdates,
+        canViewActivityLog: _canViewActivityLog,
+      ),
+    );
+  }
+}
+
+class _WorkspaceTaskSheet extends StatefulWidget {
+  const _WorkspaceTaskSheet({required this.farm});
+
+  final Farm farm;
+
+  @override
+  State<_WorkspaceTaskSheet> createState() => _WorkspaceTaskSheetState();
+}
+
+class _WorkspaceTaskSheetState extends State<_WorkspaceTaskSheet> {
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _detailsController = TextEditingController();
+  final TextEditingController _assigneeController = TextEditingController();
+  final TextEditingController _createdByController = TextEditingController(text: 'Farm owner');
+  FarmWorkspaceRole _role = FarmWorkspaceRole.worker;
+  DateTime _dueAt = DateTime.now().add(const Duration(days: 1));
+  bool _reminderEnabled = true;
+  int _reminderLeadMinutes = 60;
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _detailsController.dispose();
+    _assigneeController.dispose();
+    _createdByController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SingleChildScrollView(
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text('Add workspace task', style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 14),
+              AppTextField(controller: _titleController, label: 'Task title', hint: 'Irrigation check, feed run, delivery'),
+              const SizedBox(height: 12),
+              AppTextField(controller: _detailsController, label: 'Details', maxLines: 3),
+              const SizedBox(height: 12),
+              AppTextField(controller: _assigneeController, label: 'Assignee', hint: 'Worker name or partner'),
+              const SizedBox(height: 12),
+              _EnumDropdownField<FarmWorkspaceRole>(
+                label: 'Assignee role',
+                value: _role,
+                items: FarmWorkspaceRole.values,
+                itemLabel: _roleLabel,
+                onChanged: (FarmWorkspaceRole? value) {
+                  if (value != null) {
+                    setState(() => _role = value);
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              AppCard(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text('Due date', style: Theme.of(context).textTheme.labelLarge),
+                      const SizedBox(height: 10),
+                      Text(app_date.DateUtils.formatDateTime(_dueAt)),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: AppButton.secondary(
+                              onPressed: () async {
+                                final DateTime? picked = await showDatePicker(
+                                  context: context,
+                                  firstDate: DateTime.now().subtract(const Duration(days: 7)),
+                                  lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
+                                  initialDate: _dueAt,
+                                );
+                                if (picked == null) {
+                                  return;
+                                }
+                                setState(() {
+                                  _dueAt = DateTime(
+                                    picked.year,
+                                    picked.month,
+                                    picked.day,
+                                    _dueAt.hour,
+                                    _dueAt.minute,
+                                  );
+                                });
+                              },
+                              child: const Text('Pick date'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: AppButton.secondary(
+                              onPressed: () async {
+                                final TimeOfDay? picked = await showTimePicker(
+                                  context: context,
+                                  initialTime: TimeOfDay.fromDateTime(_dueAt),
+                                );
+                                if (picked == null) {
+                                  return;
+                                }
+                                setState(() {
+                                  _dueAt = DateTime(
+                                    _dueAt.year,
+                                    _dueAt.month,
+                                    _dueAt.day,
+                                    picked.hour,
+                                    picked.minute,
+                                  );
+                                });
+                              },
+                              child: const Text('Pick time'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              AppCard(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                child: Column(
+                  children: <Widget>[
+                    SwitchListTile(
+                      value: _reminderEnabled,
+                      onChanged: (bool value) => setState(() => _reminderEnabled = value),
+                      title: const Text('Enable reminder'),
+                      subtitle: const Text('Sends a reminder before the due time'),
+                    ),
+                    _EnumDropdownField<int>(
+                      label: 'Reminder lead',
+                      value: _reminderLeadMinutes,
+                      items: const <int>[30, 60, 180, 1440],
+                      itemLabel: (int value) {
+                        if (value == 1440) {
+                          return '1 day before';
+                        }
+                        if (value == 180) {
+                          return '3 hours before';
+                        }
+                        return '$value minutes before';
+                      },
+                      onChanged: (int? value) {
+                        if (value != null) {
+                          setState(() => _reminderLeadMinutes = value);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              AppTextField(
+                controller: _createdByController,
+                label: 'Created by',
+                hint: 'Owner, manager, or worker',
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: AppButton.primary(
+                  onPressed: _submit,
+                  child: const Text('Save task'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _submit() {
+    final String? titleError = Validators.required(_titleController.text.trim(), fieldName: 'Task title');
+    if (titleError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(titleError)));
+      return;
+    }
+
+    Navigator.of(context).pop(
+      _WorkspaceTaskDraft(
+        title: _titleController.text.trim(),
+        details: _detailsController.text.trim(),
+        assigneeName: _assigneeController.text.trim(),
+        assigneeRole: _role,
+        dueAt: _dueAt,
+        reminderEnabled: _reminderEnabled,
+        reminderLeadMinutes: _reminderLeadMinutes,
+        createdBy: _createdByController.text.trim().isEmpty ? 'Farm owner' : _createdByController.text.trim(),
+      ),
+    );
+  }
+}
+
+class _WorkspaceActivitySheet extends StatefulWidget {
+  const _WorkspaceActivitySheet({required this.farm});
+
+  final Farm farm;
+
+  @override
+  State<_WorkspaceActivitySheet> createState() => _WorkspaceActivitySheetState();
+}
+
+class _WorkspaceActivitySheetState extends State<_WorkspaceActivitySheet> {
+  final TextEditingController _actorController = TextEditingController(text: 'Farm owner');
+  final TextEditingController _actionController = TextEditingController();
+  final TextEditingController _detailController = TextEditingController();
+  FarmWorkspaceRole _role = FarmWorkspaceRole.owner;
+  FarmActivityAudience _audience = FarmActivityAudience.owners;
+  bool _sentToOwners = true;
+
+  @override
+  void dispose() {
+    _actorController.dispose();
+    _actionController.dispose();
+    _detailController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SingleChildScrollView(
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text('Log activity', style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 14),
+              AppTextField(controller: _actorController, label: 'Actor', hint: 'Worker, partner, or owner'),
+              const SizedBox(height: 12),
+              _EnumDropdownField<FarmWorkspaceRole>(
+                label: 'Actor role',
+                value: _role,
+                items: FarmWorkspaceRole.values,
+                itemLabel: _roleLabel,
+                onChanged: (FarmWorkspaceRole? value) {
+                  if (value != null) {
+                    setState(() => _role = value);
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              AppTextField(controller: _actionController, label: 'Action', hint: 'Harvest update, payment, inspection'),
+              const SizedBox(height: 12),
+              AppTextField(controller: _detailController, label: 'Details', maxLines: 4),
+              const SizedBox(height: 12),
+              _EnumDropdownField<FarmActivityAudience>(
+                label: 'Share with',
+                value: _audience,
+                items: FarmActivityAudience.values,
+                itemLabel: _activityAudienceLabel,
+                onChanged: (FarmActivityAudience? value) {
+                  if (value != null) {
+                    setState(() {
+                      _audience = value;
+                      _sentToOwners = value == FarmActivityAudience.owners;
+                    });
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              SwitchListTile(
+                value: _sentToOwners,
+                onChanged: (bool value) => setState(() => _sentToOwners = value),
+                title: const Text('Notify owners'),
+                subtitle: const Text('Useful when the farm is co-owned'),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: AppButton.primary(
+                  onPressed: _submit,
+                  child: const Text('Save update'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _submit() {
+    final String? actorError = Validators.required(_actorController.text.trim(), fieldName: 'Actor');
+    if (actorError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(actorError)));
+      return;
+    }
+    final String? actionError = Validators.required(_actionController.text.trim(), fieldName: 'Action');
+    if (actionError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(actionError)));
+      return;
+    }
+    final String? detailError = Validators.required(_detailController.text.trim(), fieldName: 'Details');
+    if (detailError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(detailError)));
+      return;
+    }
+
+    Navigator.of(context).pop(
+      _WorkspaceActivityDraft(
+        actorName: _actorController.text.trim(),
+        actorRole: _role,
+        action: _actionController.text.trim(),
+        detail: _detailController.text.trim(),
+        audience: _audience,
+        sentToOwners: _sentToOwners,
+      ),
+    );
+  }
+}
+
+class _EnumDropdownField<T> extends StatelessWidget {
+  const _EnumDropdownField({
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.itemLabel,
+    required this.onChanged,
+  });
+
+  final String label;
+  final T value;
+  final List<T> items;
+  final String Function(T value) itemLabel;
+  final ValueChanged<T?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: Theme.of(context).colorScheme.surface,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          value: value,
+          isExpanded: true,
+          items: items
+              .map(
+                (T item) => DropdownMenuItem<T>(
+                  value: item,
+                  child: Text(itemLabel(item)),
+                ),
+              )
+              .toList(growable: false),
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+}
+
+class _WorkspaceMemberTile extends StatelessWidget {
+  const _WorkspaceMemberTile({required this.member});
+
+  final FarmWorkspaceMember member;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return AppCard(
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        leading: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: member.isActive ? const Color(0xFFE5F5D8) : const Color(0xFFFFEBD0),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Icon(Icons.groups_rounded),
+        ),
+        title: Text(member.name),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                '${member.roleLabel} - ${member.email}${member.phone.isEmpty ? '' : ' - ${member.phone}'}',
+                style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  _Tag(text: member.financeAccessLabel, color: const Color(0xFFDFF1FF)),
+                  _Tag(text: '${member.allowedFarmIds.length} farm(s)', color: const Color(0xFFEDE8FF)),
+                  _Tag(text: member.canManageTasks ? 'Tasks' : 'No task access', color: const Color(0xFFE5F5D8)),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WorkspaceTaskTile extends StatelessWidget {
+  const _WorkspaceTaskTile({
+    required this.task,
+    required this.onToggle,
+  });
+
+  final FarmWorkspaceTask task;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return AppCard(
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: CheckboxListTile(
+        value: task.isCompleted,
+        onChanged: (_) => onToggle(),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        title: Text(task.title),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              if (task.details.isNotEmpty) ...<Widget>[
+                Text(task.details, style: theme.textTheme.bodySmall?.copyWith(height: 1.4)),
+                const SizedBox(height: 8),
+              ],
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  _Tag(text: task.statusLabel, color: const Color(0xFFFFEBD0)),
+                  _Tag(text: app_date.DateUtils.formatDateTime(task.dueAt), color: const Color(0xFFE5F5D8)),
+                  if (task.reminderEnabled) _Tag(text: '${task.reminderLeadMinutes}m reminder', color: const Color(0xFFDFF1FF)),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActivityLogTile extends StatelessWidget {
+  const _ActivityLogTile({required this.activity});
+
+  final FarmActivityRecord activity;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return AppCard(
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        leading: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: activity.audience == FarmActivityAudience.owners
+                ? const Color(0xFFDFF1FF)
+                : const Color(0xFFEDE8FF),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Icon(Icons.history_rounded),
+        ),
+        title: Text(activity.action),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                '${activity.actorLabel} - ${activity.detail}',
+                style: theme.textTheme.bodySmall?.copyWith(height: 1.45),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  _Tag(text: activity.audienceLabel, color: const Color(0xFFE5F5D8)),
+                  _Tag(text: app_date.DateUtils.formatDateTime(activity.createdAt), color: const Color(0xFFFFEBD0)),
+                  if (activity.sentToOwners) _Tag(text: 'Sent to owners', color: const Color(0xFFDFF1FF)),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _roleLabel(FarmWorkspaceRole role) {
+  switch (role) {
+    case FarmWorkspaceRole.owner:
+      return 'Owner';
+    case FarmWorkspaceRole.coOwner:
+      return 'Co-owner';
+    case FarmWorkspaceRole.manager:
+      return 'Manager';
+    case FarmWorkspaceRole.supervisor:
+      return 'Supervisor';
+    case FarmWorkspaceRole.worker:
+      return 'Worker';
+    case FarmWorkspaceRole.partner:
+      return 'Partner';
+    case FarmWorkspaceRole.viewer:
+      return 'Viewer';
+  }
+}
+
+String _financeAccessLabel(FarmFinanceAccess access) {
+  switch (access) {
+    case FarmFinanceAccess.none:
+      return 'No finance access';
+    case FarmFinanceAccess.viewOnly:
+      return 'View finance';
+    case FarmFinanceAccess.recordOnly:
+      return 'Record finance';
+    case FarmFinanceAccess.manage:
+      return 'Manage finance';
+  }
+}
+
+String _activityAudienceLabel(FarmActivityAudience audience) {
+  switch (audience) {
+    case FarmActivityAudience.owners:
+      return 'Owners';
+    case FarmActivityAudience.workspace:
+      return 'Workspace';
+    case FarmActivityAudience.selectedMembers:
+      return 'Selected members';
   }
 }
 

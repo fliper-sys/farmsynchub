@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/extensions/context_extensions.dart';
@@ -13,6 +17,7 @@ import '../../../domain/models/transaction.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/finance_provider.dart';
 import '../../../providers/livestock_provider.dart';
+import '../../../providers/operations_hub_provider.dart';
 import '../../../providers/notification_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
@@ -63,10 +68,10 @@ class LivestockScreen extends ConsumerWidget {
       ),
       sections: <Widget>[
         if (eligibleFarms.isEmpty) ...<Widget>[
-          _InlineNotice(
+          const _InlineNotice(
             label: 'Farm link required',
             message: 'Create a farm first before adding livestock groups so each record belongs to a real farm.',
-            tint: const Color(0xFFFFE9D0),
+            tint: Color(0xFFFFE9D0),
           ),
           const SizedBox(height: 18),
         ],
@@ -155,6 +160,9 @@ class LivestockScreen extends ConsumerWidget {
                 onAddTask: () => _openLivestockTaskSheet(context, ref, item),
                 onAddInput: () => _openLivestockInputSheet(context, ref, item),
                 onAdjustStock: () => _openStockCountSheet(context, ref, item),
+                onRecordEggCollection: item.species == LivestockSpecies.chicken || item.purpose == LivestockPurpose.eggs
+                    ? () => _openEggCollectionSheet(context, ref, item)
+                    : null,
                 onToggleTask: (FarmTodoItem task) => _toggleLivestockTask(context, ref, item, task),
               ),
             ),
@@ -204,12 +212,27 @@ class LivestockScreen extends ConsumerWidget {
       createdAt: livestock?.createdAt ?? now,
       updatedAt: now,
       isSynced: livestock?.isSynced ?? false,
+      emoji: draft.emoji,
       profileImageBase64: livestock?.profileImageBase64 ?? '',
+      coverImageBase64: draft.coverImageBase64.isNotEmpty
+          ? draft.coverImageBase64
+          : livestock?.coverImageBase64 ?? livestock?.profileImageBase64 ?? '',
+      averageWeightKg: draft.averageWeightKg,
+      dailyFeedKg: draft.dailyFeedKg,
+      dailyWaterLitres: draft.dailyWaterLitres,
       mortalityCount: draft.mortalityCount,
       todoItems: livestock?.todoItems ?? const <FarmTodoItem>[],
       inputRecords: livestock?.inputRecords ?? const <FarmInputRecord>[],
+      productionLogs: livestock?.productionLogs ?? const <LivestockProductionRecord>[],
       stockNotes: livestock?.stockNotes ?? _stockSummary(draft.count, draft.maleCount, draft.femaleCount),
-      intelligenceNotes: _livestockIntelligenceSummary(draft.species, draft.healthScore, draft.vaccinationStatus),
+      intelligenceNotes: _livestockIntelligenceSummary(
+        draft.species,
+        draft.healthScore,
+        draft.vaccinationStatus,
+        draft.averageAgeMonths,
+        draft.averageWeightKg,
+        draft.purpose,
+      ),
       lastIntelligenceSyncAt: now,
     );
 
@@ -241,7 +264,14 @@ class LivestockScreen extends ConsumerWidget {
             todoItems: <FarmTodoItem>[task, ...livestock.todoItems],
             updatedAt: DateTime.now(),
             isSynced: false,
-            intelligenceNotes: _livestockIntelligenceSummary(livestock.species, livestock.healthScore, livestock.vaccinationStatus),
+            intelligenceNotes: _livestockIntelligenceSummary(
+              livestock.species,
+              livestock.healthScore,
+              livestock.vaccinationStatus,
+              livestock.averageAgeMonths,
+              livestock.averageWeightKg,
+              livestock.purpose,
+            ),
             lastIntelligenceSyncAt: DateTime.now(),
           ),
         );
@@ -324,7 +354,14 @@ class LivestockScreen extends ConsumerWidget {
             inputRecords: <FarmInputRecord>[syncedInput, ...livestock.inputRecords],
             updatedAt: DateTime.now(),
             isSynced: false,
-            intelligenceNotes: _livestockIntelligenceSummary(livestock.species, livestock.healthScore, livestock.vaccinationStatus),
+            intelligenceNotes: _livestockIntelligenceSummary(
+              livestock.species,
+              livestock.healthScore,
+              livestock.vaccinationStatus,
+              livestock.averageAgeMonths,
+              livestock.averageWeightKg,
+              livestock.purpose,
+            ),
             lastIntelligenceSyncAt: DateTime.now(),
           ),
         );
@@ -351,7 +388,14 @@ class LivestockScreen extends ConsumerWidget {
             stockNotes: draft.notes,
             updatedAt: DateTime.now(),
             isSynced: false,
-            intelligenceNotes: _livestockIntelligenceSummary(livestock.species, livestock.healthScore, livestock.vaccinationStatus),
+            intelligenceNotes: _livestockIntelligenceSummary(
+              livestock.species,
+              livestock.healthScore,
+              livestock.vaccinationStatus,
+              livestock.averageAgeMonths,
+              livestock.averageWeightKg,
+              livestock.purpose,
+            ),
             lastIntelligenceSyncAt: DateTime.now(),
           ),
         );
@@ -379,6 +423,65 @@ class LivestockScreen extends ConsumerWidget {
         );
     if (context.mounted) {
       context.showSnackBar('Animal task updated.');
+    }
+  }
+
+  Future<void> _openEggCollectionSheet(BuildContext context, WidgetRef ref, Livestock livestock) async {
+    final _EggCollectionDraft? draft = await showModalBottomSheet<_EggCollectionDraft>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) => _EggCollectionSheet(livestock: livestock),
+    );
+    if (draft == null || draft.count <= 0) {
+      return;
+    }
+
+    final String unitLabel = draft.unit == EggSaleUnit.crate ? 'crate' : 'number';
+    final double quantity = draft.unit == EggSaleUnit.crate ? draft.count.toDouble() : draft.count.toDouble();
+    final DateTime now = DateTime.now();
+    await ref.read(operationsHubProvider.notifier).adjustInventoryQuantity(
+          farmId: livestock.farmId,
+          productName: 'Eggs',
+          unit: unitLabel,
+          deltaQuantity: quantity,
+          unitPrice: draft.unitPrice,
+          costPrice: draft.costPrice,
+        );
+
+    final List<LivestockProductionRecord> logs = <LivestockProductionRecord>[
+      LivestockProductionRecord(
+        id: const Uuid().v4(),
+        period: draft.period,
+        recordedAt: draft.recordedAt,
+        createdAt: now,
+        updatedAt: now,
+        weightKg: livestock.averageWeightKg,
+        feedKg: livestock.dailyFeedKg,
+        eggCount: draft.count,
+        eggUnit: unitLabel,
+        notes: draft.notes,
+      ),
+      ...livestock.productionLogs,
+    ];
+    await ref.read(livestockProvider.notifier).updateLivestock(
+          livestock.copyWith(
+            productionLogs: logs,
+            updatedAt: now,
+            isSynced: false,
+            intelligenceNotes: _livestockIntelligenceSummary(
+              livestock.species,
+              livestock.healthScore,
+              livestock.vaccinationStatus,
+              livestock.averageAgeMonths,
+              livestock.averageWeightKg,
+              livestock.purpose,
+            ),
+            lastIntelligenceSyncAt: now,
+          ),
+        );
+    if (context.mounted) {
+      context.showSnackBar('Egg collection added to inventory and production history.');
     }
   }
 
@@ -426,6 +529,7 @@ class _LivestockFormSheet extends StatefulWidget {
 }
 
 class _LivestockFormSheetState extends State<_LivestockFormSheet> {
+  final ImagePicker _imagePicker = ImagePicker();
   late final TextEditingController _breedController;
   late final TextEditingController _countController;
   late final TextEditingController _maleCountController;
@@ -436,6 +540,10 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
   late final TextEditingController _ageMonthsController;
   late final TextEditingController _targetMaturityController;
   late final TextEditingController _mortalityController;
+  late final TextEditingController _emojiController;
+  late final TextEditingController _weightController;
+  late final TextEditingController _feedController;
+  late final TextEditingController _waterController;
 
   late String _farmId;
   late LivestockSpecies _species;
@@ -443,6 +551,8 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
   late HousingType _housingType;
   late AnimalGrowthStage _growthStage;
   late DateTime _acquisitionDate;
+  String _coverImageBase64 = '';
+  String _coverImageName = '';
 
   @override
   void initState() {
@@ -464,12 +574,17 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
     _ageMonthsController = TextEditingController(text: livestock?.averageAgeMonths.toString() ?? '0');
     _targetMaturityController = TextEditingController(text: livestock?.targetMaturityMonths.toString() ?? '12');
     _mortalityController = TextEditingController(text: livestock?.mortalityCount.toString() ?? '0');
+    _emojiController = TextEditingController(text: livestock?.emoji ?? _emojiForSpecies(LivestockSpecies.goat));
+    _weightController = TextEditingController(text: livestock?.averageWeightKg.toStringAsFixed(1) ?? '0');
+    _feedController = TextEditingController(text: livestock?.dailyFeedKg.toStringAsFixed(1) ?? '0');
+    _waterController = TextEditingController(text: livestock?.dailyWaterLitres.toStringAsFixed(1) ?? '0');
     _farmId = livestock?.farmId ?? widget.farms.first.id;
     _species = livestock?.species ?? LivestockSpecies.goat;
     _purpose = livestock?.purpose ?? LivestockPurpose.meat;
     _housingType = livestock?.housingLocation ?? HousingType.shed;
     _growthStage = livestock?.growthStage ?? AnimalGrowthStage.grower;
     _acquisitionDate = livestock?.acquisitionDate ?? DateTime.now();
+    _coverImageBase64 = livestock?.coverImageBase64 ?? livestock?.profileImageBase64 ?? '';
   }
 
   @override
@@ -484,7 +599,22 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
     _ageMonthsController.dispose();
     _targetMaturityController.dispose();
     _mortalityController.dispose();
+    _emojiController.dispose();
+    _weightController.dispose();
+    _feedController.dispose();
+    _waterController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final XFile? file = await _imagePicker.pickImage(source: ImageSource.gallery, imageQuality: 82);
+    if (file == null) return;
+    final Uint8List bytes = await file.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      _coverImageBase64 = base64Encode(bytes);
+      _coverImageName = file.name;
+    });
   }
 
   @override
@@ -526,6 +656,70 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
                   'Link this livestock group to a specific farm so housing, health, and value records stay organized.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
                 ),
+                const SizedBox(height: 18),
+                Row(
+                  children: <Widget>[
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      alignment: Alignment.center,
+                      child: _coverImageBase64.isNotEmpty
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(24),
+                              child: Image.memory(
+                                base64Decode(_coverImageBase64),
+                                width: 72,
+                                height: 72,
+                                fit: BoxFit.cover,
+                              ),
+                            )
+                          : Text(_emojiController.text.trim().isEmpty ? _emojiForSpecies(_species) : _emojiController.text.trim(), style: const TextStyle(fontSize: 30)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        children: <Widget>[
+                          AppTextField(
+                            controller: _emojiController,
+                            label: 'Emoji',
+                            hint: '🐔',
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: <Widget>[
+                              Expanded(
+                                child: AppButton.secondary(
+                                  onPressed: _pickImage,
+                                  child: Text(_coverImageBase64.isEmpty ? 'Add image' : 'Replace image'),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: AppButton.secondary(
+                                  onPressed: _coverImageBase64.isEmpty
+                                      ? null
+                                      : () => setState(() {
+                                            _coverImageBase64 = '';
+                                            _coverImageName = '';
+                                          }),
+                                  child: const Text('Clear'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                if (_coverImageBase64.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 12),
+                  Text(_coverImageName, style: Theme.of(context).textTheme.bodySmall),
+                ],
                 const SizedBox(height: 18),
                 _DropdownField<String>(
                   label: 'Farm',
@@ -657,6 +851,35 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
                   ],
                 ),
                 const SizedBox(height: 14),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: AppTextField(
+                        controller: _weightController,
+                        label: 'Average weight (kg)',
+                        hint: '35.5',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: AppTextField(
+                        controller: _feedController,
+                        label: 'Daily feed (kg)',
+                        hint: '1.2',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                AppTextField(
+                  controller: _waterController,
+                  label: 'Daily water (litres)',
+                  hint: '2.5',
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                ),
+                const SizedBox(height: 14),
                 _DropdownField<AnimalGrowthStage>(
                   label: 'Growth stage',
                   value: _growthStage,
@@ -783,6 +1006,9 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
     final int ageMonths = int.tryParse(_ageMonthsController.text.trim()) ?? -1;
     final int targetMaturityMonths = int.tryParse(_targetMaturityController.text.trim()) ?? -1;
     final int mortalityCount = int.tryParse(_mortalityController.text.trim()) ?? -1;
+    final double weightKg = double.tryParse(_weightController.text.trim()) ?? -1;
+    final double feedKg = double.tryParse(_feedController.text.trim()) ?? -1;
+    final double waterLitres = double.tryParse(_waterController.text.trim()) ?? -1;
 
     if (maleCount + femaleCount > count) {
       context.showSnackBar('Male and female totals cannot exceed total count', isError: true);
@@ -794,6 +1020,10 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
     }
     if (ageMonths < 0 || targetMaturityMonths <= 0 || mortalityCount < 0) {
       context.showSnackBar('Age, maturity target, and mortality must be valid numbers', isError: true);
+      return;
+    }
+    if (weightKg < 0 || feedKg < 0 || waterLitres < 0) {
+      context.showSnackBar('Weight, feed, and water values must be valid numbers', isError: true);
       return;
     }
 
@@ -815,6 +1045,12 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
         averageAgeMonths: ageMonths,
         targetMaturityMonths: targetMaturityMonths,
         mortalityCount: mortalityCount,
+        emoji: _emojiController.text.trim().isEmpty ? _emojiForSpecies(_species) : _emojiController.text.trim(),
+        coverImageBase64: _coverImageBase64,
+        coverImageName: _coverImageName,
+        averageWeightKg: weightKg,
+        dailyFeedKg: feedKg,
+        dailyWaterLitres: waterLitres,
       ),
     );
   }
@@ -873,6 +1109,7 @@ class _AnimalGroupCard extends StatelessWidget {
     required this.onAddTask,
     required this.onAddInput,
     required this.onAdjustStock,
+    required this.onRecordEggCollection,
     required this.onToggleTask,
   });
 
@@ -884,6 +1121,7 @@ class _AnimalGroupCard extends StatelessWidget {
   final VoidCallback onAddTask;
   final VoidCallback onAddInput;
   final VoidCallback onAdjustStock;
+  final VoidCallback? onRecordEggCollection;
   final ValueChanged<FarmTodoItem> onToggleTask;
 
   @override
@@ -899,13 +1137,26 @@ class _AnimalGroupCard extends StatelessWidget {
         child: Row(
           children: <Widget>[
             Container(
-              width: 58,
-              height: 58,
+              width: 62,
+              height: 62,
               decoration: BoxDecoration(
                 color: accent,
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Icon(Icons.pets_rounded),
+              clipBehavior: Clip.antiAlias,
+              child: livestock.coverImageBase64.isNotEmpty || livestock.profileImageBase64.isNotEmpty
+                  ? Image.memory(
+                      base64Decode(
+                        livestock.coverImageBase64.isNotEmpty ? livestock.coverImageBase64 : livestock.profileImageBase64,
+                      ),
+                      fit: BoxFit.cover,
+                    )
+                  : Center(
+                      child: Text(
+                        livestock.emoji,
+                        style: const TextStyle(fontSize: 28),
+                      ),
+                    ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -938,6 +1189,10 @@ class _AnimalGroupCard extends StatelessWidget {
                             onAdjustStock();
                             return;
                           }
+                          if (value == 'eggs') {
+                            onRecordEggCollection?.call();
+                            return;
+                          }
                           onDelete();
                         },
                         itemBuilder: (BuildContext context) => const <PopupMenuEntry<String>>[
@@ -945,6 +1200,7 @@ class _AnimalGroupCard extends StatelessWidget {
                           PopupMenuItem<String>(value: 'task', child: Text('Add todo/reminder')),
                           PopupMenuItem<String>(value: 'input', child: Text('Record input stock')),
                           PopupMenuItem<String>(value: 'stock', child: Text('Adjust stock count')),
+                          PopupMenuItem<String>(value: 'eggs', child: Text('Record egg collection')),
                           PopupMenuItem<String>(value: 'delete', child: Text('Delete group')),
                         ],
                       ),
@@ -960,6 +1216,11 @@ class _AnimalGroupCard extends StatelessWidget {
                     '${livestock.breed} for ${_purposeLabel(livestock.purpose).toLowerCase()} in ${_housingLabel(livestock.housingLocation).toLowerCase()}.',
                     style: theme.textTheme.bodySmall?.copyWith(height: 1.5),
                   ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Avg weight ${livestock.averageWeightKg.toStringAsFixed(1)} kg · Feed ${livestock.dailyFeedKg.toStringAsFixed(1)} kg/day · Water ${livestock.dailyWaterLitres.toStringAsFixed(1)} L/day',
+                    style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
+                  ),
                   const SizedBox(height: 10),
                   Wrap(
                     spacing: 8,
@@ -971,12 +1232,20 @@ class _AnimalGroupCard extends StatelessWidget {
                       _MiniTag(text: '${(livestock.growthProgress * 100).round()}% maturity', color: const Color(0xFFEDE8FF)),
                       _MiniTag(text: '${livestock.openTaskCount} open tasks', color: const Color(0xFFFFF2C7)),
                       _MiniTag(text: '${livestock.inputRecords.length} inputs', color: const Color(0xFFEDE8FF)),
+                      _MiniTag(text: '${livestock.productionLogs.length} records', color: const Color(0xFFDDF2C9)),
                     ],
                   ),
                   const SizedBox(height: 12),
                   _SmartAnimalStrip(
                     title: livestock.intelligenceNotes.isEmpty
-                        ? _livestockIntelligenceSummary(livestock.species, livestock.healthScore, livestock.vaccinationStatus)
+                        ? _livestockIntelligenceSummary(
+                            livestock.species,
+                            livestock.healthScore,
+                            livestock.vaccinationStatus,
+                            livestock.averageAgeMonths,
+                            livestock.averageWeightKg,
+                            livestock.purpose,
+                          )
                         : livestock.intelligenceNotes,
                     stockNotes: livestock.stockNotes.isEmpty
                         ? _stockSummary(livestock.count, livestock.maleCount, livestock.femaleCount)
@@ -986,6 +1255,7 @@ class _AnimalGroupCard extends StatelessWidget {
                     onAddTask: onAddTask,
                     onAddInput: onAddInput,
                     onAdjustStock: onAdjustStock,
+                    onRecordEggCollection: onRecordEggCollection,
                     onToggleTask: onToggleTask,
                   ),
                 ],
@@ -1240,6 +1510,7 @@ class _SmartAnimalStrip extends StatelessWidget {
     required this.onAddTask,
     required this.onAddInput,
     required this.onAdjustStock,
+    required this.onRecordEggCollection,
     required this.onToggleTask,
   });
 
@@ -1250,6 +1521,7 @@ class _SmartAnimalStrip extends StatelessWidget {
   final VoidCallback onAddTask;
   final VoidCallback onAddInput;
   final VoidCallback onAdjustStock;
+  final VoidCallback? onRecordEggCollection;
   final ValueChanged<FarmTodoItem> onToggleTask;
 
   @override
@@ -1301,6 +1573,12 @@ class _SmartAnimalStrip extends StatelessWidget {
                 icon: const Icon(Icons.add_chart_rounded, size: 18),
                 label: const Text('Stock'),
               ),
+              if (onRecordEggCollection != null)
+                OutlinedButton.icon(
+                  onPressed: onRecordEggCollection,
+                  icon: const Icon(Icons.egg_alt_outlined, size: 18),
+                  label: const Text('Eggs'),
+                ),
             ],
           ),
         ],
@@ -1615,6 +1893,175 @@ class _StockCountSheetState extends State<_StockCountSheet> {
   }
 }
 
+enum EggSaleUnit {
+  number,
+  crate,
+}
+
+class _EggCollectionSheet extends StatefulWidget {
+  const _EggCollectionSheet({required this.livestock});
+
+  final Livestock livestock;
+
+  @override
+  State<_EggCollectionSheet> createState() => _EggCollectionSheetState();
+}
+
+class _EggCollectionSheetState extends State<_EggCollectionSheet> {
+  late final TextEditingController _countController;
+  late final TextEditingController _unitPriceController;
+  late final TextEditingController _costPriceController;
+  late final TextEditingController _notesController;
+  DateTime _recordedAt = DateTime.now();
+  LivestockRecordPeriod _period = LivestockRecordPeriod.daily;
+  EggSaleUnit _unit = EggSaleUnit.number;
+
+  @override
+  void initState() {
+    super.initState();
+    _countController = TextEditingController(text: '0');
+    _unitPriceController = TextEditingController(text: '0');
+    _costPriceController = TextEditingController(text: '0');
+    _notesController = TextEditingController(text: '${_speciesLabel(widget.livestock.species)} egg collection');
+  }
+
+  @override
+  void dispose() {
+    _countController.dispose();
+    _unitPriceController.dispose();
+    _costPriceController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _SheetShell(
+      title: 'Record egg collection',
+      subtitle: 'Add eggs to inventory and keep a production log for layers or poultry sales.',
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: AppTextField(
+                controller: _countController,
+                label: 'Egg count',
+                hint: '120',
+                keyboardType: TextInputType.number,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _DropdownField<EggSaleUnit>(
+                label: 'Unit',
+                value: _unit,
+                items: EggSaleUnit.values,
+                itemLabel: (EggSaleUnit value) => value == EggSaleUnit.number ? 'Number' : 'Crate',
+                onChanged: (EggSaleUnit? value) {
+                  if (value != null) {
+                    setState(() => _unit = value);
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: AppTextField(
+                controller: _unitPriceController,
+                label: 'Sale price',
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: AppTextField(
+                controller: _costPriceController,
+                label: 'Cost price',
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _DropdownField<LivestockRecordPeriod>(
+          label: 'Record period',
+          value: _period,
+          items: LivestockRecordPeriod.values,
+          itemLabel: (LivestockRecordPeriod value) => value.name[0].toUpperCase() + value.name.substring(1),
+          onChanged: (LivestockRecordPeriod? value) {
+            if (value != null) {
+              setState(() => _period = value);
+            }
+          },
+        ),
+        const SizedBox(height: 12),
+        _DateTile(
+          label: 'Recorded at',
+          value: _recordedAt,
+          onTap: () async {
+            final DateTime? picked = await showDatePicker(
+              context: context,
+              initialDate: _recordedAt,
+              firstDate: DateTime(2020),
+              lastDate: DateTime(2035),
+            );
+            if (picked != null) {
+              setState(() => _recordedAt = picked);
+            }
+          },
+        ),
+        const SizedBox(height: 12),
+        AppTextField(controller: _notesController, label: 'Notes', maxLines: 3),
+        const SizedBox(height: 18),
+        AppButton.primary(onPressed: _submit, child: const Text('Save egg collection')),
+      ],
+    );
+  }
+
+  void _submit() {
+    final int count = int.tryParse(_countController.text.trim()) ?? 0;
+    if (count <= 0) {
+      context.showSnackBar('Enter a valid egg count', isError: true);
+      return;
+    }
+    Navigator.of(context).pop(
+      _EggCollectionDraft(
+        count: count,
+        unit: _unit,
+        unitPrice: double.tryParse(_unitPriceController.text.trim()) ?? 0,
+        costPrice: double.tryParse(_costPriceController.text.trim()) ?? 0,
+        recordedAt: _recordedAt,
+        notes: _notesController.text.trim(),
+        period: _period,
+      ),
+    );
+  }
+}
+
+class _EggCollectionDraft {
+  const _EggCollectionDraft({
+    required this.count,
+    required this.unit,
+    required this.unitPrice,
+    required this.costPrice,
+    required this.recordedAt,
+    required this.notes,
+    required this.period,
+  });
+
+  final int count;
+  final EggSaleUnit unit;
+  final double unitPrice;
+  final double costPrice;
+  final DateTime recordedAt;
+  final String notes;
+  final LivestockRecordPeriod period;
+}
+
 class _SheetShell extends StatelessWidget {
   const _SheetShell({
     required this.title,
@@ -1714,6 +2161,21 @@ String _labelForSpecies(LivestockSpecies species) {
   }
 }
 
+String _emojiForSpecies(LivestockSpecies species) {
+  switch (species) {
+    case LivestockSpecies.goat:
+      return '🐐';
+    case LivestockSpecies.chicken:
+      return '🐔';
+    case LivestockSpecies.pig:
+      return '🐖';
+    case LivestockSpecies.cattle:
+      return '🐄';
+    case LivestockSpecies.sheep:
+      return '🐑';
+  }
+}
+
 String _purposeLabel(LivestockPurpose purpose) {
   switch (purpose) {
     case LivestockPurpose.meat:
@@ -1740,15 +2202,34 @@ String _housingLabel(HousingType housingType) {
   }
 }
 
-String _livestockIntelligenceSummary(LivestockSpecies species, int healthScore, int vaccinationStatus) {
+String _livestockIntelligenceSummary(
+  LivestockSpecies species,
+  int healthScore,
+  int vaccinationStatus,
+  int ageMonths,
+  double weightKg,
+  LivestockPurpose purpose,
+) {
   final String animal = _speciesLabel(species).toLowerCase();
+  final String ageBand = ageMonths < 3
+      ? 'young'
+      : ageMonths < 9
+          ? 'growing'
+          : 'mature';
+  final String productionHint = purpose == LivestockPurpose.eggs
+      ? 'Focus on layer feed, clean water, and daily egg collection.'
+      : purpose == LivestockPurpose.meat
+          ? 'Use strong feed conversion, weight tracking, and hygiene checks.'
+          : purpose == LivestockPurpose.milk
+              ? 'Maintain body condition, water access, and regular milking records.'
+              : 'Keep breeding condition, body weight, and separation notes updated.';
   if (healthScore < 60) {
-    return 'Animal intelligence: $animal need urgent health checks, treatment notes, and closer daily inspection.';
+    return 'Animal intelligence: $animal need urgent health checks, treatment notes, and closer daily inspection. $productionHint';
   }
   if (vaccinationStatus < 70) {
-    return 'Animal intelligence: $animal vaccination coverage is low. Plan a vet visit and mark the reminder for push notification.';
+    return 'Animal intelligence: $animal vaccination coverage is low. Plan a vet visit and mark the reminder for push notification. $productionHint';
   }
-  return 'Animal intelligence: $animal are stable. Keep feed, water, housing hygiene, and stock-count records updated.';
+  return 'Animal intelligence: $animal are $ageBand and stable at ${weightKg.toStringAsFixed(1)} kg. Keep feed, water, housing hygiene, and stock-count records updated. $productionHint';
 }
 
 String _stockSummary(int count, int maleCount, int femaleCount) =>
@@ -1823,6 +2304,12 @@ class LivestockDraft {
     required this.averageAgeMonths,
     required this.targetMaturityMonths,
     required this.mortalityCount,
+    required this.emoji,
+    required this.coverImageBase64,
+    required this.coverImageName,
+    required this.averageWeightKg,
+    required this.dailyFeedKg,
+    required this.dailyWaterLitres,
   });
 
   final String farmId;
@@ -1841,4 +2328,10 @@ class LivestockDraft {
   final int averageAgeMonths;
   final int targetMaturityMonths;
   final int mortalityCount;
+  final String emoji;
+  final String coverImageBase64;
+  final String coverImageName;
+  final double averageWeightKg;
+  final double dailyFeedKg;
+  final double dailyWaterLitres;
 }

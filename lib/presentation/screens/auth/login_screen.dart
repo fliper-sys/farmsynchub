@@ -53,6 +53,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return AuthScaffold(
       title: 'Log in',
       subtitle: 'Sign in to your farm workspace and pick up right where your last field update ended.',
+      footer: const AuthPageFooter(
+        text: 'Secure access for crop records, livestock tracking, finance, and advisory tools.',
+      ),
       child: Column(
         children: <Widget>[
           AppTextField(
@@ -98,9 +101,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             route: '/register',
           ),
         ],
-      ),
-      footer: const AuthPageFooter(
-        text: 'Secure access for crop records, livestock tracking, finance, and advisory tools.',
       ),
     );
   }

@@ -52,6 +52,8 @@ class Transaction {
     this.counterpartyPhone = '',
     this.receiptNumber = '',
     this.notes = '',
+    this.attachmentNames = const <String>[],
+    this.attachmentBase64 = const <String>[],
   });
 
   final String id;
@@ -76,6 +78,8 @@ class Transaction {
   final String counterpartyPhone;
   final String receiptNumber;
   final String notes;
+  final List<String> attachmentNames;
+  final List<String> attachmentBase64;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -100,6 +104,8 @@ class Transaction {
         'counterpartyPhone': counterpartyPhone,
         'receiptNumber': receiptNumber,
         'notes': notes,
+        'attachmentNames': attachmentNames,
+        'attachmentBase64': attachmentBase64,
       };
 
   factory Transaction.fromJson(Map<String, dynamic> json) => Transaction(
@@ -137,5 +143,11 @@ class Transaction {
         counterpartyPhone: json['counterpartyPhone'] as String? ?? '',
         receiptNumber: json['receiptNumber'] as String? ?? '',
         notes: json['notes'] as String? ?? '',
+        attachmentNames: ((json['attachmentNames'] as List<dynamic>?) ?? <dynamic>[])
+            .whereType<String>()
+            .toList(growable: false),
+        attachmentBase64: ((json['attachmentBase64'] as List<dynamic>?) ?? <dynamic>[])
+            .whereType<String>()
+            .toList(growable: false),
       );
 }
