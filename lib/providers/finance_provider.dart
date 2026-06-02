@@ -4,9 +4,11 @@ import '../core/services/farm_email_service.dart';
 import '../data/repositories/firestore_repositories.dart';
 import '../data/repositories/finance_repository.dart';
 import '../data/remote/firebase_service.dart';
+import '../domain/models/notification.dart';
 import '../domain/models/transaction.dart';
 import 'auth_provider.dart';
 import 'email_notification_provider.dart';
+import 'notification_provider.dart';
 
 /// Provider for finance repository.
 final financeRepositoryProvider = Provider<FinanceRepository>((ref) {
@@ -20,18 +22,20 @@ final transactionsProvider = StateNotifierProvider<TransactionsNotifier, AsyncVa
     repository,
     ref.watch(farmEmailServiceProvider),
     ref.watch(firebaseServiceProvider),
+    ref.watch(notificationsProvider.notifier),
   );
 });
 
 /// State notifier for managing transactions.
 class TransactionsNotifier extends StateNotifier<AsyncValue<List<Transaction>>> {
-  TransactionsNotifier(this._repository, this._emailService, this._firebaseService) : super(const AsyncValue.loading()) {
+  TransactionsNotifier(this._repository, this._emailService, this._firebaseService, this._notifications) : super(const AsyncValue.loading()) {
     _loadTransactions();
   }
 
   final FinanceRepository _repository;
   final FarmEmailService _emailService;
   final FirebaseService _firebaseService;
+  final NotificationsNotifier _notifications;
 
   /// Loads all transactions from the repository.
   Future<void> _loadTransactions() async {
@@ -60,6 +64,7 @@ class TransactionsNotifier extends StateNotifier<AsyncValue<List<Transaction>>> 
     try {
       await _repository.insert(transaction);
       await _sendTransactionEmail(transaction);
+      await _publishTransactionNotification(transaction);
       await _loadTransactions();
     } catch (error, stackTrace) {
       if (!mounted) {
@@ -150,6 +155,62 @@ class TransactionsNotifier extends StateNotifier<AsyncValue<List<Transaction>>> 
             farmName: farmName,
             title: transaction.productName.isNotEmpty ? transaction.productName : transaction.category.name,
             amount: transaction.amount,
+          );
+        }
+        break;
+    }
+  }
+
+  Future<void> _publishTransactionNotification(Transaction transaction) async {
+    final String product = transaction.productName.trim().isNotEmpty ? transaction.productName.trim() : transaction.description;
+    switch (transaction.recordKind) {
+      case TransactionRecordKind.sale:
+        await _notifications.publishNotification(
+          title: 'Sale recorded',
+          message: '$product sale was saved for ${transaction.amount.toStringAsFixed(2)}.',
+          type: NotificationType.success,
+          actionUrl: '/finance',
+          audience: 'single',
+          targetUserId: _firebaseService.currentUser?.uid,
+          metadata: <String, dynamic>{
+            'source': 'finance',
+            'recordKind': transaction.recordKind.name,
+            'transactionId': transaction.id,
+            'farmId': transaction.farmId,
+          },
+        );
+        break;
+      case TransactionRecordKind.procurement:
+        await _notifications.publishNotification(
+          title: 'Procurement recorded',
+          message: '$product procurement was saved for ${transaction.amount.toStringAsFixed(2)}.',
+          type: NotificationType.info,
+          actionUrl: '/finance',
+          audience: 'single',
+          targetUserId: _firebaseService.currentUser?.uid,
+          metadata: <String, dynamic>{
+            'source': 'finance',
+            'recordKind': transaction.recordKind.name,
+            'transactionId': transaction.id,
+            'farmId': transaction.farmId,
+          },
+        );
+        break;
+      case TransactionRecordKind.general:
+        if (transaction.type == TransactionType.expense) {
+          await _notifications.publishNotification(
+            title: 'Expense uploaded',
+            message: '$product expense was saved for ${transaction.amount.toStringAsFixed(2)}.',
+            type: NotificationType.warning,
+            actionUrl: '/finance',
+            audience: 'single',
+            targetUserId: _firebaseService.currentUser?.uid,
+            metadata: <String, dynamic>{
+              'source': 'finance',
+              'recordKind': transaction.recordKind.name,
+              'transactionId': transaction.id,
+              'farmId': transaction.farmId,
+            },
           );
         }
         break;

@@ -1,6 +1,7 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -35,11 +36,9 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   bool _didSeedControllers = false;
   bool _isSaving = false;
-  bool _isRunningFirestoreCheck = false;
   String _selectedCountryCode = '+234';
   UserAccountRole _accountRole = UserAccountRole.owner;
   String _profileImageBase64 = '';
-  String? _debugMessage;
 
   @override
   void dispose() {
@@ -89,13 +88,16 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
     );
 
     final ThemeData theme = Theme.of(context);
+    final bool isEditingProfile = profileAsync.valueOrNull?.isComplete == true;
 
     return SoftScreenScaffold(
-      heroTitle: 'Complete your account',
-      heroSubtitle: 'Set up the farmer identity, location, and main production focus that the rest of FarmSync will build around.',
+      heroTitle: isEditingProfile ? 'Edit your profile' : 'Complete your account',
+      heroSubtitle: isEditingProfile
+          ? 'Update your farmer identity, contact details, photo, and production focus.'
+          : 'Set up the farmer identity, location, and main production focus that the rest of FarmSync will build around.',
       heroIcon: Icons.person_add_alt_1_rounded,
       heroVariant: FarmArtworkVariant.welcome,
-      heroBadge: 'User creation',
+      heroBadge: isEditingProfile ? 'Profile edit' : 'User creation',
       sections: <Widget>[
         AppCard(
           color: theme.colorScheme.surfaceContainerHighest,
@@ -233,63 +235,12 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
           ),
         ),
         const SizedBox(height: 18),
-        AppCard(
-          color: theme.colorScheme.surfaceContainerHighest,
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  'Debug Firestore',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Run a direct Firestore write/read check for this signed-in user and show the exact result.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.5),
-                ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: AppButton.secondary(
-                    onPressed: _isRunningFirestoreCheck || _isSaving ? null : _runFirestoreDebugCheck,
-                    child: _isRunningFirestoreCheck
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2.2),
-                          )
-                        : const Text('Run Firestore write test'),
-                  ),
-                ),
-                if (_debugMessage != null) ...<Widget>[
-                  const SizedBox(height: 14),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: theme.colorScheme.outlineVariant),
-                    ),
-                    child: SelectableText(
-                      _debugMessage!,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.5),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 18),
         Row(
           children: <Widget>[
             Expanded(
               child: AppButton.secondary(
-                onPressed: _isSaving ? null : () => context.go('/dashboard'),
-                child: const Text('Skip for now'),
+                onPressed: _isSaving ? null : () => context.go(isEditingProfile ? '/profile' : '/dashboard'),
+                child: Text(isEditingProfile ? 'Cancel' : 'Skip for now'),
               ),
             ),
             const SizedBox(width: 12),
@@ -305,7 +256,7 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
                           color: Colors.white,
                         ),
                       )
-                    : const Text('Save and continue'),
+                    : Text(isEditingProfile ? 'Save profile' : 'Save and continue'),
               ),
             ),
           ],
@@ -333,13 +284,8 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
       _wardController.text.trim(),
       fieldName: 'Ward or community',
     );
-    final String? emailError = Validators.combine(
-      <String? Function(String?)>[
-        (String? value) => Validators.required(value, fieldName: 'Email'),
-        Validators.email,
-      ],
-      _emailController.text.trim(),
-    );
+    final String emailValue = _emailController.text.trim();
+    final String? emailError = emailValue.isEmpty ? null : Validators.email(emailValue);
     final String? focusError = Validators.required(
       _focusController.text.trim(),
       fieldName: 'Primary focus',
@@ -362,7 +308,7 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
       return;
     }
     if (_profileImageBase64.trim().isEmpty) {
-      context.showSnackBar('Please upload a profile image to complete setup.', isError: true);
+      context.showSnackBar('Please upload a profile image to complete your profile.', isError: true);
       return;
     }
 
@@ -381,11 +327,12 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
           createdAt: now,
           updatedAt: now,
         );
+    final bool wasAlreadyComplete = currentProfile.isComplete;
 
     final UserProfile nextProfile = currentProfile.copyWith(
       uid: currentUser.uid,
       fullName: _nameController.text.trim(),
-      email: _emailController.text.trim(),
+      email: emailValue.isNotEmpty ? emailValue : (currentUser.email ?? currentProfile.email),
       phoneNumber: '$_selectedCountryCode${_phoneController.text.trim()}',
       accountRole: _accountRole,
       ward: _wardController.text.trim(),
@@ -395,29 +342,19 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
       updatedAt: now,
     );
 
-    debugPrint('[AccountSetup] save:start uid=${nextProfile.uid}');
-    debugPrint('[AccountSetup] save:values name=${nextProfile.fullName} email=${nextProfile.email} ward=${nextProfile.ward} focus=${nextProfile.primaryFocus}');
     setState(() => _isSaving = true);
     try {
-      await ref.read(firebaseServiceProvider).saveUserProfile(nextProfile);
-      ref.read(userProfileProvider.notifier).setProfile(nextProfile);
+      await ref.read(userProfileProvider.notifier).saveProfile(nextProfile);
       if (!mounted) {
         return;
       }
-      setState(() {
-        _debugMessage = 'Profile save succeeded for users/${nextProfile.uid} at ${DateTime.now().toIso8601String()}';
-      });
       context.showSnackBar('Account profile saved successfully.');
-      context.go('/app-tour');
+      context.go(wasAlreadyComplete ? '/profile' : '/app-tour');
     } catch (error) {
-      debugPrint('[AccountSetup] save:error $error');
       if (!mounted) {
         return;
       }
       final String message = _saveErrorMessage(error);
-      setState(() {
-        _debugMessage = 'Profile save failed.\n$error\n$message';
-      });
       context.showSnackBar(message, isError: true);
     } finally {
       if (mounted) {
@@ -426,68 +363,23 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
     }
   }
 
-  Future<void> _runFirestoreDebugCheck() async {
-    final currentUser = ref.read(firebaseServiceProvider).currentUser;
-    if (currentUser == null) {
-      context.showSnackBar('No authenticated user found for Firestore test.', isError: true);
-      return;
-    }
-
-    final DateTime now = DateTime.now();
-    final UserProfile profile = UserProfile(
-      uid: currentUser.uid,
-      fullName: _nameController.text.trim(),
-      email: _emailController.text.trim().isEmpty ? (currentUser.email ?? '') : _emailController.text.trim(),
-      phoneNumber: '$_selectedCountryCode${_phoneController.text.trim()}',
-      accountRole: _accountRole,
-      ward: _wardController.text.trim(),
-      primaryFocus: _focusController.text.trim(),
-      bio: _bioController.text.trim(),
-      profileImageBase64: _profileImageBase64,
-      createdAt: now,
-      updatedAt: now,
-    );
-
-    setState(() {
-      _isRunningFirestoreCheck = true;
-      _debugMessage = 'Running Firestore write test...';
-    });
-
-    try {
-      final String result = await ref.read(firebaseServiceProvider).runProfileWriteDebugCheck(profile);
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _debugMessage = result;
-      });
-      context.showSnackBar('Firestore debug check completed.');
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _debugMessage = 'Firestore debug check crashed.\n$error';
-      });
-      context.showSnackBar('Firestore debug check failed.', isError: true);
-    } finally {
-      if (mounted) {
-        setState(() => _isRunningFirestoreCheck = false);
-      }
-    }
-  }
-
   Future<void> _pickProfileImage() async {
     final XFile? file = await _imagePicker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 70,
-      maxWidth: 900,
+      imageQuality: 45,
+      maxWidth: 480,
     );
     if (file == null || !mounted) {
       return;
     }
 
     final Uint8List bytes = await file.readAsBytes();
+    if (bytes.lengthInBytes > 500000) {
+      if (mounted) {
+        context.showSnackBar('That image is too large. Please choose a smaller profile photo.', isError: true);
+      }
+      return;
+    }
     setState(() {
       _profileImageBase64 = base64Encode(bytes);
     });

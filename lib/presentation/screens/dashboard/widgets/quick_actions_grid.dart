@@ -121,13 +121,16 @@ class _QuickActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color iconBackground = isDark ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface) : tint;
+    final Color iconForeground = isDark ? theme.colorScheme.onSurface : AppColors.primary;
 
     return InkWell(
       onTap: () => context.go(route),
       borderRadius: BorderRadius.circular(28),
       child: Ink(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(28),
           border: Border.all(color: theme.colorScheme.outlineVariant),
           boxShadow: <BoxShadow>[
@@ -147,13 +150,14 @@ class _QuickActionButton extends StatelessWidget {
                 width: compact ? 56 : 70,
                 height: compact ? 56 : 70,
                 decoration: BoxDecoration(
-                  color: tint,
+                  color: iconBackground,
                   borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: isDark ? tint.withOpacity(0.42) : Colors.transparent),
                 ),
                 child: Icon(
                   icon,
                   size: compact ? 28 : 34,
-                  color: AppColors.primary,
+                  color: iconForeground,
                 ),
               ),
               SizedBox(height: compact ? 10 : 16),

@@ -6,12 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/services/farm_notification_service.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/date_utils.dart' as app_date;
 import '../../../core/utils/validators.dart';
 import '../../../domain/models/crop.dart';
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/livestock.dart';
+import '../../../domain/models/notification.dart' as app_notification;
 import '../../../domain/models/transaction.dart';
 import '../../../domain/models/user_profile.dart';
 import '../../../providers/auth_provider.dart';
@@ -20,6 +22,7 @@ import '../../../providers/farm_provider.dart';
 import '../../../providers/finance_provider.dart';
 import '../../../providers/email_notification_provider.dart';
 import '../../../providers/livestock_provider.dart';
+import '../../../providers/notification_provider.dart';
 import '../../../providers/user_profile_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
@@ -923,6 +926,31 @@ class FarmDetailScreen extends ConsumerWidget {
       isSynced: false,
     );
     await ref.read(farmsProvider.notifier).updateFarm(updated);
+    await ref.read(notificationsProvider.notifier).publishNotification(
+          title: 'Farm schedule created',
+          message: '${task.title} is due ${app_date.DateUtils.formatDateTime(task.dueAt)}.',
+          type: app_notification.NotificationType.info,
+          actionUrl: '/farms',
+          audience: 'single',
+          targetUserId: ref.read(firebaseServiceProvider).currentUser?.uid,
+          metadata: <String, dynamic>{
+            'source': 'farm_schedule',
+            'farmId': farm.id,
+            'taskId': task.id,
+          },
+        );
+    if (task.reminderEnabled) {
+      final DateTime reminderAt = task.dueAt.subtract(Duration(minutes: task.reminderLeadMinutes));
+      if (reminderAt.isAfter(DateTime.now())) {
+        await FarmNotificationService.instance.scheduleAt(
+          id: task.id.hashCode.abs(),
+          title: 'Farm reminder: ${task.title}',
+          body: task.details.isEmpty ? '${farm.name} task is due soon.' : task.details,
+          scheduledAt: reminderAt,
+          payload: '/farms',
+        );
+      }
+    }
     if (farm.ownerEmail.isNotEmpty) {
       await ref.read(farmEmailServiceProvider).sendScheduleNotification(
             toEmail: farm.ownerEmail,
@@ -963,6 +991,19 @@ class FarmDetailScreen extends ConsumerWidget {
       isSynced: false,
     );
     await ref.read(farmsProvider.notifier).updateFarm(updated);
+    await ref.read(notificationsProvider.notifier).publishNotification(
+          title: 'Farm activity logged',
+          message: '${draft.action}: ${draft.detail}',
+          type: app_notification.NotificationType.info,
+          actionUrl: '/farms',
+          audience: activity.sentToOwners ? 'single' : 'all',
+          targetUserId: activity.sentToOwners ? ref.read(firebaseServiceProvider).currentUser?.uid : null,
+          metadata: <String, dynamic>{
+            'source': 'worker_log',
+            'farmId': farm.id,
+            'activityId': activity.id,
+          },
+        );
     if (farm.ownerEmail.isNotEmpty && draft.sentToOwners) {
       await ref.read(farmEmailServiceProvider).sendWorkerLogNotification(
             toEmail: farm.ownerEmail,
@@ -1006,6 +1047,19 @@ class FarmDetailScreen extends ConsumerWidget {
       isSynced: false,
     );
     await ref.read(farmsProvider.notifier).updateFarm(updated);
+    await ref.read(notificationsProvider.notifier).publishNotification(
+          title: markDone ? 'Farm task completed' : 'Farm task reopened',
+          message: '${updatedTask.title} was ${markDone ? 'marked done' : 'reopened'}.',
+          type: markDone ? app_notification.NotificationType.success : app_notification.NotificationType.info,
+          actionUrl: '/farms',
+          audience: 'single',
+          targetUserId: ref.read(firebaseServiceProvider).currentUser?.uid,
+          metadata: <String, dynamic>{
+            'source': 'farm_schedule',
+            'farmId': farm.id,
+            'taskId': updatedTask.id,
+          },
+        );
     if (farm.ownerEmail.isNotEmpty) {
       await ref.read(farmEmailServiceProvider).sendWorkerLogNotification(
             toEmail: farm.ownerEmail,
@@ -1864,13 +1918,25 @@ class _Tag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color background = isDark ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface) : color;
+    final Color foreground = isDark ? theme.colorScheme.onSurface : const Color(0xFF284231);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color,
+        color: background,
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: isDark ? color.withOpacity(0.44) : color.withOpacity(0.85)),
       ),
-      child: Text(text),
+      child: Text(
+        text,
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: foreground,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }
@@ -1892,8 +1958,13 @@ class _FarmMetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color iconBackground = isDark ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface) : tint;
+    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
+
     return AppCard(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      color: theme.colorScheme.surfaceContainerHighest,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -1903,17 +1974,18 @@ class _FarmMetricCard extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: tint,
+                color: iconBackground,
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: isDark ? tint.withOpacity(0.42) : Colors.transparent),
               ),
-              child: Icon(icon),
+              child: Icon(icon, color: iconForeground),
             ),
             const SizedBox(height: 14),
-            Text(title, style: Theme.of(context).textTheme.bodySmall),
+            Text(title, style: theme.textTheme.bodySmall),
             const SizedBox(height: 6),
-            Text(value, style: Theme.of(context).textTheme.titleMedium),
+            Text(value, style: theme.textTheme.titleMedium),
             const SizedBox(height: 6),
-            Text(note, style: Theme.of(context).textTheme.bodySmall),
+            Text(note, style: theme.textTheme.bodySmall),
           ],
         ),
       ),
@@ -2002,6 +2074,9 @@ class _SuggestionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color iconBackground = isDark ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface) : tint;
+    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
     return AppCard(
       color: theme.colorScheme.surfaceContainerHighest,
@@ -2014,10 +2089,11 @@ class _SuggestionCard extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: tint,
+                color: iconBackground,
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: isDark ? tint.withOpacity(0.42) : Colors.transparent),
               ),
-              child: Icon(icon),
+              child: Icon(icon, color: iconForeground),
             ),
             const SizedBox(width: 14),
             Expanded(

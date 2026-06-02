@@ -4,8 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+import '../core/services/farm_notification_service.dart';
 import '../data/remote/firebase_service.dart';
-import '../../domain/models/notification.dart';
+import '../domain/models/notification.dart';
 import 'auth_provider.dart';
 
 /// Provider for managing notifications.
@@ -28,26 +29,32 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
   static const String _remoteCollection = 'app_notifications';
   final _uuid = const Uuid();
 
+  String get _storageKey {
+    final String? userId = _currentUserId ?? _firebaseService.currentUser?.uid;
+    return userId == null || userId.isEmpty ? _notificationsKey : '${_notificationsKey}_$userId';
+  }
+
   /// Loads notifications from shared preferences.
   Future<void> _loadNotifications() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    final List<String> notificationsJson = prefs.getStringList(_notificationsKey) ?? <String>[];
+    final List<String> notificationsJson = prefs.getStringList(_storageKey) ?? <String>[];
     final List<Notification> localNotifications = notificationsJson
         .map((String jsonStr) => Notification.fromMap(jsonDecode(jsonStr) as Map<String, dynamic>))
         .toList();
     final List<Notification> remoteNotifications = await _loadRemoteNotifications();
     final Map<String, Notification> merged = <String, Notification>{
-      for (final Notification notification in _defaultNotifications()) notification.id: notification,
       for (final Notification notification in localNotifications) notification.id: notification,
       for (final Notification notification in remoteNotifications) notification.id: notification,
     };
     state = merged.values.toList()
       ..sort((Notification a, Notification b) => b.timestamp.compareTo(a.timestamp));
 
-    if (notificationsJson.isEmpty && remoteNotifications.isEmpty) {
+    if (notificationsJson.isEmpty && remoteNotifications.isEmpty && state.isNotEmpty) {
       await _saveNotifications();
     }
   }
+
+  Future<void> refresh() => _loadNotifications();
 
   Future<List<Notification>> _loadRemoteNotifications() async {
     try {
@@ -71,7 +78,8 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
       return true;
     }
     final String? targetUserId = metadata['targetUserId'] as String?;
-    return targetUserId != null && targetUserId == _currentUserId;
+    final String? currentUserId = _currentUserId ?? _firebaseService.currentUser?.uid;
+    return targetUserId != null && targetUserId == currentUserId;
   }
 
   /// Saves notifications to shared preferences.
@@ -80,7 +88,7 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
     final List<String> payload = state
         .map((Notification notification) => jsonEncode(notification.toMap()))
         .toList(growable: false);
-    await prefs.setStringList(_notificationsKey, payload);
+    await prefs.setStringList(_storageKey, payload);
   }
 
   /// Adds a new notification.
@@ -103,6 +111,47 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
 
     state = [notification, ...state];
     _saveNotifications();
+  }
+
+  Future<void> publishNotification({
+    required String title,
+    required String message,
+    NotificationType type = NotificationType.info,
+    String? actionUrl,
+    String audience = 'all',
+    String? targetUserId,
+    Map<String, dynamic>? metadata,
+    bool showDeviceNotification = true,
+  }) async {
+    final notification = Notification(
+      id: _uuid.v4(),
+      title: title,
+      message: message,
+      type: type,
+      timestamp: DateTime.now(),
+      actionUrl: actionUrl,
+      metadata: <String, dynamic>{
+        'audience': audience,
+        if (targetUserId != null) 'targetUserId': targetUserId,
+        if (metadata != null) ...metadata,
+      },
+    );
+
+    await _firebaseService.syncGlobalToFirestore(_remoteCollection, notification.toMap());
+
+    if (_shouldShowRemoteNotification(notification)) {
+      state = <Notification>[notification, ...state]
+        ..sort((Notification a, Notification b) => b.timestamp.compareTo(a.timestamp));
+      await _saveNotifications();
+      if (showDeviceNotification) {
+        await FarmNotificationService.instance.showNow(
+          id: notification.id.hashCode.abs(),
+          title: title,
+          body: message,
+          payload: actionUrl,
+        );
+      }
+    }
   }
 
   /// Marks a notification as read.
@@ -172,57 +221,4 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
   /// Gets read notifications count.
   int get readCount => state.where((notification) => notification.isRead).length;
 
-  /// Mock notifications for demonstration.
-  List<Notification> _defaultNotifications() {
-    return [
-      Notification(
-        id: '1',
-        title: 'Welcome to FarmSync!',
-        message: 'Thank you for joining our farming community. Explore the app to manage your farm efficiently.',
-        type: NotificationType.success,
-        timestamp: DateTime.now().subtract(const Duration(hours: 1)),
-        isRead: false,
-        actionUrl: '/dashboard',
-      ),
-      Notification(
-        id: '2',
-        title: 'Crop Health Alert',
-        message: 'Your maize crop in Field A shows signs of nutrient deficiency. Consider applying fertilizer.',
-        type: NotificationType.warning,
-        timestamp: DateTime.now().subtract(const Duration(hours: 3)),
-        isRead: false,
-        actionUrl: '/crops',
-      ),
-      Notification(
-        id: '3',
-        title: 'Livestock Vaccination Due',
-        message: 'Vaccination for your cattle is due tomorrow. Don\'t forget to schedule it.',
-        type: NotificationType.info,
-        timestamp: DateTime.now().subtract(const Duration(days: 1)),
-        isRead: true,
-      ),
-      Notification(
-        id: '4',
-        title: 'Weather Update',
-        message: 'Heavy rainfall expected in your area. Take necessary precautions for your crops.',
-        type: NotificationType.warning,
-        timestamp: DateTime.now().subtract(const Duration(days: 2)),
-        isRead: false,
-        actionUrl: '/farms',
-        metadata: <String, dynamic>{
-          'recommendedAction': 'Check drainage and raised beds',
-          'precipitation': '18 mm forecast',
-        },
-      ),
-      Notification(
-        id: '5',
-        title: 'Monthly Report Ready',
-        message: 'Your farm performance report for this month is now available.',
-        type: NotificationType.success,
-        timestamp: DateTime.now().subtract(const Duration(days: 7)),
-        isRead: true,
-        actionUrl: '/finance',
-      ),
-    ];
-  }
 }

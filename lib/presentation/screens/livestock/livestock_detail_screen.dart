@@ -586,8 +586,13 @@ class _SuggestionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color iconBackground = isDark ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface) : tint;
+    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
+
     return AppCard(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      color: theme.colorScheme.surfaceContainerHighest,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -597,19 +602,20 @@ class _SuggestionCard extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: tint,
+                color: iconBackground,
                 borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: isDark ? tint.withOpacity(0.42) : Colors.transparent),
               ),
-              child: const Icon(Icons.lightbulb_outline_rounded),
+              child: Icon(Icons.lightbulb_outline_rounded, color: iconForeground),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(title, style: Theme.of(context).textTheme.titleSmall),
+                  Text(title, style: theme.textTheme.titleSmall),
                   const SizedBox(height: 4),
-                  Text(detail, style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.5)),
+                  Text(detail, style: theme.textTheme.bodySmall?.copyWith(height: 1.5)),
                 ],
               ),
             ),

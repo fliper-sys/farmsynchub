@@ -6,10 +6,12 @@ import 'package:uuid/uuid.dart';
 
 import '../core/services/farm_email_service.dart';
 import '../data/remote/firebase_service.dart';
+import '../domain/models/notification.dart';
 import '../domain/models/news_post.dart';
 import '../domain/models/user_profile.dart';
 import 'auth_provider.dart';
 import 'email_notification_provider.dart';
+import 'notification_provider.dart';
 import 'user_profile_provider.dart';
 
 final newsFeedProvider =
@@ -95,15 +97,11 @@ class NewsFeedController extends StateNotifier<AsyncValue<NewsFeedState>> {
     if (_firebaseService.currentUser == null) {
       return <NewsPost>[];
     }
-    try {
-      final List<Map<String, dynamic>> records = await _firebaseService.getGlobalFromFirestore(_collection);
-      return records
-          .map(NewsPost.fromJson)
-          .where((NewsPost post) => post.id.isNotEmpty)
-          .toList(growable: false);
-    } catch (_) {
-      return <NewsPost>[];
-    }
+    final List<Map<String, dynamic>> records = await _firebaseService.getGlobalFromFirestore(_collection);
+    return records
+        .map(NewsPost.fromJson)
+        .where((NewsPost post) => post.id.isNotEmpty)
+        .toList(growable: false);
   }
 
   Future<List<String>> _loadFollowedAuthors() async {
@@ -281,6 +279,19 @@ class NewsFeedController extends StateNotifier<AsyncValue<NewsFeedState>> {
 
     await _firebaseService.syncGlobalToFirestore(_collection, post.toJson());
     await _insertLocalPost(post);
+    await _ref.read(notificationsProvider.notifier).publishNotification(
+          title: isAdminPost ? 'Admin news update' : 'New farmer update',
+          message: title,
+          type: NotificationType.info,
+          actionUrl: '/news',
+          audience: 'all',
+          metadata: <String, dynamic>{
+            'source': 'news',
+            'postId': post.id,
+            'category': category,
+            'authorId': post.authorId,
+          },
+        );
     await _sendNewsEmail(
       title: title,
       category: category,
@@ -342,6 +353,19 @@ class NewsFeedController extends StateNotifier<AsyncValue<NewsFeedState>> {
     );
     await _firebaseService.syncGlobalToFirestore(_collection, repost.toJson());
     await _insertLocalPost(repost);
+    await _ref.read(notificationsProvider.notifier).publishNotification(
+          title: 'News reposted',
+          message: '${repost.authorName} reposted: ${post.title}',
+          type: NotificationType.info,
+          actionUrl: '/news',
+          audience: 'all',
+          metadata: <String, dynamic>{
+            'source': 'news',
+            'postId': repost.id,
+            'sourcePostId': post.id,
+            'authorId': repost.authorId,
+          },
+        );
 
     final List<NewsPost> current = _currentPosts();
     final int sourceIndex = current.indexWhere((NewsPost item) => item.id == post.id);
@@ -378,6 +402,20 @@ class NewsFeedController extends StateNotifier<AsyncValue<NewsFeedState>> {
     );
     await _firebaseService.syncGlobalToFirestore(_collection, updated.toJson());
     await _replaceLocalPost(updated);
+    await _ref.read(notificationsProvider.notifier).publishNotification(
+          title: 'New comment on news',
+          message: '${comment.authorName}: ${comment.message}',
+          type: NotificationType.info,
+          actionUrl: '/news',
+          audience: 'single',
+          targetUserId: post.authorId,
+          metadata: <String, dynamic>{
+            'source': 'news',
+            'postId': post.id,
+            'commentId': comment.id,
+            'authorId': comment.authorId,
+          },
+        );
   }
 
   bool canEditPost(NewsPost post) {

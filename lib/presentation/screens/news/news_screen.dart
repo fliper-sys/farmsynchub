@@ -24,6 +24,7 @@ class NewsScreen extends ConsumerStatefulWidget {
 
 class _NewsScreenState extends ConsumerState<NewsScreen> with SingleTickerProviderStateMixin {
   late final TabController _tabController;
+  bool _showHeader = true;
 
   @override
   void initState() {
@@ -47,6 +48,7 @@ class _NewsScreenState extends ConsumerState<NewsScreen> with SingleTickerProvid
     final List<NewsPost> forYou = feed == null ? <NewsPost>[] : ref.read(newsFeedProvider.notifier).forYouFeed();
     final List<NewsPost> mine = feed == null ? <NewsPost>[] : ref.read(newsFeedProvider.notifier).myPosts();
     final List<NewsPost> following = feed == null ? <NewsPost>[] : ref.read(newsFeedProvider.notifier).followingPosts();
+    final Object? feedError = feedAsync.error;
 
     return Scaffold(
       appBar: AppBar(
@@ -76,49 +78,79 @@ class _NewsScreenState extends ConsumerState<NewsScreen> with SingleTickerProvid
       ),
       body: Column(
         children: <Widget>[
-          _NewsHeader(
-            followedCount: feed?.followedAuthorIds.length ?? 0,
-            postCount: feed?.posts.length ?? 0,
-            onCompose: () => _openComposeSheet(context, ref, profile: profile),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeOutCubic,
+            child: _showHeader
+                ? _NewsHeader(
+                    followedCount: feed?.followedAuthorIds.length ?? 0,
+                    postCount: feed?.posts.length ?? 0,
+                    onCompose: () => _openComposeSheet(context, ref, profile: profile),
+                    onCollapse: () => setState(() => _showHeader = false),
+                  )
+                : _CollapsedNewsHeader(
+                    onExpand: () => setState(() => _showHeader = true),
+                  ),
           ),
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: <Widget>[
-                _NewsFeedList(
-                  emptyMessage: 'No followed updates yet. Follow farmers and admin posts to build your feed.',
-                  posts: forYou,
-                  ref: ref,
-                  followedAuthorIds: followedAuthorIds,
-                  mineOnly: false,
-                ),
-                _NewsFeedList(
-                  emptyMessage: 'No general posts yet. Start a conversation by sharing an update.',
-                  posts: general,
-                  ref: ref,
-                  followedAuthorIds: followedAuthorIds,
-                  mineOnly: false,
-                ),
-                _NewsFeedList(
-                  emptyMessage: 'You are not following anyone yet.',
-                  posts: following,
-                  ref: ref,
-                  followedAuthorIds: followedAuthorIds,
-                  mineOnly: false,
-                ),
-                _NewsFeedList(
-                  emptyMessage: 'You have not posted any updates yet.',
-                  posts: mine,
-                  ref: ref,
-                  followedAuthorIds: followedAuthorIds,
-                  mineOnly: true,
-                ),
-              ],
-            ),
+            child: feedError != null
+                ? _NewsFeedError(
+                    error: feedError,
+                    onRetry: () => ref.read(newsFeedProvider.notifier).refresh(),
+                  )
+                : NotificationListener<ScrollNotification>(
+                    onNotification: _handleFeedScroll,
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: <Widget>[
+                        _NewsFeedList(
+                          emptyMessage: 'No followed updates yet. Follow farmers and admin posts to build your feed.',
+                          posts: forYou,
+                          ref: ref,
+                          followedAuthorIds: followedAuthorIds,
+                          mineOnly: false,
+                        ),
+                        _NewsFeedList(
+                          emptyMessage: 'No general posts yet. Start a conversation by sharing an update.',
+                          posts: general,
+                          ref: ref,
+                          followedAuthorIds: followedAuthorIds,
+                          mineOnly: false,
+                        ),
+                        _NewsFeedList(
+                          emptyMessage: 'You are not following anyone yet.',
+                          posts: following,
+                          ref: ref,
+                          followedAuthorIds: followedAuthorIds,
+                          mineOnly: false,
+                        ),
+                        _NewsFeedList(
+                          emptyMessage: 'You have not posted any updates yet.',
+                          posts: mine,
+                          ref: ref,
+                          followedAuthorIds: followedAuthorIds,
+                          mineOnly: true,
+                        ),
+                      ],
+                    ),
+                  ),
           ),
         ],
       ),
     );
+  }
+
+  bool _handleFeedScroll(ScrollNotification notification) {
+    if (notification.metrics.axis != Axis.vertical) {
+      return false;
+    }
+    final double offset = notification.metrics.pixels;
+    if (_showHeader && offset > 36) {
+      setState(() => _showHeader = false);
+    } else if (!_showHeader && offset <= 4) {
+      setState(() => _showHeader = true);
+    }
+    return false;
   }
 
   Future<void> _openComposeSheet(
@@ -176,11 +208,13 @@ class _NewsHeader extends StatelessWidget {
     required this.followedCount,
     required this.postCount,
     required this.onCompose,
+    required this.onCollapse,
   });
 
   final int followedCount;
   final int postCount;
   final VoidCallback onCompose;
+  final VoidCallback onCollapse;
 
   @override
   Widget build(BuildContext context) {
@@ -191,34 +225,39 @@ class _NewsHeader extends StatelessWidget {
         color: theme.colorScheme.surfaceContainerHighest,
         child: Padding(
           padding: const EdgeInsets.all(18),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text('Daily news', style: theme.textTheme.headlineSmall),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Share innovations, products, market updates, and farm stories. Follow other farmers for curated updates.',
-                      style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: <Widget>[
-                        _MetricChip(label: 'Posts', value: '$postCount'),
-                        _MetricChip(label: 'Following', value: '$followedCount'),
-                      ],
-                    ),
-                  ],
-                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(child: Text('Daily news', style: theme.textTheme.headlineSmall)),
+                  IconButton(
+                    tooltip: 'Hide summary',
+                    onPressed: onCollapse,
+                    icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                  ),
+                  const SizedBox(width: 4),
+                  FilledButton.icon(
+                    onPressed: onCompose,
+                    icon: const Icon(Icons.edit_square, size: 18),
+                    label: const Text('Post'),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              FilledButton(
-                onPressed: onCompose,
-                child: const Text('Post'),
+              const SizedBox(height: 10),
+              Text(
+                'Share innovations, products, market updates, and farm stories. Follow other farmers for curated updates.',
+                style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  _MetricChip(label: 'Posts', value: '$postCount'),
+                  _MetricChip(label: 'Following', value: '$followedCount'),
+                ],
               ),
             ],
           ),
@@ -236,13 +275,63 @@ class _MetricChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: isDark ? theme.colorScheme.surface.withOpacity(0.72) : theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
-      child: Text('$label: $value'),
+      child: Text(
+        '$label: $value',
+        style: theme.textTheme.labelLarge?.copyWith(
+          color: theme.colorScheme.onSurface,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _CollapsedNewsHeader extends StatelessWidget {
+  const _CollapsedNewsHeader({
+    required this.onExpand,
+  });
+
+  final VoidCallback onExpand;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+      child: InkWell(
+        onTap: onExpand,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: theme.colorScheme.outlineVariant),
+          ),
+          child: Row(
+            children: <Widget>[
+              const Icon(Icons.newspaper_rounded, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Daily news summary',
+                  style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              const Icon(Icons.keyboard_arrow_down_rounded),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -292,6 +381,67 @@ class _NewsFeedList extends StatelessWidget {
           mineOnly: mineOnly,
         );
       },
+    );
+  }
+}
+
+class _NewsFeedError extends StatelessWidget {
+  const _NewsFeedError({
+    required this.error,
+    required this.onRetry,
+  });
+
+  final Object error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: <Widget>[
+        AppCard(
+          color: theme.colorScheme.surfaceContainerHighest,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    const Icon(Icons.cloud_off_rounded),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'News sync failed',
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Could not load news posts from Firestore. Check your connection or Firestore rules for the global news_posts collection.',
+                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  error.toString(),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                AppButton.secondary(
+                  onPressed: onRetry,
+                  child: const Text('Retry sync'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -843,13 +993,24 @@ class _Tag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color background = isDark ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface) : color;
+    final Color foreground = isDark ? theme.colorScheme.onSurface : const Color(0xFF284231);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: color,
+        color: background,
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: isDark ? color.withOpacity(0.44) : color.withOpacity(0.85)),
       ),
-      child: Text(text, style: Theme.of(context).textTheme.labelSmall),
+      child: Text(
+        text,
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: foreground,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }

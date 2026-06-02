@@ -86,9 +86,9 @@ class ProfileScreen extends ConsumerWidget {
             onTap: () => context.push('/account-setup'),
             child: ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-              leading: const CircleAvatar(
-                backgroundColor: Color(0xFFFFEBD0),
-                child: Icon(Icons.person_add_alt_1_rounded),
+              leading: const _ProfileIconAvatar(
+                tint: Color(0xFFFFEBD0),
+                icon: Icons.person_add_alt_1_rounded,
               ),
               title: Text(
                 language.tr(en: 'Complete your account setup', ha: 'Kammala saitin asusunka', fr: 'Completer la configuration du compte'),
@@ -127,9 +127,9 @@ class ProfileScreen extends ConsumerWidget {
           onTap: () => context.push('/settings'),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-            leading: const CircleAvatar(
-              backgroundColor: Color(0xFFDFF1FF),
-              child: Icon(Icons.settings_suggest_rounded),
+            leading: const _ProfileIconAvatar(
+              tint: Color(0xFFDFF1FF),
+              icon: Icons.settings_suggest_rounded,
             ),
             title: Text(
               language.tr(en: 'App settings', ha: 'Saitunan app', fr: 'Parametres de l app'),
@@ -342,6 +342,30 @@ class _ProfileDetailRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ProfileIconAvatar extends StatelessWidget {
+  const _ProfileIconAvatar({
+    required this.tint,
+    required this.icon,
+  });
+
+  final Color tint;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color background = isDark ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface) : tint;
+    final Color foreground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
+
+    return CircleAvatar(
+      backgroundColor: background,
+      foregroundColor: foreground,
+      child: Icon(icon),
     );
   }
 }

@@ -6,6 +6,9 @@ import '../../../core/services/user_walkthrough_preferences.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/models/user_profile.dart';
 import '../../../providers/auth_provider.dart';
+import '../../../providers/finance_provider.dart';
+import '../../../providers/news_feed_provider.dart';
+import '../../../providers/notification_provider.dart';
 import '../../../providers/user_profile_provider.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 
@@ -173,6 +176,15 @@ class _PostAuthGateScreenState extends ConsumerState<PostAuthGateScreen>
   Future<void> _handleNavigation(UserProfile? profile) async {
     _navigated = true;
     final String? userId = ref.read(firebaseServiceProvider).currentUser?.uid;
+    try {
+      await Future.wait(<Future<void>>[
+        ref.read(notificationsProvider.notifier).refresh(),
+        ref.read(newsFeedProvider.notifier).refresh(),
+        ref.read(transactionsProvider.notifier).refresh(),
+      ]);
+    } catch (_) {
+      // Remote refresh is useful, but it should not block workspace entry.
+    }
     final bool hasCompletedWalkthrough =
         userId == null ? false : await UserWalkthroughPreferences.isCompleted(userId);
     if (!mounted) {

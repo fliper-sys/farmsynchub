@@ -141,9 +141,9 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
                           if (!ai.hasApiKey) ...<Widget>[
                             const SizedBox(height: 12),
                             const _NoticeCard(
-                              icon: Icons.key_off_rounded,
+                              icon: Icons.cloud_done_rounded,
                               tint: Color(0xFFFFE1B8),
-                              message: 'AI requests are disabled until a Gemini API key is configured.',
+                              message: 'Firebase AI is not ready yet. Make sure Firebase is initialized and Firebase AI Logic is enabled.',
                             ),
                           ],
                           if (ai.isActiveCoolingDown) ...<Widget>[
@@ -286,13 +286,13 @@ class _TopBar extends StatelessWidget {
     return Row(
       children: <Widget>[
         _GlassButton(
-          icon: Navigator.of(context).canPop() ? Icons.arrow_back_rounded : Icons.menu_rounded,
+          icon: Navigator.of(context).canPop() ? Icons.arrow_back_rounded : Icons.arrow_back_rounded,
           onTap: onBack,
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Text(
-            'AI Studio',
+            'Farmsync AI',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   color: _aiText(context),
                   fontWeight: FontWeight.w700,
@@ -1075,55 +1075,73 @@ class _ComposerCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: <Widget>[
               _RoundActionButton(
                 icon: Icons.camera_alt_rounded,
                 label: 'Photo',
                 onTap: isLoading ? null : onTakePhoto,
               ),
-              const SizedBox(width: 10),
               _RoundActionButton(
                 icon: Icons.image_outlined,
                 label: 'Gallery',
                 onTap: isLoading ? null : onUploadImage,
               ),
-              const SizedBox(width: 10),
               _RoundActionButton(
                 icon: Icons.mic_none_rounded,
                 label: 'Voice',
                 onTap: isLoading ? null : onVoiceTap,
               ),
-              const Spacer(),
-              GestureDetector(
+              _SendButton(
+                isLoading: isLoading,
                 onTap: isLoading ? null : onSend,
-                child: Container(
-                  width: 62,
-                  height: 62,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: <Color>[Color(0xFFFF4FD8), Color(0xFF7C3AED)],
-                    ),
-                    boxShadow: <BoxShadow>[
-                      BoxShadow(
-                        color: const Color(0xFFFF4FD8).withOpacity(0.25),
-                        blurRadius: 22,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: isLoading
-                      ? const Padding(
-                          padding: EdgeInsets.all(18),
-                          child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
-                        )
-                      : const Icon(Icons.send_rounded, color: Colors.white),
-                ),
               ),
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SendButton extends StatelessWidget {
+  const _SendButton({
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  final bool isLoading;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            colors: <Color>[Color(0xFFFF4FD8), Color(0xFF7C3AED)],
+          ),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: const Color(0xFFFF4FD8).withOpacity(0.25),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: isLoading
+            ? const Padding(
+                padding: EdgeInsets.all(16),
+                child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+              )
+            : const Icon(Icons.send_rounded, color: Colors.white, size: 22),
       ),
     );
   }
@@ -1147,7 +1165,7 @@ class _RoundActionButton extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF17171C) : Theme.of(context).colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(999),
@@ -1158,7 +1176,14 @@ class _RoundActionButton extends StatelessWidget {
           children: <Widget>[
             Icon(icon, size: 18, color: _aiText(context)),
             const SizedBox(width: 6),
-            Text(label, style: Theme.of(context).textTheme.labelLarge?.copyWith(color: _aiText(context))),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: _aiText(context),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
           ],
         ),
       ),
@@ -1602,11 +1627,11 @@ class _GlassButton extends StatelessWidget {
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF17171C) : Theme.of(context).colorScheme.surfaceContainerHighest,
+          color: isDark ? const Color(0xFF1D1D24) : Theme.of(context).colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: _aiBorder(context)),
         ),
-        child: Icon(icon, color: _aiText(context)),
+        child: Icon(icon, color: _aiText(context), size: 26),
       ),
     );
   }

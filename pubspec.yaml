@@ -21,7 +21,9 @@ dependencies:
   firebase_admin: ^0.3.1+4
   firebase_core: ^3.1.0
   firebase_auth: ^5.1.2
+  firebase_app_check: ^0.3.2+10
   cloud_firestore: ^5.0.0
+  firebase_ai: ^2.3.0
 
   # PDF Export
   pdf: ^3.10.7

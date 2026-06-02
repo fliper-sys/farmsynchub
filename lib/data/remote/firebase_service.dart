@@ -150,14 +150,10 @@ class FirebaseService {
   }
 
   Future<void> saveUserProfile(UserProfile profile) async {
-    debugPrint('[Firestore] saveUserProfile:start uid=${profile.uid} email=${profile.email} ward=${profile.ward} focus=${profile.primaryFocus}');
-    debugPrint('[Firestore] saveUserProfile:authUser uid=${currentUser?.uid} email=${currentUser?.email} verified=${currentUser?.emailVerified}');
     await _firestore.collection('users').doc(profile.uid).set(profile.toJson(), SetOptions(merge: true));
-    debugPrint('[Firestore] saveUserProfile:document write complete for users/${profile.uid}');
 
     if (currentUser != null && profile.fullName.trim().isNotEmpty) {
       await currentUser!.updateDisplayName(profile.fullName.trim());
-      debugPrint('[Firestore] saveUserProfile:displayName updated to ${profile.fullName.trim()}');
     }
   }
 
@@ -185,61 +181,6 @@ class FirebaseService {
       },
       SetOptions(merge: true),
     );
-  }
-
-  Future<String> runProfileWriteDebugCheck(UserProfile profile) async {
-    final String? userId = currentUser?.uid;
-    if (userId == null) {
-      return 'Debug check failed: no authenticated user.';
-    }
-
-    final StringBuffer log = StringBuffer()
-      ..writeln('Authenticated user: $userId')
-      ..writeln('Profile target doc: users/${profile.uid}');
-
-    try {
-      final DocumentReference<Map<String, dynamic>> userDoc =
-          _firestore.collection('users').doc(profile.uid);
-
-      await userDoc.set(<String, dynamic>{
-        'uid': profile.uid,
-        'email': profile.email,
-        'fullName': profile.fullName,
-        'updatedAt': profile.updatedAt.toIso8601String(),
-        'debugLastWriteCheckAt': DateTime.now().toIso8601String(),
-      }, SetOptions(merge: true));
-      log.writeln('User document write: success');
-
-      final DocumentSnapshot<Map<String, dynamic>> userSnapshot = await userDoc.get();
-      log.writeln('User document read: ${userSnapshot.exists ? 'success' : 'missing after write'}');
-
-      final DocumentReference<Map<String, dynamic>> debugDoc =
-          userDoc.collection('debug').doc('firestore_check');
-      await debugDoc.set(<String, dynamic>{
-        'checkedAt': DateTime.now().toIso8601String(),
-        'authUid': userId,
-        'profileUid': profile.uid,
-      });
-      log.writeln('Nested debug collection write: success');
-
-      final DocumentSnapshot<Map<String, dynamic>> debugSnapshot = await debugDoc.get();
-      log.writeln('Nested debug collection read: ${debugSnapshot.exists ? 'success' : 'missing after write'}');
-
-      await debugDoc.delete();
-      log.writeln('Nested debug collection cleanup: success');
-    } on FirebaseException catch (error) {
-      log.writeln('FirebaseException code=${error.code}');
-      log.writeln('FirebaseException message=${error.message}');
-      debugPrint('[Firestore] runProfileWriteDebugCheck:error ${log.toString()}');
-      return log.toString();
-    } catch (error) {
-      log.writeln('Unexpected error=$error');
-      debugPrint('[Firestore] runProfileWriteDebugCheck:error ${log.toString()}');
-      return log.toString();
-    }
-
-    debugPrint('[Firestore] runProfileWriteDebugCheck:success ${log.toString()}');
-    return log.toString();
   }
 
   /// Start a phone-number verification flow and return the verification ID.

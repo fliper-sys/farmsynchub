@@ -408,8 +408,16 @@ class _TransactionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final Color tint = transaction.recordKind == TransactionRecordKind.sale
+        ? const Color(0xFFE5F5D8)
+        : const Color(0xFFFFE7D7);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color iconBackground = isDark ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface) : tint;
+    final Color iconForeground = isDark ? theme.colorScheme.onSurface : AppColors.primary;
+
     return AppCard(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      color: theme.colorScheme.surfaceContainerHighest,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -421,17 +429,16 @@ class _TransactionTile extends StatelessWidget {
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: transaction.recordKind == TransactionRecordKind.sale
-                        ? const Color(0xFFE5F5D8)
-                        : const Color(0xFFFFE7D7),
+                    color: iconBackground,
                     borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: isDark ? tint.withOpacity(0.42) : Colors.transparent),
                   ),
                   alignment: Alignment.center,
                   child: Icon(
                     transaction.recordKind == TransactionRecordKind.sale
                         ? Icons.payments_outlined
                         : Icons.receipt_long_outlined,
-                    color: AppColors.primary,
+                    color: iconForeground,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -441,7 +448,7 @@ class _TransactionTile extends StatelessWidget {
                     children: <Widget>[
                       Text(
                         transaction.description,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 4),
                       Text(

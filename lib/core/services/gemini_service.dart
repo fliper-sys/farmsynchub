@@ -1,22 +1,19 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
-import 'package:http/http.dart' as http;
+import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:firebase_ai/firebase_ai.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../domain/models/ai_topic.dart';
 import '../../domain/models/chat_message.dart';
 
-const String _kApiKey = String.fromEnvironment(
-  'GEMINI_API_KEY',
-  defaultValue: 'AIzaSyDrDAtU0L5A8o1LGbRnYqwwRgvx8Svnm_Y',
+const String _kFirebaseAiModelName = String.fromEnvironment(
+  'FIREBASE_AI_MODEL',
+  defaultValue: 'gemini-2.0-flash',
 );
-const List<String> _kModelNames = <String>[
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-001',
-  'gemini-1.5-flash',
-  'gemini-1.5-flash-002',
-];
 const int _kMaxHistoryTurns = 6;
 const Duration _kCacheTtl = Duration(hours: 6);
 
@@ -45,9 +42,9 @@ class GeminiService {
   final Map<String, _CachedResponse> _cache = <String, _CachedResponse>{};
   DateTime? _rateLimitedUntil;
 
-  bool get hasApiKey => _kApiKey.isNotEmpty && !_kApiKey.contains('YOUR_GEMINI_API_KEY_HERE');
+  bool get hasApiKey => true;
 
-  String get modelName => _kModelNames.first;
+  String get modelName => _kFirebaseAiModelName;
 
   List<ChatMessage> historyFor(AiTopic topic) =>
       List<ChatMessage>.unmodifiable(_history[topic] ?? const <ChatMessage>[]);
@@ -62,14 +59,6 @@ class GeminiService {
     if (trimmedMessage.isEmpty) {
       return ChatMessage.fromAi(
         'Please type a farming question first.',
-        topic: topic,
-        isError: true,
-      );
-    }
-
-    if (!hasApiKey) {
-      return ChatMessage.fromAi(
-        'Gemini API key is missing. Add `--dart-define=GEMINI_API_KEY=your_key` or update the AI service key.',
         topic: topic,
         isError: true,
       );
@@ -92,47 +81,18 @@ class GeminiService {
       }
     }
 
-    final requestBody = _buildRequestBody(
-      userMessage: trimmedMessage,
-      topic: topic,
-      language: language,
-      history: _history[topic] ?? const <ChatMessage>[],
-      imageBytes: imageBytes,
-    );
-
     try {
-      final _GeminiAttemptResult result = await _sendWithFallbackModels(requestBody, topic);
-      if (result.response.statusCode != 200) {
-        if (result.response.statusCode == 429) {
-          _rateLimitedUntil = DateTime.now().add(const Duration(minutes: 10));
-          final ChatMessage offlineMessage = _offlineRateLimitResponse(
-            topic: topic,
-            message: trimmedMessage,
-            imageBytes: imageBytes,
-            retryAt: _rateLimitedUntil!,
-          );
-          _addToHistory(
-            topic,
-            ChatMessage.fromUser(
-              trimmedMessage,
-              topic: topic,
-              hasImage: imageBytes != null,
-            ),
-          );
-          _addToHistory(topic, offlineMessage);
-          await _persistHistory(topic);
-          return offlineMessage;
-        }
-        return _handleError(
-          topic,
-          result.response.statusCode,
-          result.response.body,
-        );
-      }
+      final GenerateContentResponse response = await _sendWithFirebaseAi(
+        topic: topic,
+        language: language,
+        userMessage: trimmedMessage,
+        history: _history[topic] ?? const <ChatMessage>[],
+        imageBytes: imageBytes,
+      );
 
-      final Map<String, dynamic> data = jsonDecode(result.response.body) as Map<String, dynamic>;
+      final String responseText = response.text?.trim() ?? '';
       final ChatMessage aiMessage = ChatMessage.fromAi(
-        _extractText(data),
+        responseText.isEmpty ? _kFallbackMessage : responseText,
         topic: topic,
       );
 
@@ -152,26 +112,27 @@ class GeminiService {
 
       await _persistHistory(topic);
       return aiMessage;
-    } on SocketException {
-      return _offlineUnavailableResponse(
+    } catch (error) {
+      if (error.toString().contains('quota') || error.toString().contains('Quota')) {
+        _rateLimitedUntil = DateTime.now().add(const Duration(minutes: 10));
+      }
+      final ChatMessage offlineMessage = _offlineRateLimitResponse(
         topic: topic,
         message: trimmedMessage,
         imageBytes: imageBytes,
-        reason: 'No internet connection was detected.',
+        retryAt: _rateLimitedUntil!,
       );
-    } on HttpException {
-      return _offlineUnavailableResponse(
-        topic: topic,
-        message: trimmedMessage,
-        imageBytes: imageBytes,
-        reason: 'The AI service could not be reached.',
+      _addToHistory(
+        topic,
+        ChatMessage.fromUser(
+          trimmedMessage,
+          topic: topic,
+          hasImage: imageBytes != null,
+        ),
       );
-    } catch (_) {
-      return ChatMessage.fromAi(
-        'Something went wrong while generating a response. Please try again.',
-        topic: topic,
-        isError: true,
-      );
+      _addToHistory(topic, offlineMessage);
+      await _persistHistory(topic);
+      return offlineMessage;
     }
   }
 
@@ -207,197 +168,79 @@ class GeminiService {
     }
   }
 
-  Map<String, dynamic> _buildRequestBody({
-    required String userMessage,
+  Future<GenerateContentResponse> _sendWithFirebaseAi({
     required AiTopic topic,
     required String language,
+    required String userMessage,
+    required List<ChatMessage> history,
+    List<int>? imageBytes,
+  }) async {
+    final FirebaseAI firebaseAi = FirebaseAI.googleAI(
+      auth: FirebaseAuth.instance,
+      appCheck: FirebaseAppCheck.instance,
+    );
+
+    final GenerativeModel model = firebaseAi.generativeModel(
+      model: _kFirebaseAiModelName,
+      systemInstruction: Content.system(_buildSystemPrompt(language, topic)),
+      generationConfig: GenerationConfig(
+        temperature: 0.4,
+        topK: 32,
+        topP: 0.95,
+        maxOutputTokens: 700,
+      ),
+      safetySettings: <SafetySetting>[
+        SafetySetting(HarmCategory.harassment, HarmBlockThreshold.medium, true as HarmBlockMethod?),
+        SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.medium, true as HarmBlockMethod?),
+        SafetySetting(HarmCategory.sexuallyExplicit, HarmBlockThreshold.high, true as HarmBlockMethod?),
+        SafetySetting(HarmCategory.dangerousContent, HarmBlockThreshold.medium, true as HarmBlockMethod?),
+      ],
+    );
+
+    final List<Content> prompt = _buildFirebasePrompt(
+      userMessage: userMessage,
+      history: history,
+      imageBytes: imageBytes,
+    );
+    final GenerateContentResponse response = await model.generateContent(prompt);
+    return response;
+  }
+
+  List<Content> _buildFirebasePrompt({
+    required String userMessage,
     required List<ChatMessage> history,
     List<int>? imageBytes,
   }) {
+    final List<Content> prompt = <Content>[];
     final List<ChatMessage> trimmedHistory = history.length > _kMaxHistoryTurns * 2
         ? history.sublist(history.length - (_kMaxHistoryTurns * 2))
         : history;
-    final List<Map<String, dynamic>> contents = <Map<String, dynamic>>[];
 
     for (final ChatMessage message in trimmedHistory) {
-      contents.add(<String, dynamic>{
-        'role': message.isFromUser ? 'user' : 'model',
-        'parts': <Map<String, String>>[
-          <String, String>{'text': message.text},
-        ],
-      });
+      prompt.add(
+        Content(
+          message.isFromUser ? 'user' : 'model',
+          <Part>[
+            TextPart(message.text),
+          ],
+        ),
+      );
     }
 
-    final List<Map<String, dynamic>> userParts = <Map<String, dynamic>>[
-      <String, String>{'text': userMessage},
+    final List<Part> userParts = <Part>[
+      TextPart(userMessage),
     ];
-
     if (imageBytes != null) {
-      userParts.add(<String, dynamic>{
-        'inline_data': <String, dynamic>{
-          'mime_type': 'image/jpeg',
-          'data': base64Encode(imageBytes),
-        },
-      });
+      userParts.add(
+        InlineDataPart(
+          'image/jpeg',
+          Uint8List.fromList(imageBytes),
+        ),
+      );
     }
 
-    contents.add(<String, dynamic>{
-      'role': 'user',
-      'parts': userParts,
-    });
-
-    return <String, dynamic>{
-      'system_instruction': <String, dynamic>{
-        'parts': <Map<String, String>>[
-          <String, String>{'text': _buildSystemPrompt(language, topic)},
-        ],
-      },
-      'contents': contents,
-      'generationConfig': <String, dynamic>{
-        'temperature': 0.4,
-        'topK': 32,
-        'topP': 0.95,
-        'maxOutputTokens': 700,
-      },
-      'safetySettings': <Map<String, String>>[
-        <String, String>{
-          'category': 'HARM_CATEGORY_HARASSMENT',
-          'threshold': 'BLOCK_MEDIUM_AND_ABOVE',
-        },
-        <String, String>{
-          'category': 'HARM_CATEGORY_HATE_SPEECH',
-          'threshold': 'BLOCK_MEDIUM_AND_ABOVE',
-        },
-        <String, String>{
-          'category': 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-          'threshold': 'BLOCK_ONLY_HIGH',
-        },
-        <String, String>{
-          'category': 'HARM_CATEGORY_DANGEROUS_CONTENT',
-          'threshold': 'BLOCK_MEDIUM_AND_ABOVE',
-        },
-      ],
-    };
-  }
-
-  String _extractText(Map<String, dynamic> data) {
-    try {
-      final List<dynamic> candidates = data['candidates'] as List<dynamic>;
-      if (candidates.isEmpty) {
-        return _kFallbackMessage;
-      }
-
-      final Map<String, dynamic> content = candidates.first['content'] as Map<String, dynamic>;
-      final List<dynamic> parts = content['parts'] as List<dynamic>;
-      final StringBuffer buffer = StringBuffer();
-
-      for (final dynamic part in parts) {
-        final String? text = (part as Map<String, dynamic>)['text'] as String?;
-        if (text != null && text.trim().isNotEmpty) {
-          if (buffer.isNotEmpty) {
-            buffer.writeln();
-          }
-          buffer.write(text.trim());
-        }
-      }
-
-      return buffer.isEmpty ? _kFallbackMessage : buffer.toString();
-    } catch (_) {
-      return _kFallbackMessage;
-    }
-  }
-
-  Future<_GeminiAttemptResult> _sendWithFallbackModels(
-    Map<String, dynamic> requestBody,
-    AiTopic topic,
-  ) async {
-    http.Response? lastResponse;
-
-    for (final String model in _kModelNames) {
-      final http.Response response = await http
-          .post(
-            Uri.parse(
-              'https://generativelanguage.googleapis.com/v1beta/models/'
-              '$model:generateContent?key=$_kApiKey',
-            ),
-            headers: <String, String>{'Content-Type': 'application/json'},
-            body: jsonEncode(requestBody),
-          )
-          .timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        return _GeminiAttemptResult(model: model, response: response);
-      }
-
-      lastResponse = response;
-      if (response.statusCode != 404) {
-        break;
-      }
-    }
-
-    return _GeminiAttemptResult(
-      model: _kModelNames.first,
-      response: lastResponse ??
-          http.Response(
-            '{"error":{"message":"No Gemini response was returned."}}',
-            500,
-          ),
-    );
-  }
-
-  ChatMessage _handleError(AiTopic topic, int statusCode, String responseBody) {
-    final String apiMessage = _extractApiErrorMessage(responseBody);
-    switch (statusCode) {
-      case 400:
-        return ChatMessage.fromAi(
-          apiMessage.isEmpty
-              ? 'That question could not be processed. Please rephrase it and try again.'
-              : 'Request could not be processed: $apiMessage',
-          topic: topic,
-          isError: true,
-        );
-      case 403:
-        return ChatMessage.fromAi(
-          apiMessage.isEmpty
-              ? 'The Gemini API key was rejected. Please verify the key and API access.'
-              : 'Gemini access was rejected: $apiMessage',
-          topic: topic,
-          isError: true,
-        );
-      case 404:
-        return ChatMessage.fromAi(
-          apiMessage.isEmpty
-              ? 'The selected Gemini model endpoint was not found. Check the model name or switch to a currently supported model for this API key.'
-              : 'Gemini model endpoint was not found: $apiMessage',
-          topic: topic,
-          isError: true,
-        );
-      case 429:
-        return ChatMessage.fromAi(
-          apiMessage.isEmpty
-              ? 'Too many AI requests were sent. Gemini is rate-limiting this key, so wait about a minute before trying again. If this keeps happening, check the Gemini quota or use another key.'
-              : 'Too many AI requests were sent. Gemini is rate-limiting this key: $apiMessage',
-          topic: topic,
-          isError: true,
-        );
-      case 500:
-      case 503:
-        return ChatMessage.fromAi(
-          apiMessage.isEmpty
-              ? 'The AI server is temporarily unavailable. Please try again in a few minutes.'
-              : 'The AI server is temporarily unavailable: $apiMessage',
-          topic: topic,
-          isError: true,
-        );
-      default:
-        return ChatMessage.fromAi(
-          apiMessage.isEmpty
-              ? 'Request failed with error $statusCode. Please try again.'
-              : 'Request failed with error $statusCode: $apiMessage',
-          topic: topic,
-          isError: true,
-        );
-    }
+    prompt.add(Content('user', userParts));
+    return prompt;
   }
 
   ChatMessage _offlineRateLimitResponse({
@@ -410,10 +253,10 @@ class GeminiService {
     final String advice = _localFarmAdvice(topic, message);
     final String imageNote = imageBytes == null
         ? ''
-        : '\n\nImage note: Gemini is rate-limited, so I cannot inspect the photo right now. Save the photo and retry after the cooldown.';
+        : '\n\nImage note: Firebase AI is rate-limited, so I cannot inspect the photo right now. Save the photo and retry after the cooldown.';
 
     return ChatMessage.fromAi(
-      'Gemini is rate-limiting this API key, so I switched to offline farm guidance for now. Try the live AI again in about $waitMinutes minutes.\n\n$advice$imageNote',
+      'Firebase AI is rate-limiting this request, so I switched to offline farm guidance for now. Try the live AI again in about $waitMinutes minutes.\n\n$advice$imageNote',
       topic: topic,
     );
   }
@@ -430,7 +273,7 @@ class GeminiService {
         : '\n\nImage note: I cannot inspect the photo while offline. Keep the image attached or upload it again when internet or quota is available.';
 
     return ChatMessage.fromAi(
-      '$reason I switched to offline FarmSync guidance until Gemini is available again.\n\n$advice$imageNote',
+      '$reason I switched to offline FarmSync guidance until Firebase AI is available again.\n\n$advice$imageNote',
       topic: topic,
     );
   }
@@ -445,7 +288,7 @@ class GeminiService {
 
     switch (topic) {
       case AiTopic.cropManagement:
-        return 'Crop action plan:\n- Check crop stage, soil moisture, and leaf color before applying inputs.\n- Record the field, date, product used, quantity, and labour cost in crop records.\n- If leaves are yellowing, compare watering, nutrient deficiency, and pest signs before treatment.\n- For urgent field problems, take clear photos and ask an extension officer or retry Gemini later.';
+        return 'Crop action plan:\n- Check crop stage, soil moisture, and leaf color before applying inputs.\n- Record the field, date, product used, quantity, and labour cost in crop records.\n- If leaves are yellowing, compare watering, nutrient deficiency, and pest signs before treatment.\n- For urgent field problems, take clear photos and ask an extension officer or retry Firebase AI later.';
       case AiTopic.animalHealth:
         return 'Animal care action plan:\n- Separate weak or sick animals and check feed, water, temperature, stool, coughing, and wounds.\n- Record symptoms, treatment, vaccination status, and mortality risk in livestock records.\n- Keep housing dry and clean, and call a vet quickly for sudden deaths, severe diarrhoea, or breathing trouble.\n- Update stock counts after births, sales, deaths, or transfers.';
       case AiTopic.diseaseAndPest:
@@ -463,7 +306,7 @@ class GeminiService {
         if (lower.contains('sale') || lower.contains('price') || lower.contains('profit') || lower.contains('money')) {
           return _localFarmAdvice(AiTopic.marketAndFinance, message);
         }
-        return 'Farm action plan:\n- Write the issue as a record: farm, crop/animal, date, symptoms, cost, and next action.\n- Start with observation before treatment: moisture, weather, pests, health signs, and recent input use.\n- Add a reminder so the issue is checked again tomorrow.\n- Retry Gemini later for a more specific live answer.';
+        return 'Farm action plan:\n- Write the issue as a record: farm, crop/animal, date, symptoms, cost, and next action.\n- Start with observation before treatment: moisture, weather, pests, health signs, and recent input use.\n- Add a reminder so the issue is checked again tomorrow.\n- Retry Firebase AI later for a more specific live answer.';
     }
   }
 
@@ -488,19 +331,6 @@ class GeminiService {
         .replaceAll(RegExp(r'[^a-z0-9 ]'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
-  }
-
-  String _extractApiErrorMessage(String responseBody) {
-    try {
-      final Map<String, dynamic> decoded = jsonDecode(responseBody) as Map<String, dynamic>;
-      final Object? error = decoded['error'];
-      if (error is Map<String, dynamic>) {
-        return (error['message'] as String? ?? '').trim();
-      }
-      return '';
-    } catch (_) {
-      return '';
-    }
   }
 
   void _addToHistory(AiTopic topic, ChatMessage message) {
@@ -575,16 +405,6 @@ class _CachedResponse {
 
   final ChatMessage message;
   final DateTime timestamp;
-}
-
-class _GeminiAttemptResult {
-  const _GeminiAttemptResult({
-    required this.model,
-    required this.response,
-  });
-
-  final String model;
-  final http.Response response;
 }
 
 const String _kFallbackMessage =

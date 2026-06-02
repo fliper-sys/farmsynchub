@@ -21,7 +21,7 @@ class AiProvider extends ChangeNotifier {
   String get language => _language;
   bool get isInitialized => _isInitialized;
   bool get hasApiKey => GeminiService.instance.hasApiKey;
-  String get modelName => 'Gemini Flash';
+  String get modelName => GeminiService.instance.modelName;
   int get activeMessageCount => activeMessages.where((ChatMessage message) => !message.isLoading).length;
 
   List<ChatMessage> messagesFor(AiTopic topic) =>
@@ -98,19 +98,6 @@ class AiProvider extends ChangeNotifier {
 
     final AiTopic topic = _activeTopic;
     if (isLoadingFor(topic)) {
-      return;
-    }
-
-    if (!hasApiKey) {
-      _addMessage(
-        topic,
-        ChatMessage.fromAi(
-          'AI requests are disabled until a Gemini API key is configured with `--dart-define=GEMINI_API_KEY=your_key`.',
-          topic: topic,
-          isError: true,
-        ),
-      );
-      notifyListeners();
       return;
     }
 

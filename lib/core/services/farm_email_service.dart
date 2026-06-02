@@ -7,7 +7,7 @@ class FarmEmailService {
   const FarmEmailService({
     this.endpoint = 'https://farmsynchub.lbtech.site/api/email-notifications',
     this.clientName = 'FarmSync Hub',
-    this.apiKey = '',
+    this.apiKey = 'Xanther839@FarmSyncEmail2026',
   });
 
   final String endpoint;

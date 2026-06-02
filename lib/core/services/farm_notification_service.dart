@@ -84,6 +84,9 @@ class FarmNotificationService {
     if (!_isInitialized) {
       await initialize();
     }
+    if (!_isInitialized) {
+      return;
+    }
     await _plugin.zonedSchedule(
       id,
       title,
@@ -103,6 +106,41 @@ class FarmNotificationService {
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       // The `uiLocalNotificationDateInterpretation` parameter was removed
       // in newer versions of flutter_local_notifications. Defaults are used.
+      payload: payload,
+    );
+  }
+
+  Future<void> showNow({
+    required int id,
+    required String title,
+    required String body,
+    String? payload,
+    String channelId = 'farm_updates',
+    String channelName = 'Farm updates',
+    String channelDescription = 'News, finance, farm schedule, and admin update notifications',
+  }) async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+    if (!_isInitialized) {
+      return;
+    }
+
+    await _plugin.show(
+      id,
+      title,
+      body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          channelId,
+          channelName,
+          channelDescription: channelDescription,
+          importance: Importance.max,
+          priority: Priority.high,
+        ),
+        iOS: const DarwinNotificationDetails(),
+        macOS: const DarwinNotificationDetails(),
+      ),
       payload: payload,
     );
   }

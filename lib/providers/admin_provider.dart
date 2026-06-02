@@ -3,9 +3,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/services/farm_email_service.dart';
 import '../data/remote/firebase_service.dart';
+import '../domain/models/notification.dart';
 import '../domain/models/user_profile.dart';
 import 'auth_provider.dart';
 import 'email_notification_provider.dart';
+import 'notification_provider.dart';
 
 const String kAdminRecoveryCode = 'Xanther839';
 const String kDefaultAdminEmail = 'lovebari4@icloud.com';
@@ -16,6 +18,7 @@ final adminWorkspaceProvider =
   return AdminWorkspaceController(
     firebaseService: ref.read(firebaseServiceProvider),
     emailService: ref.read(farmEmailServiceProvider),
+    notifications: ref.read(notificationsProvider.notifier),
   );
 });
 
@@ -130,14 +133,17 @@ class AdminWorkspaceController extends StateNotifier<AsyncValue<AdminWorkspaceSt
   AdminWorkspaceController({
     required FirebaseService firebaseService,
     required FarmEmailService emailService,
+    required NotificationsNotifier notifications,
   })  : _firebaseService = firebaseService,
         _emailService = emailService,
+        _notifications = notifications,
         super(const AsyncValue.loading()) {
     load();
   }
 
   final FirebaseService _firebaseService;
   final FarmEmailService _emailService;
+  final NotificationsNotifier _notifications;
   static const String _sessionKey = 'admin_session_email';
   static const String _collection = 'app_admins';
 
@@ -344,12 +350,17 @@ class AdminWorkspaceController extends StateNotifier<AsyncValue<AdminWorkspaceSt
     String audience = 'all',
     String? targetUserId,
   }) async {
-    await _firebaseService.sendBroadcastNotification(
+    await _notifications.publishNotification(
       title: title,
       message: message,
-      type: type,
+      type: _notificationTypeFromAdminType(type),
+      actionUrl: '/notifications',
       audience: audience,
       targetUserId: targetUserId,
+      metadata: <String, dynamic>{
+        'source': 'admin',
+        'adminType': type,
+      },
     );
     final List<UserProfile> recipients = audience == 'single' && targetUserId != null
         ? _current?.users.where((UserProfile user) => user.uid == targetUserId).toList(growable: false) ?? <UserProfile>[]
@@ -408,6 +419,17 @@ class AdminWorkspaceController extends StateNotifier<AsyncValue<AdminWorkspaceSt
         'visibility': 'public',
       },
     );
+    await _notifications.publishNotification(
+      title: 'Admin news update',
+      message: title,
+      type: NotificationType.info,
+      actionUrl: '/news',
+      audience: 'all',
+      metadata: <String, dynamic>{
+        'source': 'admin_news',
+        'category': category,
+      },
+    );
     final String email = currentAdmin?.email ?? '';
     if (email.isNotEmpty) {
       final String adminName = currentAdmin?.name.trim() ?? '';
@@ -418,6 +440,24 @@ class AdminWorkspaceController extends StateNotifier<AsyncValue<AdminWorkspaceSt
         category: category,
         summary: body.length > 160 ? '${body.substring(0, 160)}...' : body,
       );
+    }
+  }
+
+  NotificationType _notificationTypeFromAdminType(String type) {
+    switch (type.toLowerCase()) {
+      case 'success':
+      case 'update':
+      case 'news':
+        return NotificationType.success;
+      case 'warning':
+      case 'alert':
+      case 'restriction':
+        return NotificationType.warning;
+      case 'error':
+      case 'urgent':
+        return NotificationType.error;
+      default:
+        return NotificationType.info;
     }
   }
 

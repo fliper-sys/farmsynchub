@@ -227,11 +227,13 @@ class SoftSectionTitle extends StatelessWidget {
   const SoftSectionTitle({
     super.key,
     required this.title,
-    this.action, TextStyle? titleStyle,
+    this.action,
+    this.titleStyle,
   });
 
   final String title;
   final Widget? action;
+  final TextStyle? titleStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -244,9 +246,12 @@ class SoftSectionTitle extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: AppColors.primary,
-              ),
+              style: titleStyle ??
+                  theme.textTheme.titleLarge?.copyWith(
+                    color: theme.brightness == Brightness.dark
+                        ? theme.colorScheme.onSurface
+                        : AppColors.primary,
+                  ),
             ),
           ),
           if (action != null) action!,
@@ -271,12 +276,17 @@ class SoftInfoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color background = isDark ? Color.alphaBlend(color.withOpacity(0.20), theme.colorScheme.surface) : color;
+    final Color labelColor = isDark ? theme.colorScheme.onSurfaceVariant : AppColors.primary.withOpacity(0.65);
+    final Color valueColor = isDark ? theme.colorScheme.onSurface : AppColors.primary;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: color,
+        color: background,
         borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: isDark ? color.withOpacity(0.40) : Colors.transparent),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -285,14 +295,14 @@ class SoftInfoChip extends StatelessWidget {
           Text(
             label,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: AppColors.primary.withOpacity(0.65),
+              color: labelColor,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             value,
             style: theme.textTheme.titleMedium?.copyWith(
-              color: AppColors.primary,
+              color: valueColor,
               fontWeight: FontWeight.w700,
             ),
           ),

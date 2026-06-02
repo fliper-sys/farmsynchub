@@ -1176,9 +1176,13 @@ class _FarmPlanningCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    const Color tint = Color(0xFFE8F4D8);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color iconBackground = isDark ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface) : tint;
+    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
     return AppCard(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      color: theme.colorScheme.surfaceContainerHighest,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -1190,10 +1194,11 @@ class _FarmPlanningCard extends StatelessWidget {
                   width: 46,
                   height: 46,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE8F4D8),
+                    color: iconBackground,
                     borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: isDark ? tint.withOpacity(0.42) : Colors.transparent),
                   ),
-                  child: const Icon(Icons.insights_rounded),
+                  child: Icon(Icons.insights_rounded, color: iconForeground),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1355,8 +1360,13 @@ class _InlineNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color iconBackground = isDark ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface) : color;
+    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
+
     return AppCard(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      color: theme.colorScheme.surfaceContainerHighest,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -1365,10 +1375,11 @@ class _InlineNotice extends StatelessWidget {
               width: 46,
               height: 46,
               decoration: BoxDecoration(
-                color: color,
+                color: iconBackground,
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: isDark ? color.withOpacity(0.42) : Colors.transparent),
               ),
-              child: Icon(icon),
+              child: Icon(icon, color: iconForeground),
             ),
             const SizedBox(width: 12),
             Expanded(child: Text(message)),
@@ -1428,9 +1439,12 @@ class _ProcessCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color iconBackground = isDark ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface) : color;
+    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
     return AppCard(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      color: theme.colorScheme.surfaceContainerHighest,
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
@@ -1440,10 +1454,11 @@ class _ProcessCard extends StatelessWidget {
               width: 54,
               height: 54,
               decoration: BoxDecoration(
-                color: color,
+                color: iconBackground,
                 borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: isDark ? color.withOpacity(0.42) : Colors.transparent),
               ),
-              child: Icon(icon),
+              child: Icon(icon, color: iconForeground),
             ),
             const SizedBox(height: 14),
             Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
@@ -1476,6 +1491,9 @@ class _DocumentationRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color iconBackground = isDark ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface) : color;
+    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1490,10 +1508,11 @@ class _DocumentationRow extends StatelessWidget {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: color,
+              color: iconBackground,
               borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: isDark ? color.withOpacity(0.42) : Colors.transparent),
             ),
-            child: Icon(icon),
+            child: Icon(icon, color: iconForeground),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -1532,9 +1551,12 @@ class _InventoryPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color iconBackground = isDark ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface) : color;
+    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
     return AppCard(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      color: theme.colorScheme.surfaceContainerHighest,
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
@@ -1544,10 +1566,11 @@ class _InventoryPanel extends StatelessWidget {
               width: 54,
               height: 54,
               decoration: BoxDecoration(
-                color: color,
+                color: iconBackground,
                 borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: isDark ? color.withOpacity(0.42) : Colors.transparent),
               ),
-              child: Icon(icon),
+              child: Icon(icon, color: iconForeground),
             ),
             const SizedBox(height: 14),
             Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
@@ -1573,13 +1596,27 @@ class _MiniTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color background = isDark ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface) : color;
+    final Color foreground = isDark ? theme.colorScheme.onSurface : const Color(0xFF284231);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color,
+        color: background,
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: isDark ? color.withOpacity(0.44) : color.withOpacity(0.85),
+        ),
       ),
-      child: Text(text),
+      child: Text(
+        text,
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: foreground,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }

@@ -601,6 +601,7 @@ class _ModeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final Color iconForeground = selected ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant;
 
     return InkWell(
       onTap: onTap,
@@ -629,7 +630,7 @@ class _ModeTile extends StatelessWidget {
                     : theme.colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: Icon(icon),
+              child: Icon(icon, color: iconForeground),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -678,6 +679,9 @@ class _SettingsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color iconBackground = isDark ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface) : tint;
+    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
     return InkWell(
       onTap: onTap,
@@ -694,10 +698,11 @@ class _SettingsRow extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: tint,
+                color: iconBackground,
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: isDark ? tint.withOpacity(0.42) : Colors.transparent),
               ),
-              child: Icon(icon),
+              child: Icon(icon, color: iconForeground),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -744,6 +749,9 @@ class _ToggleSettingsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color iconBackground = isDark ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface) : tint;
+    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -757,10 +765,14 @@ class _ToggleSettingsRow extends StatelessWidget {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: tint,
+              color: iconBackground,
               borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: isDark ? tint.withOpacity(0.42) : Colors.transparent),
             ),
-            child: Icon(icon),
+            child: Icon(
+              icon,
+              color: iconForeground,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(

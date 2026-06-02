@@ -1139,13 +1139,25 @@ class _MiniMeta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color background = isDark ? Color.alphaBlend(color.withOpacity(0.24), theme.colorScheme.surface) : color;
+    final Color foreground = isDark ? theme.colorScheme.onSurface : const Color(0xFF284231);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: color,
+        color: background,
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: isDark ? color.withOpacity(0.44) : color.withOpacity(0.85)),
       ),
-      child: Text(text),
+      child: Text(
+        text,
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: foreground,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }
@@ -1163,6 +1175,11 @@ class _ChecklistTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color badgeColor = isDark ? Color.alphaBlend(tint.withOpacity(0.24), theme.colorScheme.surface) : tint;
+    final Color badgeText = isDark ? theme.colorScheme.onSurface : AppColors.primary;
+
     return AppCard(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1173,13 +1190,17 @@ class _ChecklistTile extends StatelessWidget {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: tint,
+                color: badgeColor,
                 borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: isDark ? tint.withOpacity(0.44) : tint.withOpacity(0.85)),
               ),
               child: Center(
                 child: Text(
                   '$index',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(color: AppColors.primary),
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: badgeText,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ),
@@ -1187,7 +1208,7 @@ class _ChecklistTile extends StatelessWidget {
             Expanded(
               child: Text(
                 text,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+                style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
               ),
             ),
           ],
