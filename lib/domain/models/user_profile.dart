@@ -19,7 +19,13 @@ class UserProfile {
     required this.createdAt,
     required this.updatedAt,
     this.isDisabled = false,
+    this.isVerified = false,
+    this.verificationStatus = 'none',
+    this.verificationNote = '',
+    this.verificationRequestedAt,
+    this.verificationReviewedAt,
     this.restrictedFeatures = const <String>[],
+    this.fcmTokens = const <String>[],
   });
 
   final String uid;
@@ -34,13 +40,21 @@ class UserProfile {
   final DateTime createdAt;
   final DateTime updatedAt;
   final bool isDisabled;
+  final bool isVerified;
+  final String verificationStatus;
+  final String verificationNote;
+  final DateTime? verificationRequestedAt;
+  final DateTime? verificationReviewedAt;
   final List<String> restrictedFeatures;
+  final List<String> fcmTokens;
 
   bool get isComplete =>
       fullName.trim().isNotEmpty &&
       ward.trim().isNotEmpty &&
       primaryFocus.trim().isNotEmpty &&
       profileImageBase64.trim().isNotEmpty;
+
+  bool get hasPendingVerificationRequest => verificationStatus == 'pending';
 
   UserProfile copyWith({
     String? uid,
@@ -55,7 +69,13 @@ class UserProfile {
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? isDisabled,
+    bool? isVerified,
+    String? verificationStatus,
+    String? verificationNote,
+    DateTime? verificationRequestedAt,
+    DateTime? verificationReviewedAt,
     List<String>? restrictedFeatures,
+    List<String>? fcmTokens,
   }) {
     return UserProfile(
       uid: uid ?? this.uid,
@@ -70,7 +90,13 @@ class UserProfile {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isDisabled: isDisabled ?? this.isDisabled,
+      isVerified: isVerified ?? this.isVerified,
+      verificationStatus: verificationStatus ?? this.verificationStatus,
+      verificationNote: verificationNote ?? this.verificationNote,
+      verificationRequestedAt: verificationRequestedAt ?? this.verificationRequestedAt,
+      verificationReviewedAt: verificationReviewedAt ?? this.verificationReviewedAt,
       restrictedFeatures: restrictedFeatures ?? this.restrictedFeatures,
+      fcmTokens: fcmTokens ?? this.fcmTokens,
     );
   }
 
@@ -87,7 +113,13 @@ class UserProfile {
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
         'isDisabled': isDisabled,
+        'isVerified': isVerified,
+        'verificationStatus': verificationStatus,
+        'verificationNote': verificationNote,
+        'verificationRequestedAt': verificationRequestedAt?.toIso8601String(),
+        'verificationReviewedAt': verificationReviewedAt?.toIso8601String(),
         'restrictedFeatures': restrictedFeatures,
+        'fcmTokens': fcmTokens,
       };
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
@@ -107,7 +139,16 @@ class UserProfile {
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
       updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
       isDisabled: json['isDisabled'] as bool? ?? false,
+      isVerified: json['isVerified'] as bool? ?? false,
+      verificationStatus: json['verificationStatus'] as String? ?? 'none',
+      verificationNote: json['verificationNote'] as String? ?? '',
+      verificationRequestedAt: DateTime.tryParse(json['verificationRequestedAt'] as String? ?? ''),
+      verificationReviewedAt: DateTime.tryParse(json['verificationReviewedAt'] as String? ?? ''),
       restrictedFeatures: (json['restrictedFeatures'] as List<dynamic>?)
+              ?.whereType<String>()
+              .toList(growable: false) ??
+          <String>[],
+      fcmTokens: (json['fcmTokens'] as List<dynamic>?)
               ?.whereType<String>()
               .toList(growable: false) ??
           <String>[],

@@ -1,5 +1,16 @@
 import '../../domain/models/farm.dart';
 
+/// Remote persistence contract used by farm repositories.
+abstract class FarmRemoteStore {
+  bool get hasActiveUser;
+
+  Future<void> syncToFirestore(String collection, Map<String, dynamic> data);
+
+  Future<List<Map<String, dynamic>>> getFromFirestore(String collection);
+
+  Future<void> deleteFromFirestore(String collection, String id);
+}
+
 /// Abstract repository for farm operations.
 abstract class FarmRepository {
   /// Get all farms.

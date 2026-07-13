@@ -1,0 +1,332 @@
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../core/services/operations_history_report_service.dart';
+import '../../../core/services/report_file_saver.dart';
+import '../../../core/services/report_file_saver_base.dart';
+import '../../../core/services/report_share_service.dart';
+import '../../../core/utils/currency_utils.dart';
+import '../../../domain/models/farm.dart';
+import '../../../domain/models/transaction.dart';
+import '../../../providers/farm_provider.dart';
+import '../../../providers/finance_provider.dart';
+import '../../common/widgets/app_button.dart';
+import '../../common/widgets/app_card.dart';
+import '../../common/widgets/app_text_field.dart';
+
+class ExpenseTrackingScreen extends ConsumerStatefulWidget {
+  const ExpenseTrackingScreen({super.key});
+
+  static const String routeName = '/expenses';
+
+  @override
+  ConsumerState<ExpenseTrackingScreen> createState() => _ExpenseTrackingScreenState();
+}
+
+class _ExpenseTrackingScreenState extends ConsumerState<ExpenseTrackingScreen> {
+  final OperationsHistoryReportService _reportService = OperationsHistoryReportService();
+  final ReportFileSaver _fileSaver = createReportFileSaver();
+  final ReportShareService _shareService = const ReportShareService();
+  final TextEditingController _searchController = TextEditingController();
+  bool _isExporting = false;
+  String _searchText = '';
+  String _farmId = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() {
+      if (mounted) {
+        setState(() => _searchText = _searchController.text.trim().toLowerCase());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
+    final List<Transaction> allTransactions = ref.watch(transactionsProvider).valueOrNull ?? <Transaction>[];
+    final List<Transaction> expenses = allTransactions
+        .where((Transaction item) => item.type == TransactionType.expense && item.recordKind != TransactionRecordKind.procurement)
+        .where((Transaction item) => _farmId.isEmpty || item.farmId == _farmId)
+        .where((Transaction item) {
+          if (_searchText.isEmpty) return true;
+          final String haystack = '${item.description} ${item.category.name} ${item.notes} ${item.receiptNumber}'.toLowerCase();
+          return haystack.contains(_searchText);
+        })
+        .toList(growable: false)
+      ..sort((Transaction a, Transaction b) => b.transactionDate.compareTo(a.transactionDate));
+
+    final double totalExpenses = expenses.fold<double>(0, (double sum, Transaction item) => sum + item.amount);
+    final double averageExpense = expenses.isEmpty ? 0 : totalExpenses / expenses.length;
+    final Map<TransactionCategory, double> categoryTotals = <TransactionCategory, double>{};
+    for (final Transaction expense in expenses) {
+      categoryTotals.update(
+        expense.category,
+        (double value) => value + expense.amount,
+        ifAbsent: () => expense.amount,
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.of(context).canPop() ? Navigator.of(context).pop() : context.go('/finance'),
+        ),
+        title: const Text('Expense tracking'),
+        actions: <Widget>[
+          IconButton(
+            tooltip: 'Export expense history',
+            icon: _isExporting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.picture_as_pdf_rounded),
+            onPressed: expenses.isEmpty || _isExporting
+                ? null
+                : () => _exportHistory(context, farms, expenses, totalExpenses, categoryTotals),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: <Widget>[
+          AppCard(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text('Expense dashboard', style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Track farm spending, compare categories, and export a clean history report for review or sharing.',
+                  ),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: <Widget>[
+                      _MetricChip(label: 'Entries', value: expenses.length.toString()),
+                      _MetricChip(label: 'Spent', value: CurrencyUtils.formatCompactCurrency(totalExpenses)),
+                      _MetricChip(label: 'Average', value: CurrencyUtils.formatCompactCurrency(averageExpense)),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: <Widget>[
+                      AppButton.primary(
+                        onPressed: () => context.go('/finance'),
+                        child: const Text('Open workspace'),
+                      ),
+                      AppButton.secondary(
+                        onPressed: expenses.isEmpty || _isExporting
+                            ? null
+                            : () => _exportHistory(context, farms, expenses, totalExpenses, categoryTotals),
+                        child: const Text('Share PDF'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          AppTextField(
+            controller: _searchController,
+            label: 'Search expenses',
+            hint: 'Search by note, category, or receipt number',
+            prefix: const Icon(Icons.search_rounded),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 12),
+          _FarmDropdown(
+            farms: farms,
+            value: _farmId,
+            onChanged: (String value) => setState(() => _farmId = value),
+          ),
+          const SizedBox(height: 16),
+          if (expenses.isEmpty)
+            const _EmptyState(message: 'No expense history matches the current filters.')
+          else
+            ...expenses.map(
+              (Transaction item) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _HistoryCard(
+                  title: item.description,
+                  subtitle: item.category.name,
+                  meta: '${item.receiptNumber} • ${appDate(item.transactionDate)}',
+                  amount: CurrencyUtils.formatCurrency(item.amount),
+                ),
+              ),
+            ),
+          const SizedBox(height: 10),
+          AppCard(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: const Padding(
+              padding: EdgeInsets.all(18),
+              child: Text(
+                'Tip: expense entry and editing live in the Finance workspace. This page keeps the expense history easy to review and export.',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _exportHistory(
+    BuildContext context,
+    List<Farm> farms,
+    List<Transaction> expenses,
+    double totalExpenses,
+    Map<TransactionCategory, double> categoryTotals,
+  ) async {
+    setState(() => _isExporting = true);
+    try {
+      final String fileName = 'farmsync_expense_history_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final Uint8List bytes = await _reportService.buildReport(
+        title: 'Expense history',
+        subtitle: 'Expense review exported from FarmSync Hub',
+        farms: farms,
+        entries: expenses,
+        income: 0,
+        expenses: totalExpenses,
+        categoryTotals: categoryTotals,
+      );
+      final String path = await _fileSaver.savePdf(bytes: bytes, fileName: fileName);
+      await _shareService.sharePdf(
+        filePath: path,
+        fileName: fileName,
+        message: 'FarmSync expense history is ready to share.',
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Expense PDF saved: $path')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isExporting = false);
+      }
+    }
+  }
+}
+
+class _FarmDropdown extends StatelessWidget {
+  const _FarmDropdown({
+    required this.farms,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final List<Farm> farms;
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String>(
+      value: value.isEmpty ? null : value,
+      decoration: const InputDecoration(labelText: 'Farm'),
+      items: <DropdownMenuItem<String>>[
+        const DropdownMenuItem<String>(value: '', child: Text('All farms')),
+        ...farms.map(
+          (Farm farm) => DropdownMenuItem<String>(
+            value: farm.id,
+            child: Text(farm.name),
+          ),
+        ),
+      ],
+      onChanged: (String? next) => onChanged(next ?? ''),
+    );
+  }
+}
+
+class _MetricChip extends StatelessWidget {
+  const _MetricChip({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Text(label, style: Theme.of(context).textTheme.labelSmall),
+          const SizedBox(height: 4),
+          Text(value, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistoryCard extends StatelessWidget {
+  const _HistoryCard({
+    required this.title,
+    required this.subtitle,
+    required this.meta,
+    required this.amount,
+  });
+
+  final String title;
+  final String subtitle;
+  final String meta;
+  final String amount;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        title: Text(title),
+        subtitle: Text('$subtitle\n$meta'),
+        isThreeLine: true,
+        trailing: Text(amount, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Text(message),
+      ),
+    );
+  }
+}
+
+String appDate(DateTime dateTime) => '${dateTime.day.toString().padLeft(2, '0')}/${dateTime.month.toString().padLeft(2, '0')}/${dateTime.year}';

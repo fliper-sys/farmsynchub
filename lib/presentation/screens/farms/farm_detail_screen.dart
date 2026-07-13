@@ -30,6 +30,7 @@ import '../../common/widgets/app_text_field.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
 import '../crops/crop_detail_screen.dart';
+import 'farm_insight_summary_screen.dart';
 import '../livestock/livestock_detail_screen.dart';
 
 class FarmDetailScreen extends ConsumerWidget {
@@ -98,6 +99,14 @@ class FarmDetailScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.thermostat_rounded),
             onPressed: () => _openMetricsSheet(context, ref, farm!),
+          ),
+          IconButton(
+            icon: const Icon(Icons.insights_rounded),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => FarmInsightSummaryScreen(farmId: farm!.id),
+              ),
+            ),
           ),
         ],
       ),
@@ -417,6 +426,13 @@ class FarmDetailScreen extends ConsumerWidget {
                 child: AppButton.secondary(
                   onPressed: () => _openTaskSheet(context, ref, farm!),
                   child: const Text('Add task'),
+                ),
+              ),
+              SizedBox(
+                width: 180,
+                child: AppButton.primary(
+                  onPressed: () => _openScheduleSheet(context, ref, farm!),
+                  child: const Text('Create schedule'),
                 ),
               ),
               SizedBox(
@@ -839,8 +855,9 @@ class FarmDetailScreen extends ConsumerWidget {
     }
 
     final DateTime now = DateTime.now();
+    final String memberId = const Uuid().v4();
     final FarmWorkspaceMember member = FarmWorkspaceMember(
-      id: const Uuid().v4(),
+      id: memberId,
       name: draft.name,
       email: draft.email,
       phone: draft.phone,
@@ -853,6 +870,7 @@ class FarmDetailScreen extends ConsumerWidget {
       canViewActivityLog: draft.canViewActivityLog,
       createdAt: now,
       updatedAt: now,
+      isActive: draft.email.isEmpty ? true : false,
     );
     final Farm updated = farm.copyWith(
       workspaceMembers: <FarmWorkspaceMember>[member, ...farm.workspaceMembers],
@@ -873,9 +891,24 @@ class FarmDetailScreen extends ConsumerWidget {
     );
     await ref.read(farmsProvider.notifier).updateFarm(updated);
     if (member.email.isNotEmpty) {
-      await ref.read(farmEmailServiceProvider).sendWelcomeNotification(
+      // Create an invite record and email so the worker can complete account setup.
+      final String inviteId = const Uuid().v4();
+      await ref.read(firebaseServiceProvider).createInvite(
+            id: inviteId,
+            email: member.email,
+            farmId: farm.id,
+            role: member.role.name,
+            allowedFarmIds: member.allowedFarmIds,
+            createdBy: ref.read(firebaseServiceProvider).currentUser?.email ?? 'system',
+            createdAt: now,
+          );
+      await ref.read(farmEmailServiceProvider).sendInviteNotification(
             toEmail: member.email,
             recipientName: member.name,
+            inviterName: ref.read(firebaseServiceProvider).currentUser?.displayName ?? 'Farm owner',
+            farmName: farm.name,
+            inviteToken: inviteId,
+            role: member.roleLabel,
           );
     }
   }
@@ -1015,6 +1048,112 @@ class FarmDetailScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _openScheduleSheet(BuildContext context, WidgetRef ref, Farm farm) async {
+    final _WorkspaceScheduleDraft? draft = await showModalBottomSheet<_WorkspaceScheduleDraft>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) => _WorkspaceScheduleSheet(farm: farm),
+    );
+    if (draft == null) {
+      return;
+    }
+
+    final DateTime now = DateTime.now();
+    final List<FarmWorkspaceTask> created = <FarmWorkspaceTask>[];
+    DateTime occurrence = draft.startAt;
+    for (int i = 0; i < draft.occurrences; i++) {
+      final FarmWorkspaceTask task = FarmWorkspaceTask(
+        id: const Uuid().v4(),
+        title: draft.title + (draft.occurrences > 1 ? ' (${i + 1}/${draft.occurrences})' : ''),
+        details: '${draft.details}\n[Schedule: ${draft.recurrenceLabel}]',
+        assigneeName: draft.assigneeName,
+        assigneeRole: draft.assigneeRole,
+        dueAt: occurrence,
+        status: FarmTaskStatus.open,
+        reminderEnabled: draft.reminderEnabled,
+        reminderLeadMinutes: draft.reminderLeadMinutes,
+        createdBy: draft.createdBy,
+        updatedBy: draft.createdBy,
+        createdAt: now,
+        updatedAt: now,
+      );
+      created.add(task);
+
+      if (draft.reminderEnabled) {
+        final DateTime reminderAt = occurrence.subtract(Duration(minutes: draft.reminderLeadMinutes));
+        if (reminderAt.isAfter(DateTime.now())) {
+          await FarmNotificationService.instance.scheduleAt(
+            id: task.id.hashCode.abs(),
+            title: 'Reminder: ${task.title}',
+            body: task.details.isEmpty ? '${farm.name} scheduled task is due.' : task.details,
+            scheduledAt: reminderAt,
+            payload: '/farms',
+          );
+        }
+      }
+
+      // advance occurrence
+      switch (draft.recurrence) {
+        case _Recurrence.none:
+          occurrence = occurrence.add(const Duration(days: 36500));
+          break;
+        case _Recurrence.daily:
+          occurrence = occurrence.add(const Duration(days: 1));
+          break;
+        case _Recurrence.weekly:
+          occurrence = occurrence.add(const Duration(days: 7));
+          break;
+        case _Recurrence.monthly:
+          occurrence = DateTime(occurrence.year, occurrence.month + 1, occurrence.day, occurrence.hour, occurrence.minute);
+          break;
+      }
+    }
+
+    final Farm updated = farm.copyWith(
+      workspaceTasks: <FarmWorkspaceTask>[...created, ...farm.workspaceTasks],
+      activityLog: <FarmActivityRecord>[
+        FarmActivityRecord(
+          id: const Uuid().v4(),
+          actorName: draft.createdBy,
+          actorRole: FarmWorkspaceRole.owner,
+          action: 'Created schedule',
+          detail: '${draft.title} — ${draft.recurrenceLabel} · ${draft.occurrences} occurrences',
+          audience: FarmActivityAudience.owners,
+          createdAt: now,
+        ),
+        ...farm.activityLog,
+      ],
+      updatedAt: now,
+      isSynced: false,
+    );
+    await ref.read(farmsProvider.notifier).updateFarm(updated);
+
+    await ref.read(notificationsProvider.notifier).publishNotification(
+      title: 'Farm schedule created',
+      message: '${draft.title} scheduled (${draft.recurrenceLabel})',
+      type: app_notification.NotificationType.info,
+      actionUrl: '/farms',
+      audience: 'single',
+      targetUserId: ref.read(firebaseServiceProvider).currentUser?.uid,
+      metadata: <String, dynamic>{
+        'source': 'farm_schedule',
+        'farmId': farm.id,
+      },
+    );
+
+    if (farm.ownerEmail.isNotEmpty) {
+      await ref.read(farmEmailServiceProvider).sendScheduleNotification(
+        toEmail: farm.ownerEmail,
+        recipientName: farm.ownerName.isNotEmpty ? farm.ownerName : 'Farm owner',
+        farmName: farm.name,
+        taskTitle: draft.title,
+        dueLabel: app_date.DateUtils.formatDateTime(created.first.dueAt),
+        detail: draft.details.isEmpty ? 'A new farm schedule has been created.' : draft.details,
+      );
+    }
+  }
+
   Future<void> _toggleWorkspaceTask(BuildContext context, WidgetRef ref, Farm farm, FarmWorkspaceTask task) async {
     final DateTime now = DateTime.now();
     final bool markDone = !task.isCompleted;
@@ -1099,6 +1238,25 @@ bool _canAccessFarm(
       );
 }
 
+String _farmRoleLabel(FarmWorkspaceRole role) {
+  switch (role) {
+    case FarmWorkspaceRole.owner:
+      return 'Owner';
+    case FarmWorkspaceRole.coOwner:
+      return 'Co-owner';
+    case FarmWorkspaceRole.manager:
+      return 'Manager';
+    case FarmWorkspaceRole.supervisor:
+      return 'Supervisor';
+    case FarmWorkspaceRole.worker:
+      return 'Worker';
+    case FarmWorkspaceRole.partner:
+      return 'Partner';
+    case FarmWorkspaceRole.viewer:
+      return 'Viewer';
+  }
+}
+
 class _WorkspaceMemberDraft {
   const _WorkspaceMemberDraft({
     required this.name,
@@ -1163,6 +1321,195 @@ class _WorkspaceActivityDraft {
   final String detail;
   final FarmActivityAudience audience;
   final bool sentToOwners;
+}
+
+enum _Recurrence { none, daily, weekly, monthly }
+
+class _WorkspaceScheduleDraft {
+  const _WorkspaceScheduleDraft({
+    required this.title,
+    required this.details,
+    required this.assigneeName,
+    required this.assigneeRole,
+    required this.startAt,
+    required this.recurrence,
+    required this.occurrences,
+    required this.reminderEnabled,
+    required this.reminderLeadMinutes,
+    required this.createdBy,
+  });
+
+  final String title;
+  final String details;
+  final String assigneeName;
+  final FarmWorkspaceRole assigneeRole;
+  final DateTime startAt;
+  final _Recurrence recurrence;
+  final int occurrences;
+  final bool reminderEnabled;
+  final int reminderLeadMinutes;
+  final String createdBy;
+
+  String get recurrenceLabel {
+    switch (recurrence) {
+      case _Recurrence.daily:
+        return 'Daily';
+      case _Recurrence.weekly:
+        return 'Weekly';
+      case _Recurrence.monthly:
+        return 'Monthly';
+      case _Recurrence.none:
+      default:
+        return 'Once';
+    }
+  }
+}
+
+class _WorkspaceScheduleSheet extends StatefulWidget {
+  const _WorkspaceScheduleSheet({required this.farm});
+
+  final Farm farm;
+
+  @override
+  State<_WorkspaceScheduleSheet> createState() => _WorkspaceScheduleSheetState();
+}
+
+class _WorkspaceScheduleSheetState extends State<_WorkspaceScheduleSheet> {
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _detailsController = TextEditingController();
+  final TextEditingController _assigneeController = TextEditingController();
+  final TextEditingController _occurrencesController = TextEditingController(text: '1');
+  final TextEditingController _leadController = TextEditingController(text: '60');
+  FarmWorkspaceRole _assigneeRole = FarmWorkspaceRole.worker;
+  _Recurrence _recurrence = _Recurrence.none;
+  DateTime _startAt = DateTime.now().add(const Duration(hours: 1));
+  bool _reminderEnabled = true;
+
+  Future<void> _pickDateTime() async {
+    final DateTime? date = await showDatePicker(
+      context: context,
+      initialDate: _startAt,
+      firstDate: DateTime.now().subtract(const Duration(days: 1)),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
+    );
+    if (date == null) return;
+    final TimeOfDay? time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: _startAt.hour, minute: _startAt.minute),
+    );
+    if (time == null) return;
+    setState(() => _startAt = DateTime(date.year, date.month, date.day, time.hour, time.minute));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text('Create schedule', style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 12),
+            AppTextField(controller: _titleController, label: 'Title', hint: 'E.g. Irrigation, Vaccination'),
+            const SizedBox(height: 8),
+            AppTextField(controller: _detailsController, label: 'Details', hint: 'Notes for the task', maxLines: 3),
+            const SizedBox(height: 8),
+            AppTextField(controller: _assigneeController, label: 'Assignee name', hint: 'Worker or team name'),
+            const SizedBox(height: 8),
+            Row(children: <Widget>[
+              Expanded(child: DropdownButtonFormField<FarmWorkspaceRole>(
+                value: _assigneeRole,
+                items: FarmWorkspaceRole.values
+                    .map((FarmWorkspaceRole r) => DropdownMenuItem(value: r, child: Text(_farmRoleLabel(r))))
+                    .toList(),
+                onChanged: (FarmWorkspaceRole? v) => setState(() => _assigneeRole = v ?? FarmWorkspaceRole.worker),
+                decoration: const InputDecoration(labelText: 'Assignee role'),
+              )),
+              const SizedBox(width: 12),
+              Expanded(child: GestureDetector(
+                onTap: _pickDateTime,
+                child: InputDecorator(
+                  decoration: const InputDecoration(labelText: 'Start'),
+                  child: Text(app_date.DateUtils.formatDateTime(_startAt)),
+                ),
+              )),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: <Widget>[
+              Expanded(child: DropdownButtonFormField<_Recurrence>(
+                value: _recurrence,
+                items: <_Recurrence>[_Recurrence.none, _Recurrence.daily, _Recurrence.weekly, _Recurrence.monthly]
+                    .map((e) => DropdownMenuItem(value: e, child: Text(switch (e) {
+                          _Recurrence.none => 'Once',
+                          _Recurrence.daily => 'Daily',
+                          _Recurrence.weekly => 'Weekly',
+                          _Recurrence.monthly => 'Monthly',
+                        })))
+                    .toList(),
+                onChanged: (v) => setState(() => _recurrence = v ?? _Recurrence.none),
+                decoration: const InputDecoration(labelText: 'Recurrence'),
+              )),
+              const SizedBox(width: 12),
+              Expanded(child: AppTextField(controller: _occurrencesController, label: 'Occurrences', hint: '1', keyboardType: TextInputType.number)),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: <Widget>[
+              Expanded(child: CheckboxListTile(
+                value: _reminderEnabled,
+                onChanged: (bool? v) => setState(() => _reminderEnabled = v ?? true),
+                title: const Text('Enable reminder'),
+                controlAffinity: ListTileControlAffinity.leading,
+              )),
+              const SizedBox(width: 12),
+              SizedBox(width: 120, child: AppTextField(controller: _leadController, label: 'Lead mins', keyboardType: TextInputType.number)),
+            ]),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: AppButton.primary(
+                onPressed: () {
+                  final int occurrences = int.tryParse(_occurrencesController.text.trim()) ?? 1;
+                  final int lead = int.tryParse(_leadController.text.trim()) ?? 60;
+                  if (_titleController.text.trim().isEmpty) return;
+                  final _WorkspaceScheduleDraft draft = _WorkspaceScheduleDraft(
+                    title: _titleController.text.trim(),
+                    details: _detailsController.text.trim(),
+                    assigneeName: _assigneeController.text.trim(),
+                    assigneeRole: _assigneeRole,
+                    startAt: _startAt,
+                    recurrence: _recurrence,
+                    occurrences: occurrences < 1 ? 1 : occurrences > 24 ? 24 : occurrences,
+                    reminderEnabled: _reminderEnabled,
+                    reminderLeadMinutes: lead,
+                    createdBy: widget.farm.ownerName.isNotEmpty ? widget.farm.ownerName : 'Owner',
+                  );
+                  Navigator.of(context).pop(draft);
+                },
+                child: const Text('Create schedule'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _detailsController.dispose();
+    _assigneeController.dispose();
+    _occurrencesController.dispose();
+    _leadController.dispose();
+    super.dispose();
+  }
 }
 
 class _WorkspaceMemberSheet extends StatefulWidget {

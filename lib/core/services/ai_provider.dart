@@ -122,8 +122,8 @@ class AiProvider extends ChangeNotifier {
     _removeLoading(topic);
     _addMessage(topic, response);
     _loading[topic] = false;
-    if (response.text.toLowerCase().contains('rate-limiting this api key')) {
-      _startCooldown(topic, const Duration(seconds: 75));
+    if (response.text.toLowerCase().contains('firebase ai is rate-limiting this request')) {
+      _startCooldown(topic, const Duration(minutes: 10));
     }
     notifyListeners();
   }

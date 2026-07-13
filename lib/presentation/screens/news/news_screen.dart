@@ -24,7 +24,9 @@ class NewsScreen extends ConsumerStatefulWidget {
 
 class _NewsScreenState extends ConsumerState<NewsScreen> with SingleTickerProviderStateMixin {
   late final TabController _tabController;
+  final TextEditingController _peopleSearchController = TextEditingController();
   bool _showHeader = true;
+  bool _showDiscoverySection = true;
 
   @override
   void initState() {
@@ -34,6 +36,7 @@ class _NewsScreenState extends ConsumerState<NewsScreen> with SingleTickerProvid
 
   @override
   void dispose() {
+    _peopleSearchController.dispose();
     _tabController.dispose();
     super.dispose();
   }
@@ -44,6 +47,10 @@ class _NewsScreenState extends ConsumerState<NewsScreen> with SingleTickerProvid
     final UserProfile? profile = ref.watch(userProfileProvider).valueOrNull;
     final NewsFeedState? feed = feedAsync.valueOrNull;
     final Set<String> followedAuthorIds = feed?.followedAuthorIds.toSet() ?? <String>{};
+    final String peopleQuery = _peopleSearchController.text.trim();
+    final List<UserProfile> people = feed == null
+        ? <UserProfile>[]
+        : ref.read(newsFeedProvider.notifier).suggestedPeople(query: peopleQuery);
     final List<NewsPost> general = feed == null ? <NewsPost>[] : ref.read(newsFeedProvider.notifier).generalFeed();
     final List<NewsPost> forYou = feed == null ? <NewsPost>[] : ref.read(newsFeedProvider.notifier).forYouFeed();
     final List<NewsPost> mine = feed == null ? <NewsPost>[] : ref.read(newsFeedProvider.notifier).myPosts();
@@ -92,6 +99,20 @@ class _NewsScreenState extends ConsumerState<NewsScreen> with SingleTickerProvid
                     onExpand: () => setState(() => _showHeader = true),
                   ),
           ),
+          if (feed != null)
+            AnimatedSize(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              child: _showDiscoverySection
+                  ? _PeopleDiscoverySection(
+                      queryController: _peopleSearchController,
+                      people: people,
+                      followedAuthorIds: followedAuthorIds,
+                      onFollowToggle: (String authorId) => ref.read(newsFeedProvider.notifier).toggleFollow(authorId),
+                      onSearchChanged: () => setState(() {}),
+                    )
+                  : const SizedBox.shrink(),
+            ),
           Expanded(
             child: feedError != null
                 ? _NewsFeedError(
@@ -145,10 +166,20 @@ class _NewsScreenState extends ConsumerState<NewsScreen> with SingleTickerProvid
       return false;
     }
     final double offset = notification.metrics.pixels;
-    if (_showHeader && offset > 36) {
-      setState(() => _showHeader = false);
-    } else if (!_showHeader && offset <= 4) {
-      setState(() => _showHeader = true);
+    if (offset > 36) {
+      if (_showHeader || _showDiscoverySection) {
+        setState(() {
+          _showHeader = false;
+          _showDiscoverySection = false;
+        });
+      }
+    } else if (offset <= 4) {
+      if (!_showHeader || !_showDiscoverySection) {
+        setState(() {
+          _showHeader = true;
+          _showDiscoverySection = true;
+        });
+      }
     }
     return false;
   }
@@ -336,6 +367,185 @@ class _CollapsedNewsHeader extends StatelessWidget {
   }
 }
 
+class _PeopleDiscoverySection extends StatelessWidget {
+  const _PeopleDiscoverySection({
+    required this.queryController,
+    required this.people,
+    required this.followedAuthorIds,
+    required this.onFollowToggle,
+    required this.onSearchChanged,
+  });
+
+  final TextEditingController queryController;
+  final List<UserProfile> people;
+  final Set<String> followedAuthorIds;
+  final ValueChanged<String> onFollowToggle;
+  final VoidCallback onSearchChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+      child: AppCard(
+        color: theme.colorScheme.surfaceContainerHighest,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text('Find farmers to follow', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                  ),
+                  Text('${people.length} suggested', style: theme.textTheme.labelLarge),
+                ],
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: queryController,
+                onChanged: (_) => onSearchChanged(),
+                decoration: InputDecoration(
+                  hintText: 'Search by name, ward, focus, phone, or bio',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  filled: true,
+                  fillColor: theme.colorScheme.surface,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (people.isEmpty)
+                Text(
+                  'No matching farmers found. Try a different name, ward, or production focus.',
+                  style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
+                )
+              else
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: people
+                      .map(
+                        (UserProfile person) => _PeopleSuggestionTile(
+                          profile: person,
+                          isFollowed: followedAuthorIds.contains(person.uid),
+                          onFollowToggle: () => onFollowToggle(person.uid),
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PeopleSuggestionTile extends StatelessWidget {
+  const _PeopleSuggestionTile({
+    required this.profile,
+    required this.isFollowed,
+    required this.onFollowToggle,
+  });
+
+  final UserProfile profile;
+  final bool isFollowed;
+  final VoidCallback onFollowToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final Uint8List? avatarBytes = profile.profileImageBase64.isEmpty ? null : base64Decode(profile.profileImageBase64);
+    return Container(
+      width: 220,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: theme.colorScheme.primaryContainer,
+                backgroundImage: avatarBytes == null ? null : MemoryImage(avatarBytes),
+                child: avatarBytes == null
+                    ? Text(
+                        profile.fullName.isNotEmpty ? profile.fullName[0].toUpperCase() : '?',
+                        style: theme.textTheme.labelLarge,
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Flexible(
+                          child: Text(
+                            profile.fullName.isNotEmpty ? profile.fullName : profile.email,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                        if (profile.isVerified) ...<Widget>[
+                          const SizedBox(width: 4),
+                          const Icon(Icons.verified_rounded, size: 15, color: Colors.green),
+                        ],
+                      ],
+                    ),
+                    Text(
+                      profile.ward.isNotEmpty ? profile.ward : profile.primaryFocus,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            profile.primaryFocus.isNotEmpty ? profile.primaryFocus : 'Farmer profile',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.tonalIcon(
+              onPressed: onFollowToggle,
+              icon: Icon(isFollowed ? Icons.check_rounded : Icons.person_add_alt_1_rounded, size: 18),
+              label: Text(isFollowed ? 'Following' : 'Follow'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _NewsFeedList extends StatelessWidget {
   const _NewsFeedList({
     required this.posts,
@@ -463,6 +673,8 @@ class _NewsPostCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool canEdit = ref.read(newsFeedProvider.notifier).canEditPost(post);
+    final UserProfile? authorProfile = ref.read(newsFeedProvider.notifier).userForAuthor(post.authorId);
+    final bool authorVerified = authorProfile?.isVerified == true;
 
     return AppCard(
       color: theme.colorScheme.surfaceContainerHighest,
@@ -533,7 +745,17 @@ class _NewsPostCard extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
-                            Text(post.authorName, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                            Row(
+                              children: <Widget>[
+                                Flexible(
+                                  child: Text(post.authorName, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                                ),
+                                if (authorVerified) ...<Widget>[
+                                  const SizedBox(width: 6),
+                                  const Icon(Icons.verified_rounded, size: 16, color: Colors.green),
+                                ],
+                              ],
+                            ),
                             Text(
                               '${app_date.DateUtils.formatDate(post.createdAt)} ${post.authorWhatsapp.isNotEmpty ? ' | WhatsApp ${post.authorWhatsapp}' : ''}',
                               style: theme.textTheme.bodySmall,

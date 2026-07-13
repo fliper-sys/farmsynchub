@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/extensions/context_extensions.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/user_profile_provider.dart';
@@ -23,6 +24,8 @@ class ProfileScreen extends ConsumerWidget {
     final profileAsync = ref.watch(userProfileProvider);
     final profile = profileAsync.valueOrNull;
     final AppLanguage language = ref.watch(appLanguageProvider);
+    final bool isVerified = profile?.isVerified == true;
+    final bool hasPendingRequest = profile?.hasPendingVerificationRequest == true;
     final String displayName = currentUser?.displayName?.trim().isNotEmpty == true
         ? currentUser!.displayName!
         : 'Farmer';
@@ -58,7 +61,7 @@ class ProfileScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 10),
           InkWell(
-            onTap: () => context.push('/account-setup'),
+            onTap: () => GoRouter.of(context).push('/account-setup'),
             borderRadius: BorderRadius.circular(16),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -83,7 +86,7 @@ class ProfileScreen extends ConsumerWidget {
         if (!isProfileComplete) ...<Widget>[
           AppCard(
             color: theme.colorScheme.surfaceContainerHighest,
-            onTap: () => context.push('/account-setup'),
+            onTap: () => GoRouter.of(context).push('/account-setup'),
             child: ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
               leading: const _ProfileIconAvatar(
@@ -118,13 +121,13 @@ class ProfileScreen extends ConsumerWidget {
                 : theme.colorScheme.primary,
           ),
           action: TextButton(
-            onPressed: () => context.push('/settings'),
+            onPressed: () => GoRouter.of(context).push('/settings'),
             child: Text(language.tr(en: 'Open settings', ha: 'Bude saituna', fr: 'Ouvrir les parametres')),
           ),
         ),
         AppCard(
           color: theme.colorScheme.surfaceContainerHighest,
-          onTap: () => context.push('/settings'),
+          onTap: () => GoRouter.of(context).push('/settings'),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
             leading: const _ProfileIconAvatar(
@@ -190,6 +193,73 @@ class ProfileScreen extends ConsumerWidget {
                 _ProfileDetailRow(
                   label: language.tr(en: 'Phone', ha: 'Waya', fr: 'Telephone'),
                   value: profile?.phoneNumber.isNotEmpty == true ? profile!.phoneNumber : language.tr(en: 'Not set', ha: 'Babu shi', fr: 'Non defini'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
+        SoftSectionTitle(title: language.tr(en: 'Verified badge', ha: 'Lambar tabbaci', fr: 'Badge verifie')),
+        AppCard(
+          color: theme.colorScheme.surfaceContainerHighest,
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Icon(
+                      isVerified ? Icons.verified_rounded : Icons.verified_user_outlined,
+                      color: isVerified ? Colors.green : theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        isVerified
+                            ? language.tr(
+                                en: 'Your account is verified. The badge appears on your news posts and reposts.',
+                                ha: 'An tabbatar da asusunka. Lamba tana bayyana a sakonnin ka da reposts.',
+                                fr: 'Votre compte est verifie. Le badge apparait sur vos publications et reposts.',
+                              )
+                            : hasPendingRequest
+                                ? language.tr(
+                                    en: 'Your verified badge request is pending admin review.',
+                                    ha: 'Ana jiran duba bukatar lambar tabbaci daga admin.',
+                                    fr: 'Votre demande de badge verifie est en attente de validation.',
+                                  )
+                                : language.tr(
+                                    en: 'Apply for a verified badge so your posts and reposts show a trust marker.',
+                                    ha: 'Nemi lambar tabbaci domin sakonnin ka su nuna alamar amincewa.',
+                                    fr: 'Demandez un badge verifie pour afficher un marqueur de confiance.',
+                                  ),
+                        style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+                      ),
+                    ),
+                  ],
+                ),
+                if (profile?.verificationNote.isNotEmpty == true) ...<Widget>[
+                  const SizedBox(height: 10),
+                  Text(
+                    profile!.verificationNote,
+                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                    child: AppButton.primary(
+                    onPressed: isVerified || hasPendingRequest || profile == null
+                        ? null
+                        : () => _requestVerifiedBadge(context, ref),
+                    child: Text(
+                      isVerified
+                          ? 'Verified'
+                          : hasPendingRequest
+                              ? 'Request pending'
+                              : 'Apply for badge',
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -265,7 +335,7 @@ class ProfileScreen extends ConsumerWidget {
                 SizedBox(
                   width: double.infinity,
                   child: AppButton.primary(
-                    onPressed: () => context.push('/account-setup'),
+                    onPressed: () => GoRouter.of(context).push('/account-setup'),
                     child: Text(isProfileComplete ? 'Edit profile details' : 'Finish account setup'),
                   ),
                 ),
@@ -278,7 +348,7 @@ class ProfileScreen extends ConsumerWidget {
                         : () async {
                             await ref.read(authControllerProvider.notifier).signOut();
                             if (context.mounted) {
-                              context.go('/login');
+                              GoRouter.of(context).go('/login');
                             }
                           },
                     child: Text(language.tr(en: 'Sign out', ha: 'Fita', fr: 'Deconnexion')),
@@ -305,6 +375,51 @@ class ProfileScreen extends ConsumerWidget {
       return null;
     }
     return base64Decode(base64Value);
+  }
+
+  Future<void> _requestVerifiedBadge(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final TextEditingController noteController = TextEditingController();
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: const Text('Apply for verified badge'),
+        content: TextField(
+          controller: noteController,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            labelText: 'Application note',
+            hintText: 'Tell the admin why your account should be verified',
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Submit'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await ref.read(userProfileProvider.notifier).requestVerifiedBadge(
+            note: noteController.text.trim(),
+          );
+      if (!context.mounted) return;
+      context.showSnackBar('Verified badge request submitted.');
+    } catch (_) {
+      if (!context.mounted) return;
+      context.showSnackBar('Could not submit the verified badge request.', isError: true);
+    }
   }
 }
 

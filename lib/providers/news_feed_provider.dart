@@ -23,24 +23,28 @@ class NewsFeedState {
   const NewsFeedState({
     required this.posts,
     required this.followedAuthorIds,
+    required this.users,
     required this.isLoading,
     required this.lastUpdatedAt,
   });
 
   final List<NewsPost> posts;
   final List<String> followedAuthorIds;
+  final List<UserProfile> users;
   final bool isLoading;
   final DateTime? lastUpdatedAt;
 
   NewsFeedState copyWith({
     List<NewsPost>? posts,
     List<String>? followedAuthorIds,
+    List<UserProfile>? users,
     bool? isLoading,
     DateTime? lastUpdatedAt,
   }) {
     return NewsFeedState(
       posts: posts ?? this.posts,
       followedAuthorIds: followedAuthorIds ?? this.followedAuthorIds,
+      users: users ?? this.users,
       isLoading: isLoading ?? this.isLoading,
       lastUpdatedAt: lastUpdatedAt ?? this.lastUpdatedAt,
     );
@@ -70,6 +74,7 @@ class NewsFeedController extends StateNotifier<AsyncValue<NewsFeedState>> {
     try {
       final List<NewsPost> remotePosts = await _loadRemotePosts();
       final List<String> followed = await _loadFollowedAuthors();
+      final List<UserProfile> users = await _loadUsers();
       final List<NewsPost> posts = _mergePosts(remotePosts, _seedPosts());
       posts.sort((NewsPost a, NewsPost b) => b.createdAt.compareTo(a.createdAt));
       if (!mounted) return;
@@ -77,6 +82,7 @@ class NewsFeedController extends StateNotifier<AsyncValue<NewsFeedState>> {
         NewsFeedState(
           posts: posts,
           followedAuthorIds: followed,
+          users: users,
           isLoading: false,
           lastUpdatedAt: DateTime.now(),
         ),
@@ -93,6 +99,8 @@ class NewsFeedController extends StateNotifier<AsyncValue<NewsFeedState>> {
 
   List<String> _currentFollowedAuthors() => state.valueOrNull?.followedAuthorIds ?? <String>[];
 
+  List<UserProfile> _currentUsers() => state.valueOrNull?.users ?? <UserProfile>[];
+
   Future<List<NewsPost>> _loadRemotePosts() async {
     if (_firebaseService.currentUser == null) {
       return <NewsPost>[];
@@ -102,6 +110,19 @@ class NewsFeedController extends StateNotifier<AsyncValue<NewsFeedState>> {
         .map(NewsPost.fromJson)
         .where((NewsPost post) => post.id.isNotEmpty)
         .toList(growable: false);
+  }
+
+  Future<List<UserProfile>> _loadUsers() async {
+    if (_firebaseService.currentUser == null) {
+      return <UserProfile>[];
+    }
+    try {
+      final List<UserProfile> users = await _firebaseService.getAllUserProfiles();
+      users.sort((UserProfile a, UserProfile b) => b.updatedAt.compareTo(a.updatedAt));
+      return users;
+    } catch (_) {
+      return <UserProfile>[];
+    }
   }
 
   Future<List<String>> _loadFollowedAuthors() async {
@@ -453,6 +474,50 @@ class NewsFeedController extends StateNotifier<AsyncValue<NewsFeedState>> {
         .where((NewsPost post) => post.isAdminPost || followed.contains(post.authorId))
         .toList(growable: false)
       ..sort((NewsPost a, NewsPost b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  UserProfile? userForAuthor(String authorId) {
+    for (final UserProfile profile in _currentUsers()) {
+      if (profile.uid == authorId) {
+        return profile;
+      }
+    }
+    return null;
+  }
+
+  List<UserProfile> suggestedPeople({String query = ''}) {
+    final String normalizedQuery = query.trim().toLowerCase();
+    final Set<String> followed = _currentFollowedAuthors().toSet();
+    final String? currentUserId = _firebaseService.currentUser?.uid;
+    final List<UserProfile> users = _currentUsers()
+        .where((UserProfile profile) => profile.uid.isNotEmpty && profile.uid != currentUserId)
+        .where((UserProfile profile) {
+          if (normalizedQuery.isEmpty) {
+            return true;
+          }
+          final String haystack =
+              '${profile.fullName} ${profile.email} ${profile.phoneNumber} ${profile.ward} ${profile.primaryFocus} ${profile.bio}'
+                  .toLowerCase();
+          return haystack.contains(normalizedQuery);
+        })
+        .toList(growable: false);
+
+    users.sort((UserProfile a, UserProfile b) {
+      final bool aFollowed = followed.contains(a.uid);
+      final bool bFollowed = followed.contains(b.uid);
+      if (aFollowed != bFollowed) {
+        return aFollowed ? 1 : -1;
+      }
+      if (a.isVerified != b.isVerified) {
+        return a.isVerified ? -1 : 1;
+      }
+      if (a.isComplete != b.isComplete) {
+        return a.isComplete ? -1 : 1;
+      }
+      return b.updatedAt.compareTo(a.updatedAt);
+    });
+
+    return users.take(12).toList(growable: false);
   }
 
   Future<void> _insertLocalPost(NewsPost post) async {

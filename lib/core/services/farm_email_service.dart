@@ -67,6 +67,38 @@ class FarmEmailService {
     );
   }
 
+  Future<bool> sendInviteNotification({
+    required String toEmail,
+    required String recipientName,
+    required String inviterName,
+    required String farmName,
+    required String inviteToken,
+    required String role,
+  }) {
+    final String subject = 'You are invited to join $farmName on FarmSync';
+    final String inviteUrl = '$endpoint/invite?token=$inviteToken';
+    return _send(
+      toEmail: toEmail,
+      subject: subject,
+      template: 'invite',
+      html: _shell(
+        subject: subject,
+        eyebrow: 'Invitation',
+        headline: 'Join $farmName',
+        body:
+            'Hello $recipientName, $inviterName invited you to join the workspace for $farmName as $role. Click the link below to accept the invitation and create your account.',
+        accents: const <String>['Invitation', 'Workspace', 'Farm'],
+      ) + '<p><a href="$inviteUrl">Accept invitation</a></p>',
+      text:
+          'Hello $recipientName, $inviterName invited you to join the workspace for $farmName as $role. Visit $inviteUrl to accept the invitation and create your account.',
+      metadata: <String, dynamic>{
+        'inviterName': inviterName,
+        'farmName': farmName,
+        'role': role,
+      },
+    );
+  }
+
   Future<bool> sendPasswordResetNotification({
     required String toEmail,
     required String recipientName,
@@ -116,6 +148,70 @@ class FarmEmailService {
           'Hello $recipientName, a new update has been published in FarmSync. $summary You can open the news feed to read the full post, follow the author, or repost it for your farm network.',
       metadata: <String, dynamic>{
         'category': category,
+      },
+    );
+  }
+
+  Future<bool> sendVerifiedBadgeRequestNotification({
+    required String toEmail,
+    required String recipientName,
+    required String applicantName,
+    required String ward,
+    required String primaryFocus,
+  }) {
+    const String subject = 'Verified badge request received';
+    return _send(
+      toEmail: toEmail,
+      subject: subject,
+      template: 'verified_badge_request',
+      html: _shell(
+        subject: subject,
+        eyebrow: 'Verification',
+        headline: 'A farmer requested a verified badge',
+        body:
+            'Hello $recipientName, $applicantName has submitted a verified badge application in FarmSync. Ward: $ward. Focus: $primaryFocus. Please open the admin review screen to approve or decline the request.',
+        accents: const <String>['Verified', 'Review', 'Admin', 'Profile'],
+      ),
+      text:
+          'Hello $recipientName, $applicantName has submitted a verified badge application in FarmSync. Ward: $ward. Focus: $primaryFocus. Please open the admin review screen to approve or decline the request.',
+      metadata: <String, dynamic>{
+        'applicantName': applicantName,
+        'ward': ward,
+        'primaryFocus': primaryFocus,
+      },
+    );
+  }
+
+  Future<bool> sendVerifiedBadgeDecisionNotification({
+    required String toEmail,
+    required String recipientName,
+    required bool approved,
+    required String reviewerName,
+    required String note,
+  }) {
+    final String subject = approved ? 'Verified badge approved' : 'Verified badge declined';
+    return _send(
+      toEmail: toEmail,
+      subject: subject,
+      template: approved ? 'verified_badge_approved' : 'verified_badge_declined',
+      html: _shell(
+        subject: subject,
+        eyebrow: 'Verification result',
+        headline: approved ? 'Your verified badge was approved' : 'Your verified badge request was declined',
+        body: approved
+            ? 'Hello $recipientName, your verified badge request has been approved by $reviewerName. The verified badge will now appear on your news posts and reposts.'
+            : 'Hello $recipientName, your verified badge request was reviewed by $reviewerName and was declined${note.isNotEmpty ? '. Note: $note' : '.'}. You can update your profile and reapply later.',
+        accents: approved
+            ? const <String>['Approved', 'Verified', 'Badge', 'News']
+            : const <String>['Declined', 'Profile', 'Reapply', 'Review'],
+      ),
+      text: approved
+          ? 'Hello $recipientName, your verified badge request has been approved by $reviewerName. The verified badge will now appear on your news posts and reposts.'
+          : 'Hello $recipientName, your verified badge request was reviewed by $reviewerName and was declined${note.isNotEmpty ? '. Note: $note' : '.'}. You can update your profile and reapply later.',
+      metadata: <String, dynamic>{
+        'approved': approved,
+        'reviewerName': reviewerName,
+        if (note.isNotEmpty) 'note': note,
       },
     );
   }

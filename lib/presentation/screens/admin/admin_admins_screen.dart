@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/validators.dart';
@@ -30,6 +31,11 @@ class AdminAdminsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Back',
+          onPressed: () => context.canPop() ? GoRouterHelper(context).pop() : context.go('/admin-dashboard'),
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
         title: const Text('App admins'),
         actions: <Widget>[
           IconButton(

@@ -5,25 +5,27 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/services/finance_report_service.dart';
 import '../../../core/services/report_file_saver.dart';
 import '../../../core/services/report_file_saver_base.dart';
+import '../../../core/services/report_share_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/date_utils.dart' as app_date;
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/transaction.dart';
-import '../../../domain/models/user_profile.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/finance_provider.dart';
 import '../../../providers/operations_hub_provider.dart';
-import '../../../providers/user_profile_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
 import 'product_detail_screen.dart';
+import 'sales_information_screen.dart';
+import '../sales/sales_desk_screen.dart';
 
 class FinanceWorkspaceScreen extends ConsumerStatefulWidget {
   const FinanceWorkspaceScreen({super.key});
@@ -35,6 +37,7 @@ class FinanceWorkspaceScreen extends ConsumerStatefulWidget {
 class _FinanceWorkspaceScreenState extends ConsumerState<FinanceWorkspaceScreen> {
   final FinanceReportService _reportService = FinanceReportService();
   final ReportFileSaver _fileSaver = createReportFileSaver();
+  final ReportShareService _shareService = const ReportShareService();
   bool _isExporting = false;
 
   @override
@@ -42,7 +45,6 @@ class _FinanceWorkspaceScreenState extends ConsumerState<FinanceWorkspaceScreen>
     final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
     final List<Transaction> transactions = ref.watch(transactionsProvider).valueOrNull ?? <Transaction>[];
     final OperationsHubState operations = ref.watch(operationsHubProvider);
-    final UserProfile? profile = ref.watch(userProfileProvider).valueOrNull;
     final FinanceMetrics metrics = FinanceMetrics.fromTransactions(transactions);
 
     return DefaultTabController(
@@ -69,7 +71,7 @@ class _FinanceWorkspaceScreenState extends ConsumerState<FinanceWorkspaceScreen>
             isScrollable: true,
             tabs: <Tab>[
               Tab(text: 'Products'),
-              Tab(text: 'Sales'),
+              Tab(text: 'Sales desk'),
               Tab(text: 'Expenses'),
               Tab(text: 'Procurement'),
             ],
@@ -83,11 +85,10 @@ class _FinanceWorkspaceScreenState extends ConsumerState<FinanceWorkspaceScreen>
               child: TabBarView(
                 children: <Widget>[
                   _ProductsTab(farms: farms, inventory: operations.inventory),
-                  _SalesTab(
+                  _SalesDeskLauncher(
                     farms: farms,
-                    partners: operations.partners,
-                    inventory: operations.inventory,
-                    isOwner: profile?.accountRole == UserAccountRole.owner,
+                    salesCount: transactions.where((Transaction item) => item.recordKind == TransactionRecordKind.sale).length,
+                    customerCount: operations.partners.where((BusinessPartner partner) => partner.type == BusinessPartnerType.customer).length,
                   ),
                   _ExpensesTab(farms: farms),
                   _ProcurementTab(farms: farms, partners: operations.partners, inventory: operations.inventory),
@@ -103,6 +104,7 @@ class _FinanceWorkspaceScreenState extends ConsumerState<FinanceWorkspaceScreen>
   Future<void> _exportReport(FinanceMetrics metrics, List<Transaction> transactions) async {
     setState(() => _isExporting = true);
     try {
+      final String fileName = 'farmsync_finance_report_${DateTime.now().millisecondsSinceEpoch}.pdf';
       final Uint8List bytes = await _reportService.buildFinanceReport(
         transactions: transactions,
         income: metrics.income,
@@ -112,7 +114,12 @@ class _FinanceWorkspaceScreenState extends ConsumerState<FinanceWorkspaceScreen>
       );
       final String savedPath = await _fileSaver.savePdf(
         bytes: bytes,
-        fileName: 'farmsync_finance_report_${DateTime.now().millisecondsSinceEpoch}.pdf',
+        fileName: fileName,
+      );
+      await _shareService.sharePdf(
+        filePath: savedPath,
+        fileName: fileName,
+        message: 'FarmSync finance report is ready to share.',
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -218,6 +225,72 @@ class _SummaryTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SalesDeskLauncher extends StatelessWidget {
+  const _SalesDeskLauncher({
+    required this.farms,
+    required this.salesCount,
+    required this.customerCount,
+  });
+
+  final List<Farm> farms;
+  final int salesCount;
+  final int customerCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: <Widget>[
+        AppCard(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text('Sales desk moved', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 8),
+                Text(
+                  'The dedicated sales desk now handles catalog browsing, cart edits, customer linking, checkout, and shareable receipts.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: <Widget>[
+                    _InfoPill(text: '${farms.length} farms'),
+                    _InfoPill(text: '$customerCount customers'),
+                    _InfoPill(text: '$salesCount receipts'),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: AppButton.primary(
+                        onPressed: () => context.go(SalesDeskScreen.routeName),
+                        child: const Text('Open sales desk'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: AppButton.secondary(
+                        onPressed: () => context.go(SalesInformationScreen.routeName),
+                        child: const Text('Sales analytics'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

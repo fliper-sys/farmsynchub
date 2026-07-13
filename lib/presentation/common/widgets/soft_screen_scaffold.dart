@@ -14,6 +14,7 @@ class SoftScreenScaffold extends StatelessWidget {
     required this.sections,
     this.heroBadge,
     this.trailing,
+    this.onBack,
     this.showArtwork = true,
   });
 
@@ -24,6 +25,7 @@ class SoftScreenScaffold extends StatelessWidget {
   final List<Widget> sections;
   final String? heroBadge;
   final Widget? trailing;
+  final VoidCallback? onBack;
   final bool showArtwork;
 
   @override
@@ -70,6 +72,17 @@ class SoftScreenScaffold extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           if (compact) ...<Widget>[
+                            if (onBack != null) ...<Widget>[
+                              Align(
+                                alignment: Alignment.topLeft,
+                                child: IconButton(
+                                  icon: const Icon(Icons.arrow_back_rounded),
+                                  color: isDark ? theme.colorScheme.onSurface : AppColors.primary,
+                                  onPressed: onBack,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                            ],
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
@@ -136,6 +149,14 @@ class SoftScreenScaffold extends StatelessWidget {
                               ),
                             ],
                           ] else ...<Widget>[
+                            if (onBack != null) ...<Widget>[
+                              IconButton(
+                                icon: const Icon(Icons.arrow_back_rounded),
+                                color: isDark ? theme.colorScheme.onSurface : AppColors.primary,
+                                onPressed: onBack,
+                              ),
+                              const SizedBox(width: 12),
+                            ],
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
@@ -277,33 +298,66 @@ class SoftInfoChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color background = isDark ? Color.alphaBlend(color.withOpacity(0.20), theme.colorScheme.surface) : color;
-    final Color labelColor = isDark ? theme.colorScheme.onSurfaceVariant : AppColors.primary.withOpacity(0.65);
-    final Color valueColor = isDark ? theme.colorScheme.onSurface : AppColors.primary;
+    final Color background = isDark
+        ? Color.alphaBlend(color.withOpacity(0.20), theme.colorScheme.surface)
+        : color.withOpacity(0.18);
+    final Color borderColor = isDark
+        ? theme.colorScheme.onSurface.withOpacity(0.08)
+        : theme.colorScheme.primary.withOpacity(0.18);
+    final Color labelColor = isDark
+        ? theme.colorScheme.onSurfaceVariant
+        : theme.colorScheme.onSurfaceVariant;
+    final Color valueColor = isDark ? theme.colorScheme.onSurface : theme.colorScheme.primary;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: isDark ? color.withOpacity(0.40) : Colors.transparent),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: borderColor),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: isDark ? Colors.black.withOpacity(0.08) : Colors.black.withOpacity(0.04),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Text(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: labelColor,
-            ),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  label.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: labelColor,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: valueColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Text(
             value,
-            style: theme.textTheme.titleMedium?.copyWith(
+            style: theme.textTheme.titleLarge?.copyWith(
               color: valueColor,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],

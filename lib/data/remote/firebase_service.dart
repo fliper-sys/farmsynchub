@@ -6,18 +6,30 @@ import 'package:uuid/uuid.dart';
 import 'dart:async';
 
 import '../../domain/models/user_profile.dart';
+import '../../domain/models/verified_badge_request.dart';
+import '../repositories/farm_repository.dart';
+import 'operations_hub_remote_store.dart';
 
 /// Firebase service for authentication and cloud operations.
-class FirebaseService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
+  FirebaseAuth get _auth => FirebaseAuth.instance;
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
   final Uuid _uuid = const Uuid();
   ConfirmationResult? _webPhoneConfirmationResult;
   static const String _googleWebClientId =
       '190353139949-8vjnn71ku91tvp75kpl2q5ete9hcpnd1.apps.googleusercontent.com';
 
   /// Get current user
-  User? get currentUser => _auth.currentUser;
+  User? get currentUser {
+    try {
+      return _auth.currentUser;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  bool get hasActiveUser => currentUser != null;
 
   /// Stream of auth state changes
   Stream<User?> get authStateChanges => _auth.authStateChanges();
@@ -149,6 +161,19 @@ class FirebaseService {
     return UserProfile.fromJson(data);
   }
 
+  Future<UserProfile?> getUserProfileById(String userId) async {
+    if (userId.trim().isEmpty) {
+      return null;
+    }
+    final DocumentSnapshot<Map<String, dynamic>> snapshot =
+        await _firestore.collection('users').doc(userId).get();
+    final Map<String, dynamic>? data = snapshot.data();
+    if (data == null) {
+      return null;
+    }
+    return UserProfile.fromJson(data);
+  }
+
   Future<void> saveUserProfile(UserProfile profile) async {
     await _firestore.collection('users').doc(profile.uid).set(profile.toJson(), SetOptions(merge: true));
 
@@ -157,11 +182,130 @@ class FirebaseService {
     }
   }
 
+  Future<void> saveDeviceToken(String token) async {
+    final User? user = currentUser;
+    if (user == null || token.isEmpty) {
+      return;
+    }
+
+    await _firestore.collection('users').doc(user.uid).set(
+      <String, dynamic>{
+        'fcmTokens': FieldValue.arrayUnion(<String>[token]),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
   Future<List<UserProfile>> getAllUserProfiles() async {
     final QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore.collection('users').get();
     return snapshot.docs
         .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) => UserProfile.fromJson(doc.data()))
         .toList(growable: false);
+  }
+
+  Future<List<VerifiedBadgeRequest>> getVerifiedBadgeRequests() async {
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore.collection('verified_badge_requests').get();
+    return snapshot.docs
+        .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) => VerifiedBadgeRequest.fromJson(doc.data()))
+        .toList(growable: false);
+  }
+
+  Future<void> saveVerifiedBadgeRequest(VerifiedBadgeRequest request) async {
+    await _firestore.collection('verified_badge_requests').doc(request.id).set(request.toJson(), SetOptions(merge: true));
+  }
+
+  Future<void> deleteVerifiedBadgeRequest(String id) async {
+    await _firestore.collection('verified_badge_requests').doc(id).delete();
+  }
+
+  Future<void> updateUserVerificationStatus({
+    required String uid,
+    required bool isVerified,
+    required String verificationStatus,
+    String verificationNote = '',
+    DateTime? verificationRequestedAt,
+    DateTime? verificationReviewedAt,
+  }) async {
+    await _firestore.collection('users').doc(uid).set(
+      <String, dynamic>{
+        'isVerified': isVerified,
+        'verificationStatus': verificationStatus,
+        'verificationNote': verificationNote,
+        'verificationRequestedAt': verificationRequestedAt?.toIso8601String(),
+        'verificationReviewedAt': verificationReviewedAt?.toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<VerifiedBadgeRequest?> getVerifiedBadgeRequestByUserId(String userId) async {
+    if (userId.trim().isEmpty) {
+      return null;
+    }
+    final DocumentSnapshot<Map<String, dynamic>> snapshot =
+        await _firestore.collection('verified_badge_requests').doc(userId).get();
+    final Map<String, dynamic>? data = snapshot.data();
+    if (data == null) {
+      return null;
+    }
+    return VerifiedBadgeRequest.fromJson(data);
+  }
+
+  Future<void> requestVerifiedBadge({
+    required UserProfile profile,
+    String note = '',
+  }) async {
+    final DateTime now = DateTime.now();
+    final VerifiedBadgeRequest request = VerifiedBadgeRequest(
+      id: profile.uid,
+      userId: profile.uid,
+      userName: profile.fullName.isNotEmpty ? profile.fullName : profile.email.split('@').first,
+      email: profile.email,
+      phoneNumber: profile.phoneNumber,
+      ward: profile.ward,
+      primaryFocus: profile.primaryFocus,
+      bio: profile.bio,
+      profileImageBase64: profile.profileImageBase64,
+      note: note.trim(),
+      status: VerifiedBadgeRequestStatus.pending,
+      requestedAt: now,
+      updatedAt: now,
+    );
+    await saveVerifiedBadgeRequest(request);
+    await updateUserVerificationStatus(
+      uid: profile.uid,
+      isVerified: false,
+      verificationStatus: 'pending',
+      verificationNote: note.trim(),
+      verificationRequestedAt: now,
+      verificationReviewedAt: null,
+    );
+  }
+
+  Future<void> reviewVerifiedBadgeRequest({
+    required VerifiedBadgeRequest request,
+    required bool approved,
+    required String reviewerName,
+    String note = '',
+  }) async {
+    final DateTime now = DateTime.now();
+    final VerifiedBadgeRequest updated = request.copyWith(
+      status: approved ? VerifiedBadgeRequestStatus.approved : VerifiedBadgeRequestStatus.declined,
+      updatedAt: now,
+      reviewedBy: reviewerName,
+      reviewedAt: now,
+      note: note.trim().isEmpty ? request.note : note.trim(),
+    );
+    await saveVerifiedBadgeRequest(updated);
+    await updateUserVerificationStatus(
+      uid: request.userId,
+      isVerified: approved,
+      verificationStatus: approved ? 'approved' : 'declined',
+      verificationNote: updated.note,
+      verificationRequestedAt: request.requestedAt,
+      verificationReviewedAt: now,
+    );
   }
 
   Future<void> deleteUserProfile(String uid) async {
@@ -378,6 +522,30 @@ class FirebaseService {
     await _firestore.collection(collection).doc(id).delete();
   }
 
+  /// Create an invitation record for a user to join a farm workspace.
+  Future<void> createInvite({
+    required String id,
+    required String email,
+    required String farmId,
+    required String role,
+    required List<String> allowedFarmIds,
+    required String createdBy,
+    required DateTime createdAt,
+  }) async {
+    await _firestore.collection('invites').doc(id).set(
+      <String, dynamic>{
+        'id': id,
+        'email': email,
+        'farmId': farmId,
+        'role': role,
+        'allowedFarmIds': allowedFarmIds,
+        'createdBy': createdBy,
+        'createdAt': createdAt.toIso8601String(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
   Future<void> _createDefaultUserProfile({
     required String? uid,
     required String email,
@@ -401,6 +569,7 @@ class FirebaseService {
       profileImageBase64: '',
       createdAt: now,
       updatedAt: now,
+      fcmTokens: const <String>[],
     );
 
     await _firestore.collection('users').doc(uid).set(profile.toJson(), SetOptions(merge: true));

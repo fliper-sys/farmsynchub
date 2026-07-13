@@ -27,8 +27,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       animationAsset: AppAssets.onboardingWelcomeAnimation,
       accentColor: Color(0xFF5F9D58),
       chips: <OnboardingChipData>[
-        OnboardingChipData(label: 'Farm profiles', assetPath: AppAssets.onboardingFarm),
-        OnboardingChipData(label: 'Field records', assetPath: AppAssets.onboardingField),
+        OnboardingChipData(label: 'Farm profiles', assetPath: AppAssets.uiGallery05),
+        OnboardingChipData(label: 'Field records', assetPath: AppAssets.uiGallery06),
       ],
     ),
     OnboardingPageData(
@@ -37,9 +37,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       animationAsset: AppAssets.onboardingSyncAnimation,
       accentColor: Color(0xFFCE9B3A),
       chips: <OnboardingChipData>[
-        OnboardingChipData(label: 'Produce', assetPath: AppAssets.onboardingProduce),
-        OnboardingChipData(label: 'Market', assetPath: AppAssets.onboardingMarket),
-        OnboardingChipData(label: 'Logistics', assetPath: AppAssets.onboardingLogistics),
+        OnboardingChipData(label: 'Produce', assetPath: AppAssets.uiGallery07),
+        OnboardingChipData(label: 'Market', assetPath: AppAssets.uiGallery08),
+        OnboardingChipData(label: 'Logistics', assetPath: AppAssets.uiGallery09),
       ],
     ),
     OnboardingPageData(
@@ -48,8 +48,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       animationAsset: AppAssets.onboardingSuccessAnimation,
       accentColor: Color(0xFF3D6FA8),
       chips: <OnboardingChipData>[
-        OnboardingChipData(label: 'Insights', assetPath: AppAssets.onboardingStrategy),
-        OnboardingChipData(label: 'Harvest', assetPath: AppAssets.onboardingHarvest),
+        OnboardingChipData(label: 'Insights', assetPath: AppAssets.uiGallery10),
+        OnboardingChipData(label: 'Harvest', assetPath: AppAssets.uiGallery01),
       ],
       isLastPage: true,
     ),

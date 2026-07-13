@@ -138,14 +138,6 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
                             controller: _chatScrollController,
                             onClearTopic: () => ai.clearTopic(ai.activeTopic),
                           ),
-                          if (!ai.hasApiKey) ...<Widget>[
-                            const SizedBox(height: 12),
-                            const _NoticeCard(
-                              icon: Icons.cloud_done_rounded,
-                              tint: Color(0xFFFFE1B8),
-                              message: 'Firebase AI is not ready yet. Make sure Firebase is initialized and Firebase AI Logic is enabled.',
-                            ),
-                          ],
                           if (ai.isActiveCoolingDown) ...<Widget>[
                             const SizedBox(height: 12),
                             _NoticeCard(
@@ -181,13 +173,17 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
   }
 
   Future<void> _sendMessage(AiProvider ai) async {
+    if (ai.isActiveLoading || ai.isActiveCoolingDown) {
+      return;
+    }
+
     final String text = _messageController.text.trim();
     if (text.isEmpty && _selectedImageBytes == null) {
       return;
     }
 
     final String message = text.isEmpty
-        ? 'Please inspect this image and explain the likely issue, what signs to confirm, and the next farm action.'
+        ? 'Please inspect this image carefully. Provide a likely diagnosis, specific signs I should look for to confirm, and a practical list of next steps for my farm.'
         : text;
 
     _messageController.clear();
@@ -197,6 +193,10 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
   }
 
   Future<void> _runSearchPrompt(AiProvider ai, String text) async {
+    if (ai.isActiveLoading || ai.isActiveCoolingDown) {
+      return;
+    }
+
     final String trimmed = text.trim();
     if (trimmed.isEmpty) {
       return;
@@ -207,11 +207,19 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
   }
 
   Future<void> _sendQuickPrompt(AiProvider ai, String prompt) async {
+    if (ai.isActiveLoading || ai.isActiveCoolingDown) {
+      return;
+    }
+
     await ai.setTopic(AiTopic.general);
     await ai.sendSuggestion(prompt);
   }
 
   Future<void> _runStudioAction(AiProvider ai, AiStudioAction action) async {
+    if (ai.isActiveLoading || ai.isActiveCoolingDown) {
+      return;
+    }
+
     await ai.setTopic(action.topic);
     await ai.sendSuggestion(action.prompt);
   }
@@ -286,7 +294,7 @@ class _TopBar extends StatelessWidget {
     return Row(
       children: <Widget>[
         _GlassButton(
-          icon: Navigator.of(context).canPop() ? Icons.arrow_back_rounded : Icons.arrow_back_rounded,
+          icon: Icons.arrow_back_rounded,
           onTap: onBack,
         ),
         const SizedBox(width: 12),
@@ -881,11 +889,15 @@ class _HistoryCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
-                Text(
-                  topic.description,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: _aiMuted(context), height: 1.4),
+                Expanded(
+                  child: Text(
+                    topic.description,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: _aiMuted(context), height: 1.4),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                const Spacer(),
+                const SizedBox(height: 10),
                 Text(
                   '$messageCount messages',
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(color: AppColors.primary),
@@ -1322,7 +1334,7 @@ class _ChatBubble extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 10),
-              Text(
+              SelectableText(
                 message.text,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: fromUser ? Colors.white : _aiText(context),
@@ -1510,10 +1522,10 @@ class _AiLoadingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Color(0xFFF7F5EF),
-      body: Center(
-        child: CircularProgressIndicator(),
+    return Scaffold(
+      backgroundColor: _aiBackground(context),
+      body: const Center(
+        child: CircularProgressIndicator(strokeWidth: 3),
       ),
     );
   }

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_assets.dart';
 import '../../../core/theme/app_colors.dart';
 
-enum FarmArtworkVariant { welcome, field, crops, dashboard }
+enum FarmArtworkVariant { welcome, field, crops, dashboard, finance }
 
 class FarmSceneArtwork extends StatelessWidget {
   const FarmSceneArtwork({
@@ -75,12 +75,14 @@ class FarmSceneArtwork extends StatelessWidget {
   String _imageForVariant(FarmArtworkVariant variant) {
     switch (variant) {
       case FarmArtworkVariant.welcome:
-        return AppAssets.uiLeafField;
+        return AppAssets.uiGallery01;
       case FarmArtworkVariant.field:
-        return AppAssets.uiFieldSprayer;
+        return AppAssets.uiGallery02;
       case FarmArtworkVariant.crops:
-        return AppAssets.uiProduceMarket;
+        return AppAssets.uiGallery03;
       case FarmArtworkVariant.dashboard:
+        return AppAssets.uiGallery04;
+      case FarmArtworkVariant.finance:
         return AppAssets.uiSmartFarm;
     }
   }
@@ -95,6 +97,8 @@ class FarmSceneArtwork extends StatelessWidget {
         return Alignment.centerLeft;
       case FarmArtworkVariant.dashboard:
         return Alignment.centerRight;
+      case FarmArtworkVariant.finance:
+        return Alignment.center;
     }
   }
 }

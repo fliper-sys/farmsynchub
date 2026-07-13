@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -5,20 +6,26 @@ import 'dart:typed_data';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_ai/firebase_ai.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/currency_utils.dart';
 import '../../domain/models/ai_topic.dart';
+import '../../domain/models/crop.dart';
+import '../../domain/models/farm.dart';
 import '../../domain/models/chat_message.dart';
+import '../../domain/models/livestock.dart';
+import '../../domain/models/transaction.dart';
 
 const String _kFirebaseAiModelName = String.fromEnvironment(
   'FIREBASE_AI_MODEL',
-  defaultValue: 'gemini-2.0-flash',
+  defaultValue: 'gemini-1.5-flash',
 );
 const int _kMaxHistoryTurns = 6;
 const Duration _kCacheTtl = Duration(hours: 6);
 
 String _buildSystemPrompt(String language, AiTopic topic) => '''
-You are AgriCare AI, the farming assistant inside FarmSync for farmers in Jos South LGA, Plateau State, Nigeria.
+You are Farmsync AI, the farming assistant inside FarmSync for farmers in Nigeria.
 Stay focused on farming, livestock, soil, weather, market access, farm records, and rural livelihoods.
 
 Response rules:
@@ -42,7 +49,7 @@ class GeminiService {
   final Map<String, _CachedResponse> _cache = <String, _CachedResponse>{};
   DateTime? _rateLimitedUntil;
 
-  bool get hasApiKey => true;
+  bool get hasApiKey => Firebase.apps.isNotEmpty;
 
   String get modelName => _kFirebaseAiModelName;
 
@@ -81,6 +88,26 @@ class GeminiService {
       }
     }
 
+    if (!hasApiKey) {
+      final ChatMessage offlineMessage = _offlineUnavailableResponse(
+        topic: topic,
+        message: trimmedMessage,
+        imageBytes: imageBytes,
+        reason: 'FarmSync AI is not configured yet.',
+      );
+
+      _addToHistory(
+        topic,
+        ChatMessage.fromUser(
+          trimmedMessage,
+          topic: topic,
+          hasImage: imageBytes != null,
+        ),
+      );
+      _addToHistory(topic, offlineMessage);
+      return offlineMessage;
+    }
+
     try {
       final GenerateContentResponse response = await _sendWithFirebaseAi(
         topic: topic,
@@ -112,28 +139,190 @@ class GeminiService {
 
       await _persistHistory(topic);
       return aiMessage;
-    } catch (error) {
-      if (error.toString().contains('quota') || error.toString().contains('Quota')) {
-        _rateLimitedUntil = DateTime.now().add(const Duration(minutes: 10));
-      }
-      final ChatMessage offlineMessage = _offlineRateLimitResponse(
+    } on InvalidApiKey catch (_) {
+      return _handleFirebaseAiFailure(
         topic: topic,
         message: trimmedMessage,
         imageBytes: imageBytes,
-        retryAt: _rateLimitedUntil!,
+        reason: 'FarmSync AI is not configured correctly right now.',
       );
-      _addToHistory(
-        topic,
-        ChatMessage.fromUser(
-          trimmedMessage,
+    } on UnsupportedUserLocation catch (_) {
+      return _handleFirebaseAiFailure(
+        topic: topic,
+        message: trimmedMessage,
+        imageBytes: imageBytes,
+        reason: 'FarmSync AI is unavailable in this location.',
+      );
+    } on FirebaseAIException catch (error) {
+      final String errorText = error.toString().toLowerCase();
+      if (errorText.contains('quota') || errorText.contains('resource_exhausted')) {
+        _rateLimitedUntil = DateTime.now().add(const Duration(minutes: 10));
+        final ChatMessage offlineMessage = _offlineRateLimitResponse(
           topic: topic,
-          hasImage: imageBytes != null,
-        ),
+          message: trimmedMessage,
+          imageBytes: imageBytes,
+          retryAt: _rateLimitedUntil ?? DateTime.now().add(const Duration(minutes: 10)),
+        );
+        _addToHistory(
+          topic,
+          ChatMessage.fromUser(
+            trimmedMessage,
+            topic: topic,
+            hasImage: imageBytes != null,
+          ),
+        );
+        _addToHistory(topic, offlineMessage);
+        await _persistHistory(topic);
+        return offlineMessage;
+      }
+      return _handleFirebaseAiFailure(
+        topic: topic,
+        message: trimmedMessage,
+        imageBytes: imageBytes,
+        reason: errorText.contains('not enabled') || errorText.contains('firebasevertexai.googleapis.com')
+            ? 'Firebase AI is not enabled for this project: $error'
+            : 'Firebase AI could not complete the request: $error',
       );
-      _addToHistory(topic, offlineMessage);
-      await _persistHistory(topic);
-      return offlineMessage;
+    } on FirebaseAISdkException catch (_) {
+      return _handleFirebaseAiFailure(
+        topic: topic,
+        message: trimmedMessage,
+        imageBytes: imageBytes,
+        reason: 'FarmSync AI could not read the response just now.',
+      );
+    } on SocketException catch (_) {
+      return _handleFirebaseAiFailure(
+        topic: topic,
+        message: trimmedMessage,
+        imageBytes: imageBytes,
+        reason: 'Network error while contacting FarmSync AI.',
+      );
+    } on HttpException catch (_) {
+      return _handleFirebaseAiFailure(
+        topic: topic,
+        message: trimmedMessage,
+        imageBytes: imageBytes,
+        reason: 'FarmSync AI could not reach the service right now.',
+      );
+    } catch (_) {
+      return _handleFirebaseAiFailure(
+        topic: topic,
+        message: trimmedMessage,
+        imageBytes: imageBytes,
+        reason: 'FarmSync AI could not complete this request right now.',
+      );
     }
+  }
+
+  Future<String> generateFarmInsight({
+    required Farm farm,
+    required List<Crop> crops,
+    required List<Livestock> livestock,
+    required List<Transaction> transactions,
+  }) async {
+    try {
+      final FirebaseAI firebaseAi = FirebaseAI.googleAI(
+        auth: FirebaseAuth.instance,
+        appCheck: FirebaseAppCheck.instance,
+      );
+
+      final GenerativeModel model = firebaseAi.generativeModel(
+        model: _kFirebaseAiModelName,
+        systemInstruction: Content.system(_buildFarmInsightSystemPrompt()),
+        generationConfig: GenerationConfig(
+          temperature: 0.35,
+          topK: 32,
+          topP: 0.9,
+          maxOutputTokens: 900,
+        ),
+        safetySettings: <SafetySetting>[
+          SafetySetting(HarmCategory.harassment, HarmBlockThreshold.medium, null),
+          SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.medium, null),
+          SafetySetting(HarmCategory.sexuallyExplicit, HarmBlockThreshold.high, null),
+          SafetySetting(HarmCategory.dangerousContent, HarmBlockThreshold.medium, null),
+        ],
+      );
+
+      final GenerateContentResponse response = await model.generateContent(
+        <Content>[
+          Content.text(
+            _buildFarmInsightPrompt(
+              farm: farm,
+              crops: crops,
+              livestock: livestock,
+              transactions: transactions,
+            ),
+          ),
+        ],
+      );
+
+      final String insight = response.text?.trim() ?? '';
+      if (insight.isNotEmpty) {
+        return insight;
+      }
+    } catch (_) {
+      // Fall through to a local briefing if Firebase AI is unavailable.
+    }
+
+    return _buildLocalFarmInsight(
+      farm: farm,
+      crops: crops,
+      livestock: livestock,
+      transactions: transactions,
+    );
+  }
+
+  Future<String> generateFinanceRecap({
+    required List<Transaction> transactions,
+    required List<Farm> farms,
+    String language = 'English',
+  }) async {
+    try {
+      final FirebaseAI firebaseAi = FirebaseAI.googleAI(
+        auth: FirebaseAuth.instance,
+        appCheck: FirebaseAppCheck.instance,
+      );
+
+      final GenerativeModel model = firebaseAi.generativeModel(
+        model: _kFirebaseAiModelName,
+        systemInstruction: Content.system(_buildFinanceRecapSystemPrompt(language)),
+        generationConfig: GenerationConfig(
+          temperature: 0.35,
+          topK: 32,
+          topP: 0.9,
+          maxOutputTokens: 900,
+        ),
+        safetySettings: <SafetySetting>[
+          SafetySetting(HarmCategory.harassment, HarmBlockThreshold.medium, null),
+          SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.medium, null),
+          SafetySetting(HarmCategory.sexuallyExplicit, HarmBlockThreshold.high, null),
+          SafetySetting(HarmCategory.dangerousContent, HarmBlockThreshold.medium, null),
+        ],
+      );
+
+      final GenerateContentResponse response = await model.generateContent(
+        <Content>[
+          Content.text(
+            _buildFinanceRecapPrompt(
+              transactions: transactions,
+              farms: farms,
+            ),
+          ),
+        ],
+      );
+
+      final String recap = response.text?.trim() ?? '';
+      if (recap.isNotEmpty) {
+        return recap;
+      }
+    } catch (_) {
+      // Fall through to a local briefing if Firebase AI is unavailable.
+    }
+
+    return _buildLocalFinanceRecap(
+      transactions: transactions,
+      farms: farms,
+    );
   }
 
   List<String> getSuggestedQuestions(AiTopic topic) => _kSuggestedQuestions[topic] ?? const <String>[];
@@ -190,10 +379,10 @@ class GeminiService {
         maxOutputTokens: 700,
       ),
       safetySettings: <SafetySetting>[
-        SafetySetting(HarmCategory.harassment, HarmBlockThreshold.medium, true as HarmBlockMethod?),
-        SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.medium, true as HarmBlockMethod?),
-        SafetySetting(HarmCategory.sexuallyExplicit, HarmBlockThreshold.high, true as HarmBlockMethod?),
-        SafetySetting(HarmCategory.dangerousContent, HarmBlockThreshold.medium, true as HarmBlockMethod?),
+        SafetySetting(HarmCategory.harassment, HarmBlockThreshold.medium, null),
+        SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.medium, null),
+        SafetySetting(HarmCategory.sexuallyExplicit, HarmBlockThreshold.high, null),
+        SafetySetting(HarmCategory.dangerousContent, HarmBlockThreshold.medium, null),
       ],
     );
 
@@ -204,6 +393,32 @@ class GeminiService {
     );
     final GenerateContentResponse response = await model.generateContent(prompt);
     return response;
+  }
+
+  ChatMessage _handleFirebaseAiFailure({
+    required AiTopic topic,
+    required String message,
+    required List<int>? imageBytes,
+    required String reason,
+  }) {
+    final ChatMessage offlineMessage = _offlineUnavailableResponse(
+      topic: topic,
+      message: message,
+      imageBytes: imageBytes,
+      reason: reason,
+    );
+
+    _addToHistory(
+      topic,
+      ChatMessage.fromUser(
+        message,
+        topic: topic,
+        hasImage: imageBytes != null,
+      ),
+    );
+    _addToHistory(topic, offlineMessage);
+    unawaited(_persistHistory(topic));
+    return offlineMessage;
   }
 
   List<Content> _buildFirebasePrompt({
@@ -253,10 +468,10 @@ class GeminiService {
     final String advice = _localFarmAdvice(topic, message);
     final String imageNote = imageBytes == null
         ? ''
-        : '\n\nImage note: Firebase AI is rate-limited, so I cannot inspect the photo right now. Save the photo and retry after the cooldown.';
+        : '\n\nImage note: FarmSync AI is rate-limited, so I cannot inspect the photo right now. Save the photo and retry after the cooldown.';
 
     return ChatMessage.fromAi(
-      'Firebase AI is rate-limiting this request, so I switched to offline farm guidance for now. Try the live AI again in about $waitMinutes minutes.\n\n$advice$imageNote',
+      'FarmSync AI is rate-limiting this request, so I switched to offline farm guidance for now. Try the live AI again in about $waitMinutes minutes.\n\n$advice$imageNote',
       topic: topic,
     );
   }
@@ -273,7 +488,7 @@ class GeminiService {
         : '\n\nImage note: I cannot inspect the photo while offline. Keep the image attached or upload it again when internet or quota is available.';
 
     return ChatMessage.fromAi(
-      '$reason I switched to offline FarmSync guidance until Firebase AI is available again.\n\n$advice$imageNote',
+      '$reason I switched to offline FarmSync guidance until FarmSync AI is available again.\n\n$advice$imageNote',
       topic: topic,
     );
   }
@@ -395,6 +610,305 @@ class GeminiService {
       // Ignore cleanup errors.
     }
   }
+}
+
+String _buildFarmInsightSystemPrompt() => '''
+You are FarmSync Hub\u2122 Insight AI.
+Write for a working farm owner who needs a clear, practical briefing.
+Focus on the supplied farm data only.
+Use short sections with bold headings, concise paragraphs, and bullet lists.
+Prioritize:
+- current state of the farm,
+- likely operational risks,
+- record keeping gaps,
+- financial pressure or opportunity,
+- the next 3 to 7 actions to take.
+Avoid vague advice. Be specific, practical, and respectful.
+''';
+
+String _buildFinanceRecapSystemPrompt(String language) => '''
+You are FarmSync Hub\u2122 Finance AI.
+Write in $language.
+Produce a short, executive-style financial recap for a farm owner.
+Focus on cash flow, sales, expenses, procurement, record quality, and next actions.
+Use concise headings, bullets, and practical recommendations.
+When data is limited, clearly say so and still give useful next steps.
+''';
+
+String _buildFarmInsightPrompt({
+  required Farm farm,
+  required List<Crop> crops,
+  required List<Livestock> livestock,
+  required List<Transaction> transactions,
+}) {
+  final double income = transactions
+      .where((Transaction item) => item.type == TransactionType.income)
+      .fold<double>(0, (double sum, Transaction item) => sum + item.amount);
+  final double expenses = transactions
+      .where((Transaction item) => item.type == TransactionType.expense)
+      .fold<double>(0, (double sum, Transaction item) => sum + item.amount);
+  final double balance = income - expenses;
+
+  final Map<String, dynamic> payload = <String, dynamic>{
+    'farm': <String, dynamic>{
+      'name': farm.name,
+      'ward': farm.ward,
+      'sizeHa': farm.sizeHa,
+      'farmType': farm.farmType.name,
+      'farmerCategory': farm.farmerCategory.name,
+      'soilType': farm.soilType.name,
+      'waterSource': farm.waterSource.name,
+      'ownerName': farm.ownerName,
+      'ownerEmail': farm.ownerEmail,
+      'notes': farm.notes,
+      'workspaceNotes': farm.workspaceNotes,
+      'temperatureCelsius': farm.temperatureCelsius,
+      'humidityPercent': farm.humidityPercent,
+      'soilMoisturePercent': farm.soilMoisturePercent,
+      'precipitationMm': farm.precipitationMm,
+      'documents': farm.documents.length,
+      'members': farm.workspaceMembers.length,
+      'tasks': farm.workspaceTasks.length,
+      'openTasks': farm.openWorkspaceTaskCount,
+      'activities': farm.activityLog.length,
+    },
+    'financials': <String, dynamic>{
+      'income': income,
+      'expenses': expenses,
+      'balance': balance,
+      'transactionCount': transactions.length,
+    },
+    'crops': crops.take(8).map((Crop crop) => <String, dynamic>{
+      'name': crop.name,
+      'variety': crop.variety,
+      'areaHa': crop.areaHa,
+      'stage': crop.currentStage.name,
+      'status': crop.status.name,
+      'daysToHarvest': crop.daysToHarvest,
+      'inputCost': crop.totalInputCost,
+      'openTasks': crop.openTaskCount,
+    }).toList(),
+    'livestock': livestock.take(8).map((Livestock item) => <String, dynamic>{
+      'species': item.species.name,
+      'breed': item.breed,
+      'count': item.count,
+      'purpose': item.purpose.name,
+      'healthScore': item.healthScore,
+      'vaccinationStatus': item.vaccinationStatus,
+      'growthStage': item.growthStage.name,
+      'estimatedValue': item.estimatedValue,
+      'openTasks': item.openTaskCount,
+    }).toList(),
+    'recentTransactions': transactions
+        .take(8)
+        .map((Transaction item) => <String, dynamic>{
+              'date': item.transactionDate.toIso8601String(),
+              'type': item.type.name,
+              'category': item.category.name,
+              'amount': item.amount,
+              'description': item.description,
+              'productName': item.productName,
+              'counterpartyName': item.counterpartyName,
+              'recordKind': item.recordKind.name,
+            })
+        .toList(),
+    'instructions': <String>[
+      'Produce a clear briefing with sections titled: Situation snapshot, Strengths, Risks, Next 7 days, Finance, Records, and Closing advice.',
+      'Give concrete actions the farm owner can try next.',
+      'Mention where records or follow-up are missing.',
+      'If information is limited, say so and still give useful next steps.',
+    ],
+  };
+
+  return jsonEncode(payload);
+}
+
+String _buildLocalFarmInsight({
+  required Farm farm,
+  required List<Crop> crops,
+  required List<Livestock> livestock,
+  required List<Transaction> transactions,
+}) {
+  final double income = transactions
+      .where((Transaction item) => item.type == TransactionType.income)
+      .fold<double>(0, (double sum, Transaction item) => sum + item.amount);
+  final double expenses = transactions
+      .where((Transaction item) => item.type == TransactionType.expense)
+      .fold<double>(0, (double sum, Transaction item) => sum + item.amount);
+  final double balance = income - expenses;
+  final List<String> strengths = <String>[
+    if (farm.workspaceMembers.isNotEmpty) '${farm.workspaceMembers.length} workspace members are linked.',
+    if (crops.isNotEmpty) '${crops.length} crop records are available for review.',
+    if (livestock.isNotEmpty) '${livestock.length} livestock groups are being tracked.',
+    if (farm.documents.isNotEmpty) '${farm.documents.length} documents are stored with the farm.',
+  ];
+  final List<String> risks = <String>[
+    if (farm.soilMoisturePercent < 30) 'Soil moisture looks low; irrigation or mulching may need attention.',
+    if (farm.soilMoisturePercent > 80) 'Soil moisture is high; drainage or root stress should be checked.',
+    if (farm.openWorkspaceTaskCount > 0) '${farm.openWorkspaceTaskCount} open tasks need follow-up.',
+    if (expenses > income) 'Expenses are currently above income, so cost control matters this week.',
+  ];
+  final List<String> nextSteps = <String>[
+    'Walk the field or pens and verify the latest crop, livestock, and finance entries.',
+    'Update any missing records for documents, tasks, or activities today.',
+    'Review the highest-cost crop or livestock item and decide the next input or treatment.',
+    'Check drainage, water supply, and storage conditions before the next weather change.',
+  ];
+
+  return '''
+Situation snapshot
+- Farm: ${farm.name} in ${farm.ward}
+- Type: ${farm.farmType.name}
+- Area: ${farm.sizeHa.toStringAsFixed(2)} ha
+- Financial balance: ${CurrencyUtils.formatCurrency(balance)}
+
+Strengths
+${strengths.isEmpty ? '- The farm has enough data to continue but no strong positive signal is obvious yet.' : strengths.map((String item) => '- $item').join('\n')}
+
+Risks
+${risks.isEmpty ? '- No immediate risk is obvious from the stored data.' : risks.map((String item) => '- $item').join('\n')}
+
+Next 7 days
+${nextSteps.map((String item) => '- $item').join('\n')}
+
+Finance
+- Income: ${CurrencyUtils.formatCurrency(income)}
+- Expenses: ${CurrencyUtils.formatCurrency(expenses)}
+- Balance: ${CurrencyUtils.formatCurrency(balance)}
+- Transactions recorded: ${transactions.length}
+
+Records
+- Crop records: ${crops.length}
+- Livestock records: ${livestock.length}
+- Documents: ${farm.documents.length}
+- Activity logs: ${farm.activityLog.length}
+  ''';
+}
+
+String _buildFinanceRecapPrompt({
+  required List<Transaction> transactions,
+  required List<Farm> farms,
+}) {
+  final double income = transactions
+      .where((Transaction item) => item.type == TransactionType.income)
+      .fold<double>(0, (double sum, Transaction item) => sum + item.amount);
+  final double expenses = transactions
+      .where((Transaction item) => item.type == TransactionType.expense)
+      .fold<double>(0, (double sum, Transaction item) => sum + item.amount);
+  final double balance = income - expenses;
+
+  final Map<String, double> categoryTotals = <String, double>{};
+  for (final Transaction transaction in transactions) {
+    final String key = transaction.category.name;
+    categoryTotals[key] = (categoryTotals[key] ?? 0) + transaction.amount;
+  }
+
+  final List<Transaction> sortedTransactions = transactions.toList(growable: false)
+    ..sort((Transaction a, Transaction b) => b.transactionDate.compareTo(a.transactionDate));
+
+  final Map<String, dynamic> payload = <String, dynamic>{
+    'farms': farms.take(8).map((Farm farm) => <String, dynamic>{
+          'name': farm.name,
+          'ward': farm.ward,
+          'sizeHa': farm.sizeHa,
+          'farmType': farm.farmType.name,
+          'soilType': farm.soilType.name,
+          'waterSource': farm.waterSource.name,
+        }).toList(),
+    'summary': <String, dynamic>{
+      'income': income,
+      'expenses': expenses,
+      'balance': balance,
+      'transactionCount': transactions.length,
+      'salesCount': transactions.where((Transaction item) => item.recordKind == TransactionRecordKind.sale).length,
+      'procurementCount': transactions.where((Transaction item) => item.recordKind == TransactionRecordKind.procurement).length,
+    },
+    'categoryTotals': categoryTotals.entries
+        .map((MapEntry<String, double> entry) => <String, dynamic>{
+              'category': entry.key,
+              'amount': entry.value,
+            })
+        .toList(),
+    'recentTransactions': sortedTransactions.take(10).map((Transaction item) => <String, dynamic>{
+          'date': item.transactionDate.toIso8601String(),
+          'type': item.type.name,
+          'category': item.category.name,
+          'recordKind': item.recordKind.name,
+          'description': item.description,
+          'productName': item.productName,
+          'counterpartyName': item.counterpartyName,
+          'amount': item.amount,
+          'quantity': item.quantity,
+          'unit': item.unit,
+          'unitPrice': item.unitPrice,
+          'receiptNumber': item.receiptNumber,
+        }).toList(),
+    'instructions': <String>[
+      'Return a compact recap with sections titled: Snapshot, What improved, What needs attention, Previous review focus, and Next suggestions.',
+      'Make the advice practical and short enough to read quickly.',
+      'Highlight any cash flow pressure, missing records, or repeated patterns.',
+      'Suggest concrete next actions for the next 3 to 7 days.',
+    ],
+  };
+
+  return jsonEncode(payload);
+}
+
+String _buildLocalFinanceRecap({
+  required List<Transaction> transactions,
+  required List<Farm> farms,
+}) {
+  final double income = transactions
+      .where((Transaction item) => item.type == TransactionType.income)
+      .fold<double>(0, (double sum, Transaction item) => sum + item.amount);
+  final double expenses = transactions
+      .where((Transaction item) => item.type == TransactionType.expense)
+      .fold<double>(0, (double sum, Transaction item) => sum + item.amount);
+  final double balance = income - expenses;
+  final int salesCount = transactions.where((Transaction item) => item.recordKind == TransactionRecordKind.sale).length;
+  final int procurementCount = transactions.where((Transaction item) => item.recordKind == TransactionRecordKind.procurement).length;
+
+  final List<String> strengths = <String>[
+    if (salesCount > 0) '$salesCount sales records are available for review.',
+    if (procurementCount > 0) '$procurementCount procurement records are available for review.',
+    if (farms.isNotEmpty) '${farms.length} farms are linked to the finance workspace.',
+    if (balance >= 0) 'The current balance is positive.',
+  ];
+
+  final List<String> attention = <String>[
+    if (transactions.isEmpty) 'No finance records are stored yet, so the recap is based on setup data only.',
+    if (expenses > income) 'Expenses are higher than income, so tighten spending and review pricing.',
+    if (farms.isEmpty) 'No farms are linked yet, so it is harder to compare finance by farm.',
+  ];
+
+  final List<String> nextSuggestions = <String>[
+    'Review the last 7 days of sales and procurement for missing notes or duplicate entries.',
+    'Compare top expense categories against sales to spot margin pressure.',
+    'Open the sales desk to check whether customer-linked receipts are being recorded consistently.',
+    'Export the finance PDF before the next review meeting so the numbers stay current.',
+  ];
+
+  return '''
+Snapshot
+- Income: ${CurrencyUtils.formatCurrency(income)}
+- Expenses: ${CurrencyUtils.formatCurrency(expenses)}
+- Balance: ${CurrencyUtils.formatCurrency(balance)}
+- Sales records: $salesCount
+- Procurement records: $procurementCount
+
+What improved
+${strengths.isEmpty ? '- The dataset is small, so no strong improvement signal is visible yet.' : strengths.map((String item) => '- $item').join('\n')}
+
+What needs attention
+${attention.isEmpty ? '- No urgent finance issue is obvious from the available data.' : attention.map((String item) => '- $item').join('\n')}
+
+Previous review focus
+- Recheck the most recent receipt and expense entries for accuracy.
+- Confirm all customer-linked sales have the right product, quantity, and price.
+
+Next suggestions
+${nextSuggestions.map((String item) => '- $item').join('\n')}
+''';
 }
 
 class _CachedResponse {

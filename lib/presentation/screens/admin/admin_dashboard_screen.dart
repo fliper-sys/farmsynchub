@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../providers/admin_provider.dart';
 import '../../../domain/models/user_profile.dart';
+import '../../../domain/models/verified_badge_request.dart';
 import '../../common/widgets/app_card.dart';
 import 'admin_locked_view.dart';
 
@@ -39,6 +40,7 @@ class AdminDashboardScreen extends ConsumerWidget {
     final int recentUpdates = state.users.where((UserProfile user) => DateTime.now().difference(user.updatedAt).inDays <= 7).length;
     final int owners = state.users.where((UserProfile user) => user.accountRole == UserAccountRole.owner).length;
     final int workers = state.users.where((UserProfile user) => user.accountRole == UserAccountRole.worker).length;
+    final int badgeRequests = state.verifiedBadgeRequests.where((VerifiedBadgeRequest request) => request.isPending).length;
 
     return Scaffold(
       appBar: AppBar(
@@ -90,6 +92,7 @@ class AdminDashboardScreen extends ConsumerWidget {
                         _StatChip(label: 'Updated 7d', value: '$recentUpdates'),
                         _StatChip(label: 'Owners', value: '$owners'),
                         _StatChip(label: 'Workers', value: '$workers'),
+                        _StatChip(label: 'Badge requests', value: '$badgeRequests'),
                       ],
                     ),
                   ],
@@ -143,6 +146,12 @@ class AdminDashboardScreen extends ConsumerWidget {
                       title: 'Recovery',
                       subtitle: 'Reset an admin password.',
                       onTap: () => context.go('/admin-recovery'),
+                    ),
+                    _ActionTile(
+                      icon: Icons.verified_user_rounded,
+                      title: 'Verified badges',
+                      subtitle: 'Review farmer badge applications.',
+                      onTap: () => context.go('/admin-verified-badges'),
                     ),
                     _ActionTile(
                       icon: Icons.security_rounded,

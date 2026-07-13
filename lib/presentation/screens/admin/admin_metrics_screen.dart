@@ -44,6 +44,11 @@ class AdminMetricsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Back',
+          onPressed: () => context.canPop() ? context.pop() : context.go('/admin-dashboard'),
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
         title: const Text('Admin metrics'),
         actions: <Widget>[
           IconButton(

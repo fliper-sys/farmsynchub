@@ -33,6 +33,34 @@ class SyncService {
     }
   }
 
+  /// Apply a device reading snapshot to a farm and push to cloud if online.
+  Future<void> applyDeviceReadingToFarm({
+    required String farmId,
+    double? temperatureCelsius,
+    double? humidityPercent,
+    double? soilMoisturePercent,
+    double? precipitationMm,
+  }) async {
+    try {
+      final Map<String, dynamic>? record = await _firebaseService.getDocumentFromFirestore('farms', farmId);
+      if (record == null) return;
+
+      final Farm remote = Farm.fromJson(record);
+      final Farm updated = remote.copyWith(
+        temperatureCelsius: temperatureCelsius ?? remote.temperatureCelsius,
+        humidityPercent: humidityPercent ?? remote.humidityPercent,
+        soilMoisturePercent: soilMoisturePercent ?? remote.soilMoisturePercent,
+        precipitationMm: precipitationMm ?? remote.precipitationMm,
+        updatedAt: DateTime.now(),
+        isSynced: true,
+      );
+
+      await _firebaseService.syncToFirestore('farms', updated.toJson());
+    } catch (e) {
+      // best-effort: ignore failures here
+    }
+  }
+
   /// Sync crops to cloud.
   Future<void> syncCrops(List<Crop> crops) async {
     if (!await isOnline()) return;

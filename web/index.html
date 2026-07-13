@@ -35,7 +35,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:wght@400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Required for Flutter web Google Sign-In. Make sure this client ID matches the OAuth client ID configured in Firebase and the app's authorized domains. -->
   <meta name="google-signin-client_id" content="190353139949-8vjnn71ku91tvp75kpl2q5ete9hcpnd1.apps.googleusercontent.com">
+
+  <script src="https://www.google.com/recaptcha/enterprise.js?render=6Lf3WiMtAAAAABW5BIvb1-uny6fW0fOc0JU4lrkq"></script>
+  <!-- Your code -->
 
   <title>FarmSync Hub</title>
   <link rel="manifest" href="manifest.json">
@@ -82,7 +86,7 @@
       height: 96px;
       margin: 0 auto 18px;
       border-radius: 18px;
-      background-image: url('assets/appicon.png');
+      background-image: url('favicon.png');
       background-size: 64%;
       background-repeat: no-repeat;
       background-position: center;

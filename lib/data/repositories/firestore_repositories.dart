@@ -1,4 +1,6 @@
+import '../local/daos/crops_dao.dart';
 import '../local/daos/farms_dao.dart';
+import '../local/daos/livestock_dao.dart';
 import '../local/database.dart';
 import '../../domain/models/crop.dart';
 import '../../domain/models/farm.dart';
@@ -12,22 +14,22 @@ import 'livestock_repository.dart';
 
 class FirestoreFarmRepository implements FarmRepository {
   FirestoreFarmRepository(
-    this._firebaseService, {
+    this._remoteStore, {
     FarmsDao? farmsDao,
   }) : _farmsDao = farmsDao ?? FarmsDao(const LocalDatabase());
 
-  final FirebaseService _firebaseService;
+  final FarmRemoteStore _remoteStore;
   final FarmsDao _farmsDao;
 
   @override
   Future<void> delete(String id) async {
     await _farmsDao.delete(id);
-    if (_firebaseService.currentUser == null) {
+    if (!_remoteStore.hasActiveUser) {
       return;
     }
 
     try {
-      await _firebaseService.deleteFromFirestore('farms', id);
+      await _remoteStore.deleteFromFirestore('farms', id);
     } catch (_) {
       // Keep local deletion even if cloud cleanup is temporarily unavailable.
     }
@@ -36,14 +38,14 @@ class FirestoreFarmRepository implements FarmRepository {
   @override
   Future<List<Farm>> getAll() async {
     final List<Farm> localFarms = await _farmsDao.getAll();
-    if (_firebaseService.currentUser == null) {
+    if (!_remoteStore.hasActiveUser) {
       return _sortFarms(localFarms);
     }
 
     final List<Farm> syncedLocalFarms = await _syncPendingLocalFarms(localFarms);
 
     try {
-      final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('farms');
+      final List<Map<String, dynamic>> records = await _remoteStore.getFromFirestore('farms');
       final List<Farm> remoteFarms = records.map(Farm.fromJson).toList();
       final List<Farm> mergedFarms = _mergeFarms(
         local: syncedLocalFarms,
@@ -81,12 +83,12 @@ class FirestoreFarmRepository implements FarmRepository {
     Farm localFarm = farm.copyWith(isSynced: false);
     await _farmsDao.upsert(localFarm);
 
-    if (_firebaseService.currentUser == null) {
+    if (!_remoteStore.hasActiveUser) {
       return;
     }
 
     try {
-      await _firebaseService.syncToFirestore(
+      await _remoteStore.syncToFirestore(
         'farms',
         localFarm.copyWith(isSynced: true).toJson(),
       );
@@ -104,7 +106,7 @@ class FirestoreFarmRepository implements FarmRepository {
     for (final Farm farm in farms) {
       if (!farm.isSynced) {
         try {
-          await _firebaseService.syncToFirestore(
+          await _remoteStore.syncToFirestore(
             'farms',
             farm.copyWith(isSynced: true).toJson(),
           );
@@ -151,114 +153,262 @@ class FirestoreFarmRepository implements FarmRepository {
 }
 
 class FirestoreCropRepository implements CropRepository {
-  FirestoreCropRepository(this._firebaseService);
+  FirestoreCropRepository(
+    this._firebaseService, {
+    CropsDao? cropsDao,
+  }) : _cropsDao = cropsDao ?? CropsDao(const LocalDatabase());
 
   final FirebaseService _firebaseService;
+  final CropsDao _cropsDao;
 
   @override
   Future<void> delete(String id) async {
-    if (_firebaseService.currentUser == null) {
-      throw Exception('User not authenticated');
+    await _cropsDao.delete(id);
+    if (!_firebaseService.hasActiveUser) {
+      return;
     }
-    await _firebaseService.deleteFromFirestore('crops', id);
+    try {
+      await _firebaseService.deleteFromFirestore('crops', id);
+    } catch (_) {
+      // Keep local deletion even if cloud cleanup is temporarily unavailable.
+    }
   }
 
   @override
   Future<List<Crop>> getAll() async {
-    if (_firebaseService.currentUser == null) {
-      return <Crop>[];
+    final List<Crop> localCrops = await _cropsDao.getAll();
+    if (!_firebaseService.hasActiveUser) {
+      return _sortCrops(localCrops);
     }
-    final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('crops');
-    final List<Crop> crops = records
-        .map(_tryParseCrop)
-        .whereType<Crop>()
-        .where((Crop crop) => crop.id.isNotEmpty)
-        .toList()
-      ..sort((Crop a, Crop b) => b.updatedAt.compareTo(a.updatedAt));
-    return crops;
+
+    final List<Crop> syncedLocalCrops = await _syncPendingLocalCrops(localCrops);
+
+    try {
+      final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('crops');
+      final List<Crop> remoteCrops = records
+          .map(_tryParseCrop)
+          .whereType<Crop>()
+          .where((Crop crop) => crop.id.isNotEmpty)
+          .toList(growable: false);
+      final List<Crop> mergedCrops = _mergeCrops(local: syncedLocalCrops, remote: remoteCrops);
+      await _cropsDao.replaceAll(mergedCrops);
+      return _sortCrops(mergedCrops);
+    } catch (_) {
+      return _sortCrops(syncedLocalCrops);
+    }
   }
 
   @override
   Future<Crop?> getById(String id) async {
-    if (_firebaseService.currentUser == null) {
-      return null;
+    final List<Crop> crops = await getAll();
+    for (final Crop crop in crops) {
+      if (crop.id == id) {
+        return crop;
+      }
     }
-    final Map<String, dynamic>? record = await _firebaseService.getDocumentFromFirestore('crops', id);
-    return record == null ? null : _tryParseCrop(record);
+    return null;
   }
 
   @override
   Future<void> insert(Crop crop) async {
-    if (_firebaseService.currentUser == null) {
-      throw Exception('User not authenticated');
-    }
-    final Map<String, dynamic> data = crop.toJson()..['isSynced'] = true;
-    await _firebaseService.syncToFirestore('crops', data);
+    await _saveCrop(crop);
   }
 
   @override
   Future<void> update(Crop crop) async {
-    if (_firebaseService.currentUser == null) {
-      throw Exception('User not authenticated');
+    await _saveCrop(crop);
+  }
+
+  Future<void> _saveCrop(Crop crop) async {
+    Crop localCrop = crop.copyWith(isSynced: false);
+    await _cropsDao.upsert(localCrop);
+
+    if (!_firebaseService.hasActiveUser) {
+      return;
     }
-    final Map<String, dynamic> data = crop.toJson()..['isSynced'] = true;
-    await _firebaseService.syncToFirestore('crops', data);
+
+    try {
+      await _firebaseService.syncToFirestore('crops', localCrop.copyWith(isSynced: true).toJson());
+      localCrop = localCrop.copyWith(isSynced: true);
+      await _cropsDao.upsert(localCrop);
+    } catch (_) {
+      await _cropsDao.upsert(localCrop.copyWith(isSynced: false));
+    }
+  }
+
+  Future<List<Crop>> _syncPendingLocalCrops(List<Crop> crops) async {
+    final List<Crop> updated = <Crop>[];
+    var hasChanges = false;
+
+    for (final Crop crop in crops) {
+      if (!crop.isSynced) {
+        try {
+          await _firebaseService.syncToFirestore('crops', crop.copyWith(isSynced: true).toJson());
+          updated.add(crop.copyWith(isSynced: true));
+          hasChanges = true;
+        } catch (_) {
+          updated.add(crop);
+        }
+      } else {
+        updated.add(crop);
+      }
+    }
+
+    if (hasChanges) {
+      await _cropsDao.replaceAll(updated);
+    }
+    return updated;
+  }
+
+  List<Crop> _mergeCrops({required List<Crop> local, required List<Crop> remote}) {
+    final Map<String, Crop> merged = <String, Crop>{
+      for (final Crop crop in remote) crop.id: crop.copyWith(isSynced: true),
+    };
+
+    for (final Crop crop in local) {
+      final Crop? remoteCrop = merged[crop.id];
+      if (remoteCrop == null || crop.updatedAt.isAfter(remoteCrop.updatedAt)) {
+        merged[crop.id] = crop;
+      }
+    }
+
+    return merged.values.toList(growable: false);
+  }
+
+  List<Crop> _sortCrops(List<Crop> crops) {
+    final List<Crop> sorted = List<Crop>.from(crops);
+    sorted.sort((Crop a, Crop b) => b.updatedAt.compareTo(a.updatedAt));
+    return sorted;
   }
 }
 
 class FirestoreLivestockRepository implements LivestockRepository {
-  FirestoreLivestockRepository(this._firebaseService);
+  FirestoreLivestockRepository(
+    this._firebaseService, {
+    LivestockDao? livestockDao,
+  }) : _livestockDao = livestockDao ?? LivestockDao(const LocalDatabase());
 
   final FirebaseService _firebaseService;
+  final LivestockDao _livestockDao;
 
   @override
   Future<void> delete(String id) async {
-    if (_firebaseService.currentUser == null) {
-      throw Exception('User not authenticated');
+    await _livestockDao.delete(id);
+    if (!_firebaseService.hasActiveUser) {
+      return;
     }
-    await _firebaseService.deleteFromFirestore('livestock', id);
+    try {
+      await _firebaseService.deleteFromFirestore('livestock', id);
+    } catch (_) {
+      // Keep local deletion even if cloud cleanup is temporarily unavailable.
+    }
   }
 
   @override
   Future<List<Livestock>> getAll() async {
-    if (_firebaseService.currentUser == null) {
-      return <Livestock>[];
+    final List<Livestock> localLivestock = await _livestockDao.getAll();
+    if (!_firebaseService.hasActiveUser) {
+      return _sortLivestock(localLivestock);
     }
-    final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('livestock');
-    final List<Livestock> items = records
-        .map(_tryParseLivestock)
-        .whereType<Livestock>()
-        .where((Livestock item) => item.id.isNotEmpty)
-        .toList()
-      ..sort((Livestock a, Livestock b) => b.updatedAt.compareTo(a.updatedAt));
-    return items;
+
+    final List<Livestock> syncedLocalLivestock = await _syncPendingLocalLivestock(localLivestock);
+
+    try {
+      final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('livestock');
+      final List<Livestock> remoteLivestock = records
+          .map(_tryParseLivestock)
+          .whereType<Livestock>()
+          .where((Livestock item) => item.id.isNotEmpty)
+          .toList(growable: false);
+      final List<Livestock> mergedLivestock = _mergeLivestock(local: syncedLocalLivestock, remote: remoteLivestock);
+      await _livestockDao.replaceAll(mergedLivestock);
+      return _sortLivestock(mergedLivestock);
+    } catch (_) {
+      return _sortLivestock(syncedLocalLivestock);
+    }
   }
 
   @override
   Future<Livestock?> getById(String id) async {
-    if (_firebaseService.currentUser == null) {
-      return null;
+    final List<Livestock> livestock = await getAll();
+    for (final Livestock item in livestock) {
+      if (item.id == id) {
+        return item;
+      }
     }
-    final Map<String, dynamic>? record = await _firebaseService.getDocumentFromFirestore('livestock', id);
-    return record == null ? null : _tryParseLivestock(record);
+    return null;
   }
 
   @override
   Future<void> insert(Livestock livestock) async {
-    if (_firebaseService.currentUser == null) {
-      throw Exception('User not authenticated');
-    }
-    final Map<String, dynamic> data = livestock.toJson()..['isSynced'] = true;
-    await _firebaseService.syncToFirestore('livestock', data);
+    await _saveLivestock(livestock);
   }
 
   @override
   Future<void> update(Livestock livestock) async {
-    if (_firebaseService.currentUser == null) {
-      throw Exception('User not authenticated');
+    await _saveLivestock(livestock);
+  }
+
+  Future<void> _saveLivestock(Livestock livestock) async {
+    Livestock localLivestock = livestock.copyWith(isSynced: false);
+    await _livestockDao.upsert(localLivestock);
+
+    if (!_firebaseService.hasActiveUser) {
+      return;
     }
-    final Map<String, dynamic> data = livestock.toJson()..['isSynced'] = true;
-    await _firebaseService.syncToFirestore('livestock', data);
+
+    try {
+      await _firebaseService.syncToFirestore('livestock', localLivestock.copyWith(isSynced: true).toJson());
+      localLivestock = localLivestock.copyWith(isSynced: true);
+      await _livestockDao.upsert(localLivestock);
+    } catch (_) {
+      await _livestockDao.upsert(localLivestock.copyWith(isSynced: false));
+    }
+  }
+
+  Future<List<Livestock>> _syncPendingLocalLivestock(List<Livestock> livestock) async {
+    final List<Livestock> updated = <Livestock>[];
+    var hasChanges = false;
+
+    for (final Livestock item in livestock) {
+      if (!item.isSynced) {
+        try {
+          await _firebaseService.syncToFirestore('livestock', item.copyWith(isSynced: true).toJson());
+          updated.add(item.copyWith(isSynced: true));
+          hasChanges = true;
+        } catch (_) {
+          updated.add(item);
+        }
+      } else {
+        updated.add(item);
+      }
+    }
+
+    if (hasChanges) {
+      await _livestockDao.replaceAll(updated);
+    }
+    return updated;
+  }
+
+  List<Livestock> _mergeLivestock({required List<Livestock> local, required List<Livestock> remote}) {
+    final Map<String, Livestock> merged = <String, Livestock>{
+      for (final Livestock item in remote) item.id: item.copyWith(isSynced: true),
+    };
+
+    for (final Livestock item in local) {
+      final Livestock? remoteItem = merged[item.id];
+      if (remoteItem == null || item.updatedAt.isAfter(remoteItem.updatedAt)) {
+        merged[item.id] = item;
+      }
+    }
+
+    return merged.values.toList(growable: false);
+  }
+
+  List<Livestock> _sortLivestock(List<Livestock> livestock) {
+    final List<Livestock> sorted = List<Livestock>.from(livestock);
+    sorted.sort((Livestock a, Livestock b) => b.updatedAt.compareTo(a.updatedAt));
+    return sorted;
   }
 }
 

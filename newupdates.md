@@ -1,0 +1,36 @@
+# New Updates
+
+- In-app notifications: Real-time alerts for farm activities, schedule reminders, and system updates delivered directly within the application
+- Push notifications: Full setup and testing for schedules (vaccination, herbicide application, feeding, and more) with customizable frequency and notification preferences
+- Sales page: Full setup with product catalog, pricing display, order management, and customer purchase history
+- Provider validation: Verification system to ensure third-party providers meet quality and compliance standards before integration
+- Inventory screen with tracking: Comprehensive dashboard monitoring stock levels with visual indicators for low stock alerts and high stock thresholds
+- Pricing: Dynamic pricing structure based on market conditions, farm size, and seasonal variations
+- Valuation: Asset valuation tools for farm equipment, livestock, and produce estimations
+- Procurement screen for existing inventory and new products: Interface for managing current stock and ordering new supplies with expiration date tracking and scheduled batch entries
+- Farm creation to Firestore and provider wiring: Database setup and integration connecting farm profiles to service providers and data storage
+- Device sync for temperature and other farm readings: IoT device integration collecting real-time environmental data from sensors across the farm
+- Health tracking: Vaccination scheduling and calendar sync with veterinary records and automated reminders
+- Crop herbicide application: Detailed screens for time frames, amounts, and AI-driven suggestions based on crop type and weather conditions
+- Google Sign-In: OAuth integration for secure user authentication through Google accounts
+- Phone number registration & password reset: Alternative authentication methods with secure password recovery options
+- Expand lesson library, add more tests, and develop shareable image and PDF certificates with app link: Educational content expansion with assessment tools and digital credentials
+- API for temperature, humidity, and rainfall: Weather integration for real-time and historical temperature, humidity, and rainfall data
+- Irrigation notifications: Smart alerts that recommend the best irrigation timing based on soil moisture and forecasted weather
+- Water and feeding reminders for animals: Automated livestock care schedules for water, feeding, and routine management
+- Farmer business features: Tools for financial management, compliance tracking, and business analytics
+- Weekly reports from farm activity logs: Automated summary reports compiled from daily farm operations and activities
+- Procurement: Streamlined ordering and supplier management system
+- Expense tracking screen: Financial dashboard for recording and categorizing farm expenditures
+- Sales information: Detailed sales analytics including revenue, customer trends, and product performance
+- Current inventory: Real-time stock level display with availability status
+- Farm information and status: Comprehensive farm profile with operational status, metrics, and key performance indicators
+- General reports with filters for specific time periods: Customizable reporting with date range selection and data filtering
+- Farm-customized reports: Tailored reports based on specific farm parameters and business objectives
+- In-app review page: User feedback and rating system for app features and services
+- Subsistence and commercial advice and reporting screen: Guidance and analytics for both small-scale and large-scale farming operations
+- Goal tracking: Progress monitoring for farm objectives with achieved vs. not achieved status visualization
+- Missed schedules: Alerts and logging for missed tasks with analysis and corrective action suggestions
+- Upcoming schedules and important tasks: Dashboard preview of pending activities and priority tasks
+- Download Google icon: Integration of Google branding assets for authentication and service indicators
+- General farm review page icon on user dashboard card: Visual indicator linking to comprehensive farm overview on main dashboard

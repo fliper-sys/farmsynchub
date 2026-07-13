@@ -68,4 +68,30 @@ class UserProfileController extends StateNotifier<AsyncValue<UserProfile?>> {
       rethrow;
     }
   }
+
+  Future<void> requestVerifiedBadge({
+    String note = '',
+  }) async {
+    final UserProfile? profile = state.valueOrNull;
+    if (profile == null) {
+      throw StateError('Profile is not loaded yet.');
+    }
+    if (profile.uid.isEmpty) {
+      throw StateError('Cannot request a verified badge without a profile.');
+    }
+    state = const AsyncValue.loading();
+    try {
+      await _firebaseService.requestVerifiedBadge(profile: profile, note: note);
+      if (!mounted) {
+        return;
+      }
+      await loadProfile();
+    } catch (error, stackTrace) {
+      if (!mounted) {
+        return;
+      }
+      state = AsyncValue.error(error, stackTrace);
+      rethrow;
+    }
+  }
 }

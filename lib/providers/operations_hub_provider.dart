@@ -3,6 +3,10 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../data/remote/firebase_service.dart';
+import '../data/remote/operations_hub_remote_store.dart';
+import 'auth_provider.dart';
+
 enum BusinessPartnerType {
   customer,
   provider,
@@ -175,30 +179,62 @@ class OperationsHubState {
 
 final operationsHubProvider =
     StateNotifierProvider<OperationsHubNotifier, OperationsHubState>((ref) {
-  return OperationsHubNotifier();
+  return OperationsHubNotifier(ref.watch(firebaseServiceProvider));
 });
 
 class OperationsHubNotifier extends StateNotifier<OperationsHubState> {
-  OperationsHubNotifier() : super(const OperationsHubState()) {
+  OperationsHubNotifier(this._remoteStore) : super(const OperationsHubState()) {
     _load();
   }
 
+  final OperationsHubRemoteStore _remoteStore;
   static const String _storageKey = 'operations_hub_state';
 
   Future<void> _load() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final String? raw = prefs.getString(_storageKey);
-    if (raw == null || raw.isEmpty) {
+    if (raw != null && raw.isNotEmpty) {
+      state = OperationsHubState.fromJson(
+        jsonDecode(raw) as Map<String, dynamic>,
+      );
+    }
+
+    if (!_remoteStore.hasActiveUser) {
       return;
     }
-    state = OperationsHubState.fromJson(
-      jsonDecode(raw) as Map<String, dynamic>,
-    );
+
+    try {
+      final List<Map<String, dynamic>> remoteDocs = await _remoteStore.getFromFirestore(_storageKey);
+      for (final Map<String, dynamic> doc in remoteDocs) {
+        final dynamic payload = doc['payload'];
+        if (payload is Map<String, dynamic>) {
+          state = OperationsHubState.fromJson(payload);
+          break;
+        }
+        if (payload is Map) {
+          state = OperationsHubState.fromJson(Map<String, dynamic>.from(payload));
+          break;
+        }
+      }
+    } catch (_) {
+      // Fall back to the locally cached state if remote loading is unavailable.
+    }
   }
 
   Future<void> _save() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_storageKey, jsonEncode(state.toJson()));
+    final Map<String, dynamic> payload = state.toJson();
+    await prefs.setString(_storageKey, jsonEncode(payload));
+    if (_remoteStore.hasActiveUser) {
+      try {
+        await _remoteStore.syncToFirestore(_storageKey, <String, dynamic>{
+          'id': _storageKey,
+          'payload': payload,
+        });
+      } catch (_) {
+        // Persist locally even if remote sync is unavailable.
+      }
+    }
   }
 
   Future<void> addPartner(BusinessPartner partner) async {
@@ -209,7 +245,13 @@ class OperationsHubNotifier extends StateNotifier<OperationsHubState> {
   }
 
   Future<void> addInventoryItem(InventoryItem item) async {
-    final List<InventoryItem> next = <InventoryItem>[item, ...state.inventory];
+    final List<InventoryItem> next = <InventoryItem>[...state.inventory];
+    final int index = next.indexWhere((InventoryItem current) => current.id == item.id);
+    if (index >= 0) {
+      next[index] = item;
+    } else {
+      next.insert(0, item);
+    }
     state = state.copyWith(inventory: next);
     await _save();
   }

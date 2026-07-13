@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -11,6 +12,18 @@ class FarmNotificationService {
 
   final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   bool _isInitialized = false;
+  static const String _notificationsKey = 'settings_notifications_enabled';
+  static const String _remindersKey = 'settings_reminders_enabled';
+
+  Future<bool> _areNotificationsEnabled() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_notificationsKey) ?? true;
+  }
+
+  Future<bool> _areReminderNotificationsEnabled() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_remindersKey) ?? true;
+  }
 
   Future<void> initialize() async {
     if (_isInitialized) {
@@ -84,7 +97,7 @@ class FarmNotificationService {
     if (!_isInitialized) {
       await initialize();
     }
-    if (!_isInitialized) {
+    if (!_isInitialized || !await _areReminderNotificationsEnabled()) {
       return;
     }
     await _plugin.zonedSchedule(
@@ -122,7 +135,7 @@ class FarmNotificationService {
     if (!_isInitialized) {
       await initialize();
     }
-    if (!_isInitialized) {
+    if (!_isInitialized || !await _areNotificationsEnabled()) {
       return;
     }
 

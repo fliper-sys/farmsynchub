@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -6,6 +9,8 @@ import 'package:go_router/go_router.dart';
 
 import 'domain/models/notification.dart' as domain;
 import 'data/remote/firebase_service.dart';
+import 'core/services/farm_notification_service.dart';
+import 'core/services/firebase_messaging_service.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/common/layouts/main_scaffold.dart';
 import 'presentation/screens/ai_advisor/ai_advisor_screen.dart';
@@ -24,6 +29,7 @@ import 'presentation/screens/admin/admin_notes_screen.dart';
 import 'presentation/screens/admin/admin_recovery_screen.dart';
 import 'presentation/screens/admin/admin_admins_screen.dart';
 import 'presentation/screens/admin/admin_metrics_screen.dart';
+import 'presentation/screens/admin/admin_verified_badges_screen.dart';
 import 'presentation/screens/admin/admin_user_detail_screen.dart';
 import 'presentation/screens/admin/admin_users_screen.dart';
 import 'presentation/screens/dashboard/dashboard_screen.dart';
@@ -32,7 +38,12 @@ import 'presentation/screens/crops/crops_screen.dart';
 import 'presentation/screens/learn/learn_screen.dart';
 import 'presentation/screens/livestock/livestock_screen.dart';
 import 'presentation/screens/finance/finance_screen.dart';
+import 'presentation/screens/finance/finance_ai_recap_screen.dart';
 import 'presentation/screens/finance/market_trends_screen.dart';
+import 'presentation/screens/finance/expense_tracking_screen.dart';
+import 'presentation/screens/finance/sales_information_screen.dart';
+import 'presentation/screens/sales/sales_desk_screen.dart';
+import 'presentation/screens/procurement/procurement_screen.dart';
 import 'presentation/screens/news/news_screen.dart';
 import 'presentation/screens/profile/profile_screen.dart';
 import 'presentation/screens/profile/account_setup_screen.dart';
@@ -43,14 +54,80 @@ import 'presentation/screens/onboarding/app_tour_screen.dart';
 import 'presentation/screens/notifications/notifications_screen.dart';
 import 'presentation/screens/notifications/notification_detail_screen.dart';
 import 'providers/app_preferences_provider.dart';
+import 'providers/notification_provider.dart';
 import 'providers/theme_provider.dart';
 
 /// The root widget of the Farmsync application.
-class FarmsyncApp extends ConsumerWidget {
+class FarmsyncApp extends ConsumerStatefulWidget {
   const FarmsyncApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FarmsyncApp> createState() => _FarmsyncAppState();
+}
+
+class _FarmsyncAppState extends ConsumerState<FarmsyncApp> {
+  StreamSubscription<RemoteMessage>? _messageSubscription;
+  StreamSubscription<RemoteMessage>? _appOpenSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeMessaging();
+  }
+
+  Future<void> _initializeMessaging() async {
+    await ref.read(firebaseMessagingServiceProvider).initialize();
+    _messageSubscription = FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+    _appOpenSubscription = FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpen);
+    final RemoteMessage? initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    if (initialMessage != null) {
+      _handleMessageOpen(initialMessage);
+    }
+  }
+
+  Future<void> _handleForegroundMessage(RemoteMessage message) async {
+    final String title = message.notification?.title ?? message.data['title'] as String? ?? 'FarmSync update';
+    final String body = message.notification?.body ?? message.data['body'] as String? ?? message.data['message'] as String? ?? '';
+    final String? actionUrl = message.data['actionUrl'] as String? ?? message.data['click_action'] as String?;
+
+    ref.read(notificationsProvider.notifier).addNotification(
+          title: title,
+          message: body,
+          actionUrl: actionUrl,
+          type: domain.NotificationType.info,
+          metadata: <String, dynamic>{
+            'source': 'fcm',
+            if (message.data.isNotEmpty) 'data': message.data,
+          },
+        );
+
+    final bool notificationsEnabled = ref.read(appSettingsProvider).notificationsEnabled;
+    if (notificationsEnabled) {
+      await FarmNotificationService.instance.showNow(
+        id: message.messageId?.hashCode.abs() ?? DateTime.now().millisecondsSinceEpoch,
+        title: title,
+        body: body,
+        payload: actionUrl,
+      );
+    }
+  }
+
+  void _handleMessageOpen(RemoteMessage message) {
+    final String? actionUrl = message.data['actionUrl'] as String? ?? message.data['click_action'] as String?;
+    if (actionUrl != null && mounted) {
+      context.go(actionUrl);
+    }
+  }
+
+  @override
+  void dispose() {
+    _messageSubscription?.cancel();
+    _appOpenSubscription?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final ThemeMode themeMode = ref.watch(themeProvider);
     final AppLanguage language = ref.watch(appLanguageProvider);
     final Locale materialLocale = _materialLocaleFor(language);
@@ -160,6 +237,10 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/admin-news',
       builder: (context, state) => const AdminNewsScreen(),
+    ),
+    GoRoute(
+      path: '/admin-verified-badges',
+      builder: (context, state) => const AdminVerifiedBadgesScreen(),
     ),
     GoRoute(
       path: '/admin-notes',
@@ -279,6 +360,39 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/learn',
       builder: (context, state) => const LearnScreen(),
+      redirect: _authRedirect,
+    ),
+    GoRoute(
+      path: '/procurement',
+      builder: (context, state) => const ProcurementScreen(),
+      redirect: _authRedirect,
+    ),
+    GoRoute(
+      path: '/expenses',
+      builder: (context, state) => const ExpenseTrackingScreen(),
+      redirect: _authRedirect,
+    ),
+    GoRoute(
+      path: FinanceAiRecapScreen.routeName,
+      builder: (context, state) => const FinanceAiRecapScreen(),
+      redirect: _authRedirect,
+    ),
+    GoRoute(
+      path: SalesDeskScreen.routeName,
+      builder: (context, state) => const SalesDeskScreen(),
+      redirect: _authRedirect,
+    ),
+    GoRoute(
+      path: '/sales/receipt/:receiptNumber',
+      builder: (context, state) {
+        final String receiptNumber = state.pathParameters['receiptNumber'] ?? '';
+        return SalesReceiptScreen(receiptNumber: receiptNumber);
+      },
+      redirect: _authRedirect,
+    ),
+    GoRoute(
+      path: SalesInformationScreen.routeName,
+      builder: (context, state) => const SalesInformationScreen(),
       redirect: _authRedirect,
     ),
     GoRoute(

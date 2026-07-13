@@ -56,7 +56,7 @@ class FarmsNotifier extends StateNotifier<AsyncValue<List<Farm>>> {
   Future<void> addFarm(Farm farm) async {
     try {
       await _repository.insert(farm);
-      await _loadFarms();
+      _upsertFarmInState(farm);
     } catch (error, stackTrace) {
       if (!mounted) {
         return;
@@ -70,7 +70,7 @@ class FarmsNotifier extends StateNotifier<AsyncValue<List<Farm>>> {
   Future<void> updateFarm(Farm farm) async {
     try {
       await _repository.update(farm);
-      await _loadFarms();
+      _upsertFarmInState(farm);
     } catch (error, stackTrace) {
       if (!mounted) {
         return;
@@ -84,7 +84,7 @@ class FarmsNotifier extends StateNotifier<AsyncValue<List<Farm>>> {
   Future<void> deleteFarm(String farmId) async {
     try {
       await _repository.delete(farmId);
-      await _loadFarms();
+      _removeFarmFromState(farmId);
     } catch (error, stackTrace) {
       if (!mounted) {
         return;
@@ -105,6 +105,24 @@ class FarmsNotifier extends StateNotifier<AsyncValue<List<Farm>>> {
       state = AsyncValue.error(error, stackTrace);
       return null;
     }
+  }
+
+  void _upsertFarmInState(Farm farm) {
+    final List<Farm> currentFarms = List<Farm>.from(state.valueOrNull ?? const <Farm>[]);
+    final int index = currentFarms.indexWhere((Farm item) => item.id == farm.id);
+    if (index == -1) {
+      currentFarms.add(farm);
+    } else {
+      currentFarms[index] = farm;
+    }
+    currentFarms.sort((Farm a, Farm b) => b.updatedAt.compareTo(a.updatedAt));
+    state = AsyncValue.data(currentFarms);
+  }
+
+  void _removeFarmFromState(String farmId) {
+    final List<Farm> currentFarms = List<Farm>.from(state.valueOrNull ?? const <Farm>[]);
+    currentFarms.removeWhere((Farm item) => item.id == farmId);
+    state = AsyncValue.data(currentFarms);
   }
 }
 

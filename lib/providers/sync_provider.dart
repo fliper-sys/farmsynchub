@@ -53,6 +53,11 @@ final syncServiceProvider = Provider<SyncService>((Ref ref) {
   );
 });
 
+final deviceSyncAliasProvider = Provider.autoDispose<SyncService>((Ref ref) {
+  // Reuse SyncService for cloud-side device writes; keep provider for compatibility.
+  return ref.watch(syncServiceProvider);
+});
+
 final syncOverviewProvider =
     StateNotifierProvider<SyncOverviewNotifier, SyncOverview>((Ref ref) {
   final SyncOverviewNotifier notifier = SyncOverviewNotifier(ref);

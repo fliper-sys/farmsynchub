@@ -156,6 +156,84 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 18),
+          SoftSectionTitle(title: appLanguage.tr(en: 'Notifications', ha: 'Sanarwa', fr: 'Notifications')),
+          AppCard(
+            color: theme.colorScheme.surfaceContainerHighest,
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                children: <Widget>[
+                  _ToggleSettingsRow(
+                    icon: Icons.notifications_active_rounded,
+                    title: appLanguage.tr(en: 'Push notifications', ha: 'Sanarwar waya', fr: 'Notifications push'),
+                    subtitle: appLanguage.tr(
+                      en: 'Enable or disable app alerts, farm updates, and incoming messages.',
+                      ha: 'Bada damar ko kashe sanarwar app, sabuntawar gona, da saƙonni masu zuwa.',
+                      fr: 'Activez ou desactivez les alertes de l application, les mises a jour de ferme et les messages entrants.',
+                    ),
+                    value: appSettings.notificationsEnabled,
+                    tint: const Color(0xFFE9F4DB),
+                    onChanged: (bool value) => ref.read(appSettingsProvider.notifier).setNotificationsEnabled(value),
+                  ),
+                  const SizedBox(height: 12),
+                  _ToggleSettingsRow(
+                    icon: Icons.alarm_on_rounded,
+                    title: appLanguage.tr(en: 'Reminder notifications', ha: 'Sanarwar tunatarwa', fr: 'Notifications de rappel'),
+                    subtitle: appLanguage.tr(
+                      en: 'Control crop and livestock reminder alerts separately.',
+                      ha: 'Sarrafa sanarwar tunatarwa ga amfanin gona da dabbobi daban.',
+                      fr: 'Controlez separerement les alertes de rappel cultures et betail.',
+                    ),
+                    value: appSettings.reminderNotificationsEnabled,
+                    tint: const Color(0xFFDFF1FF),
+                    onChanged: (bool value) =>
+                        ref.read(appSettingsProvider.notifier).setReminderNotificationsEnabled(value),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Icon(Icons.help_outline_rounded, color: theme.colorScheme.primary, size: 20),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                appLanguage.tr(
+                                  en: 'How notifications work',
+                                  ha: 'Yadda sanarwa ke aiki',
+                                  fr: 'Comment fonctionnent les notifications',
+                                ),
+                                style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                appLanguage.tr(
+                                  en: 'Push alerts are app updates and messages, while reminder alerts are scheduled farm tasks.',
+                                  ha: 'Sanarwar waya su ne sabuntawar app da saƙonni, yayin da tunatarwa ke nufin ayyukan gona na jadawali.',
+                                  fr: 'Les alertes push sont des mises a jour et messages, tandis que les rappels sont des taches planifiees.',
+                                ),
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
           SoftSectionTitle(title: appLanguage.tr(en: 'Farm preferences', ha: 'Zabukan gona', fr: 'Preferences de ferme')),
           AppCard(
             color: theme.colorScheme.surfaceContainerHighest,
@@ -169,33 +247,6 @@ class SettingsScreen extends ConsumerWidget {
                     value: appLanguage.label,
                     tint: const Color(0xFFDFF1FF),
                     onTap: () => _showAppLanguageSheet(context, ref),
-                  ),
-                  const SizedBox(height: 12),
-                  _ToggleSettingsRow(
-                    icon: Icons.notifications_active_rounded,
-                    title: appLanguage.tr(en: 'Push notifications', ha: 'Sanarwar waya', fr: 'Notifications push'),
-                    subtitle: appLanguage.tr(
-                      en: 'Receive app alerts and farm updates.',
-                      ha: 'Karbar sanarwar app da sabuntawar gona.',
-                      fr: 'Recevez alertes de l application et mises a jour de la ferme.',
-                    ),
-                    value: appSettings.notificationsEnabled,
-                    tint: const Color(0xFFE9F4DB),
-                    onChanged: (bool value) => ref.read(appSettingsProvider.notifier).setNotificationsEnabled(value),
-                  ),
-                  const SizedBox(height: 12),
-                  _ToggleSettingsRow(
-                    icon: Icons.alarm_on_rounded,
-                    title: appLanguage.tr(en: 'Reminder notifications', ha: 'Sanarwar tunatarwa', fr: 'Notifications de rappel'),
-                    subtitle: appLanguage.tr(
-                      en: 'Crop and livestock reminders can notify you on time.',
-                      ha: 'Tunatarwar amfanin gona da dabbobi na iya sanar da kai da wuri.',
-                      fr: 'Les rappels cultures et betail peuvent vous avertir a temps.',
-                    ),
-                    value: appSettings.reminderNotificationsEnabled,
-                    tint: const Color(0xFFDFF1FF),
-                    onChanged: (bool value) =>
-                        ref.read(appSettingsProvider.notifier).setReminderNotificationsEnabled(value),
                   ),
                   const SizedBox(height: 12),
                   _ToggleSettingsRow(

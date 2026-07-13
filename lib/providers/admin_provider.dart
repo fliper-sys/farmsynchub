@@ -5,6 +5,7 @@ import '../core/services/farm_email_service.dart';
 import '../data/remote/firebase_service.dart';
 import '../domain/models/notification.dart';
 import '../domain/models/user_profile.dart';
+import '../domain/models/verified_badge_request.dart';
 import 'auth_provider.dart';
 import 'email_notification_provider.dart';
 import 'notification_provider.dart';
@@ -15,11 +16,7 @@ const String kDefaultAdminPassword = 'Xanther839@';
 
 final adminWorkspaceProvider =
     StateNotifierProvider<AdminWorkspaceController, AsyncValue<AdminWorkspaceState>>((ref) {
-  return AdminWorkspaceController(
-    firebaseService: ref.read(firebaseServiceProvider),
-    emailService: ref.read(farmEmailServiceProvider),
-    notifications: ref.read(notificationsProvider.notifier),
-  );
+  return AdminWorkspaceController(ref);
 });
 
 class AdminAccount {
@@ -101,6 +98,7 @@ class AdminWorkspaceState {
   const AdminWorkspaceState({
     required this.admins,
     required this.users,
+    required this.verifiedBadgeRequests,
     required this.currentAdmin,
     required this.isLoading,
     required this.lastUpdatedAt,
@@ -108,6 +106,7 @@ class AdminWorkspaceState {
 
   final List<AdminAccount> admins;
   final List<UserProfile> users;
+  final List<VerifiedBadgeRequest> verifiedBadgeRequests;
   final AdminAccount? currentAdmin;
   final bool isLoading;
   final DateTime? lastUpdatedAt;
@@ -115,6 +114,7 @@ class AdminWorkspaceState {
   AdminWorkspaceState copyWith({
     List<AdminAccount>? admins,
     List<UserProfile>? users,
+    List<VerifiedBadgeRequest>? verifiedBadgeRequests,
     AdminAccount? currentAdmin,
     bool? isLoading,
     DateTime? lastUpdatedAt,
@@ -122,6 +122,7 @@ class AdminWorkspaceState {
     return AdminWorkspaceState(
       admins: admins ?? this.admins,
       users: users ?? this.users,
+      verifiedBadgeRequests: verifiedBadgeRequests ?? this.verifiedBadgeRequests,
       currentAdmin: currentAdmin ?? this.currentAdmin,
       isLoading: isLoading ?? this.isLoading,
       lastUpdatedAt: lastUpdatedAt ?? this.lastUpdatedAt,
@@ -130,17 +131,15 @@ class AdminWorkspaceState {
 }
 
 class AdminWorkspaceController extends StateNotifier<AsyncValue<AdminWorkspaceState>> {
-  AdminWorkspaceController({
-    required FirebaseService firebaseService,
-    required FarmEmailService emailService,
-    required NotificationsNotifier notifications,
-  })  : _firebaseService = firebaseService,
-        _emailService = emailService,
-        _notifications = notifications,
+  AdminWorkspaceController(this._ref)
+      : _firebaseService = _ref.read(firebaseServiceProvider),
+        _emailService = _ref.read(farmEmailServiceProvider),
+        _notifications = _ref.read(notificationsProvider.notifier),
         super(const AsyncValue.loading()) {
     load();
   }
 
+  final Ref _ref;
   final FirebaseService _firebaseService;
   final FarmEmailService _emailService;
   final NotificationsNotifier _notifications;
@@ -157,6 +156,7 @@ class AdminWorkspaceController extends StateNotifier<AsyncValue<AdminWorkspaceSt
       final String? sessionEmail = prefs.getString(_sessionKey);
       final List<AdminAccount> admins = await _loadAdmins();
       final List<UserProfile> users = await _loadUsers();
+      final List<VerifiedBadgeRequest> verifiedBadgeRequests = await _loadVerifiedBadgeRequests();
       final AdminAccount? currentAdmin =
           sessionEmail == null ? null : _findAdminByEmail(admins, sessionEmail);
       if (!mounted) return;
@@ -164,6 +164,7 @@ class AdminWorkspaceController extends StateNotifier<AsyncValue<AdminWorkspaceSt
         AdminWorkspaceState(
           admins: admins,
           users: users,
+          verifiedBadgeRequests: verifiedBadgeRequests,
           currentAdmin: currentAdmin,
           isLoading: false,
           lastUpdatedAt: DateTime.now(),
@@ -201,6 +202,16 @@ class AdminWorkspaceController extends StateNotifier<AsyncValue<AdminWorkspaceSt
       return await _firebaseService.getAllUserProfiles();
     } catch (_) {
       return <UserProfile>[];
+    }
+  }
+
+  Future<List<VerifiedBadgeRequest>> _loadVerifiedBadgeRequests() async {
+    try {
+      final List<VerifiedBadgeRequest> requests = await _firebaseService.getVerifiedBadgeRequests();
+      requests.sort((VerifiedBadgeRequest a, VerifiedBadgeRequest b) => b.requestedAt.compareTo(a.requestedAt));
+      return requests;
+    } catch (_) {
+      return <VerifiedBadgeRequest>[];
     }
   }
 
@@ -326,12 +337,78 @@ class AdminWorkspaceController extends StateNotifier<AsyncValue<AdminWorkspaceSt
     await load();
   }
 
+  Future<void> approveVerifiedBadge(VerifiedBadgeRequest request) async {
+    await _reviewVerifiedBadgeRequest(request, approved: true);
+  }
+
+  Future<void> declineVerifiedBadge(
+    VerifiedBadgeRequest request, {
+    String note = '',
+  }) async {
+    await _reviewVerifiedBadgeRequest(request, approved: false, note: note);
+  }
+
   Future<void> saveAdmin(AdminAccount admin) async {
     final AdminAccount safeAdmin =
         admin.id == kDefaultAdminEmail || admin.email == kDefaultAdminEmail
             ? admin.copyWith(isActive: true)
             : admin;
     await _firebaseService.saveAdminAccount(safeAdmin.toJson());
+    await load();
+  }
+
+  Future<void> _reviewVerifiedBadgeRequest(
+    VerifiedBadgeRequest request, {
+    required bool approved,
+    String note = '',
+  }) async {
+    final AdminWorkspaceState? current = _current;
+    final String reviewerName = current?.currentAdmin?.name.trim().isNotEmpty == true
+        ? current!.currentAdmin!.name
+        : 'FarmSync Admin';
+    await _firebaseService.reviewVerifiedBadgeRequest(
+      request: request,
+      approved: approved,
+      reviewerName: reviewerName,
+      note: note,
+    );
+
+    UserProfile? user;
+    for (final UserProfile candidate in current?.users ?? <UserProfile>[]) {
+      if (candidate.uid == request.userId) {
+        user = candidate;
+        break;
+      }
+    }
+    final String email = user?.email.trim().isNotEmpty == true ? user!.email : request.email;
+    final String recipientName = user?.fullName.trim().isNotEmpty == true
+        ? user!.fullName
+        : (request.userName.isNotEmpty ? request.userName : email.split('@').first);
+    if (email.isNotEmpty) {
+      await _emailService.sendVerifiedBadgeDecisionNotification(
+        toEmail: email,
+        recipientName: recipientName,
+        approved: approved,
+        reviewerName: reviewerName,
+        note: note,
+      );
+    }
+    await _notifications.publishNotification(
+      title: approved ? 'Verified badge approved' : 'Verified badge declined',
+      message: approved
+          ? 'Your verified badge request was approved. The badge will now appear on your news posts and reposts.'
+          : 'Your verified badge request was declined${note.isNotEmpty ? ': $note' : '.'}',
+      type: approved ? NotificationType.success : NotificationType.warning,
+      actionUrl: '/profile',
+      audience: 'single',
+      targetUserId: request.userId,
+      metadata: <String, dynamic>{
+        'source': 'verified_badge_review',
+        'requestId': request.id,
+        'approved': approved,
+        if (note.isNotEmpty) 'note': note,
+      },
+    );
     await load();
   }
 

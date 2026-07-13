@@ -1,5 +1,35 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+class CertificateRecord {
+  const CertificateRecord({
+    required this.lessonId,
+    required this.lessonTitle,
+    required this.completedAt,
+  });
+
+  final String lessonId;
+  final String lessonTitle;
+  final DateTime completedAt;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'lessonId': lessonId,
+      'lessonTitle': lessonTitle,
+      'completedAt': completedAt.toIso8601String(),
+    };
+  }
+
+  factory CertificateRecord.fromJson(Map<String, dynamic> json) {
+    return CertificateRecord(
+      lessonId: json['lessonId'] as String? ?? '',
+      lessonTitle: json['lessonTitle'] as String? ?? '',
+      completedAt: DateTime.tryParse(json['completedAt'] as String? ?? '') ?? DateTime.now(),
+    );
+  }
+}
 
 class LearningState {
   const LearningState({
@@ -8,6 +38,7 @@ class LearningState {
     this.sharedItems = const <String>{},
     this.reviewedQuestions = const <String>{},
     this.skippedLessons = const <String>{},
+    this.earnedCertificates = const <CertificateRecord>[],
   });
 
   final Set<String> completedLessons;
@@ -15,6 +46,7 @@ class LearningState {
   final Set<String> sharedItems;
   final Set<String> reviewedQuestions;
   final Set<String> skippedLessons;
+  final List<CertificateRecord> earnedCertificates;
 
   int get awardCount {
     var count = 0;
@@ -33,7 +65,19 @@ class LearningState {
     if (reviewedQuestions.isNotEmpty) {
       count++;
     }
+    if (earnedCertificates.isNotEmpty) {
+      count++;
+    }
     return count;
+  }
+
+  CertificateRecord? certificateForLesson(String lessonId) {
+    for (final CertificateRecord record in earnedCertificates) {
+      if (record.lessonId == lessonId) {
+        return record;
+      }
+    }
+    return null;
   }
 
   LearningState copyWith({
@@ -42,6 +86,7 @@ class LearningState {
     Set<String>? sharedItems,
     Set<String>? reviewedQuestions,
     Set<String>? skippedLessons,
+    List<CertificateRecord>? earnedCertificates,
   }) {
     return LearningState(
       completedLessons: completedLessons ?? this.completedLessons,
@@ -49,6 +94,7 @@ class LearningState {
       sharedItems: sharedItems ?? this.sharedItems,
       reviewedQuestions: reviewedQuestions ?? this.reviewedQuestions,
       skippedLessons: skippedLessons ?? this.skippedLessons,
+      earnedCertificates: earnedCertificates ?? this.earnedCertificates,
     );
   }
 }
@@ -68,9 +114,17 @@ class LearningNotifier extends StateNotifier<LearningState> {
   static const String _sharedItemsKey = 'learning.shared_items';
   static const String _reviewedQuestionsKey = 'learning.reviewed_questions';
   static const String _skippedLessonsKey = 'learning.skipped_lessons';
+  static const String _earnedCertificatesKey = 'learning.earned_certificates';
 
   Future<void> _load() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final List<CertificateRecord> loadedCertificates = (prefs.getStringList(_earnedCertificatesKey) ?? <String>[])
+        .map((String raw) {
+          final Map<String, dynamic> decoded = jsonDecode(raw) as Map<String, dynamic>;
+          return CertificateRecord.fromJson(decoded);
+        })
+        .toList();
+
     state = LearningState(
       completedLessons:
           (prefs.getStringList(_completedLessonsKey) ?? <String>[]).toSet(),
@@ -79,6 +133,7 @@ class LearningNotifier extends StateNotifier<LearningState> {
       sharedItems: (prefs.getStringList(_sharedItemsKey) ?? <String>[]).toSet(),
       reviewedQuestions: (prefs.getStringList(_reviewedQuestionsKey) ?? <String>[]).toSet(),
       skippedLessons: (prefs.getStringList(_skippedLessonsKey) ?? <String>[]).toSet(),
+      earnedCertificates: loadedCertificates,
     );
   }
 
@@ -92,11 +147,33 @@ class LearningNotifier extends StateNotifier<LearningState> {
     await prefs.setStringList(_sharedItemsKey, state.sharedItems.toList());
     await prefs.setStringList(_reviewedQuestionsKey, state.reviewedQuestions.toList());
     await prefs.setStringList(_skippedLessonsKey, state.skippedLessons.toList());
+    await prefs.setStringList(
+      _earnedCertificatesKey,
+      state.earnedCertificates.map((CertificateRecord record) => jsonEncode(record.toJson())).toList(),
+    );
   }
 
-  Future<void> completeLesson(String lessonId) async {
+  Future<void> completeLesson(String lessonId, {String? lessonTitle}) async {
+    final Set<String> completedLessons = <String>{...state.completedLessons, lessonId};
+    final List<CertificateRecord> earnedCertificates = <CertificateRecord>[...state.earnedCertificates];
+
+    final bool certificateExists = earnedCertificates.any(
+      (CertificateRecord record) => record.lessonId == lessonId,
+    );
+
+    if (!certificateExists) {
+      earnedCertificates.add(
+        CertificateRecord(
+          lessonId: lessonId,
+          lessonTitle: lessonTitle ?? lessonId,
+          completedAt: DateTime.now(),
+        ),
+      );
+    }
+
     state = state.copyWith(
-      completedLessons: <String>{...state.completedLessons, lessonId},
+      completedLessons: completedLessons,
+      earnedCertificates: earnedCertificates,
     );
     await _save();
   }

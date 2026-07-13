@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -91,6 +92,7 @@ class _MarketTrendsScreenState extends ConsumerState<MarketTrendsScreen> {
     }).toList(growable: false);
 
     return SoftScreenScaffold(
+      onBack: () => Navigator.of(context).canPop() ? Navigator.of(context).pop() : context.go('/finance'),
       heroTitle: language.tr(
         en: 'Market trends',
         ha: 'Yanayin kasuwa',

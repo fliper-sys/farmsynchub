@@ -238,6 +238,22 @@ class _LeafHero extends StatelessWidget {
           ),
         ),
         Positioned(
+          right: 22,
+          top: 86,
+          child: _HeroPhotoTile(
+            assetPath: AppAssets.uiGallery02,
+            size: 124,
+          ),
+        ),
+        Positioned(
+          right: 84,
+          top: 170,
+          child: _HeroPhotoTile(
+            assetPath: AppAssets.uiGallery03,
+            size: 70,
+          ),
+        ),
+        Positioned(
           left: 24,
           top: 32,
           child: GestureDetector(
@@ -282,6 +298,44 @@ class _LeafHero extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _HeroPhotoTile extends StatelessWidget {
+  const _HeroPhotoTile({
+    required this.assetPath,
+    required this.size,
+  });
+
+  final String assetPath;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withOpacity(0.22)),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Image.asset(
+          assetPath,
+          fit: BoxFit.cover,
+        ),
+      ),
     );
   }
 }

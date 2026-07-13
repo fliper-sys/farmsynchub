@@ -4,12 +4,14 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/rendering.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/services/finance_report_service.dart';
 import '../../../core/services/report_file_saver.dart';
 import '../../../core/services/report_file_saver_base.dart';
+import '../../../core/services/report_share_service.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/date_utils.dart' as app_date;
 import '../../../core/utils/validators.dart';
@@ -21,8 +23,9 @@ import '../../../providers/farm_provider.dart';
 import '../../../providers/finance_provider.dart';
 import '../../../providers/operations_hub_provider.dart';
 import 'market_trends_screen.dart';
-import 'product_detail_screen.dart';
 import 'finance_workspace_screen.dart';
+import 'finance_ai_recap_screen.dart';
+import '../sales/sales_desk_screen.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
@@ -39,6 +42,7 @@ class FinanceScreen extends ConsumerStatefulWidget {
 class _FinanceScreenState extends ConsumerState<FinanceScreen> {
   final FinanceReportService _reportService = FinanceReportService();
   final ReportFileSaver _fileSaver = createReportFileSaver();
+  final ReportShareService _shareService = const ReportShareService();
   bool _isExporting = false;
 
   @override
@@ -46,7 +50,6 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     final AppLanguage language = ref.watch(appLanguageProvider);
     final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
     final List<Transaction> transactions = ref.watch(transactionsProvider).valueOrNull ?? <Transaction>[];
-    final OperationsHubState operations = ref.watch(operationsHubProvider);
     final FinanceSnapshot snapshot = FinanceSnapshot.fromTransactions(transactions);
     final List<Transaction> sales = transactions
         .where((Transaction item) => item.recordKind == TransactionRecordKind.sale)
@@ -54,26 +57,31 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     final List<Transaction> procurement = transactions
         .where((Transaction item) => item.recordKind == TransactionRecordKind.procurement)
         .toList(growable: false);
+    final List<Transaction> recentActivities = transactions.toList(growable: false)
+      ..sort((Transaction a, Transaction b) => b.transactionDate.compareTo(a.transactionDate));
+    final List<Transaction> topRecentActivities = recentActivities.take(6).toList(growable: false);
 
     return SoftScreenScaffold(
+      onBack: () => Navigator.of(context).canPop() ? Navigator.of(context).pop() : context.go('/dashboard'),
       heroTitle: language.tr(
-        en: 'Sales and finance hub',
-        ha: 'Cibiyar siyarwa da kudi',
-        fr: 'Centre des ventes et finances',
+        en: 'Finance command center',
+        ha: 'Cibiyar harkokin kudi',
+        fr: 'Centre financier',
       ),
       heroSubtitle: language.tr(
-        en: 'Track inventory, register customers and providers, record sales or procurement, and export clean receipts.',
-        ha: 'Bibiyi kaya, rijista kwastomomi da masu kawo kaya, rubuta siyarwa ko saye, sannan fitar da takardun karbar kudi masu tsafta.',
-        fr: 'Suivre les stocks, enregistrer clients et fournisseurs, noter ventes ou achats et exporter des reçus propres.',
+        en: 'Jump into dedicated sales, expense, and procurement screens, then review recent activity and export polished reports.',
+        ha: 'Shiga cikin allon siyarwa, kashe kudi, da sayen kaya na musamman, sannan duba sabbin ayyuka da fitar da rahotanni masu kyau.',
+        fr: 'Accédez aux écrans dédiés des ventes, dépenses et achats, puis consultez l activité récente et exportez des rapports soignés.',
       ),
       heroIcon: Icons.point_of_sale_rounded,
-      heroVariant: FarmArtworkVariant.dashboard,
+      heroVariant: FarmArtworkVariant.finance,
       heroBadge: language.tr(
-        en: '${sales.length} sales - ${procurement.length} procurement',
-        ha: '${sales.length} siyarwa - ${procurement.length} saye',
-        fr: '${sales.length} ventes - ${procurement.length} achats',
+        en: '${farms.length} farms - ${sales.length} sales - ${procurement.length} procurement',
+        ha: '${farms.length} gonaki - ${sales.length} siyarwa - ${procurement.length} saye',
+        fr: '${farms.length} fermes - ${sales.length} ventes - ${procurement.length} achats',
       ),
-      showArtwork: false,
+      
+      showArtwork: true,
       sections: <Widget>[
         AppCard(
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -93,12 +101,32 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                   ),
                 ),
                 _ActionTile(
-                  label: language.tr(en: 'Record deal', ha: 'Rubuta maamala', fr: 'Enregistrer'),
-                  icon: Icons.add_card_rounded,
-                  onTap: farms.isEmpty ? null : () => _openTransactionSheet(context, farms: farms),
+                  label: language.tr(en: 'Sales desk', ha: 'Wurin siyarwa', fr: 'Bureau des ventes'),
+                  icon: Icons.point_of_sale_rounded,
+                  onTap: () => context.go(SalesDeskScreen.routeName),
                 ),
                 _ActionTile(
-                  label: language.tr(en: 'Export PDF', ha: 'Fitar da PDF', fr: 'Exporter PDF'),
+                  label: language.tr(en: 'Expense tracking', ha: 'Bibiyar kashe kudi', fr: 'Suivi des dépenses'),
+                  icon: Icons.receipt_long_outlined,
+                  onTap: () => context.go('/expenses'),
+                ),
+                _ActionTile(
+                  label: language.tr(en: 'Procurement', ha: 'Siyayya', fr: 'Approvisionnement'),
+                  icon: Icons.shopping_cart_outlined,
+                  onTap: () => context.go('/procurement'),
+                ),
+                _ActionTile(
+                  label: language.tr(en: 'Sales analytics', ha: 'Nazarin siyarwa', fr: 'Analyses ventes'),
+                  icon: Icons.insights_rounded,
+                  onTap: () => context.go('/sales-info'),
+                ),
+                _ActionTile(
+                  label: language.tr(en: 'AI recap', ha: 'Takaitaccen AI', fr: 'Résumé IA'),
+                  icon: Icons.auto_awesome_rounded,
+                  onTap: () => context.go(FinanceAiRecapScreen.routeName),
+                ),
+                _ActionTile(
+                  label: language.tr(en: 'Export finance PDF', ha: 'Fitar da PDF', fr: 'Exporter PDF'),
                   icon: Icons.picture_as_pdf_rounded,
                   onTap: _isExporting || transactions.isEmpty ? null : () => _exportReport(snapshot, transactions),
                 ),
@@ -119,7 +147,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         Row(
           children: <Widget>[
             Expanded(
-            child: SoftInfoChip(
+              child: SoftInfoChip(
                 label: language.tr(en: 'Income', ha: 'Shiga kudi', fr: 'Revenus'),
                 value: CurrencyUtils.formatCompactCurrency(snapshot.income),
                 color: const Color(0xFFE5F5D8),
@@ -127,7 +155,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
             ),
             const SizedBox(width: 10),
             Expanded(
-            child: SoftInfoChip(
+              child: SoftInfoChip(
                 label: language.tr(en: 'Expenses', ha: 'Fito kudi', fr: 'Dépenses'),
                 value: CurrencyUtils.formatCompactCurrency(snapshot.expenses),
                 color: const Color(0xFFFFE7D7),
@@ -135,42 +163,60 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
             ),
             const SizedBox(width: 10),
             Expanded(
-            child: SoftInfoChip(
+              child: SoftInfoChip(
                 label: language.tr(en: 'Open balance', ha: 'Ragowar kudi', fr: 'Solde'),
                 value: CurrencyUtils.formatCompactCurrency(snapshot.balance),
                 color: const Color(0xFFDFF1FF),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: SoftInfoChip(
+                label: language.tr(en: 'Recent items', ha: 'Sabbin abubuwa', fr: 'Récents'),
+                value: topRecentActivities.length.toString(),
+                color: const Color(0xFFFFEBCF),
               ),
             ),
           ],
         ),
         const SizedBox(height: 18),
         SoftSectionTitle(
-          title: language.tr(en: 'Quick tools', ha: 'Kayan aiki masu sauri', fr: 'Outils rapides'),
+          title: language.tr(en: 'Dedicated modules', ha: 'Sassan aiki na musamman', fr: 'Modules dédiés'),
         ),
         AppCard(
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
           child: Padding(
             padding: const EdgeInsets.all(18),
-            child: Row(
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 12,
               children: <Widget>[
-                Expanded(
+                SizedBox(
+                  width: 240,
                   child: AppButton.primary(
-                    onPressed: farms.isEmpty ? null : () => _openTransactionSheet(context, farms: farms),
-                    child: Text(language.tr(en: 'Add sale or buy', ha: 'Saka siyarwa ko saya', fr: 'Ajouter vente ou achat')),
+                    onPressed: () => context.go(SalesDeskScreen.routeName),
+                    child: const Text('Open sales desk'),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
+                SizedBox(
+                  width: 240,
                   child: AppButton.secondary(
-                    onPressed: farms.isEmpty ? null : () => _openInventorySheet(context, farms),
-                    child: Text(language.tr(en: 'Add inventory', ha: 'Saka kaya', fr: 'Ajouter stock')),
+                    onPressed: () => context.go('/expenses'),
+                    child: const Text('Open expense tracker'),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
+                SizedBox(
+                  width: 240,
                   child: AppButton.secondary(
-                    onPressed: () => _openPartnerSheet(context),
-                    child: Text(language.tr(en: 'Add contact', ha: 'Saka lamba', fr: 'Ajouter contact')),
+                    onPressed: () => context.go('/procurement'),
+                    child: const Text('Open procurement'),
+                  ),
+                ),
+                SizedBox(
+                  width: 240,
+                  child: AppButton.secondary(
+                    onPressed: transactions.isEmpty ? null : () => _exportReport(snapshot, transactions),
+                    child: const Text('Export finance report'),
                   ),
                 ),
               ],
@@ -179,123 +225,83 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         ),
         const SizedBox(height: 18),
         SoftSectionTitle(
-          title: language.tr(en: 'Products for sale', ha: 'Kayayyakin siyarwa', fr: 'Produits a vendre'),
+          title: language.tr(en: 'Recent activity', ha: 'Sabbin ayyuka', fr: 'Activité récente'),
         ),
-        if (operations.inventory.isEmpty)
-          const _EmptyFinanceCard(
-            message: 'No inventory items yet. Add a farm product so sales can deduct available stock.',
-          )
-        else
-          ...operations.inventory.map(
-            (InventoryItem item) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: AppCard(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => ProductDetailScreen(productId: item.id),
+        AppCard(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  language.tr(
+                    en: 'Recent finance activity reflects sales, expenses, and procurement recorded across the app.',
+                    ha: 'Sabbin ayyukan kudi suna nuna siyarwa, kashe kudi, da sayen kaya da aka rubuta a cikin app.',
+                    fr: 'L activité financière récente reflète les ventes, dépenses et achats enregistrés dans l application.',
                   ),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
                 ),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                  leading: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE5F5D8),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      item.emoji,
-                      style: const TextStyle(fontSize: 22),
-                    ),
-                  ),
-                  title: Text(item.name),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      '${item.availableQuantity.toStringAsFixed(2)} ${item.unit} available - Cost ${CurrencyUtils.formatCurrency(item.costPrice)} / Sell ${CurrencyUtils.formatCurrency(item.unitPrice)}',
+                const SizedBox(height: 14),
+                if (topRecentActivities.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text('No recent transactions yet.'),
+                  )
+                else
+                  ...topRecentActivities.map(
+                    (Transaction transaction) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _TransactionRecordTile(
+                        transaction: transaction,
+                        onTap: () => _openReceiptDetail(context, transaction),
+                      ),
                     ),
                   ),
-                  trailing: Text(item.category),
-                ),
-              ),
+              ],
             ),
           ),
+        ),
         const SizedBox(height: 18),
         SoftSectionTitle(
-          title: language.tr(en: 'Customers and providers', ha: 'Kwastomomi da masu kawo kaya', fr: 'Clients et fournisseurs'),
+          title: language.tr(en: 'Dedicated reports', ha: 'Rahotanni na musamman', fr: 'Rapports dédiés'),
         ),
-        if (operations.partners.isEmpty)
-          const _EmptyFinanceCard(
-            message: 'No registered buyers or providers yet. Add contacts so receipts and email notices can reuse them.',
-          )
-        else
-          ...operations.partners.map(
-            (BusinessPartner partner) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: AppCard(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                  leading: CircleAvatar(
-                    backgroundColor: partner.type == BusinessPartnerType.customer
-                        ? const Color(0xFFDFF1FF)
-                        : const Color(0xFFFFEBD0),
-                    child: Icon(
-                      partner.type == BusinessPartnerType.customer
-                          ? Icons.person_outline_rounded
-                          : Icons.local_shipping_outlined,
+        AppCard(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: <Widget>[
+                _ActionTile(
+                  label: language.tr(en: 'Sales analytics', ha: 'Nazarin siyarwa', fr: 'Analyses ventes'),
+                  icon: Icons.insights_rounded,
+                  onTap: () => context.go('/sales-info'),
+                ),
+                _ActionTile(
+                  label: language.tr(en: 'Expense report', ha: 'Rahoton kashe kudi', fr: 'Rapport dépenses'),
+                  icon: Icons.receipt_long_outlined,
+                  onTap: () => context.go('/expenses'),
+                ),
+                _ActionTile(
+                  label: language.tr(en: 'Procurement report', ha: 'Rahoton saye', fr: 'Rapport achats'),
+                  icon: Icons.shopping_cart_outlined,
+                  onTap: () => context.go('/procurement'),
+                ),
+                _ActionTile(
+                  label: language.tr(en: 'Market trends', ha: 'Yanayin kasuwa', fr: 'Tendances'),
+                  icon: Icons.show_chart_rounded,
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const MarketTrendsScreen(),
                     ),
                   ),
-                  title: Text(partner.name),
-                  subtitle: Text(
-                    '${partner.email.isEmpty ? 'No email' : partner.email} - ${partner.phone.isEmpty ? 'No phone' : partner.phone}',
-                  ),
-                  trailing: Text(
-                    partner.type == BusinessPartnerType.customer ? 'Customer' : 'Provider',
-                  ),
                 ),
-              ),
+              ],
             ),
           ),
-        const SizedBox(height: 18),
-        SoftSectionTitle(
-          title: language.tr(en: 'Sales history', ha: 'Tarihin siyarwa', fr: 'Historique des ventes'),
         ),
-        if (sales.isEmpty)
-          const _EmptyFinanceCard(
-            message: 'No sales recorded yet.',
-          )
-        else
-          ...sales.map(
-            (Transaction transaction) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _TransactionRecordTile(
-                transaction: transaction,
-                onTap: () => _openReceiptDetail(context, transaction),
-              ),
-            ),
-          ),
-        const SizedBox(height: 18),
-        SoftSectionTitle(
-          title: language.tr(en: 'Procurement', ha: 'Sayen kaya', fr: 'Approvisionnement'),
-        ),
-        if (procurement.isEmpty)
-          const _EmptyFinanceCard(
-            message: 'No procurement records yet.',
-          )
-        else
-          ...procurement.map(
-            (Transaction transaction) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _TransactionRecordTile(
-                transaction: transaction,
-                onTap: () => _openReceiptDetail(context, transaction),
-              ),
-            ),
-          ),
       ],
     );
   }
@@ -303,6 +309,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
   Future<void> _exportReport(FinanceSnapshot snapshot, List<Transaction> transactions) async {
     setState(() => _isExporting = true);
     try {
+      final String fileName = 'farmsync_finance_report_${DateTime.now().millisecondsSinceEpoch}.pdf';
       final Uint8List bytes = await _reportService.buildFinanceReport(
         transactions: transactions,
         income: snapshot.income,
@@ -312,7 +319,12 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       );
       final String savedPath = await _fileSaver.savePdf(
         bytes: bytes,
-        fileName: 'farmsync_finance_report_${DateTime.now().millisecondsSinceEpoch}.pdf',
+        fileName: fileName,
+      );
+      await _shareService.sharePdf(
+        filePath: savedPath,
+        fileName: fileName,
+        message: 'FarmSync finance report is ready to share.',
       );
       if (!mounted) {
         return;
@@ -469,22 +481,102 @@ class _ActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final bool isEnabled = onTap != null;
+    final Color surfaceColor = theme.colorScheme.surface;
+    final Color accent = theme.colorScheme.primary;
+    final Color cardColor = isDark
+        ? theme.colorScheme.surfaceVariant
+        : theme.colorScheme.surfaceContainerHighest;
+
     return SizedBox(
-      width: 160,
-      child: AppButton.primary(
-        onPressed: onTap,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Icon(icon, size: 18),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
+      width: 180,
+      child: Material(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(24),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(24),
+          splashColor: accent.withOpacity(0.12),
+          child: Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: isEnabled
+                    ? theme.colorScheme.outlineVariant.withOpacity(0.35)
+                    : theme.disabledColor.withOpacity(0.16),
+              ),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: isDark
+                      ? Colors.black.withOpacity(0.10)
+                      : Colors.black.withOpacity(0.05),
+                  blurRadius: 18,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: isEnabled
+                    ? <Color>[cardColor, surfaceColor]
+                    : <Color>[cardColor.withOpacity(0.92), cardColor.withOpacity(0.92)],
               ),
             ),
-          ],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: <Widget>[
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: accent.withOpacity(0.16),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(icon, color: accent, size: 22),
+                    ),
+                    const Spacer(),
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: accent.withOpacity(0.08),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.arrow_forward_rounded,
+                        color: isEnabled ? accent : theme.disabledColor,
+                        size: 18,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: isEnabled ? theme.colorScheme.onSurface : theme.disabledColor,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Tap to open',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: isEnabled ? theme.colorScheme.onSurfaceVariant : theme.disabledColor.withOpacity(0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

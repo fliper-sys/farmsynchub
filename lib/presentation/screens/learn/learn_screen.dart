@@ -9,17 +9,36 @@ import '../../../core/theme/app_colors.dart';
 import '../../../providers/learning_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
+import '../../common/widgets/app_text_field.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
+import 'lesson_certificate_screen.dart';
 
-class LearnScreen extends ConsumerWidget {
+class LearnScreen extends ConsumerStatefulWidget {
   const LearnScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LearnScreen> createState() => _LearnScreenState();
+}
+
+class _LearnScreenState extends ConsumerState<LearnScreen> {
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final LearningState learning = ref.watch(learningProvider);
-    const List<LearningLesson> lessons = _learningLessons;
+    final String query = _searchController.text.trim().toLowerCase();
+    final List<LearningLesson> lessons = _learningLessons.where((LearningLesson lesson) {
+      final String haystack = '${lesson.title} ${lesson.subtitle} ${lesson.overview} ${lesson.track} ${lesson.difficulty}'.toLowerCase();
+      return query.isEmpty || haystack.contains(query);
+    }).toList(growable: false);
     const List<PracticeActivity> activities = _practiceActivities;
     final double lessonProgress = lessons.isEmpty
         ? 0
@@ -34,15 +53,10 @@ class LearnScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Learn'),
-        leading: Navigator.of(context).canPop()
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back_rounded),
-                onPressed: () => Navigator.of(context).pop(),
-              )
-            : IconButton(
-                icon: const Icon(Icons.arrow_back_rounded),
-                onPressed: () => context.go('/dashboard'),
-              ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => context.go('/dashboard'),
+        ),
         actions: <Widget>[
           IconButton(
             tooltip: 'Share learning hub',
@@ -58,11 +72,25 @@ class LearnScreen extends ConsumerWidget {
       body: SoftScreenScaffold(
         heroTitle: 'Learning hub',
         heroSubtitle:
-            'Lessons, practice work, saved progress, awards, and shareable field guides for crop and livestock management.',
+            'Lessons, practice work, saved progress, awards, shareable certificates, and field guides for crop, livestock, soil, weather, and finance topics.',
         heroIcon: Icons.menu_book_rounded,
         heroVariant: FarmArtworkVariant.field,
         heroBadge: '${learning.awardCount} awards earned',
         sections: <Widget>[
+          AppCard(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: AppTextField(
+                controller: _searchController,
+                label: 'Search lessons',
+                hint: 'Search by title, track, topic, or difficulty',
+                prefix: const Icon(Icons.search_rounded),
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
           const SoftSectionTitle(title: 'Learning progress'),
           Row(
             children: <Widget>[
@@ -106,12 +134,20 @@ class LearnScreen extends ConsumerWidget {
           _AwardsBoard(learning: learning),
           const SizedBox(height: 18),
           SoftSectionTitle(
-            title: AppStrings.continueLearning,
+            title: lessons.length == _learningLessons.length ? AppStrings.continueLearning : 'Search results',
             action: Text(
               '$completedLessons completed',
               style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary),
             ),
           ),
+          if (lessons.isEmpty)
+            AppCard(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: const Padding(
+                padding: EdgeInsets.all(18),
+                child: Text('No lessons match your search. Try a different keyword or clear the search box.'),
+              ),
+            ),
           ...lessons.map(
             (LearningLesson lesson) {
               final bool completed = learning.completedLessons.contains(lesson.id);
@@ -213,6 +249,7 @@ class LearnLessonDetailScreen extends ConsumerWidget {
     final LearningState learning = ref.watch(learningProvider);
     final bool completed = learning.completedLessons.contains(lesson.id);
     final bool skipped = learning.skippedLessons.contains(lesson.id);
+    final CertificateRecord? certificate = learning.certificateForLesson(lesson.id);
     final int reviewedQuestions = lesson.questions
         .where(
           (LessonQuestion question) =>
@@ -358,11 +395,26 @@ class LearnLessonDetailScreen extends ConsumerWidget {
                   onPressed: completed
                       ? null
                       : () async {
-                          await ref.read(learningProvider.notifier).completeLesson(lesson.id);
+                          await ref.read(learningProvider.notifier).completeLesson(
+                                lesson.id,
+                                lessonTitle: lesson.title,
+                              );
+                          final CertificateRecord? record =
+                              ref.read(learningProvider).certificateForLesson(lesson.id);
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(content: Text('Lesson completed. Award progress updated.')),
                             );
+                            if (record != null) {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => LessonCertificateScreen(
+                                    record: record,
+                                    recipientName: 'FarmSync learner',
+                                  ),
+                                ),
+                              );
+                            }
                           }
                         },
                   child: Text(completed ? 'Completed' : 'Mark complete'),
@@ -370,6 +422,16 @@ class LearnLessonDetailScreen extends ConsumerWidget {
               ),
             ],
           ),
+          if (certificate != null) ...<Widget>[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: AppButton.secondary(
+                onPressed: () => _openCertificate(context, certificate),
+                child: const Text('View certificate'),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
@@ -388,6 +450,17 @@ class LearnLessonDetailScreen extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _openCertificate(BuildContext context, CertificateRecord certificate) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => LessonCertificateScreen(
+          record: certificate,
+          recipientName: 'FarmSync learner',
+        ),
       ),
     );
   }
@@ -1003,6 +1076,9 @@ class _QuizQuestionCardState extends ConsumerState<_QuizQuestionCard> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color correctFeedbackColor = isDark ? const Color(0xFF1F421F) : const Color(0xFFE8F4D8);
+    final Color incorrectFeedbackColor = isDark ? const Color(0xFF4A2E0E) : const Color(0xFFFFEBCF);
 
     return AppCard(
       color: theme.colorScheme.surfaceContainerHighest,
@@ -1367,7 +1443,7 @@ const List<LearningLesson> _learningLessons = <LearningLesson>[
     track: AppStrings.soilManagement,
     difficulty: 'Practical',
     icon: Icons.water_drop_rounded,
-    imageAsset: AppAssets.uiLeafField,
+    imageAsset: AppAssets.uiGallery01,
     overview:
         'Learn how to observe moisture loss across the root zone, match watering to crop stage, and avoid wasting labour or water during dry periods. You will also learn how mulch, soil type, and drainage affect how long water stays available to the crop.',
     steps: <String>[
@@ -1441,7 +1517,7 @@ const List<LearningLesson> _learningLessons = <LearningLesson>[
     track: AppStrings.animalHealth,
     difficulty: 'Essential',
     icon: Icons.pets_rounded,
-    imageAsset: AppAssets.uiFieldSprayer,
+    imageAsset: AppAssets.uiGallery02,
     overview:
         'Build a reliable vaccination routine, reduce avoidable disease losses, and keep cleaner treatment records for every group. This lesson also explains cold-chain handling, batch tracking, and how to plan follow-up checks after each round of treatment.',
     steps: <String>[
@@ -1514,7 +1590,7 @@ const List<LearningLesson> _learningLessons = <LearningLesson>[
     track: 'Market access',
     difficulty: 'Business',
     icon: Icons.storefront_rounded,
-    imageAsset: AppAssets.uiProduceMarket,
+    imageAsset: AppAssets.uiGallery03,
     overview:
         'Compare timing, spoilage risk, transport cost, and demand signals so you can choose better selling windows. You will also learn how to estimate net profit after transport and how to avoid rushing stock into a weak market.',
     steps: <String>[
@@ -1587,7 +1663,7 @@ const List<LearningLesson> _learningLessons = <LearningLesson>[
     track: AppStrings.cropAdvice,
     difficulty: 'Field skill',
     icon: Icons.bug_report_rounded,
-    imageAsset: AppAssets.uiFarmLandscape,
+    imageAsset: AppAssets.uiGallery04,
     overview:
         'Use a repeatable scouting route to notice leaf damage, eggs, wilting, and disease patterns before yield is affected. This lesson shows you how to map hot spots, look for beneficial insects, and decide when a problem is serious enough to escalate.',
     steps: <String>[
@@ -1661,7 +1737,7 @@ const List<LearningLesson> _learningLessons = <LearningLesson>[
     track: AppStrings.weatherForecast,
     difficulty: 'Planning',
     icon: Icons.cloud_queue_rounded,
-    imageAsset: AppAssets.uiSmartFarm,
+    imageAsset: AppAssets.uiGallery05,
     overview:
         'Turn weather conditions into better daily decisions for spraying, irrigation, harvesting, drying, storage, and transport. The goal is to reduce avoidable losses by matching each job to the right part of the day and the right weather window.',
     steps: <String>[
@@ -1734,7 +1810,7 @@ const List<LearningLesson> _learningLessons = <LearningLesson>[
     track: 'Market access',
     difficulty: 'Practical',
     icon: Icons.emoji_food_beverage_rounded,
-    imageAsset: AppAssets.uiProduceMarket,
+    imageAsset: AppAssets.uiGallery06,
     overview:
         'Learn how shade, cleaning, sorting, and careful packing reduce damage and improve the value of harvested produce. The lesson also covers how to reduce bruising, contamination, and moisture loss during the first few hours after harvest.',
     steps: <String>[
@@ -1796,7 +1872,7 @@ const List<LearningLesson> _learningLessons = <LearningLesson>[
     track: 'Market access',
     difficulty: 'Business',
     icon: Icons.receipt_long_rounded,
-    imageAsset: AppAssets.uiSmartFarm,
+    imageAsset: AppAssets.uiGallery07,
     overview:
         'Good records help you track costs, compare results across seasons, and support loans, partnerships, and farm planning. Clear logs also make it easier to prove what happened on the farm, assign responsibility, and spot repeat problems before they become expensive.',
     steps: <String>[
@@ -1869,7 +1945,7 @@ const List<LearningLesson> _learningLessons = <LearningLesson>[
     track: AppStrings.animalHealth,
     difficulty: 'Practical',
     icon: Icons.set_meal_rounded,
-    imageAsset: AppAssets.uiFieldSprayer,
+    imageAsset: AppAssets.uiGallery08,
     overview:
         'Balanced feeding and clean water support growth, reduce stress, and help animals maintain condition across seasons. This guide also shows you how to match feed quality to age group, monitor grazing pressure, and spot when the feed program needs a correction.',
     steps: <String>[
@@ -1931,7 +2007,7 @@ const List<LearningLesson> _learningLessons = <LearningLesson>[
     track: AppStrings.soilManagement,
     difficulty: 'Practical',
     icon: Icons.grass_rounded,
-    imageAsset: AppAssets.uiLeafField,
+    imageAsset: AppAssets.uiGallery09,
     overview:
         'Learn how compost, manure, and basic soil observations help you build healthier fields over time. The lesson explains how to tell when soil is tired, how to feed it again, and why repeated crop removal without replacement weakens future yields.',
     steps: <String>[
@@ -1991,7 +2067,7 @@ const List<LearningLesson> _learningLessons = <LearningLesson>[
     track: AppStrings.cropAdvice,
     difficulty: 'Practical',
     icon: Icons.yard_rounded,
-    imageAsset: AppAssets.uiFarmLandscape,
+    imageAsset: AppAssets.uiGallery10,
     overview:
         'Learn how to prepare nursery beds, water gently, and harden seedlings before transplanting. Strong nursery habits reduce transplant shock, improve survival rates, and make the crop more uniform in the main field.',
     steps: <String>[
@@ -2099,6 +2175,186 @@ const List<LearningLesson> _learningLessons = <LearningLesson>[
       'Keep a visitor log for animal areas.',
       'Use a separate cleaning area for dirty tools.',
       'Mark sick pens clearly so workers avoid cross-contact.',
+    ],
+  ),
+  LearningLesson(
+    id: 'drip-irrigation',
+    title: 'Drip irrigation planning',
+    subtitle: 'Schedule water more accurately and reduce waste on each bed.',
+    baseProgress: 0.24,
+    duration: '8 min',
+    tint: Color(0xFFDFF1FF),
+    track: AppStrings.soilManagement,
+    difficulty: 'Practical',
+    icon: Icons.water_drop_outlined,
+    imageAsset: AppAssets.uiSmartFarm,
+    overview:
+        'Plan irrigation around crop stage, bed spacing, and soil response so water reaches roots without unnecessary loss. The lesson also helps you track irrigation cycles, avoid overwatering, and spot blocked lines early.',
+    steps: <String>[
+      'Check the soil before every irrigation cycle instead of watering by guesswork.',
+      'Group beds by crop stage so the driest or youngest plants can be served first.',
+      'Inspect drip lines and emitters for blockages or leaks.',
+      'Log each watering cycle so you can compare the field response later.',
+    ],
+    questions: <LessonQuestion>[
+      LessonQuestion(
+        id: 'drip-1',
+        prompt: 'What should you check before every irrigation cycle?',
+        options: <String>[
+          'The soil condition',
+          'The farm signboard',
+          'The number of messages on your phone',
+        ],
+        correctOptionIndex: 0,
+        explanation: 'Checking the soil helps you avoid watering when the crop does not need it.',
+      ),
+      LessonQuestion(
+        id: 'drip-2',
+        prompt: 'Why inspect drip lines regularly?',
+        options: <String>[
+          'To catch blockages or leaks early',
+          'To make the pipes look new',
+          'To replace crop scouting',
+        ],
+        correctOptionIndex: 0,
+        explanation: 'Blocked or leaking lines reduce irrigation efficiency and can stress the crop.',
+      ),
+      LessonQuestion(
+        id: 'drip-3',
+        prompt: 'Why keep irrigation logs?',
+        options: <String>[
+          'To compare watering cycles and crop response later',
+          'To avoid planning next week',
+          'To replace harvest notes',
+        ],
+        correctOptionIndex: 0,
+        explanation: 'Logs help you learn which irrigation schedule works best for the field.',
+      ),
+    ],
+    tools: <String>[
+      'Record irrigation date, time, and bed section.',
+      'Keep a quick checklist for leaks and blocked emitters.',
+      'Review water use after each weather change.',
+    ],
+  ),
+  LearningLesson(
+    id: 'poultry-housing',
+    title: 'Poultry housing and ventilation',
+    subtitle: 'Keep birds cooler, cleaner, and easier to manage.',
+    baseProgress: 0.31,
+    duration: '9 min',
+    tint: Color(0xFFFFEBCF),
+    track: AppStrings.animalHealth,
+    difficulty: 'Practical',
+    icon: Icons.egg_alt_rounded,
+    imageAsset: AppAssets.uiLeafField,
+    overview:
+        'Good poultry housing lowers stress, supports feed efficiency, and reduces disease pressure. Learn how airflow, dryness, stocking density, and cleaning routines work together to keep birds healthier.',
+    steps: <String>[
+      'Keep litter dry and remove wet patches quickly.',
+      'Make sure air can move through the house without direct drafts on chicks.',
+      'Avoid overcrowding so birds can feed and rest comfortably.',
+      'Clean feeders, drinkers, and corners on a regular schedule.',
+    ],
+    questions: <LessonQuestion>[
+      LessonQuestion(
+        id: 'poultry-1',
+        prompt: 'What improves poultry comfort and health together?',
+        options: <String>[
+          'Good airflow and dry litter',
+          'Dark corners and wet floors',
+          'More crowding in the pen',
+        ],
+        correctOptionIndex: 0,
+        explanation: 'Airflow and dryness reduce heat stress and disease pressure.',
+      ),
+      LessonQuestion(
+        id: 'poultry-2',
+        prompt: 'Why should overcrowding be avoided?',
+        options: <String>[
+          'Birds need space to feed and rest properly',
+          'It makes eggs invisible',
+          'It removes the need for water',
+        ],
+        correctOptionIndex: 0,
+        explanation: 'Overcrowding increases stress and makes management harder.',
+      ),
+      LessonQuestion(
+        id: 'poultry-3',
+        prompt: 'What should be cleaned regularly in poultry housing?',
+        options: <String>[
+          'Feeders, drinkers, and corners',
+          'The farm logo only',
+          'The sales ledger',
+        ],
+        correctOptionIndex: 0,
+        explanation: 'These areas can quickly build up dirt, waste, and disease risk.',
+      ),
+    ],
+    tools: <String>[
+      'Check house temperature and airflow daily.',
+      'Remove wet bedding before it spreads.',
+      'Record mortality, feed use, and water changes.',
+    ],
+  ),
+  LearningLesson(
+    id: 'pricing-and-margin',
+    title: 'Pricing and profit margins',
+    subtitle: 'Turn sales records into better pricing decisions.',
+    baseProgress: 0.21,
+    duration: '8 min',
+    tint: Color(0xFFEDE8FF),
+    track: 'Market access',
+    difficulty: 'Business',
+    icon: Icons.price_change_rounded,
+    imageAsset: AppAssets.uiProduceMarket,
+    overview:
+        'Learn how to calculate sale price, cost, and margin so your farm keeps more of the value it creates. This lesson helps you compare customer offers, understand transport costs, and avoid underpricing profitable goods.',
+    steps: <String>[
+      'Record the cost of production, packaging, and transport before pricing a product.',
+      'Compare at least three buyers or channels before setting a large sale price.',
+      'Track the margin on each batch, not just the sale amount.',
+      'Use past receipts to identify the highest-value products and buyers.',
+    ],
+    questions: <LessonQuestion>[
+      LessonQuestion(
+        id: 'margin-1',
+      prompt: 'What should you record before pricing a product?',
+      options: <String>[
+        'Production, packaging, and transport cost',
+        'Only the farm name',
+        'The buyers favorite color',
+      ],
+        correctOptionIndex: 0,
+        explanation: 'Knowing the full cost helps prevent underpricing.',
+      ),
+      LessonQuestion(
+        id: 'margin-2',
+        prompt: 'Why compare three buyers or channels?',
+        options: <String>[
+          'To make a better pricing decision',
+          'To increase paperwork only',
+          'To avoid recording receipts',
+        ],
+        correctOptionIndex: 0,
+        explanation: 'Comparing offers gives you a clearer picture of the best market option.',
+      ),
+      LessonQuestion(
+        id: 'margin-3',
+        prompt: 'What do receipts help you identify over time?',
+        options: <String>[
+          'High-value products and buyers',
+          'The age of the notebook',
+          'Who wore boots in the field',
+        ],
+        correctOptionIndex: 0,
+        explanation: 'Receipt history highlights which products and buyers deliver better returns.',
+      ),
+    ],
+    tools: <String>[
+      'Keep a margin note with every major sale.',
+      'Review transport cost before accepting low offers.',
+      'Use price history when planning the next harvest sale.',
     ],
   ),
 ];
