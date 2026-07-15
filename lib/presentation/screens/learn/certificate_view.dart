@@ -148,7 +148,7 @@ class CertificateView extends StatelessWidget {
                         Text('Date', style: t.labelLarge?.copyWith(color: subtitleColor)),
                         const SizedBox(height: 6),
                         Text(
-                          '${date.toLocal().toIso8601String().split('T').first}',
+                          date.toLocal().toIso8601String().split('T').first,
                           style: t.titleMedium?.copyWith(color: titleColor),
                         ),
                       ],

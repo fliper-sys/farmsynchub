@@ -6,11 +6,13 @@ import 'package:http/http.dart' as http;
 class FarmEmailService {
   const FarmEmailService({
     this.endpoint = 'https://farmsynchub.lbtech.site/api/email-notifications',
+    this.appBaseUrl = 'https://farmsynchub.lbtech.site',
     this.clientName = 'FarmSync Hub',
     this.apiKey = 'Xanther839@FarmSyncEmail2026',
   });
 
   final String endpoint;
+  final String appBaseUrl;
   final String clientName;
   final String apiKey;
 
@@ -20,7 +22,7 @@ class FarmEmailService {
     required String signInMethod,
     String location = '',
   }) {
-    final String subject = 'New login to your FarmSync account';
+    const String subject = 'New login to your FarmSync account';
     return _send(
       toEmail: toEmail,
       subject: subject,
@@ -46,7 +48,7 @@ class FarmEmailService {
     required String toEmail,
     required String recipientName,
   }) {
-    final String subject = 'Welcome to FarmSync Hub';
+    const String subject = 'Welcome to FarmSync Hub';
     return _send(
       toEmail: toEmail,
       subject: subject,
@@ -76,19 +78,19 @@ class FarmEmailService {
     required String role,
   }) {
     final String subject = 'You are invited to join $farmName on FarmSync';
-    final String inviteUrl = '$endpoint/invite?token=$inviteToken';
+    final String inviteUrl = '$appBaseUrl/invite/$inviteToken';
     return _send(
       toEmail: toEmail,
       subject: subject,
       template: 'invite',
-      html: _shell(
+      html: '${_shell(
         subject: subject,
         eyebrow: 'Invitation',
         headline: 'Join $farmName',
         body:
-            'Hello $recipientName, $inviterName invited you to join the workspace for $farmName as $role. Click the link below to accept the invitation and create your account.',
+            'Hello $recipientName, $inviterName invited you to join the workspace for $farmName as $role. Click the link below to accept the invitation and create your account. If the button does not open, paste this URL into your browser: $inviteUrl',
         accents: const <String>['Invitation', 'Workspace', 'Farm'],
-      ) + '<p><a href="$inviteUrl">Accept invitation</a></p>',
+      )}<p><a href="$inviteUrl">Accept invitation</a></p>',
       text:
           'Hello $recipientName, $inviterName invited you to join the workspace for $farmName as $role. Visit $inviteUrl to accept the invitation and create your account.',
       metadata: <String, dynamic>{
@@ -103,7 +105,7 @@ class FarmEmailService {
     required String toEmail,
     required String recipientName,
   }) {
-    final String subject = 'Password reset requested';
+    const String subject = 'Password reset requested';
     return _send(
       toEmail: toEmail,
       subject: subject,

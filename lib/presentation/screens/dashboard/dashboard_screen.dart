@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/services/farm_task_calendar_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../domain/models/crop.dart';
@@ -20,9 +21,7 @@ import '../../../providers/notification_provider.dart';
 import '../../../providers/sync_provider.dart';
 import '../../../providers/theme_provider.dart';
 import '../../../providers/user_profile_provider.dart';
-import '../../common/widgets/farm_scene_artwork.dart';
 import 'widgets/activity_feed.dart';
-import 'widgets/quick_actions_grid.dart';
 import 'widgets/weather_pill.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -32,127 +31,79 @@ class DashboardScreen extends ConsumerStatefulWidget {
   ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends ConsumerState<DashboardScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
+class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTickerProviderStateMixin {
+  late final AnimationController _intro;
   late final Animation<double> _fade;
   late final Animation<Offset> _slide;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+    _intro = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration: const Duration(milliseconds: 700),
     )..forward();
-
-    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
-    _slide = Tween<Offset>(
-      begin: const Offset(0, 0.05),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+    _fade = CurvedAnimation(parent: _intro, curve: Curves.easeOutCubic);
+    _slide = Tween<Offset>(begin: const Offset(0, 0.035), end: Offset.zero).animate(_fade);
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _intro.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final AsyncValue<List<Farm>> farmsAsync = ref.watch(farmsProvider);
-    final AsyncValue<List<Crop>> cropsAsync = ref.watch(cropsProvider);
-    final AsyncValue<List<Livestock>> livestockAsync = ref.watch(livestockProvider);
-    final AsyncValue<List<Transaction>> transactionsAsync = ref.watch(transactionsProvider);
+    final ThemeData theme = Theme.of(context);
+    final AppLanguage language = ref.watch(appLanguageProvider);
+    final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
+    final List<Crop> crops = ref.watch(cropsProvider).valueOrNull ?? <Crop>[];
+    final List<Livestock> livestock = ref.watch(livestockProvider).valueOrNull ?? <Livestock>[];
+    final List<Transaction> transactions = ref.watch(transactionsProvider).valueOrNull ?? <Transaction>[];
     final notifications = ref.watch(notificationsProvider);
     final currentUser = ref.watch(firebaseServiceProvider).currentUser;
     final profile = ref.watch(userProfileProvider).valueOrNull;
-    final AppLanguage language = ref.watch(appLanguageProvider);
-    final ThemeMode themeMode = ref.watch(themeProvider);
-    final SyncOverview syncOverview = ref.watch(syncOverviewProvider);
-    final ThemeData theme = Theme.of(context);
-    final bool isDark = theme.brightness == Brightness.dark;
-    final Color primaryTextColor = isDark ? Colors.white : AppColors.primary;
-
-    final List<Farm> farms = farmsAsync.maybeWhen(
-      data: (List<Farm> items) => items,
-      orElse: () => <Farm>[],
-    );
-    final String farmsCount = farms.length.toString();
-    final String cropsCount =
-        cropsAsync.maybeWhen(data: (List<Crop> items) => items.length.toString(), orElse: () => '0');
-    final int animalTotal = livestockAsync.maybeWhen(
-      data: (List<Livestock> items) => items.fold<int>(0, (int sum, Livestock item) => sum + item.count),
-      orElse: () => 0,
-    );
-    final String livestockCount = livestockAsync.maybeWhen(
-      data: (List<Livestock> items) => items.length.toString(),
-      orElse: () => '0',
-    );
-    final List<Transaction> transactions = transactionsAsync.maybeWhen(
-      data: (List<Transaction> items) => items,
-      orElse: () => <Transaction>[],
-    );
-    final String balance = CurrencyUtils.formatCompactCurrency(_calculateBalance(transactions));
-    final int pendingSync = syncOverview.pendingCount;
+    final SyncOverview sync = ref.watch(syncOverviewProvider);
     final String? activeFarmId = ref.watch(activeFarmProvider);
+
     Farm? activeFarm;
-    if (activeFarmId != null && activeFarmId.trim().isNotEmpty) {
-      for (final Farm farm in farms) {
-        if (farm.id == activeFarmId) {
-          activeFarm = farm;
-          break;
-        }
+    for (final Farm farm in farms) {
+      if (farm.id == activeFarmId) {
+        activeFarm = farm;
+        break;
       }
     }
     activeFarm ??= farms.isNotEmpty ? farms.first : null;
-    final String activeFarmName = activeFarm?.name ??
-        language.tr(en: 'No farms yet', ha: 'Babu gona tukuna', fr: 'Aucune ferme pour le moment');
-    final int unreadNotifications = notifications.where((notification) => !notification.isRead).length;
+
+    final int animals = livestock.fold<int>(0, (int sum, Livestock item) => sum + item.count);
+    final double balanceValue = transactions.fold<double>(
+      0,
+      (double sum, Transaction item) => item.type == TransactionType.income ? sum + item.amount : sum - item.amount,
+    );
+    final int unread = notifications.where((item) => !item.isRead).length;
+    final String userName = currentUser?.displayName?.trim().isNotEmpty == true
+        ? currentUser!.displayName!.trim()
+        : profile?.fullName.trim().isNotEmpty == true
+            ? profile!.fullName.trim()
+            : 'Love Bari';
+    final String activeFocus = activeFarm?.name ?? (crops.isNotEmpty ? crops.first.name : 'Jane');
 
     return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        foregroundColor: theme.colorScheme.onSurface,
         title: Text(language.tr(en: 'Home', ha: 'Gida', fr: 'Accueil')),
         actions: <Widget>[
-          IconButton(
-            icon: const Icon(Icons.school_outlined),
-            onPressed: () => context.go('/learn'),
+          _HeaderIcon(icon: Icons.school_outlined, onTap: () => context.go('/learn')),
+          _HeaderIcon(
+            icon: Icons.notifications_none_rounded,
+            badge: unread,
+            onTap: () => context.go('/notifications'),
           ),
-          Stack(
-            children: <Widget>[
-              IconButton(
-                icon: const Icon(Icons.notifications_none_rounded),
-                onPressed: () => context.go('/notifications'),
-              ),
-              if (unreadNotifications > 0)
-                Positioned(
-                  right: 10,
-                  top: 10,
-                  child: Container(
-                    width: 18,
-                    height: 18,
-                    decoration: const BoxDecoration(
-                      color: AppColors.amberAccent,
-                      shape: BoxShape.circle,
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      unreadNotifications > 9 ? '9+' : '$unreadNotifications',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontSize: 9,
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          IconButton(
-            icon: const Icon(Icons.auto_awesome_outlined),
-            onPressed: () => context.go('/ai-advisor'),
-          ),
+          _HeaderIcon(icon: Icons.auto_awesome_rounded, onTap: () => context.go('/ai-advisor')),
+          const SizedBox(width: 10),
         ],
       ),
       body: DecoratedBox(
@@ -160,256 +111,112 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: isDark
-                ? <Color>[
-                    const Color(0xFF0B1610),
-                    const Color(0xFF132319),
-                    theme.colorScheme.surface,
-                  ]
-                : const <Color>[
-                    Color(0xFFFFFBF2),
-                    Color(0xFFF3F8EF),
-                    Color(0xFFE7F7DE),
-                  ],
+            colors: <Color>[
+              theme.colorScheme.surface,
+              theme.colorScheme.surfaceContainer,
+              theme.colorScheme.surface,
+            ],
           ),
         ),
         child: SafeArea(
           top: false,
-          child: FadeTransition(
-            opacity: _fade,
-            child: SlideTransition(
-              position: _slide,
-              child: RefreshIndicator(
-                onRefresh: () async {
-                  _controller.forward(from: 0);
-                  await Future.wait(<Future<void>>[
-                    ref.read(farmsProvider.notifier).refresh(),
-                    ref.read(cropsProvider.notifier).refresh(),
-                    ref.read(livestockProvider.notifier).refresh(),
-                    ref.read(transactionsProvider.notifier).refresh(),
-                    ref.read(syncOverviewProvider.notifier).refreshOverview(),
-                  ]);
-                },
-                child: SingleChildScrollView(
+          child: RefreshIndicator(
+            onRefresh: () async {
+              _intro.forward(from: 0);
+              await Future.wait(<Future<void>>[
+                ref.read(farmsProvider.notifier).refresh(),
+                ref.read(cropsProvider.notifier).refresh(),
+                ref.read(livestockProvider.notifier).refresh(),
+                ref.read(transactionsProvider.notifier).refresh(),
+                ref.read(syncOverviewProvider.notifier).refreshOverview(),
+              ]);
+            },
+            child: FadeTransition(
+              opacity: _fade,
+              child: SlideTransition(
+                position: _slide,
+                child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      _AnimatedHeroCard(
-                        greeting: _getGreeting(),
-                        userName: currentUser?.displayName?.trim().isNotEmpty == true
-                            ? currentUser!.displayName!
-                            : 'Farmer',
-                        activeFarmName: activeFarmName,
-                        pendingSync: pendingSync,
-                        themeMode: themeMode,
-                        onThemeToggle: () => ref.read(themeProvider.notifier).toggleTheme(),
-                        language: language,
-                      ),
-                      const SizedBox(height: 18),
-                      const WeatherPill(),
-                      const SizedBox(height: 22),
-                      if (profile?.isComplete != true) ...<Widget>[
-                        _SetupCallout(
-                          userName: currentUser?.displayName?.trim().isNotEmpty == true
-                              ? currentUser!.displayName!
-                              : 'Farmer',
+                  padding: const EdgeInsets.fromLTRB(18, 10, 18, 112),
+                  children: <Widget>[
+                    _SyncRow(
+                      pendingCount: sync.pendingCount,
+                      hasConnection: sync.hasConnection,
+                      onSyncTap: sync.hasConnection && !sync.isSyncing
+                          ? () => ref.read(syncOverviewProvider.notifier).runSync()
+                          : null,
+                    ),
+                    const SizedBox(height: 20),
+                    _TodayTasksCard(
+                      farm: activeFarm,
+                      tasks: activeFarm?.workspaceTasks ?? const <FarmWorkspaceTask>[],
+                    ),
+                    const SizedBox(height: 18),
+                    _HeroSummaryCard(
+                      greeting: _greeting(),
+                      userName: userName,
+                      activeFocus: activeFocus,
+                      pendingSync: sync.pendingCount,
+                      onMeasurements: () => context.go('/farms'),
+                    ),
+                    const SizedBox(height: 18),
+                    const WeatherPill(),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: _MetricCard(
+                            icon: Icons.agriculture_rounded,
+                            value: '${farms.length}',
+                            title: 'Managed farms',
+                            subtitle: 'All locations',
+                            onTap: () => context.go('/farms'),
+                          ),
                         ),
-                        const SizedBox(height: 22),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: _MetricCard(
+                            icon: Icons.pets_rounded,
+                            value: '$animals',
+                            title: 'Animals',
+                            subtitle: 'All species',
+                            onTap: () => context.go('/livestock'),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: _MetricCard(
+                            icon: Icons.account_balance_wallet_rounded,
+                            value: CurrencyUtils.formatCompactCurrency(balanceValue),
+                            title: 'Wallet balance',
+                            subtitle: 'Open balance',
+                            onTap: () => context.go('/finance'),
+                          ),
+                        ),
                       ],
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: _AnimatedStatCard(
-                              label: 'Managed farms',
-                              value: farmsCount,
-                              icon: Icons.agriculture_rounded,
-                              tint: const Color(0xFFE8F4D8),
-                              delay: 0,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _AnimatedStatCard(
-                              label: language.tr(en: 'Animal count', ha: 'Yawan dabbobi', fr: 'Nombre d animaux'),
-                              value: '$animalTotal',
-                              icon: Icons.pets_rounded,
-                              tint: const Color(0xFFDFF1E5),
-                              delay: 60,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _AnimatedStatCard(
-                              label: 'Open balance',
-                              value: balance,
-                              icon: Icons.account_balance_wallet_rounded,
-                              tint: const Color(0xFFFFEECC),
-                              delay: 120,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        language.tr(en: 'Farm launchpad', ha: 'Wurin fara aiki', fr: 'Centre de gestion'),
-                        style: theme.textTheme.titleLarge?.copyWith(color: primaryTextColor),
-                      ),
-                      const SizedBox(height: 14),
-                      const QuickActionsGrid(),
-                      const SizedBox(height: 24),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(32),
-                          border: Border.all(color: theme.colorScheme.outlineVariant),
-                          boxShadow: <BoxShadow>[
-                            BoxShadow(
-                              color: AppColors.primary.withOpacity(0.08),
-                              blurRadius: 24,
-                              offset: const Offset(0, 12),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          children: <Widget>[
-                            const FarmSceneArtwork(
-                              height: 230,
-                              variant: FarmArtworkVariant.crops,
-                              borderRadius: BorderRadius.only(
-                                topLeft: Radius.circular(32),
-                                topRight: Radius.circular(32),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: <Widget>[
-                                  AnimatedSwitcher(
-                                    duration: const Duration(milliseconds: 300),
-                                    child: Text(
-                                      activeFarmName,
-                                      key: ValueKey<String>(activeFarmName),
-                                      style: theme.textTheme.headlineSmall?.copyWith(
-                                        fontSize: 30,
-                                        color: AppColors.primary,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    farms.isEmpty
-                                        ? 'Create your first farm, then start linking crops, livestock, finance, and AI support to one workspace.'
-                                        : 'Your current operations snapshot updates live from farm, crop, livestock, and finance providers.',
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      height: 1.6,
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 18),
-                                  Row(
-                                    children: <Widget>[
-                                      Expanded(
-                                        child: _MiniStatCard(
-                                          label: 'Farms',
-                                          value: farmsCount,
-                                          tint: const Color(0xFFE8F4D8),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: _MiniStatCard(
-                                          label: 'Livestock',
-                                          value: '$animalTotal',
-                                          tint: const Color(0xFFDFF1FF),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: _MiniStatCard(
-                                          label: 'Sync',
-                                          value: pendingSync == 0 ? 'Ready' : '$pendingSync',
-                                          tint: const Color(0xFFFFEBD0),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Container(
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(28),
-                          border: Border.all(color: theme.colorScheme.outlineVariant),
-                        ),
-                        child: Row(
-                          children: <Widget>[
-                            Expanded(child: _OverviewMetric(title: 'Livestock', value: livestockCount)),
-                            Container(width: 1, height: 44, color: theme.colorScheme.outlineVariant),
-                            Expanded(child: _OverviewMetric(title: 'Alerts', value: '$unreadNotifications')),
-                            Container(width: 1, height: 44, color: theme.colorScheme.outlineVariant),
-                            Expanded(
-                              child: _OverviewMetric(
-                                title: 'Status',
-                                value: syncOverview.isSyncing
-                                    ? 'Syncing'
-                                    : pendingSync == 0
-                                        ? 'Synced'
-                                        : 'Pending',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      if (syncOverview.pendingCount > 0 || !syncOverview.hasConnection)
-                        Container(
-                          padding: const EdgeInsets.all(18),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(color: theme.colorScheme.outlineVariant),
-                          ),
-                          child: Row(
-                            children: <Widget>[
-                              Expanded(
-                                child: Text(
-                                  syncOverview.hasConnection
-                                      ? '$pendingSync updates are waiting to sync.'
-                                      : 'You are offline. Changes will sync when connection returns.',
-                                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              FilledButton.tonalIcon(
-                                onPressed: syncOverview.isSyncing || !syncOverview.hasConnection
-                                    ? null
-                                    : () async {
-                                        await ref.read(syncOverviewProvider.notifier).runSync();
-                                      },
-                                icon: const Icon(Icons.sync_rounded),
-                                label: Text(syncOverview.isSyncing ? 'Syncing...' : 'Start sync'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      const SizedBox(height: 24),
-                      Text(
-                        language.tr(en: 'Recent activity', ha: 'Ayyukan baya-bayan nan', fr: 'Activite recente'),
-                        style: theme.textTheme.titleLarge?.copyWith(color: primaryTextColor),
-                      ),
-                      const SizedBox(height: 14),
-                      const ActivityFeed(),
+                    ),
+                    const SizedBox(height: 26),
+                    _SectionTitle(title: language.tr(en: 'Management center', ha: 'Cibiyar gudanarwa', fr: 'Centre de gestion')),
+                    const SizedBox(height: 14),
+                    _ManagementGrid(
+                      actions: <_ManagementAction>[
+                        _ManagementAction(Icons.eco_rounded, 'Crops', '${crops.length} crop records', '/crops'),
+                        _ManagementAction(Icons.pets_rounded, 'Livestock', '${livestock.length} groups', '/livestock'),
+                        _ManagementAction(Icons.inventory_2_rounded, 'Inventory', 'Stock & supplies', '/finance'),
+                        _ManagementAction(Icons.account_balance_wallet_rounded, 'Finance', 'Sales & expenses', '/finance'),
+                        _ManagementAction(Icons.agriculture_rounded, 'Farms', '${farms.length} locations', '/farms'),
+                        _ManagementAction(Icons.cloud_queue_rounded, 'Weather', 'Live readings', '/farms'),
+                      ],
+                    ),
+                    const SizedBox(height: 26),
+                    if (profile?.isComplete != true) ...<Widget>[
+                      _SetupCard(onTap: () => context.go('/account-setup')),
+                      const SizedBox(height: 22),
                     ],
-                  ),
+                    _SectionTitle(title: language.tr(en: 'Recent activity', ha: 'Ayyukan baya-bayan nan', fr: 'Activite recente')),
+                    const SizedBox(height: 14),
+                    const ActivityFeed(),
+                  ],
                 ),
               ),
             ),
@@ -419,82 +226,161 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     );
   }
 
-  String _getGreeting() {
+  String _greeting() {
     final int hour = DateTime.now().hour;
-    if (hour < 12) {
-      return 'Good morning';
-    }
-    if (hour < 17) {
-      return 'Good afternoon';
-    }
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
     return 'Good evening';
-  }
-
-  double _calculateBalance(List<Transaction> transactions) {
-    double total = 0;
-    for (final Transaction transaction in transactions) {
-      if (transaction.type == TransactionType.income) {
-        total += transaction.amount;
-      } else {
-        total -= transaction.amount;
-      }
-    }
-    return total;
   }
 }
 
-class _SetupCallout extends StatelessWidget {
-  const _SetupCallout({
-    required this.userName,
-  });
+class _TodayTasksCard extends StatelessWidget {
+  const _TodayTasksCard({required this.farm, required this.tasks});
 
-  final String userName;
+  final Farm? farm;
+  final List<FarmWorkspaceTask> tasks;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final DateTime now = DateTime.now();
+    final List<FarmWorkspaceTask> upcoming = FarmTaskCalendarService.todayAndUpcomingTasks(
+      tasks,
+      referenceDate: now,
+      maxDays: 7,
+      maxItems: 4,
+    );
+    if (upcoming.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
-    return InkWell(
-      onTap: () => context.go('/account-setup'),
-      borderRadius: BorderRadius.circular(28),
-      child: Ink(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: theme.colorScheme.outlineVariant),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[theme.colorScheme.primaryContainer, theme.colorScheme.secondaryContainer],
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Icon(Icons.event_available_rounded, color: theme.colorScheme.onPrimaryContainer),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  farm != null ? 'Today\'s farm tasks • ${farm!.name}' : 'Today\'s farm tasks',
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...upcoming.map((FarmWorkspaceTask task) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.6)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Icon(Icons.circle, size: 9, color: theme.colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          task.title,
+                          style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700, height: 1.3),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_friendlyDate(task.dueAt)} • ${task.assigneeName.isNotEmpty ? task.assigneeName : 'No assignee'}',
+                          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )),
+        ],
+      ),
+    );
+  }
+
+  String _friendlyDate(DateTime value) {
+    final DateTime now = DateTime.now();
+    final DateTime day = DateTime(value.year, value.month, value.day);
+    final DateTime today = DateTime(now.year, now.month, now.day);
+    final int diff = day.difference(today).inDays;
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Tomorrow';
+    if (diff < 7) return 'In $diff days';
+    return '${value.day}/${value.month}/${value.year}';
+  }
+}
+
+class _SyncRow extends StatelessWidget {
+  const _SyncRow({
+    required this.pendingCount,
+    required this.hasConnection,
+    required this.onSyncTap,
+  });
+
+  final int pendingCount;
+  final bool hasConnection;
+  final VoidCallback? onSyncTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final String label = !hasConnection
+        ? 'Offline'
+        : pendingCount == 0
+            ? 'Synchronise'
+            : '$pendingCount pending';
+    return Align(
+      alignment: Alignment.centerRight,
+      child: GestureDetector(
+        onTap: onSyncTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+          ),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               Container(
-                width: 56,
-                height: 56,
+                width: 9,
+                height: 9,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFEBD0),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: const Icon(Icons.person_add_alt_1_rounded),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      'Finish setting up your workspace',
-                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Add ward, production focus, and contact details so $userName sees a more personalized dashboard.',
-                      style: theme.textTheme.bodySmall?.copyWith(height: 1.5),
-                    ),
-                  ],
+                  color: hasConnection ? AppColors.premiumGreen : theme.colorScheme.onSurfaceVariant,
+                  shape: BoxShape.circle,
+                  boxShadow: hasConnection
+                      ? <BoxShadow>[
+                          BoxShadow(color: AppColors.premiumGreen.withOpacity(0.55), blurRadius: 12),
+                        ]
+                      : null,
                 ),
               ),
-              const SizedBox(width: 12),
-              const Icon(Icons.chevron_right_rounded),
+              const SizedBox(width: 10),
+              Text(label, style: Theme.of(context).textTheme.labelLarge?.copyWith(color: AppColors.premiumGreen)),
+              const SizedBox(width: 8),
+              const Icon(Icons.chevron_right_rounded, color: AppColors.premiumGreen, size: 19),
             ],
           ),
         ),
@@ -503,164 +389,119 @@ class _SetupCallout extends StatelessWidget {
   }
 }
 
-class _AnimatedHeroCard extends StatefulWidget {
-  const _AnimatedHeroCard({
+class _HeroSummaryCard extends StatefulWidget {
+  const _HeroSummaryCard({
     required this.greeting,
     required this.userName,
-    required this.activeFarmName,
+    required this.activeFocus,
     required this.pendingSync,
-    required this.themeMode,
-    required this.onThemeToggle,
-    required this.language,
+    required this.onMeasurements,
   });
 
   final String greeting;
   final String userName;
-  final String activeFarmName;
+  final String activeFocus;
   final int pendingSync;
-  final ThemeMode themeMode;
-  final VoidCallback onThemeToggle;
-  final AppLanguage language;
+  final VoidCallback onMeasurements;
 
   @override
-  State<_AnimatedHeroCard> createState() => _AnimatedHeroCardState();
+  State<_HeroSummaryCard> createState() => _HeroSummaryCardState();
 }
 
-class _AnimatedHeroCardState extends State<_AnimatedHeroCard>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
+class _HeroSummaryCardState extends State<_HeroSummaryCard> with SingleTickerProviderStateMixin {
+  late final AnimationController _leaf;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 8),
-    )..repeat(reverse: true);
+    _leaf = AnimationController(vsync: this, duration: const Duration(seconds: 7))..repeat(reverse: true);
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _leaf.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: <Color>[
-            Color(0xFF1F4D35),
-            Color(0xFF3D8A51),
-            Color(0xFF7BCB7A),
-          ],
-        ),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: AppColors.primary.withOpacity(0.20),
-            blurRadius: 30,
-            offset: const Offset(0, 16),
-          ),
-        ],
-      ),
+    return _PremiumPanel(
+      padding: const EdgeInsets.all(24),
       child: Stack(
         children: <Widget>[
           Positioned.fill(
             child: AnimatedBuilder(
-              animation: _controller,
-              builder: (BuildContext context, Widget? child) {
-                return CustomPaint(
-                  painter: _HeroPainter(progress: _controller.value),
-                );
-              },
+              animation: _leaf,
+              builder: (_, __) => CustomPaint(painter: _LeafPatternPainter(_leaf.value)),
             ),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text(
-                          widget.greeting,
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            color: Colors.white.withOpacity(0.84),
-                          ),
-                        ),
+                        Text(widget.greeting, style: theme.textTheme.titleMedium?.copyWith(color: AppColors.premiumGreen)),
                         const SizedBox(height: 8),
                         Text(
                           widget.userName,
                           style: theme.textTheme.headlineMedium?.copyWith(
-                            color: Colors.white,
-                            fontSize: 34,
+                            color: theme.colorScheme.onSurface,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 36,
+                            letterSpacing: 0,
                           ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text.rich(
+                          TextSpan(
+                            text: 'Active focus: ',
+                            children: <InlineSpan>[
+                              TextSpan(
+                                text: widget.activeFocus,
+                                style: const TextStyle(color: AppColors.premiumGreen, fontWeight: FontWeight.w800),
+                              ),
+                            ],
+                          ),
+                          style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                         ),
                       ],
                     ),
                   ),
-                  Container(
-                    width: 58,
-                    height: 58,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.14),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: IconButton(
-                      onPressed: widget.onThemeToggle,
-                      icon: Icon(
-                        widget.themeMode == ThemeMode.dark
-                            ? Icons.dark_mode_rounded
-                            : Icons.light_mode_rounded,
-                        color: Colors.white,
-                      ),
-                      tooltip: widget.language.tr(
-                        en: 'Toggle theme',
-                        ha: 'Canja jigo',
-                        fr: 'Changer le theme',
-                      ),
-                    ),
-                  ),
+                  _ThemeToggleButton(),
                 ],
               ),
-              const SizedBox(height: 18),
-              Text(
-                'Active focus: ${widget.activeFarmName.isEmpty ? 'Farm setup' : widget.activeFarmName}',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: Colors.white.withOpacity(0.92),
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 18),
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: _HeroPill(
-                      icon: Icons.sync_rounded,
-                      label: widget.pendingSync == 0 ? 'Everything synced' : '${widget.pendingSync} updates pending',
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _HeroPill(
-                      icon: Icons.auto_graph_rounded,
-                      label: widget.language.tr(
-                        en: 'Live dashboard metrics',
-                        ha: 'Kididdiga kai tsaye',
-                        fr: 'Mesures en direct',
+              const SizedBox(height: 26),
+              LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints constraints) {
+                  final bool stack = constraints.maxWidth < 520;
+                  final List<Widget> chips = <Widget>[
+                    Expanded(
+                      child: _HeroChip(
+                        icon: Icons.check_circle_rounded,
+                        title: widget.pendingSync == 0 ? 'Everything synced' : '${widget.pendingSync} updates pending',
+                        subtitle: widget.pendingSync == 0 ? 'All data is up to date' : 'Tap sync when online',
                       ),
                     ),
-                  ),
-                ],
+                    SizedBox(width: stack ? 0 : 14, height: stack ? 12 : 0),
+                    Expanded(
+                      child: _HeroChip(
+                        icon: Icons.monitor_heart_rounded,
+                        title: 'Live measurements',
+                        subtitle: 'Real-time farm data',
+                        onTap: widget.onMeasurements,
+                      ),
+                    ),
+                  ];
+                  return stack
+                      ? Column(children: chips.map((Widget item) => item is Expanded ? item.child : item).toList())
+                      : Row(children: chips);
+                },
               ),
             ],
           ),
@@ -670,226 +511,419 @@ class _AnimatedHeroCardState extends State<_AnimatedHeroCard>
   }
 }
 
-class _HeroPill extends StatelessWidget {
-  const _HeroPill({
+class _HeroChip extends StatelessWidget {
+  const _HeroChip({
     required this.icon,
-    required this.label,
+    required this.title,
+    required this.subtitle,
+    this.onTap,
   });
 
   final IconData icon;
-  final String label;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.14),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        children: <Widget>[
-          Icon(icon, color: Colors.white, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.white,
-                    height: 1.4,
-                  ),
+    final ThemeData theme = Theme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest.withOpacity(theme.brightness == Brightness.dark ? 0.82 : 0.96),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Row(
+          children: <Widget>[
+            Icon(icon, color: AppColors.premiumGreen, size: 26),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(title, style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.onSurface, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 3),
+                  Text(subtitle, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                ],
+              ),
             ),
-          ),
-        ],
+            if (onTap != null) Icon(Icons.chevron_right_rounded, color: theme.colorScheme.onSurfaceVariant),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _AnimatedStatCard extends StatelessWidget {
-  const _AnimatedStatCard({
-    required this.label,
-    required this.value,
+class _MetricCard extends StatefulWidget {
+  const _MetricCard({
     required this.icon,
-    required this.tint,
-    required this.delay,
+    required this.value,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
   });
 
-  final String label;
-  final String value;
   final IconData icon;
-  final Color tint;
-  final int delay;
+  final String value;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  State<_MetricCard> createState() => _MetricCardState();
+}
+
+class _MetricCardState extends State<_MetricCard> {
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 0, end: 1),
-      duration: Duration(milliseconds: 500 + delay),
-      curve: Curves.easeOutCubic,
-      builder: (BuildContext context, double progress, Widget? child) {
-        return Transform.translate(
-          offset: Offset(0, 18 * (1 - progress)),
-          child: Opacity(
-            opacity: progress,
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    final ThemeData theme = Theme.of(context);
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTapUp: (_) {
+        setState(() => _pressed = false);
+        widget.onTap();
+      },
+      child: AnimatedScale(
+        scale: _pressed ? 0.975 : 1,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        child: _PremiumPanel(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
                 children: <Widget>[
-                  Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: tint,
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Icon(icon, color: AppColors.primary),
-                  ),
-                  const SizedBox(height: 16),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 280),
-                    child: Text(
-                      value,
-                      key: ValueKey<String>(value),
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontSize: 24,
-                            color: AppColors.primary,
-                          ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(label, style: Theme.of(context).textTheme.bodySmall),
+                  _GlowIcon(icon: widget.icon),
+                  const Spacer(),
+                  Icon(Icons.chevron_right_rounded, color: theme.colorScheme.onSurfaceVariant),
                 ],
               ),
-            ),
+              const SizedBox(height: 20),
+              Text(widget.value, style: theme.textTheme.headlineSmall?.copyWith(color: AppColors.premiumGreen, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 8),
+              Text(widget.title, style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.onSurface, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              Text(widget.subtitle, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ManagementGrid extends StatelessWidget {
+  const _ManagementGrid({required this.actions});
+
+  final List<_ManagementAction> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final int columns = constraints.maxWidth > 720 ? 3 : 2;
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: actions.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            crossAxisSpacing: 14,
+            mainAxisSpacing: 14,
+            childAspectRatio: columns == 3 ? 2.45 : 2.15,
+          ),
+          itemBuilder: (BuildContext context, int index) {
+            return _ManagementTile(action: actions[index]);
+          },
         );
       },
     );
   }
 }
 
-class _MiniStatCard extends StatelessWidget {
-  const _MiniStatCard({
-    required this.label,
-    required this.value,
-    required this.tint,
+class _ManagementAction {
+  const _ManagementAction(this.icon, this.title, this.subtitle, this.route);
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String route;
+}
+
+class _ManagementTile extends StatelessWidget {
+  const _ManagementTile({required this.action});
+
+  final _ManagementAction action;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.go(action.route),
+      child: _PremiumPanel(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: <Widget>[
+            _GlowIcon(icon: action.icon),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(action.title, style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  Text(action.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SetupCard extends StatelessWidget {
+  const _SetupCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: _PremiumPanel(
+        padding: const EdgeInsets.all(18),
+        child: Row(
+          children: <Widget>[
+            const _GlowIcon(icon: Icons.person_add_alt_1_rounded),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                'Finish your account setup to personalize your dashboard.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.45),
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PremiumPanel extends StatelessWidget {
+  const _PremiumPanel({
+    required this.child,
+    this.padding = EdgeInsets.zero,
   });
 
-  final String label;
-  final String value;
-  final Color tint;
+  final Widget child;
+  final EdgeInsetsGeometry padding;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 260),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+    final bool isDark = theme.brightness == Brightness.dark;
+    return Container(
+      padding: padding,
       decoration: BoxDecoration(
-        color: tint.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.84 : 1),
-        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? const <Color>[AppColors.darkCard, AppColors.darkElevatedCard]
+              : <Color>[theme.colorScheme.surfaceContainerHighest, theme.colorScheme.surfaceContainer],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: theme.colorScheme.shadow.withOpacity(isDark ? 0.42 : 0.12),
+            blurRadius: 24,
+            offset: const Offset(0, 14),
+          ),
+          BoxShadow(
+            color: AppColors.premiumGreen.withOpacity(isDark ? 0.035 : 0.08),
+            blurRadius: 28,
+            offset: const Offset(0, -6),
+          ),
+        ],
       ),
-      child: Column(
-        children: <Widget>[
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: Text(
-              value,
-              key: ValueKey<String>(value),
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontSize: 24,
-                color: AppColors.primary,
+      child: child,
+    );
+  }
+}
+
+class _GlowIcon extends StatelessWidget {
+  const _GlowIcon({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 58,
+      height: 58,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Color(0xFF0D6B45),
+            Color(0xFF123D33),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: <BoxShadow>[
+          BoxShadow(color: AppColors.premiumGreen.withOpacity(0.26), blurRadius: 22),
+        ],
+      ),
+      child: Icon(icon, color: Theme.of(context).colorScheme.onPrimary, size: 28),
+    );
+  }
+}
+
+class _ThemeToggleButton extends ConsumerWidget {
+  const _ThemeToggleButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ThemeData theme = Theme.of(context);
+    final ThemeMode mode = ref.watch(themeProvider);
+    final bool isDark = mode == ThemeMode.dark || (mode == ThemeMode.system && theme.brightness == Brightness.dark);
+    final IconData icon = isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded;
+    final String label = isDark ? 'Switch to light mode' : 'Switch to dark mode';
+
+    return InkWell(
+      onTap: () => ref.read(themeProvider.notifier).toggleTheme(),
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        width: 78,
+        height: 78,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+          boxShadow: <BoxShadow>[
+            BoxShadow(color: AppColors.premiumGreen.withOpacity(0.10), blurRadius: 22),
+          ],
+        ),
+        child: Tooltip(
+          message: label,
+          child: Icon(icon, color: theme.colorScheme.onSurface, size: 34),
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Container(
+          width: 4,
+          height: 28,
+          decoration: BoxDecoration(
+            color: AppColors.premiumGreen,
+            borderRadius: BorderRadius.circular(999),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(title, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w900)),
+      ],
+    );
+  }
+}
+
+class _HeaderIcon extends StatelessWidget {
+  const _HeaderIcon({
+    required this.icon,
+    required this.onTap,
+    this.badge = 0,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final int badge;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: <Widget>[
+        IconButton(
+          onPressed: onTap,
+          icon: Icon(icon, color: Theme.of(context).colorScheme.onSurface),
+        ),
+        if (badge > 0)
+          Positioned(
+            right: 6,
+            top: 5,
+            child: Container(
+              padding: const EdgeInsets.all(5),
+              decoration: const BoxDecoration(color: AppColors.premiumGreen, shape: BoxShape.circle),
+              child: Text(
+                badge > 9 ? '9+' : '$badge',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.onPrimary, fontWeight: FontWeight.w900, fontSize: 10),
               ),
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: AppColors.primary.withOpacity(0.70),
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
+      ],
     );
   }
 }
 
-class _OverviewMetric extends StatelessWidget {
-  const _OverviewMetric({
-    required this.title,
-    required this.value,
-  });
-
-  final String title;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 300),
-      child: Column(
-        key: ValueKey<String>('${title}_$value'),
-        children: <Widget>[
-          Text(
-            value,
-            style: theme.textTheme.titleLarge?.copyWith(
-              color: AppColors.primary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: theme.textTheme.bodySmall,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HeroPainter extends CustomPainter {
-  const _HeroPainter({required this.progress});
+class _LeafPatternPainter extends CustomPainter {
+  const _LeafPatternPainter(this.progress);
 
   final double progress;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()
-      ..color = Colors.white.withOpacity(0.08)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
+    final Paint glow = Paint()
+      ..shader = RadialGradient(
+        colors: <Color>[
+          AppColors.premiumGreen.withOpacity(0.22),
+          AppColors.premiumGreen.withOpacity(0.06),
+          Colors.transparent,
+        ],
+      ).createShader(Rect.fromCircle(center: Offset(size.width * 0.82, size.height * 0.10), radius: size.width * 0.55));
+    canvas.drawRect(Offset.zero & size, glow);
 
-    final double radius = size.width * 0.35;
-    final Offset center = Offset(size.width * 0.82, size.height * 0.12);
-    canvas.drawCircle(center, radius + progress * 16, paint);
-    canvas.drawCircle(Offset(size.width * 0.18, size.height * 0.88), 36 + progress * 10, paint);
-
-    final Path wave = Path();
-    for (double x = 0; x <= size.width; x++) {
-      final double y = size.height * 0.72 + math.sin((x / size.width * 2 * math.pi) + progress * 2 * math.pi) * 8;
-      if (x == 0) {
-        wave.moveTo(x, y);
-      } else {
-        wave.lineTo(x, y);
-      }
+    final Paint leafPaint = Paint()
+      ..color = AppColors.premiumGreen.withOpacity(0.075)
+      ..style = PaintingStyle.fill;
+    final Offset stem = Offset(size.width * 0.74, size.height * (0.70 + math.sin(progress * math.pi) * 0.02));
+    for (int i = 0; i < 5; i++) {
+      final double angle = -1.25 + i * 0.36;
+      final double length = size.width * (0.11 + i * 0.015);
+      final Offset end = Offset(stem.dx + math.cos(angle) * length, stem.dy + math.sin(angle) * length);
+      final Path leaf = Path()
+        ..moveTo(stem.dx, stem.dy)
+        ..quadraticBezierTo((stem.dx + end.dx) / 2, end.dy - 34, end.dx, end.dy)
+        ..quadraticBezierTo((stem.dx + end.dx) / 2, end.dy + 28, stem.dx, stem.dy);
+      canvas.drawPath(leaf, leafPaint);
     }
-    canvas.drawPath(wave, paint);
   }
 
   @override
-  bool shouldRepaint(covariant _HeroPainter oldDelegate) {
-    return oldDelegate.progress != progress;
-  }
+  bool shouldRepaint(covariant _LeafPatternPainter oldDelegate) => oldDelegate.progress != progress;
 }

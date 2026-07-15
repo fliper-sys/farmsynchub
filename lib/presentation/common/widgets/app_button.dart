@@ -25,17 +25,17 @@ class AppButton extends StatelessWidget {
     this.autofocus = false,
     this.clipBehavior = Clip.none,
   }) : style = ButtonStyle(
-         backgroundColor: WidgetStatePropertyAll(AppColors.primary),
-         foregroundColor: WidgetStatePropertyAll(AppColors.surfaceLight),
-         elevation: WidgetStatePropertyAll(0),
+         backgroundColor: const WidgetStatePropertyAll(AppColors.primary),
+         foregroundColor: const WidgetStatePropertyAll(AppColors.surfaceLight),
+         elevation: const WidgetStatePropertyAll(0),
          shadowColor: WidgetStatePropertyAll(AppColors.primary.withOpacity(0.2)),
          shape: WidgetStatePropertyAll(
            RoundedRectangleBorder(
              borderRadius: BorderRadius.circular(24),
            ),
          ),
-         padding: WidgetStatePropertyAll(
-           const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+         padding: const WidgetStatePropertyAll(
+           EdgeInsets.symmetric(horizontal: 24, vertical: 16),
          ),
          textStyle: WidgetStatePropertyAll(
            GoogleFonts.plusJakartaSans(
@@ -55,15 +55,15 @@ class AppButton extends StatelessWidget {
     this.autofocus = false,
     this.clipBehavior = Clip.none,
   }) : style = ButtonStyle(
-         foregroundColor: WidgetStatePropertyAll(AppColors.primary),
-         elevation: WidgetStatePropertyAll(0),
+         foregroundColor: const WidgetStatePropertyAll(AppColors.primary),
+         elevation: const WidgetStatePropertyAll(0),
          shape: WidgetStatePropertyAll(
            RoundedRectangleBorder(
              borderRadius: BorderRadius.circular(24),
            ),
          ),
-         padding: WidgetStatePropertyAll(
-           const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+         padding: const WidgetStatePropertyAll(
+           EdgeInsets.symmetric(horizontal: 24, vertical: 16),
          ),
          textStyle: WidgetStatePropertyAll(
            GoogleFonts.plusJakartaSans(

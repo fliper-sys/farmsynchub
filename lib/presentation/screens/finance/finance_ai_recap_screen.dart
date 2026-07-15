@@ -137,7 +137,16 @@ class _FinanceAiRecapScreenState extends ConsumerState<FinanceAiRecapScreen> {
     final List<String> futureSuggestions = _extractBullets(_recapText, 'Next suggestions');
     final List<String> previousReviewPoints = _extractBullets(_recapText, 'Previous review focus');
 
-    return SoftScreenScaffold(
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: SoftScreenScaffold(
       heroTitle: 'AI finance recap',
       heroSubtitle: 'Review current performance, revisit previous AI recaps, and get practical next-step suggestions.',
       heroIcon: Icons.auto_awesome_rounded,
@@ -218,7 +227,7 @@ class _FinanceAiRecapScreenState extends ConsumerState<FinanceAiRecapScreen> {
           ),
         ),
         const SizedBox(height: 18),
-        SoftSectionTitle(
+        const SoftSectionTitle(
           title: 'Previous reviews',
         ),
         if (_history.isEmpty)
@@ -311,7 +320,7 @@ class _FinanceAiRecapScreenState extends ConsumerState<FinanceAiRecapScreen> {
           ),
         ),
       ],
-    );
+    ));
   }
 
   List<String> _extractBullets(String text, String heading) {

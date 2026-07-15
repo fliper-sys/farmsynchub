@@ -3,10 +3,15 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/services/farm_notification_service.dart';
+import '../../../core/services/farm_task_calendar_service.dart';
+import '../../../core/services/weather_reading_service.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/date_utils.dart' as app_date;
 import '../../../core/utils/validators.dart';
@@ -87,6 +92,27 @@ class FarmDetailScreen extends ConsumerWidget {
         .where((Transaction item) => item.type == TransactionType.expense)
         .fold<double>(0, (double sum, Transaction item) => sum + item.amount);
     final int animalCount = livestock.fold<int>(0, (int sum, Livestock item) => sum + item.count);
+    final double plantedAreaHa = crops.fold<double>(0, (double sum, Crop item) => sum + item.areaHa);
+    final int cropOpenTasks = crops.fold<int>(0, (int sum, Crop item) => sum + item.openTaskCount);
+    final int livestockOpenTasks = livestock.fold<int>(0, (int sum, Livestock item) => sum + item.openTaskCount);
+    final int urgentFarmTasks = farm.workspaceTasks
+        .where((FarmWorkspaceTask item) => !item.isCompleted && item.dueAt.isBefore(DateTime.now().add(const Duration(days: 2))))
+        .length;
+    final int harvestReadyCount = crops
+        .where((Crop item) => item.status == CropStatus.ready || item.daysToHarvest <= 7)
+        .length;
+    final int healthWatchCount = livestock
+        .where((Livestock item) => item.healthScore < 75 || item.vaccinationStatus < 75)
+        .length;
+    final double cropCapacity = farm.cropCapacityHa > 0 ? farm.cropCapacityHa : farm.sizeHa;
+    final double cropUtilization = cropCapacity <= 0 ? 0 : (plantedAreaHa / cropCapacity).clamp(0, 1).toDouble();
+    final double livestockUtilization = farm.livestockCapacity <= 0 ? 0 : (animalCount / farm.livestockCapacity).clamp(0, 1).toDouble();
+    final String operatingStatus = _farmOperatingStatus(
+      urgentFarmTasks: urgentFarmTasks,
+      harvestReadyCount: harvestReadyCount,
+      healthWatchCount: healthWatchCount,
+      soilMoisturePercent: farm.soilMoisturePercent,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -152,44 +178,56 @@ class FarmDetailScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 18),
           ],
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: SoftInfoChip(
-                  label: 'Temperature',
-                  value: '${farm.temperatureCelsius.toStringAsFixed(1)} C',
-                  color: const Color(0xFFFFEBD0),
-                ),
+          _buildWeatherSummarySection(context, farm),
+          const SizedBox(height: 18),
+          const SoftSectionTitle(title: 'Operating focus'),
+          AppCard(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text('Status: $operatingStatus', style: Theme.of(context).textTheme.titleLarge),
+                            const SizedBox(height: 8),
+                            Text(
+                              _farmFocusNarrative(
+                                farm: farm,
+                                urgentFarmTasks: urgentFarmTasks,
+                                cropOpenTasks: cropOpenTasks,
+                                livestockOpenTasks: livestockOpenTasks,
+                                harvestReadyCount: harvestReadyCount,
+                                healthWatchCount: healthWatchCount,
+                              ),
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: <Widget>[
+                      _Tag(text: '$urgentFarmTasks urgent farm tasks', color: const Color(0xFFFFEBD0)),
+                      _Tag(text: '$cropOpenTasks crop reminders', color: const Color(0xFFE5F5D8)),
+                      _Tag(text: '$livestockOpenTasks livestock reminders', color: const Color(0xFFDFF1FF)),
+                      _Tag(text: '$harvestReadyCount harvest windows', color: const Color(0xFFEDE8FF)),
+                      _Tag(text: '$healthWatchCount animal health watch', color: const Color(0xFFFFEBD0)),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: SoftInfoChip(
-                  label: 'Humidity',
-                  value: '${farm.humidityPercent.toStringAsFixed(0)}%',
-                  color: const Color(0xFFDFF1FF),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: SoftInfoChip(
-                  label: 'Soil moisture',
-                  value: '${farm.soilMoisturePercent.toStringAsFixed(0)}%',
-                  color: const Color(0xFFE5F5D8),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: SoftInfoChip(
-                  label: 'Precipitation',
-                  value: '${farm.precipitationMm.toStringAsFixed(0)} mm',
-                  color: const Color(0xFFEDE8FF),
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: 18),
           const SoftSectionTitle(title: 'Quick stats'),
@@ -222,6 +260,31 @@ class FarmDetailScreen extends ConsumerWidget {
                   note: 'Income vs spend',
                   icon: Icons.account_balance_wallet_rounded,
                   tint: const Color(0xFFFFEBD0),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          const SoftSectionTitle(title: 'Capacity use'),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: _FarmMetricCard(
+                  title: 'Planted area',
+                  value: '${plantedAreaHa.toStringAsFixed(2)} ha',
+                  note: '${(cropUtilization * 100).round()}% of crop capacity',
+                  icon: Icons.grid_view_rounded,
+                  tint: const Color(0xFFE5F5D8),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _FarmMetricCard(
+                  title: 'Stocking',
+                  value: '$animalCount',
+                  note: farm.livestockCapacity > 0 ? '${(livestockUtilization * 100).round()}% of animal capacity' : 'Capacity not set',
+                  icon: Icons.speed_rounded,
+                  tint: const Color(0xFFDFF1FF),
                 ),
               ),
             ],
@@ -456,19 +519,17 @@ class FarmDetailScreen extends ConsumerWidget {
               ),
             ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Task board'),
+          const SoftSectionTitle(title: 'Task calendar'),
           if (farm.workspaceTasks.isEmpty)
             const _EmptyInfoCard(message: 'No shared tasks yet. Add a schedule, assign it, and let the team update progress here.')
-          else
-            ...farm.workspaceTasks.take(6).map(
-              (FarmWorkspaceTask task) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _WorkspaceTaskTile(
-                  task: task,
-                  onToggle: () => _toggleWorkspaceTask(context, ref, farm!, task),
-                ),
-              ),
+          else ...<Widget>[
+            _TaskCalendarCard(
+              tasks: farm.workspaceTasks,
+              onToggle: (FarmWorkspaceTask task) => _toggleWorkspaceTask(context, ref, farm!, task),
+              onEdit: (FarmWorkspaceTask task) => _editWorkspaceTask(context, ref, farm!, task),
+              onDelete: (FarmWorkspaceTask task) => _deleteWorkspaceTask(context, ref, farm!, task),
             ),
+          ],
           const SizedBox(height: 18),
           const SoftSectionTitle(title: 'Activity log'),
           if (farm.activityLog.isEmpty)
@@ -524,28 +585,67 @@ class FarmDetailScreen extends ConsumerWidget {
               (FarmDocumentRecord document) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: AppCard(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                    leading: Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFDFF1FF),
-                        borderRadius: BorderRadius.circular(16),
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                      leading: Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDFF1FF),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Icon(Icons.description_outlined),
                       ),
-                      child: const Icon(Icons.description_outlined),
-                    ),
-                    title: Text(document.title),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Text(
-                        '${document.type} - ${document.reference}\n${document.notes}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.5),
+                      title: Text(document.title),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          '${document.type} - ${document.reference}\n${document.notes}',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.5),
+                        ),
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Builder(builder: (BuildContext ctx) {
+                            final Uri? uri = Uri.tryParse(document.reference);
+                            final bool isUrl = uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
+                            return Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                IconButton(
+                                  icon: const Icon(Icons.open_in_new_rounded),
+                                  tooltip: isUrl ? 'Open document' : 'Open reference',
+                                  onPressed: isUrl
+                                      ? () async {
+                                          try {
+                                            if (!await launchUrl(uri!, mode: LaunchMode.externalApplication)) {
+                                              ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Could not open link.')));
+                                            }
+                                          } catch (e) {
+                                            ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Could not open link.')));
+                                          }
+                                        }
+                                      : () {
+                                          ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('No direct link available — copy the reference instead.')));
+                                        },
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.copy_rounded),
+                                  tooltip: 'Copy reference',
+                                  onPressed: () {
+                                    Clipboard.setData(ClipboardData(text: document.reference));
+                                    ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Document reference copied')));
+                                  },
+                                ),
+                              ],
+                            );
+                          }),
+                        ],
                       ),
                     ),
                   ),
-                ),
               ),
             ),
           const SizedBox(height: 18),
@@ -671,6 +771,69 @@ class FarmDetailScreen extends ConsumerWidget {
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildWeatherSummarySection(BuildContext context, Farm farm) {
+    final WeatherLocation location = WeatherReadingService.resolveLocation(farm: farm);
+
+    return FutureBuilder<WeatherReading>(
+      future: const WeatherReadingService().fetchCurrent(
+        latitude: location.latitude,
+        longitude: location.longitude,
+      ),
+      builder: (BuildContext context, AsyncSnapshot<WeatherReading> snapshot) {
+        final WeatherReading? reading = snapshot.data;
+        final double temperature = reading?.temperatureCelsius ?? farm.temperatureCelsius;
+        final double humidity = reading?.humidityPercent ?? farm.humidityPercent;
+        final double soilMoisture = reading?.soilMoisturePercent ?? farm.soilMoisturePercent;
+        final double precipitation = reading?.precipitationMm ?? farm.precipitationMm;
+        final bool isLoading = snapshot.connectionState == ConnectionState.waiting && reading == null;
+
+        return Column(
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: SoftInfoChip(
+                    label: 'Temperature',
+                    value: isLoading ? 'Loading…' : '${temperature.toStringAsFixed(1)} C',
+                    color: const Color(0xFFFFEBD0),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: SoftInfoChip(
+                    label: 'Humidity',
+                    value: isLoading ? 'Loading…' : '${humidity.toStringAsFixed(0)}%',
+                    color: const Color(0xFFDFF1FF),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: SoftInfoChip(
+                    label: 'Soil moisture',
+                    value: isLoading ? 'Loading…' : '${soilMoisture.toStringAsFixed(0)}%',
+                    color: const Color(0xFFE5F5D8),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: SoftInfoChip(
+                    label: 'Precipitation',
+                    value: isLoading ? 'Loading…' : '${precipitation.toStringAsFixed(0)} mm',
+                    color: const Color(0xFFEDE8FF),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -895,7 +1058,8 @@ class FarmDetailScreen extends ConsumerWidget {
       final String inviteId = const Uuid().v4();
       await ref.read(firebaseServiceProvider).createInvite(
             id: inviteId,
-            email: member.email,
+        email: member.email,
+        name: member.name,
             farmId: farm.id,
             role: member.role.name,
             allowedFarmIds: member.allowedFarmIds,
@@ -972,18 +1136,7 @@ class FarmDetailScreen extends ConsumerWidget {
             'taskId': task.id,
           },
         );
-    if (task.reminderEnabled) {
-      final DateTime reminderAt = task.dueAt.subtract(Duration(minutes: task.reminderLeadMinutes));
-      if (reminderAt.isAfter(DateTime.now())) {
-        await FarmNotificationService.instance.scheduleAt(
-          id: task.id.hashCode.abs(),
-          title: 'Farm reminder: ${task.title}',
-          body: task.details.isEmpty ? '${farm.name} task is due soon.' : task.details,
-          scheduledAt: reminderAt,
-          payload: '/farms',
-        );
-      }
-    }
+    await _scheduleReminderForTask(farm: farm, task: task, ref: ref);
     if (farm.ownerEmail.isNotEmpty) {
       await ref.read(farmEmailServiceProvider).sendScheduleNotification(
             toEmail: farm.ownerEmail,
@@ -994,6 +1147,40 @@ class FarmDetailScreen extends ConsumerWidget {
             detail: task.details.isEmpty ? 'A new farm task has been scheduled for review.' : task.details,
           );
     }
+  }
+
+  Future<void> _scheduleReminderForTask({
+    required Farm farm,
+    required FarmWorkspaceTask task,
+    required WidgetRef ref,
+    bool forceReschedule = false,
+  }) async {
+    if (!task.reminderEnabled) {
+      await FarmNotificationService.instance.cancel(task.id.hashCode.abs());
+      return;
+    }
+    final DateTime reminderAt = task.dueAt.subtract(Duration(minutes: task.reminderLeadMinutes));
+    final DateTime now = DateTime.now();
+    if (!forceReschedule && reminderAt.isBefore(now)) {
+      return;
+    }
+    await FarmNotificationService.instance.scheduleAt(
+      id: task.id.hashCode.abs(),
+      title: 'Farm reminder: ${task.title}',
+      body: task.details.isEmpty ? '${farm.name} task is due soon.' : task.details,
+      scheduledAt: reminderAt,
+      payload: '/farms',
+    );
+    await ref.read(notificationsProvider.notifier).publishNotification(
+      title: 'Reminder scheduled',
+      message: '${task.title} will remind you ${app_date.DateUtils.formatDateTime(reminderAt)}.',
+      type: app_notification.NotificationType.info,
+      actionUrl: '/farms',
+      audience: 'single',
+      targetUserId: ref.read(firebaseServiceProvider).currentUser?.uid,
+      metadata: <String, dynamic>{'source': 'farm_schedule', 'farmId': farm.id, 'taskId': task.id},
+      showDeviceNotification: false,
+    );
   }
 
   Future<void> _openActivitySheet(BuildContext context, WidgetRef ref, Farm farm) async {
@@ -1154,6 +1341,99 @@ class FarmDetailScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _editWorkspaceTask(BuildContext context, WidgetRef ref, Farm farm, FarmWorkspaceTask task) async {
+    final _WorkspaceTaskDraft? draft = await showModalBottomSheet<_WorkspaceTaskDraft>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) => _WorkspaceTaskSheet(farm: farm, existingTask: task),
+    );
+    if (draft == null) {
+      return;
+    }
+
+    final DateTime now = DateTime.now();
+    final FarmWorkspaceTask updatedTask = task.copyWith(
+      title: draft.title,
+      details: draft.details,
+      assigneeName: draft.assigneeName,
+      assigneeRole: draft.assigneeRole,
+      dueAt: draft.dueAt,
+      reminderEnabled: draft.reminderEnabled,
+      reminderLeadMinutes: draft.reminderLeadMinutes,
+      updatedBy: draft.createdBy,
+      updatedAt: now,
+    );
+    final List<FarmWorkspaceTask> nextTasks = farm.workspaceTasks
+        .map((FarmWorkspaceTask current) => current.id == task.id ? updatedTask : current)
+        .toList(growable: false);
+    final Farm updated = farm.copyWith(
+      workspaceTasks: nextTasks,
+      activityLog: <FarmActivityRecord>[
+        FarmActivityRecord(
+          id: const Uuid().v4(),
+          actorName: draft.createdBy,
+          actorRole: FarmWorkspaceRole.owner,
+          action: 'Updated task',
+          detail: '${updatedTask.title} was adjusted for ${app_date.DateUtils.formatDateTime(updatedTask.dueAt)}.',
+          audience: FarmActivityAudience.owners,
+          relatedTaskId: updatedTask.id,
+          createdAt: now,
+        ),
+        ...farm.activityLog,
+      ],
+      updatedAt: now,
+      isSynced: false,
+    );
+    await ref.read(farmsProvider.notifier).updateFarm(updated);
+    await _scheduleReminderForTask(farm: farm, task: updatedTask, ref: ref, forceReschedule: true);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Task updated.')));
+    }
+  }
+
+  Future<void> _deleteWorkspaceTask(BuildContext context, WidgetRef ref, Farm farm, FarmWorkspaceTask task) async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+        title: const Text('Remove task?'),
+        content: Text('Delete ${task.title}?'),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (confirm != true) {
+      return;
+    }
+
+    final List<FarmWorkspaceTask> nextTasks = farm.workspaceTasks.where((FarmWorkspaceTask current) => current.id != task.id).toList(growable: false);
+    final Farm updated = farm.copyWith(
+      workspaceTasks: nextTasks,
+      activityLog: <FarmActivityRecord>[
+        FarmActivityRecord(
+          id: const Uuid().v4(),
+          actorName: 'Workspace',
+          actorRole: FarmWorkspaceRole.owner,
+          action: 'Removed task',
+          detail: '${task.title} was removed from the farm plan.',
+          audience: FarmActivityAudience.owners,
+          relatedTaskId: task.id,
+          createdAt: DateTime.now(),
+        ),
+        ...farm.activityLog,
+      ],
+      updatedAt: DateTime.now(),
+      isSynced: false,
+    );
+    await ref.read(farmsProvider.notifier).updateFarm(updated);
+    await FarmNotificationService.instance.cancel(task.id.hashCode.abs());
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Task removed.')));
+    }
+  }
+
   Future<void> _toggleWorkspaceTask(BuildContext context, WidgetRef ref, Farm farm, FarmWorkspaceTask task) async {
     final DateTime now = DateTime.now();
     final bool markDone = !task.isCompleted;
@@ -1199,6 +1479,11 @@ class FarmDetailScreen extends ConsumerWidget {
             'taskId': updatedTask.id,
           },
         );
+    if (!markDone && task.reminderEnabled) {
+      await _scheduleReminderForTask(farm: farm, task: updatedTask, ref: ref, forceReschedule: true);
+    } else if (markDone) {
+      await FarmNotificationService.instance.cancel(updatedTask.id.hashCode.abs());
+    }
     if (farm.ownerEmail.isNotEmpty) {
       await ref.read(farmEmailServiceProvider).sendWorkerLogNotification(
             toEmail: farm.ownerEmail,
@@ -1683,9 +1968,10 @@ class _WorkspaceMemberSheetState extends State<_WorkspaceMemberSheet> {
 }
 
 class _WorkspaceTaskSheet extends StatefulWidget {
-  const _WorkspaceTaskSheet({required this.farm});
+  const _WorkspaceTaskSheet({required this.farm, this.existingTask});
 
   final Farm farm;
+  final FarmWorkspaceTask? existingTask;
 
   @override
   State<_WorkspaceTaskSheet> createState() => _WorkspaceTaskSheetState();
@@ -1700,6 +1986,22 @@ class _WorkspaceTaskSheetState extends State<_WorkspaceTaskSheet> {
   DateTime _dueAt = DateTime.now().add(const Duration(days: 1));
   bool _reminderEnabled = true;
   int _reminderLeadMinutes = 60;
+
+  @override
+  void initState() {
+    super.initState();
+    final FarmWorkspaceTask? task = widget.existingTask;
+    if (task != null) {
+      _titleController.text = task.title;
+      _detailsController.text = task.details;
+      _assigneeController.text = task.assigneeName;
+      _createdByController.text = task.createdBy.isEmpty ? 'Farm owner' : task.createdBy;
+      _role = task.assigneeRole;
+      _dueAt = task.dueAt;
+      _reminderEnabled = task.reminderEnabled;
+      _reminderLeadMinutes = task.reminderLeadMinutes;
+    }
+  }
 
   @override
   void dispose() {
@@ -1725,7 +2027,7 @@ class _WorkspaceTaskSheetState extends State<_WorkspaceTaskSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text('Add workspace task', style: Theme.of(context).textTheme.headlineSmall),
+              Text(widget.existingTask == null ? 'Add workspace task' : 'Edit workspace task', style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 14),
               AppTextField(controller: _titleController, label: 'Task title', hint: 'Irrigation check, feed run, delivery'),
               const SizedBox(height: 12),
@@ -1857,7 +2159,7 @@ class _WorkspaceTaskSheetState extends State<_WorkspaceTaskSheet> {
                 width: double.infinity,
                 child: AppButton.primary(
                   onPressed: _submit,
-                  child: const Text('Save task'),
+                  child: Text(widget.existingTask == null ? 'Save task' : 'Update task'),
                 ),
               ),
             ],
@@ -2115,46 +2417,122 @@ class _WorkspaceMemberTile extends StatelessWidget {
   }
 }
 
-class _WorkspaceTaskTile extends StatelessWidget {
-  const _WorkspaceTaskTile({
+class _TaskCalendarCard extends StatelessWidget {
+  const _TaskCalendarCard({
+    required this.tasks,
+    required this.onToggle,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final List<FarmWorkspaceTask> tasks;
+  final ValueChanged<FarmWorkspaceTask> onToggle;
+  final ValueChanged<FarmWorkspaceTask> onEdit;
+  final ValueChanged<FarmWorkspaceTask> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final Map<String, List<FarmWorkspaceTask>> grouped = FarmTaskCalendarService.groupTasksByDay(tasks, referenceDate: DateTime.now());
+    final List<String> sortedDays = grouped.keys.toList()..sort();
+    return AppCard(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text('Upcoming tasks', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            if (sortedDays.isEmpty)
+              const Text('No upcoming tasks right now.')
+            else
+              ...sortedDays.take(4).map((String day) {
+                final List<FarmWorkspaceTask> dayTasks = grouped[day] ?? <FarmWorkspaceTask>[];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        _formatDayLabel(day),
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 8),
+                      ...dayTasks.map((FarmWorkspaceTask task) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _TaskListItem(
+                          task: task,
+                          onToggle: () => onToggle(task),
+                          onEdit: () => onEdit(task),
+                          onDelete: () => onDelete(task),
+                        ),
+                      )),
+                    ],
+                  ),
+                );
+              }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDayLabel(String dayKey) {
+    final DateTime parsed = DateTime.tryParse(dayKey) ?? DateTime.now();
+    final DateTime now = DateTime.now();
+    if (parsed.year == now.year && parsed.month == now.month && parsed.day == now.day) {
+      return 'Today';
+    }
+    if (parsed.year == now.year && parsed.month == now.month && parsed.day == now.day + 1) {
+      return 'Tomorrow';
+    }
+    return '${parsed.day}/${parsed.month}/${parsed.year}';
+  }
+}
+
+class _TaskListItem extends StatelessWidget {
+  const _TaskListItem({
     required this.task,
     required this.onToggle,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   final FarmWorkspaceTask task;
   final VoidCallback onToggle;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    return AppCard(
-      color: theme.colorScheme.surfaceContainerHighest,
-      child: CheckboxListTile(
-        value: task.isCompleted,
-        onChanged: (_) => onToggle(),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-        title: Text(task.title),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 6),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              if (task.details.isNotEmpty) ...<Widget>[
-                Text(task.details, style: theme.textTheme.bodySmall?.copyWith(height: 1.4)),
-                const SizedBox(height: 8),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.35)),
+      ),
+      child: Row(
+        children: <Widget>[
+          Checkbox(value: task.isCompleted, onChanged: (_) => onToggle()),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(task.title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text(
+                  '${app_date.DateUtils.formatDateTime(task.dueAt)}${task.reminderEnabled ? ' • ${task.reminderLeadMinutes}m reminder' : ''}',
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
               ],
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: <Widget>[
-                  _Tag(text: task.statusLabel, color: const Color(0xFFFFEBD0)),
-                  _Tag(text: app_date.DateUtils.formatDateTime(task.dueAt), color: const Color(0xFFE5F5D8)),
-                  if (task.reminderEnabled) _Tag(text: '${task.reminderLeadMinutes}m reminder', color: const Color(0xFFDFF1FF)),
-                ],
-              ),
-            ],
+            ),
           ),
-        ),
+          IconButton(onPressed: onEdit, icon: const Icon(Icons.edit_outlined)),
+          IconButton(onPressed: onDelete, icon: const Icon(Icons.delete_outline_rounded)),
+        ],
       ),
     );
   }
@@ -2200,7 +2578,7 @@ class _ActivityLogTile extends StatelessWidget {
                 children: <Widget>[
                   _Tag(text: activity.audienceLabel, color: const Color(0xFFE5F5D8)),
                   _Tag(text: app_date.DateUtils.formatDateTime(activity.createdAt), color: const Color(0xFFFFEBD0)),
-                  if (activity.sentToOwners) _Tag(text: 'Sent to owners', color: const Color(0xFFDFF1FF)),
+                  if (activity.sentToOwners) const _Tag(text: 'Sent to owners', color: Color(0xFFDFF1FF)),
                 ],
               ),
             ],
@@ -2252,6 +2630,51 @@ String _activityAudienceLabel(FarmActivityAudience audience) {
     case FarmActivityAudience.selectedMembers:
       return 'Selected members';
   }
+}
+
+String _farmOperatingStatus({
+  required int urgentFarmTasks,
+  required int harvestReadyCount,
+  required int healthWatchCount,
+  required double soilMoisturePercent,
+}) {
+  if (urgentFarmTasks > 0 || healthWatchCount > 0) {
+    return 'Attention needed';
+  }
+  if (harvestReadyCount > 0) {
+    return 'Harvest planning';
+  }
+  if (soilMoisturePercent > 0 && soilMoisturePercent < 40) {
+    return 'Water priority';
+  }
+  return 'Stable workflow';
+}
+
+String _farmFocusNarrative({
+  required Farm farm,
+  required int urgentFarmTasks,
+  required int cropOpenTasks,
+  required int livestockOpenTasks,
+  required int harvestReadyCount,
+  required int healthWatchCount,
+}) {
+  if (urgentFarmTasks > 0) {
+    return 'Start with the farm task board. $urgentFarmTasks task${urgentFarmTasks == 1 ? '' : 's'} need attention within the next 48 hours, then clear linked crop and livestock reminders.';
+  }
+  if (healthWatchCount > 0) {
+    return 'Animal records show $healthWatchCount group${healthWatchCount == 1 ? '' : 's'} needing health or vaccination follow-up. Check weak stock, housing, water, and treatment notes before routine field work.';
+  }
+  if (harvestReadyCount > 0) {
+    return '$harvestReadyCount crop cycle${harvestReadyCount == 1 ? '' : 's'} are close to harvest. Confirm labour, crates, buyers, transport, and inventory recording before picking starts.';
+  }
+  if (farm.soilMoisturePercent > 0 && farm.soilMoisturePercent < 40) {
+    return 'Moisture is below the comfortable range. Prioritize irrigation checks, young crops, mulching, and any livestock water points before less urgent admin work.';
+  }
+  final int openOperationalTasks = cropOpenTasks + livestockOpenTasks;
+  if (openOperationalTasks > 0) {
+    return 'Core conditions look workable. Use today to close $openOperationalTasks linked production reminder${openOperationalTasks == 1 ? '' : 's'} and keep records current.';
+  }
+  return 'No urgent production blockers are visible. This is a good time for scouting, inventory checks, schedule cleanup, and finance reconciliation.';
 }
 
 class _Tag extends StatelessWidget {
@@ -2480,6 +2903,7 @@ class _FarmMetricsSheetState extends State<_FarmMetricsSheet> {
   late final TextEditingController _humidityController;
   late final TextEditingController _soilController;
   late final TextEditingController _rainController;
+  bool _isFetchingWeather = false;
 
   @override
   void initState() {
@@ -2522,6 +2946,33 @@ class _FarmMetricsSheetState extends State<_FarmMetricsSheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text('Update environmental metrics', style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 8),
+            Text(
+              'Use live weather to fill temperature, humidity, rainfall, and surface soil moisture when available. You can still adjust the values before saving.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.45),
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: AppButton.secondary(
+                onPressed: _isFetchingWeather ? null : _fetchLiveWeather,
+                child: _isFetchingWeather
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(Icons.my_location_rounded, size: 18),
+                          SizedBox(width: 8),
+                          Text('Use live weather'),
+                        ],
+                      ),
+              ),
+            ),
             const SizedBox(height: 14),
             AppTextField(
               controller: _temperatureController,
@@ -2558,6 +3009,60 @@ class _FarmMetricsSheetState extends State<_FarmMetricsSheet> {
         ),
       ),
     );
+  }
+
+  Future<void> _fetchLiveWeather() async {
+    setState(() => _isFetchingWeather = true);
+    try {
+      final bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        _showMessage('Turn on location services to fetch live farm weather.');
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+        _showMessage('Location permission is needed to fetch live weather readings.');
+        return;
+      }
+
+      final Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+      );
+      final WeatherReading reading = await const WeatherReadingService().fetchCurrent(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _temperatureController.text = reading.temperatureCelsius.toStringAsFixed(1);
+        _humidityController.text = reading.humidityPercent.toStringAsFixed(0);
+        _rainController.text = reading.precipitationMm.toStringAsFixed(1);
+        if (reading.soilMoisturePercent != null) {
+          _soilController.text = reading.soilMoisturePercent!.toStringAsFixed(0);
+        }
+      });
+      _showMessage('Live weather readings added. Review and save when ready.');
+    } catch (error) {
+      _showMessage('Could not fetch live weather: $error');
+    } finally {
+      if (mounted) {
+        setState(() => _isFetchingWeather = false);
+      }
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _submit() {
@@ -2721,7 +3226,7 @@ _GreenhousePlanSummary _greenhousePlanSummary(Farm farm) {
   final double usableAreaM2 = greenhouseAreaHa * 10000 * 0.72;
   final double plantSpacingM = farm.temperatureCelsius >= 32 ? 0.40 : 0.35;
   final double interRowSpacingM = farm.temperatureCelsius >= 32 ? 0.70 : 0.60;
-  final double bedWidthM = 1.20;
+  const double bedWidthM = 1.20;
   final int estimatedPlantSlots = math.max(1, (usableAreaM2 / (plantSpacingM * interRowSpacingM)).floor());
   final int seedlingTrayCount = math.max(1, (estimatedPlantSlots / 98).ceil());
   final int irrigationRoundsPerDay = (farm.temperatureCelsius >= 32 || farm.soilMoisturePercent < 35) ? 3 : 2;
@@ -2758,9 +3263,9 @@ _GreenhousePlanSummary _greenhousePlanSummary(Farm farm) {
     sandLitres: sandLitres,
     dripLineMeters: dripLineMeters,
     layoutNote:
-        'Use about ${plantSpacingM.toStringAsFixed(2)} m between plants and ${interRowSpacingM.toStringAsFixed(2)} m between rows. That gives roughly ${estimatedPlantSlots} plants across ${usableAreaM2.toStringAsFixed(0)} m² of usable greenhouse area. Growers can widen the spacing for fruiting crops or tighten it slightly for leafy greens.',
+        'Use about ${plantSpacingM.toStringAsFixed(2)} m between plants and ${interRowSpacingM.toStringAsFixed(2)} m between rows. That gives roughly $estimatedPlantSlots plants across ${usableAreaM2.toStringAsFixed(0)} m² of usable greenhouse area. Growers can widen the spacing for fruiting crops or tighten it slightly for leafy greens.',
     irrigationNote:
-        'Start with ${irrigationRoundsPerDay} short irrigation rounds per day. Each plant needs about ${waterPerPlantLitres.toStringAsFixed(2)} L daily from the current temperature, humidity, and moisture profile. In hotter weather, split watering into morning and afternoon cycles instead of one long run.',
+        'Start with $irrigationRoundsPerDay short irrigation rounds per day. Each plant needs about ${waterPerPlantLitres.toStringAsFixed(2)} L daily from the current temperature, humidity, and moisture profile. In hotter weather, split watering into morning and afternoon cycles instead of one long run.',
     mixNote:
         'For a practical 100 L soilless batch, mix 40 L coco coir, 30 L well-rotted compost, 20 L rice husk or biochar, and 10 L sand or perlite. For this greenhouse, the starting substrate demand is ${substrateVolumeLitres.toStringAsFixed(0)} L in total, with ${compostLitres.toStringAsFixed(0)} L compost, ${cocoCoirLitres.toStringAsFixed(0)} L coco coir, ${riceHuskLitres.toStringAsFixed(0)} L rice husk, and ${sandLitres.toStringAsFixed(0)} L sand/perlite. Use only mature compost and pre-wet the mix before transplanting.',
   );

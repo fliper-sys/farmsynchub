@@ -83,16 +83,20 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       
       showArtwork: true,
       sections: <Widget>[
-        AppCard(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 12,
+        LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final int columns = constraints.maxWidth > 720 ? 4 : 2;
+            return GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: columns,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: columns == 4 ? 1.35 : 1.15,
               children: <Widget>[
                 _ActionTile(
                   label: language.tr(en: 'Open workspace', ha: 'Bude wurin aiki', fr: 'Ouvrir l espace'),
+                  subtitle: language.tr(en: 'Workspace overview', ha: 'Jigon wurin aiki', fr: 'Vue d ensemble'),
                   icon: Icons.grid_view_rounded,
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
@@ -102,36 +106,43 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                 ),
                 _ActionTile(
                   label: language.tr(en: 'Sales desk', ha: 'Wurin siyarwa', fr: 'Bureau des ventes'),
+                  subtitle: language.tr(en: 'Record sales fast', ha: 'Rubuta siyarwa da sauri', fr: 'Ventes rapides'),
                   icon: Icons.point_of_sale_rounded,
                   onTap: () => context.go(SalesDeskScreen.routeName),
                 ),
                 _ActionTile(
                   label: language.tr(en: 'Expense tracking', ha: 'Bibiyar kashe kudi', fr: 'Suivi des dépenses'),
+                  subtitle: language.tr(en: 'Log costs', ha: 'Rubuta kashe', fr: 'Suivre les coûts'),
                   icon: Icons.receipt_long_outlined,
                   onTap: () => context.go('/expenses'),
                 ),
                 _ActionTile(
                   label: language.tr(en: 'Procurement', ha: 'Siyayya', fr: 'Approvisionnement'),
+                  subtitle: language.tr(en: 'Buy inputs', ha: 'Sayi kayan shuka', fr: 'Achats intrants'),
                   icon: Icons.shopping_cart_outlined,
                   onTap: () => context.go('/procurement'),
                 ),
                 _ActionTile(
                   label: language.tr(en: 'Sales analytics', ha: 'Nazarin siyarwa', fr: 'Analyses ventes'),
+                  subtitle: language.tr(en: 'View performance', ha: 'Duba yi', fr: 'Voir les performances'),
                   icon: Icons.insights_rounded,
                   onTap: () => context.go('/sales-info'),
                 ),
                 _ActionTile(
                   label: language.tr(en: 'AI recap', ha: 'Takaitaccen AI', fr: 'Résumé IA'),
+                  subtitle: language.tr(en: 'Smart finance summary', ha: 'Takaitaccen kudi', fr: 'Résumé intelligent'),
                   icon: Icons.auto_awesome_rounded,
                   onTap: () => context.go(FinanceAiRecapScreen.routeName),
                 ),
                 _ActionTile(
                   label: language.tr(en: 'Export finance PDF', ha: 'Fitar da PDF', fr: 'Exporter PDF'),
+                  subtitle: language.tr(en: 'Share the report', ha: 'Raba rahoto', fr: 'Partager le rapport'),
                   icon: Icons.picture_as_pdf_rounded,
                   onTap: _isExporting || transactions.isEmpty ? null : () => _exportReport(snapshot, transactions),
                 ),
                 _ActionTile(
                   label: language.tr(en: 'Market trends', ha: 'Yanayin kasuwa', fr: 'Tendances'),
+                  subtitle: language.tr(en: 'Track demand', ha: 'Bi bukata', fr: 'Suivre le marché'),
                   icon: Icons.show_chart_rounded,
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
@@ -140,8 +151,8 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                   ),
                 ),
               ],
-            ),
-          ),
+            );
+          },
         ),
         const SizedBox(height: 18),
         Row(
@@ -270,35 +281,48 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
           child: Padding(
             padding: const EdgeInsets.all(18),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: <Widget>[
-                _ActionTile(
-                  label: language.tr(en: 'Sales analytics', ha: 'Nazarin siyarwa', fr: 'Analyses ventes'),
-                  icon: Icons.insights_rounded,
-                  onTap: () => context.go('/sales-info'),
-                ),
-                _ActionTile(
-                  label: language.tr(en: 'Expense report', ha: 'Rahoton kashe kudi', fr: 'Rapport dépenses'),
-                  icon: Icons.receipt_long_outlined,
-                  onTap: () => context.go('/expenses'),
-                ),
-                _ActionTile(
-                  label: language.tr(en: 'Procurement report', ha: 'Rahoton saye', fr: 'Rapport achats'),
-                  icon: Icons.shopping_cart_outlined,
-                  onTap: () => context.go('/procurement'),
-                ),
-                _ActionTile(
-                  label: language.tr(en: 'Market trends', ha: 'Yanayin kasuwa', fr: 'Tendances'),
-                  icon: Icons.show_chart_rounded,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const MarketTrendsScreen(),
+            child: LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                final int columns = constraints.maxWidth > 720 ? 4 : 2;
+                return GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: columns,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: columns == 4 ? 1.35 : 1.15,
+                  children: <Widget>[
+                    _ActionTile(
+                      label: language.tr(en: 'Sales analytics', ha: 'Nazarin siyarwa', fr: 'Analyses ventes'),
+                      subtitle: language.tr(en: 'View performance', ha: 'Duba yi', fr: 'Voir les performances'),
+                      icon: Icons.insights_rounded,
+                      onTap: () => context.go('/sales-info'),
                     ),
-                  ),
-                ),
-              ],
+                    _ActionTile(
+                      label: language.tr(en: 'Expense report', ha: 'Rahoton kashe kudi', fr: 'Rapport dépenses'),
+                      subtitle: language.tr(en: 'Track costs', ha: 'Bi kashe', fr: 'Suivre les coûts'),
+                      icon: Icons.receipt_long_outlined,
+                      onTap: () => context.go('/expenses'),
+                    ),
+                    _ActionTile(
+                      label: language.tr(en: 'Procurement report', ha: 'Rahoton saye', fr: 'Rapport achats'),
+                      subtitle: language.tr(en: 'Review purchases', ha: 'Duba sayayya', fr: 'Examiner achats'),
+                      icon: Icons.shopping_cart_outlined,
+                      onTap: () => context.go('/procurement'),
+                    ),
+                    _ActionTile(
+                      label: language.tr(en: 'Market trends', ha: 'Yanayin kasuwa', fr: 'Tendances'),
+                      subtitle: language.tr(en: 'Track demand', ha: 'Bi bukata', fr: 'Suivre le marché'),
+                      icon: Icons.show_chart_rounded,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const MarketTrendsScreen(),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -471,111 +495,86 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
 class _ActionTile extends StatelessWidget {
   const _ActionTile({
     required this.label,
+    required this.subtitle,
     required this.icon,
     required this.onTap,
   });
 
   final String label;
+  final String subtitle;
   final IconData icon;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final bool isDark = theme.brightness == Brightness.dark;
     final bool isEnabled = onTap != null;
-    final Color surfaceColor = theme.colorScheme.surface;
+    final bool isDark = theme.brightness == Brightness.dark;
     final Color accent = theme.colorScheme.primary;
-    final Color cardColor = isDark
-        ? theme.colorScheme.surfaceVariant
+    final Color panelColor = isDark
+        ? theme.colorScheme.surfaceContainerHighest
         : theme.colorScheme.surfaceContainerHighest;
 
-    return SizedBox(
-      width: 180,
-      child: Material(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(24),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(24),
-          splashColor: accent.withOpacity(0.12),
-          child: Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: isEnabled
-                    ? theme.colorScheme.outlineVariant.withOpacity(0.35)
-                    : theme.disabledColor.withOpacity(0.16),
-              ),
-              boxShadow: <BoxShadow>[
-                BoxShadow(
-                  color: isDark
-                      ? Colors.black.withOpacity(0.10)
-                      : Colors.black.withOpacity(0.05),
-                  blurRadius: 18,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: isEnabled
-                    ? <Color>[cardColor, surfaceColor]
-                    : <Color>[cardColor.withOpacity(0.92), cardColor.withOpacity(0.92)],
-              ),
+    return Material(
+      color: panelColor,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.35)),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: isDark
+                  ? <Color>[theme.colorScheme.surfaceContainerHighest, theme.colorScheme.surfaceContainer]
+                  : <Color>[theme.colorScheme.surfaceContainerHighest, theme.colorScheme.surfaceContainerLow],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: accent, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: accent.withOpacity(0.16),
-                        borderRadius: BorderRadius.circular(16),
+                    Text(
+                      label,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: isEnabled ? theme.colorScheme.onSurface : theme.disabledColor,
                       ),
-                      child: Icon(icon, color: accent, size: 22),
                     ),
-                    const Spacer(),
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: accent.withOpacity(0.08),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.arrow_forward_rounded,
-                        color: isEnabled ? accent : theme.disabledColor,
-                        size: 18,
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: isEnabled ? theme.colorScheme.onSurfaceVariant : theme.disabledColor,
+                        height: 1.35,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 18),
-                Text(
-                  label,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: isEnabled ? theme.colorScheme.onSurface : theme.disabledColor,
-                    height: 1.3,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Tap to open',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: isEnabled ? theme.colorScheme.onSurfaceVariant : theme.disabledColor.withOpacity(0.7),
-                  ),
-                ),
-              ],
-            ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: theme.colorScheme.onSurfaceVariant, size: 20),
+            ],
           ),
         ),
       ),

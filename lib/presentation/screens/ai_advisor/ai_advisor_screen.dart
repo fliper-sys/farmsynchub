@@ -1363,14 +1363,14 @@ class _TypingBubble extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: _aiBorder(context)),
       ),
-      child: Row(
+      child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          const _Dot(),
-          const SizedBox(width: 5),
-          const _Dot(),
-          const SizedBox(width: 5),
-          const _Dot(),
+          _Dot(),
+          SizedBox(width: 5),
+          _Dot(),
+          SizedBox(width: 5),
+          _Dot(),
         ],
       ),
     );

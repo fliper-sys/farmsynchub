@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
@@ -57,21 +58,45 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
       return;
     }
     if (adminSessionEmail != null && adminSessionEmail.trim().isNotEmpty) {
+      if (!mounted) {
+        return;
+      }
       context.go('/admin-dashboard');
       return;
     }
     if (!hasCompletedOnboarding) {
+      if (!mounted) {
+        return;
+      }
       context.go('/onboarding');
       return;
     }
 
-    final user = firebaseService.currentUser;
+    User? user = firebaseService.currentUser;
     if (user == null) {
+      try {
+        user = await firebaseService.authStateChanges
+            .where((User? authUser) => authUser != null)
+            .timeout(const Duration(seconds: 5))
+            .first;
+      } catch (_) {
+        user = firebaseService.currentUser;
+      }
+    }
+
+    if (user == null) {
+      if (!mounted) {
+        return;
+      }
       context.go('/login');
       return;
     }
 
-    context.go(user.emailVerified ? '/post-auth' : '/verify-email');
+    if (!mounted) {
+      return;
+    }
+    final bool shouldVerify = user.email?.isNotEmpty == true && !user.emailVerified;
+    context.go(shouldVerify ? '/verify-email' : '/post-auth');
   }
 
   @override

@@ -21,6 +21,7 @@ import '../../../providers/finance_provider.dart';
 import '../../../providers/livestock_provider.dart';
 import '../../../providers/user_profile_provider.dart';
 import '../../common/widgets/app_button.dart';
+import '../crops/crops_screen.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
@@ -71,6 +72,8 @@ class FarmsScreen extends ConsumerWidget {
     final double totalOperatingCost = transactions
         .where((Transaction item) => item.type == TransactionType.expense)
         .fold<double>(0.0, (double sum, Transaction item) => sum + item.amount);
+    final int fieldNotesCount = crops.where((Crop crop) => crop.notes.trim().isNotEmpty).length +
+        visibleFarms.where((Farm farm) => farm.notes.trim().isNotEmpty).length;
 
     return SoftScreenScaffold(
       heroTitle: 'Farm operations',
@@ -218,9 +221,14 @@ class FarmsScreen extends ConsumerWidget {
                 _DocumentationRow(
                   title: 'Field notes',
                   subtitle: 'Daily observations, irrigation changes, and crop issues.',
-                  trailing: '${crops.length} linked entries',
+                  trailing: '$fieldNotesCount linked entries',
                   icon: Icons.sticky_note_2_rounded,
                   color: const Color(0xFFDFF1FF),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const CropsScreen(),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 _DocumentationRow(
@@ -253,6 +261,11 @@ class FarmsScreen extends ConsumerWidget {
                 detail: '${crops.where((Crop crop) => crop.status == CropStatus.ready).length} ready for harvest',
                 color: const Color(0xFFE7F4D8),
                 icon: Icons.spa_rounded,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const CropsScreen(),
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -434,9 +447,6 @@ class _FarmManagementCard extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final double income = transactions
         .where((Transaction item) => item.type == TransactionType.income)
-        .fold(0, (double sum, Transaction item) => sum + item.amount);
-    final double expenses = transactions
-        .where((Transaction item) => item.type == TransactionType.expense)
         .fold(0, (double sum, Transaction item) => sum + item.amount);
 
     return AppCard(
@@ -1480,6 +1490,7 @@ class _DocumentationRow extends StatelessWidget {
     required this.trailing,
     required this.icon,
     required this.color,
+    this.onTap,
   });
 
   final String title;
@@ -1487,6 +1498,7 @@ class _DocumentationRow extends StatelessWidget {
   final String trailing;
   final IconData icon;
   final Color color;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1495,7 +1507,7 @@ class _DocumentationRow extends StatelessWidget {
     final Color iconBackground = isDark ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface) : color;
     final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
-    return Container(
+    final Widget content = Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
@@ -1530,6 +1542,16 @@ class _DocumentationRow extends StatelessWidget {
         ],
       ),
     );
+
+    if (onTap == null) {
+      return content;
+    }
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: content,
+    );
   }
 }
 
@@ -1540,6 +1562,7 @@ class _InventoryPanel extends StatelessWidget {
     required this.detail,
     required this.color,
     required this.icon,
+    this.onTap,
   });
 
   final String title;
@@ -1547,6 +1570,7 @@ class _InventoryPanel extends StatelessWidget {
   final String detail;
   final Color color;
   final IconData icon;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1556,6 +1580,7 @@ class _InventoryPanel extends StatelessWidget {
     final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
     return AppCard(
+      onTap: onTap,
       color: theme.colorScheme.surfaceContainerHighest,
       child: Padding(
         padding: const EdgeInsets.all(18),

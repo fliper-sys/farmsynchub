@@ -56,9 +56,28 @@ class CropDetailScreen extends ConsumerWidget {
     final List<_CyclePoint> cycle = _buildCropCycle(crop.currentStage);
     final Iterable<FarmTodoItem> openTasks = crop.todoItems.where((FarmTodoItem item) => !item.isCompleted);
     final CropAdviceSummary advice = CropAdviceCatalog.summarize(crop);
+    final List<FarmTodoItem> openTaskList = openTasks.toList(growable: false);
+    final int overdueTasks = openTaskList.where((FarmTodoItem item) => item.dueDate.isBefore(DateTime.now())).length;
+    final int priorityTasks = openTaskList
+        .where((FarmTodoItem item) => item.priority == FarmTodoPriority.high || item.priority == FarmTodoPriority.urgent)
+        .length;
+    final double costPerHa = crop.areaHa <= 0 ? 0 : crop.totalInputCost / crop.areaHa;
+    final double targetYieldPerHa = crop.areaHa <= 0 ? 0 : crop.targetYieldKg / crop.areaHa;
+    final double inputCostPerTargetKg = crop.targetYieldKg <= 0 ? 0 : crop.totalInputCost / crop.targetYieldKg;
+    final String cropWorkStatus = _cropWorkStatus(
+      crop: crop,
+      overdueTasks: overdueTasks,
+      priorityTasks: priorityTasks,
+    );
 
     return Scaffold(
-      appBar: AppBar(title: Text(crop.name)),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(crop.name),
+      ),
       body: SoftScreenScaffold(
         heroTitle: crop.name,
         heroSubtitle: '${crop.variety} on ${farm?.name ?? 'Unknown farm'}',
@@ -142,6 +161,40 @@ class CropDetailScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 18),
+          const SoftSectionTitle(title: 'Work focus'),
+          AppCard(
+            color: theme.colorScheme.surfaceContainerHighest,
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text('Status: $cropWorkStatus', style: theme.textTheme.titleLarge),
+                  const SizedBox(height: 8),
+                  Text(
+                    _cropWorkNarrative(
+                      crop: crop,
+                      overdueTasks: overdueTasks,
+                      priorityTasks: priorityTasks,
+                    ),
+                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+                  ),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: <Widget>[
+                      _Pill(text: '$overdueTasks overdue', color: const Color(0xFFFFEBD0)),
+                      _Pill(text: '$priorityTasks high priority', color: const Color(0xFFEDE8FF)),
+                      _Pill(text: '${crop.openTaskCount} open reminders', color: const Color(0xFFE8F4D8)),
+                      _Pill(text: _harvestWindowLabel(crop), color: const Color(0xFFDFF1FF)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
           const SoftSectionTitle(title: 'Production profile'),
           Row(
             children: <Widget>[
@@ -182,6 +235,51 @@ class CropDetailScreen extends ConsumerWidget {
                   value: '${crop.openTaskCount}',
                   note: '${crop.todoItems.length} total reminders',
                   tint: const Color(0xFFE8F4D8),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          const SoftSectionTitle(title: 'Performance ratios'),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: _MetricCard(
+                  title: 'Cost / ha',
+                  value: crop.areaHa <= 0 ? 'Not ready' : CurrencyUtils.formatCurrency(costPerHa),
+                  note: '${crop.inputRecords.length} input records',
+                  tint: const Color(0xFFEDE8FF),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _MetricCard(
+                  title: 'Yield / ha',
+                  value: crop.targetYieldKg <= 0 || crop.areaHa <= 0 ? 'Not set' : '${targetYieldPerHa.toStringAsFixed(0)} kg',
+                  note: 'Target density',
+                  tint: const Color(0xFFE8F4D8),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: _MetricCard(
+                  title: 'Input / kg',
+                  value: inputCostPerTargetKg <= 0 ? 'Not ready' : CurrencyUtils.formatCurrency(inputCostPerTargetKg),
+                  note: 'Against target yield',
+                  tint: const Color(0xFFFFEBD0),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _MetricCard(
+                  title: 'Records',
+                  value: '${crop.inputRecords.length + crop.todoItems.length}',
+                  note: 'Inputs plus reminders',
+                  tint: const Color(0xFFDFF1FF),
                 ),
               ),
             ],
@@ -430,6 +528,58 @@ String _stageAdvice(CropStage stage) {
     case CropStage.fruiting:
       return 'Track quality, picking window, and market prep.';
   }
+}
+
+String _cropWorkStatus({
+  required Crop crop,
+  required int overdueTasks,
+  required int priorityTasks,
+}) {
+  if (overdueTasks > 0) {
+    return 'Overdue work';
+  }
+  if (priorityTasks > 0) {
+    return 'Priority reminders';
+  }
+  if (crop.daysToHarvest <= 7) {
+    return crop.daysToHarvest < 0 ? 'Harvest due' : 'Harvest window';
+  }
+  if (crop.currentStage == CropStage.flowering || crop.currentStage == CropStage.fruiting) {
+    return 'Yield protection';
+  }
+  return 'Cycle on track';
+}
+
+String _cropWorkNarrative({
+  required Crop crop,
+  required int overdueTasks,
+  required int priorityTasks,
+}) {
+  if (overdueTasks > 0) {
+    return 'Clear overdue reminders before adding new work. Start with scouting, irrigation, pest checks, and input applications that affect the current stage.';
+  }
+  if (priorityTasks > 0) {
+    return 'High-priority reminders are open. Assign labour, confirm supplies, and record completion so the cycle timeline stays reliable.';
+  }
+  if (crop.daysToHarvest <= 7) {
+    return crop.daysToHarvest < 0
+        ? 'Harvest is due. Confirm quality, crates, labour, buyers, transport, and stock entry before produce leaves the field.'
+        : 'Harvest is close. Prepare labour, crates, post-harvest handling, buyer commitments, and finance records now.';
+  }
+  if (crop.currentStage == CropStage.flowering || crop.currentStage == CropStage.fruiting) {
+    return 'This is a yield-sensitive stage. Keep moisture steady, avoid missed feeding, scout pests often, and reduce handling stress.';
+  }
+  return 'Use this window to keep records tight: update stage, inspect stand quality, confirm input stock, and schedule the next field operation.';
+}
+
+String _harvestWindowLabel(Crop crop) {
+  if (crop.daysToHarvest < 0) {
+    return 'Harvest due';
+  }
+  if (crop.daysToHarvest == 0) {
+    return 'Harvest today';
+  }
+  return '${crop.daysToHarvest} days to harvest';
 }
 
 class PreviousCropRecommendationsScreen extends ConsumerWidget {

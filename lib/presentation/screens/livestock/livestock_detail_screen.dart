@@ -57,9 +57,29 @@ class LivestockDetailScreen extends ConsumerWidget {
     final ThemeData theme = Theme.of(context);
     final Iterable<FarmTodoItem> openTasks = livestock.todoItems.where((FarmTodoItem item) => !item.isCompleted);
     final List<LivestockProductionRecord> logs = livestock.productionLogs;
+    final List<FarmTodoItem> openTaskList = openTasks.toList(growable: false);
+    final int overdueTasks = openTaskList.where((FarmTodoItem item) => item.dueDate.isBefore(DateTime.now())).length;
+    final int priorityTasks = openTaskList
+        .where((FarmTodoItem item) => item.priority == FarmTodoPriority.high || item.priority == FarmTodoPriority.urgent)
+        .length;
+    final double totalDailyFeedKg = livestock.dailyFeedKg * livestock.count;
+    final double totalDailyWaterLitres = livestock.dailyWaterLitres * livestock.count;
+    final double valuePerHead = livestock.count <= 0 ? 0 : livestock.estimatedValue / livestock.count;
+    final double inputCostPerHead = livestock.count <= 0 ? 0 : livestock.syncedInputCost / livestock.count;
+    final String livestockWorkStatus = _livestockWorkStatus(
+      livestock: livestock,
+      overdueTasks: overdueTasks,
+      priorityTasks: priorityTasks,
+    );
 
     return Scaffold(
-      appBar: AppBar(title: Text('${livestock.emoji} ${_speciesLabel(livestock.species)}')),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text('${livestock.emoji} ${_speciesLabel(livestock.species)}'),
+      ),
       body: SoftScreenScaffold(
         heroTitle: _speciesLabel(livestock.species),
         heroSubtitle: '${livestock.breed} on ${farm?.name ?? 'Unknown farm'}',
@@ -115,6 +135,40 @@ class LivestockDetailScreen extends ConsumerWidget {
                         ),
                       ],
                     ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          const SoftSectionTitle(title: 'Work focus'),
+          AppCard(
+            color: theme.colorScheme.surfaceContainerHighest,
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text('Status: $livestockWorkStatus', style: theme.textTheme.titleLarge),
+                  const SizedBox(height: 8),
+                  Text(
+                    _livestockWorkNarrative(
+                      livestock: livestock,
+                      overdueTasks: overdueTasks,
+                      priorityTasks: priorityTasks,
+                    ),
+                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+                  ),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: <Widget>[
+                      _MetaChip(text: '$overdueTasks overdue'),
+                      _MetaChip(text: '$priorityTasks high priority'),
+                      _MetaChip(text: '${livestock.openTaskCount} open reminders'),
+                      _MetaChip(text: logs.isEmpty ? 'No production logs' : '${logs.length} production logs'),
+                    ],
                   ),
                 ],
               ),
@@ -195,6 +249,51 @@ class LivestockDetailScreen extends ConsumerWidget {
                   title: 'Value',
                   value: CurrencyUtils.formatCurrency(livestock.estimatedValue),
                   note: '${livestock.mortalityCount} mortality recorded',
+                  tint: const Color(0xFFEDE8FF),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          const SoftSectionTitle(title: 'Operating ratios'),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: _MetricCard(
+                  title: 'Feed / day',
+                  value: '${totalDailyFeedKg.toStringAsFixed(1)} kg',
+                  note: '${livestock.dailyFeedKg.toStringAsFixed(1)} kg per head',
+                  tint: const Color(0xFFE8F4D8),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _MetricCard(
+                  title: 'Water / day',
+                  value: '${totalDailyWaterLitres.toStringAsFixed(1)} L',
+                  note: '${livestock.dailyWaterLitres.toStringAsFixed(1)} L per head',
+                  tint: const Color(0xFFDFF1FF),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: _MetricCard(
+                  title: 'Value / head',
+                  value: valuePerHead <= 0 ? 'Not set' : CurrencyUtils.formatCurrency(valuePerHead),
+                  note: 'Estimated live value',
+                  tint: const Color(0xFFFFEBD0),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _MetricCard(
+                  title: 'Input / head',
+                  value: inputCostPerHead <= 0 ? 'Not ready' : CurrencyUtils.formatCurrency(inputCostPerHead),
+                  note: '${livestock.inputRecords.length} input records',
                   tint: const Color(0xFFEDE8FF),
                 ),
               ),
@@ -385,6 +484,55 @@ String _feedAndHygieneAdvice(Livestock livestock) {
     return 'Balance forage, water, and grooming. Watch body condition weekly and keep the shed clean and dry.';
   }
   return 'Keep feed clean, water steady, and housing hygiene consistent while logging changes at least weekly.';
+}
+
+String _livestockWorkStatus({
+  required Livestock livestock,
+  required int overdueTasks,
+  required int priorityTasks,
+}) {
+  if (livestock.healthScore < 70) {
+    return 'Health attention';
+  }
+  if (livestock.vaccinationStatus < 75) {
+    return 'Vaccination gap';
+  }
+  if (overdueTasks > 0) {
+    return 'Overdue care';
+  }
+  if (priorityTasks > 0) {
+    return 'Priority care';
+  }
+  if (livestock.growthStage == AnimalGrowthStage.finishing) {
+    return 'Sale planning';
+  }
+  return 'Stable care';
+}
+
+String _livestockWorkNarrative({
+  required Livestock livestock,
+  required int overdueTasks,
+  required int priorityTasks,
+}) {
+  if (livestock.healthScore < 70) {
+    return 'Start with weak or isolated animals, water access, feed quality, bedding, and any treatment notes. Record symptoms before routine production work.';
+  }
+  if (livestock.vaccinationStatus < 75) {
+    return 'Vaccination coverage is below target. Schedule the next round, confirm stock handling, and mark the reminder high priority.';
+  }
+  if (overdueTasks > 0) {
+    return 'Clear overdue care reminders first. Feeding, cleaning, inspection, and medication tasks should be closed before adding more work.';
+  }
+  if (priorityTasks > 0) {
+    return 'High-priority care is open. Assign labour, confirm supplies, and update completion so health and production records stay dependable.';
+  }
+  if (livestock.growthStage == AnimalGrowthStage.finishing) {
+    return 'This group is near sale or transfer decisions. Check weight, buyer timing, feed use, and final health status before committing stock.';
+  }
+  if (livestock.productionLogs.isEmpty) {
+    return 'Care looks stable, but production history is empty. Add a baseline log for weight, feed, eggs, or notes so future trends have a starting point.';
+  }
+  return 'Core care looks stable. Keep production logs current, monitor feed and water use, and review mortality or vaccination changes weekly.';
 }
 
 class _CycleRow extends StatelessWidget {

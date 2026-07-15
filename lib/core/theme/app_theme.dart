@@ -27,23 +27,26 @@ abstract final class AppTheme {
 
   /// Dark color scheme derived from the FarmSync green brand seed.
   static final ColorScheme darkColorScheme = ColorScheme.fromSeed(
-    seedColor: AppColors.primary,
+    seedColor: AppColors.premiumGreen,
     brightness: Brightness.dark,
   ).copyWith(
-    primary: AppColors.primaryLight,
-    secondary: AppColors.primaryMid,
-    tertiary: AppColors.amberAccent,
-    surface: AppColors.cardDark,
-    surfaceContainerHighest: const Color(0xFF223729),
-    onPrimary: AppColors.surfaceDark,
+    primary: AppColors.premiumGreen,
+    secondary: AppColors.tealAccent,
+    tertiary: AppColors.premiumWarning,
+    surface: AppColors.darkPrimaryBackground,
+    surfaceContainer: AppColors.darkSecondaryBackground,
+    surfaceContainerHighest: AppColors.darkCard,
+    primaryContainer: const Color(0xFF073A28),
+    secondaryContainer: const Color(0xFF073A36),
+    onPrimary: AppColors.darkPrimaryBackground,
     onSecondary: Colors.white,
-    onTertiary: AppColors.surfaceDark,
-    onSurface: const Color(0xFFF0F4EB),
-    onSurfaceVariant: AppColors.borderLight.withOpacity(0.74),
+    onTertiary: AppColors.darkPrimaryBackground,
+    onSurface: AppColors.darkPrimaryText,
+    onSurfaceVariant: AppColors.darkSecondaryText,
     outline: AppColors.borderDark,
     outlineVariant: AppColors.borderDark,
-    error: AppColors.syncError,
-    shadow: Colors.black.withOpacity(0.24),
+    error: AppColors.premiumDanger,
+    shadow: Colors.black.withOpacity(0.38),
   );
 
   /// Light theme definition for the application.
@@ -141,12 +144,15 @@ abstract final class AppTheme {
       useMaterial3: true,
       brightness: brightness,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor:
-          brightness == Brightness.light ? AppColors.surfaceLight : AppColors.surfaceDark,
-      canvasColor: brightness == Brightness.light ? AppColors.surfaceLight : AppColors.surfaceDark,
+      scaffoldBackgroundColor: brightness == Brightness.light
+          ? AppColors.surfaceLight
+          : AppColors.darkPrimaryBackground,
+      canvasColor: brightness == Brightness.light
+          ? AppColors.surfaceLight
+          : AppColors.darkPrimaryBackground,
       textTheme: textTheme,
       cardTheme: CardThemeData(
-        color: brightness == Brightness.light ? Colors.white : colorScheme.surface,
+        color: brightness == Brightness.light ? Colors.white : AppColors.darkCard,
         elevation: 0,
         shadowColor: colorScheme.shadow,
         margin: EdgeInsets.zero,
@@ -161,18 +167,18 @@ abstract final class AppTheme {
         scrolledUnderElevation: 0,
         backgroundColor: brightness == Brightness.light
             ? AppColors.surfaceLight
-            : AppColors.surfaceDark,
+            : AppColors.darkPrimaryBackground,
         foregroundColor: colorScheme.onSurface,
-        titleTextStyle: GoogleFonts.dmSerifDisplay(
+        titleTextStyle: GoogleFonts.plusJakartaSans(
           color: colorScheme.onSurface,
           fontSize: 24,
-          fontWeight: FontWeight.w400,
+          fontWeight: FontWeight.w800,
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: brightness == Brightness.light
             ? Colors.white
-            : colorScheme.surfaceContainerHighest,
+            : AppColors.darkBottomNavigation,
         indicatorColor: brightness == Brightness.light
             ? AppColors.surfaceSoft
             : colorScheme.primary.withOpacity(0.18),
@@ -212,7 +218,7 @@ abstract final class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: brightness == Brightness.light ? Colors.white : colorScheme.surface,
+        fillColor: brightness == Brightness.light ? Colors.white : AppColors.darkCard,
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
@@ -244,8 +250,8 @@ abstract final class AppTheme {
           borderRadius: BorderRadius.circular(20),
           side: BorderSide(color: colorScheme.outlineVariant),
         ),
-        backgroundColor: colorScheme.surface,
-        selectedColor: colorScheme.primary.withOpacity(0.12),
+        backgroundColor: brightness == Brightness.light ? colorScheme.surface : AppColors.darkCard,
+        selectedColor: colorScheme.primary.withOpacity(0.14),
         labelStyle: GoogleFonts.plusJakartaSans(
           color: colorScheme.onSurface,
           fontWeight: FontWeight.w600,

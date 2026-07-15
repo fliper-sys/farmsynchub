@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../data/remote/firebase_service.dart';
 import '../data/remote/operations_hub_remote_store.dart';
 import 'auth_provider.dart';
 

@@ -85,6 +85,14 @@ class _FarmInsightSummaryScreenState extends ConsumerState<FarmInsightSummaryScr
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
       body: SoftScreenScaffold(
         heroTitle: 'AI farm briefing',
         heroSubtitle: 'A practical briefing for ${farm.name} based on the stored farm, crop, livestock, and finance records.',

@@ -42,10 +42,21 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
         .map((String jsonStr) => Notification.fromMap(jsonDecode(jsonStr) as Map<String, dynamic>))
         .toList();
     final List<Notification> remoteNotifications = await _loadRemoteNotifications();
-    final Map<String, Notification> merged = <String, Notification>{
-      for (final Notification notification in localNotifications) notification.id: notification,
-      for (final Notification notification in remoteNotifications) notification.id: notification,
-    };
+    final Map<String, Notification> merged = <String, Notification>{};
+
+    for (final Notification localNotification in localNotifications) {
+      merged[localNotification.id] = localNotification;
+    }
+
+    for (final Notification remoteNotification in remoteNotifications) {
+      final Notification? existing = merged[remoteNotification.id];
+      if (existing != null) {
+        merged[remoteNotification.id] = remoteNotification.copyWith(isRead: existing.isRead);
+      } else {
+        merged[remoteNotification.id] = remoteNotification;
+      }
+    }
+
     state = merged.values.toList()
       ..sort((Notification a, Notification b) => b.timestamp.compareTo(a.timestamp));
 

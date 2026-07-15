@@ -27,6 +27,7 @@ class _NewsScreenState extends ConsumerState<NewsScreen> with SingleTickerProvid
   final TextEditingController _peopleSearchController = TextEditingController();
   bool _showHeader = true;
   bool _showDiscoverySection = true;
+  bool _discoveryCollapsed = false;
 
   @override
   void initState() {
@@ -108,6 +109,12 @@ class _NewsScreenState extends ConsumerState<NewsScreen> with SingleTickerProvid
                       queryController: _peopleSearchController,
                       people: people,
                       followedAuthorIds: followedAuthorIds,
+                      isCollapsed: _discoveryCollapsed,
+                      onToggleCollapsed: () => setState(() => _discoveryCollapsed = !_discoveryCollapsed),
+                      onClose: () => setState(() {
+                        _showDiscoverySection = false;
+                        _discoveryCollapsed = false;
+                      }),
                       onFollowToggle: (String authorId) => ref.read(newsFeedProvider.notifier).toggleFollow(authorId),
                       onSearchChanged: () => setState(() {}),
                     )
@@ -171,6 +178,7 @@ class _NewsScreenState extends ConsumerState<NewsScreen> with SingleTickerProvid
         setState(() {
           _showHeader = false;
           _showDiscoverySection = false;
+          _discoveryCollapsed = false;
         });
       }
     } else if (offset <= 4) {
@@ -178,6 +186,7 @@ class _NewsScreenState extends ConsumerState<NewsScreen> with SingleTickerProvid
         setState(() {
           _showHeader = true;
           _showDiscoverySection = true;
+          _discoveryCollapsed = false;
         });
       }
     }
@@ -372,6 +381,9 @@ class _PeopleDiscoverySection extends StatelessWidget {
     required this.queryController,
     required this.people,
     required this.followedAuthorIds,
+    required this.isCollapsed,
+    required this.onToggleCollapsed,
+    required this.onClose,
     required this.onFollowToggle,
     required this.onSearchChanged,
   });
@@ -379,6 +391,9 @@ class _PeopleDiscoverySection extends StatelessWidget {
   final TextEditingController queryController;
   final List<UserProfile> people;
   final Set<String> followedAuthorIds;
+  final bool isCollapsed;
+  final VoidCallback onToggleCollapsed;
+  final VoidCallback onClose;
   final ValueChanged<String> onFollowToggle;
   final VoidCallback onSearchChanged;
 
@@ -400,51 +415,77 @@ class _PeopleDiscoverySection extends StatelessWidget {
                     child: Text('Find farmers to follow', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
                   ),
                   Text('${people.length} suggested', style: theme.textTheme.labelLarge),
+                  const SizedBox(width: 6),
+                  IconButton(
+                    tooltip: isCollapsed ? 'Expand discovery' : 'Collapse discovery',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: onToggleCollapsed,
+                    icon: Icon(isCollapsed ? Icons.expand_more_rounded : Icons.expand_less_rounded),
+                  ),
+                  IconButton(
+                    tooltip: 'Hide discovery',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: onClose,
+                    icon: const Icon(Icons.close_rounded),
+                  ),
                 ],
               ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: queryController,
-                onChanged: (_) => onSearchChanged(),
-                decoration: InputDecoration(
-                  hintText: 'Search by name, ward, focus, phone, or bio',
-                  prefixIcon: const Icon(Icons.search_rounded),
-                  filled: true,
-                  fillColor: theme.colorScheme.surface,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.2),
+              if (!isCollapsed) ...<Widget>[
+                const SizedBox(height: 10),
+                TextField(
+                  controller: queryController,
+                  onChanged: (_) => onSearchChanged(),
+                  decoration: InputDecoration(
+                    hintText: 'Search by name, ward, focus, phone, or bio',
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    filled: true,
+                    fillColor: theme.colorScheme.surface,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.2),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              if (people.isEmpty)
-                Text(
-                  'No matching farmers found. Try a different name, ward, or production focus.',
-                  style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
-                )
-              else
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: people
-                      .map(
-                        (UserProfile person) => _PeopleSuggestionTile(
-                          profile: person,
-                          isFollowed: followedAuthorIds.contains(person.uid),
-                          onFollowToggle: () => onFollowToggle(person.uid),
+                const SizedBox(height: 12),
+                if (people.isEmpty)
+                  Text(
+                    'No matching farmers found. Try a different name, ward, or production focus.',
+                    style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
+                  )
+                else
+                  LayoutBuilder(
+                    builder: (BuildContext context, BoxConstraints constraints) {
+                      return SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: people
+                              .map(
+                                (UserProfile person) => Padding(
+                                  padding: const EdgeInsets.only(right: 10, bottom: 10),
+                                  child: _PeopleSuggestionTile(
+                                    profile: person,
+                                    isFollowed: followedAuthorIds.contains(person.uid),
+                                    onFollowToggle: () => onFollowToggle(person.uid),
+                                  ),
+                                ),
+                              )
+                              .toList(growable: false),
                         ),
-                      )
-                      .toList(growable: false),
-                ),
+                      );
+                    },
+                  ),
+              ],
             ],
           ),
         ),
@@ -453,7 +494,7 @@ class _PeopleDiscoverySection extends StatelessWidget {
   }
 }
 
-class _PeopleSuggestionTile extends StatelessWidget {
+class _PeopleSuggestionTile extends StatefulWidget {
   const _PeopleSuggestionTile({
     required this.profile,
     required this.isFollowed,
@@ -465,9 +506,16 @@ class _PeopleSuggestionTile extends StatelessWidget {
   final VoidCallback onFollowToggle;
 
   @override
+  State<_PeopleSuggestionTile> createState() => _PeopleSuggestionTileState();
+}
+
+class _PeopleSuggestionTileState extends State<_PeopleSuggestionTile> {
+  bool _isExpanded = false;
+
+  @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final Uint8List? avatarBytes = profile.profileImageBase64.isEmpty ? null : base64Decode(profile.profileImageBase64);
+    final Uint8List? avatarBytes = widget.profile.profileImageBase64.isEmpty ? null : base64Decode(widget.profile.profileImageBase64);
     return Container(
       width: 220,
       padding: const EdgeInsets.all(12),
@@ -487,7 +535,7 @@ class _PeopleSuggestionTile extends StatelessWidget {
                 backgroundImage: avatarBytes == null ? null : MemoryImage(avatarBytes),
                 child: avatarBytes == null
                     ? Text(
-                        profile.fullName.isNotEmpty ? profile.fullName[0].toUpperCase() : '?',
+                        widget.profile.fullName.isNotEmpty ? widget.profile.fullName[0].toUpperCase() : '?',
                         style: theme.textTheme.labelLarge,
                       )
                     : null,
@@ -501,20 +549,20 @@ class _PeopleSuggestionTile extends StatelessWidget {
                       children: <Widget>[
                         Flexible(
                           child: Text(
-                            profile.fullName.isNotEmpty ? profile.fullName : profile.email,
+                            widget.profile.fullName.isNotEmpty ? widget.profile.fullName : widget.profile.email,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
                           ),
                         ),
-                        if (profile.isVerified) ...<Widget>[
+                        if (widget.profile.isVerified) ...<Widget>[
                           const SizedBox(width: 4),
                           const Icon(Icons.verified_rounded, size: 15, color: Colors.green),
                         ],
                       ],
                     ),
                     Text(
-                      profile.ward.isNotEmpty ? profile.ward : profile.primaryFocus,
+                      widget.profile.ward.isNotEmpty ? widget.profile.ward : widget.profile.primaryFocus,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall,
@@ -522,22 +570,38 @@ class _PeopleSuggestionTile extends StatelessWidget {
                   ],
                 ),
               ),
+              IconButton(
+                tooltip: _isExpanded ? 'Collapse' : 'Expand',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed: () => setState(() => _isExpanded = !_isExpanded),
+                icon: Icon(_isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded),
+              ),
             ],
           ),
           const SizedBox(height: 10),
           Text(
-            profile.primaryFocus.isNotEmpty ? profile.primaryFocus : 'Farmer profile',
+            widget.profile.primaryFocus.isNotEmpty ? widget.profile.primaryFocus : 'Farmer profile',
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
           ),
+          if (_isExpanded) ...<Widget>[
+            const SizedBox(height: 8),
+            Text(
+              widget.profile.email,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ],
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: FilledButton.tonalIcon(
-              onPressed: onFollowToggle,
-              icon: Icon(isFollowed ? Icons.check_rounded : Icons.person_add_alt_1_rounded, size: 18),
-              label: Text(isFollowed ? 'Following' : 'Follow'),
+              onPressed: widget.onFollowToggle,
+              icon: Icon(widget.isFollowed ? Icons.check_rounded : Icons.person_add_alt_1_rounded, size: 18),
+              label: Text(widget.isFollowed ? 'Following' : 'Follow'),
             ),
           ),
         ],

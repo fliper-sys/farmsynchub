@@ -46,7 +46,10 @@ class FirestoreFarmRepository implements FarmRepository {
 
     try {
       final List<Map<String, dynamic>> records = await _remoteStore.getFromFirestore('farms');
-      final List<Farm> remoteFarms = records.map(Farm.fromJson).toList();
+      final List<Farm> remoteFarms = records
+          .map(Farm.fromJson)
+          .where((Farm farm) => farm.id.isNotEmpty)
+          .toList(growable: false);
       final List<Farm> mergedFarms = _mergeFarms(
         local: syncedLocalFarms,
         remote: remoteFarms,

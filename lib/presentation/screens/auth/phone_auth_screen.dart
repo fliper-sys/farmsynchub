@@ -98,7 +98,7 @@ class _PhoneAuthScreenState extends ConsumerState<PhoneAuthScreen> {
           ] else ...<Widget>[
             const AuthInfoBanner(
               icon: Icons.sms_rounded,
-              color: const Color(0xFFE7F7DE),
+              color: Color(0xFFE7F7DE),
               message: 'Code sent to the phone number you entered.',
             ),
             const SizedBox(height: 14),

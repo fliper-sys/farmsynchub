@@ -10,6 +10,31 @@ import '../../domain/models/verified_badge_request.dart';
 import '../repositories/farm_repository.dart';
 import 'operations_hub_remote_store.dart';
 
+List<Map<String, dynamic>> mergeFirestoreRecords(
+  List<Map<String, dynamic>> preferred,
+  List<Map<String, dynamic>> fallback,
+) {
+  final Map<String, Map<String, dynamic>> merged = <String, Map<String, dynamic>>{};
+
+  for (final Map<String, dynamic> record in preferred) {
+    final String? id = record['id'] as String?;
+    if (id == null || id.trim().isEmpty) {
+      continue;
+    }
+    merged[id] = record;
+  }
+
+  for (final Map<String, dynamic> record in fallback) {
+    final String? id = record['id'] as String?;
+    if (id == null || id.trim().isEmpty || merged.containsKey(id)) {
+      continue;
+    }
+    merged[id] = record;
+  }
+
+  return merged.values.toList(growable: false);
+}
+
 /// Firebase service for authentication and cloud operations.
 class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
   FirebaseAuth get _auth => FirebaseAuth.instance;
@@ -406,6 +431,7 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
   }
 
   /// Sync data to Firestore
+  @override
   Future<void> syncToFirestore(String collection, Map<String, dynamic> data) async {
     final userId = currentUser?.uid;
     if (userId == null) throw Exception('User not authenticated');
@@ -420,37 +446,65 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
         .collection(collection)
         .doc(documentId)
         .set(data, SetOptions(merge: true));
+
+    try {
+      await _firestore.collection(collection).doc(documentId).set(data, SetOptions(merge: true));
+    } catch (_) {
+      // Ignore shared write failures so the user-scoped copy still persists.
+    }
   }
 
   /// Get data from Firestore
+  @override
   Future<List<Map<String, dynamic>>> getFromFirestore(String collection) async {
     final userId = currentUser?.uid;
     if (userId == null) throw Exception('User not authenticated');
 
-    final snapshot = await _firestore
-        .collection('users')
-        .doc(userId)
-        .collection(collection)
-        .get();
+    final List<Map<String, dynamic>> userScoped = <Map<String, dynamic>>[];
+    final List<Map<String, dynamic>> globalScoped = <Map<String, dynamic>>[];
 
-    return snapshot.docs.map((doc) => doc.data()).toList();
+    try {
+      final userSnapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection(collection)
+          .get();
+      userScoped.addAll(userSnapshot.docs.map((doc) => doc.data()).toList(growable: false));
+    } catch (_) {
+      // Ignore user-scoped read failures and continue to fall back to shared records.
+    }
+
+    try {
+      final globalSnapshot = await _firestore.collection(collection).get();
+      globalScoped.addAll(globalSnapshot.docs.map((doc) => doc.data()).toList(growable: false));
+    } catch (_) {
+      // Ignore global read failures if the collection is unavailable.
+    }
+
+    return mergeFirestoreRecords(userScoped, globalScoped);
   }
 
   Future<Map<String, dynamic>?> getDocumentFromFirestore(String collection, String id) async {
     final userId = currentUser?.uid;
     if (userId == null) throw Exception('User not authenticated');
 
-    final snapshot = await _firestore
+    final userSnapshot = await _firestore
         .collection('users')
         .doc(userId)
         .collection(collection)
         .doc(id)
         .get();
 
-    return snapshot.data();
+    if (userSnapshot.exists) {
+      return userSnapshot.data();
+    }
+
+    final globalSnapshot = await _firestore.collection(collection).doc(id).get();
+    return globalSnapshot.data();
   }
 
   /// Delete from Firestore
+  @override
   Future<void> deleteFromFirestore(String collection, String id) async {
     final userId = currentUser?.uid;
     if (userId == null) throw Exception('User not authenticated');
@@ -461,6 +515,12 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
         .collection(collection)
         .doc(id)
         .delete();
+
+    try {
+      await _firestore.collection(collection).doc(id).delete();
+    } catch (_) {
+      // Ignore shared delete failures so the user-scoped delete still succeeds.
+    }
   }
 
   Future<void> syncGlobalToFirestore(String collection, Map<String, dynamic> data) async {
@@ -526,6 +586,7 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
   Future<void> createInvite({
     required String id,
     required String email,
+    String? name,
     required String farmId,
     required String role,
     required List<String> allowedFarmIds,
@@ -536,6 +597,7 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
       <String, dynamic>{
         'id': id,
         'email': email,
+        'name': name ?? '',
         'farmId': farmId,
         'role': role,
         'allowedFarmIds': allowedFarmIds,
@@ -544,6 +606,75 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
       },
       SetOptions(merge: true),
     );
+  }
+
+  /// Accept an invite by token and claim the workspace member entry for the new user.
+  Future<void> acceptInvite({
+    required String inviteId,
+    required String newUid,
+    String? fullName,
+  }) async {
+    final Map<String, dynamic>? invite = await getGlobalDocumentFromFirestore('invites', inviteId);
+    if (invite == null) {
+      throw Exception('Invite not found');
+    }
+    final String farmId = invite['farmId'] as String? ?? '';
+    final String email = invite['email'] as String? ?? '';
+
+    if (farmId.isEmpty) {
+      throw Exception('Invalid invite: missing farm id');
+    }
+
+    final Map<String, dynamic>? farmDoc = await getGlobalDocumentFromFirestore('farms', farmId);
+    if (farmDoc == null) {
+      throw Exception('Farm not found');
+    }
+
+    // Update workspaceMembers matching the invited email to use the new uid and activate.
+    final List<dynamic> membersRaw = farmDoc['workspaceMembers'] as List<dynamic>? ?? <dynamic>[];
+    final DateTime now = DateTime.now();
+    bool updated = false;
+    final List<Map<String, dynamic>> updatedMembers = <Map<String, dynamic>>[];
+    for (final dynamic raw in membersRaw) {
+      final Map<String, dynamic> m = Map<String, dynamic>.from(raw as Map);
+      if ((m['email'] as String? ?? '').toLowerCase() == email.toLowerCase()) {
+        m['id'] = newUid;
+        m['name'] = (fullName != null && fullName.trim().isNotEmpty) ? fullName.trim() : (m['name'] as String? ?? '');
+        m['isActive'] = true;
+        m['updatedAt'] = now.toIso8601String();
+        updated = true;
+      }
+      updatedMembers.add(m);
+    }
+
+    if (!updated) {
+      // If no placeholder member existed, add a new member record.
+      final Map<String, dynamic> newMember = <String, dynamic>{
+        'id': newUid,
+        'name': fullName ?? '',
+        'email': email,
+        'phone': '',
+        'role': invite['role'] as String? ?? 'worker',
+        'allowedFarmIds': invite['allowedFarmIds'] as List<dynamic>? ?? <String>[farmId],
+        'financeAccess': 'none',
+        'canManageTasks': false,
+        'canManageSchedule': false,
+        'canPostUpdates': true,
+        'canViewActivityLog': true,
+        'isActive': true,
+        'createdAt': now.toIso8601String(),
+        'updatedAt': now.toIso8601String(),
+      };
+      updatedMembers.insert(0, newMember);
+    }
+
+    // write back farm document with updated members
+    farmDoc['workspaceMembers'] = updatedMembers;
+    farmDoc['updatedAt'] = now.toIso8601String();
+    await syncGlobalToFirestore('farms', farmDoc);
+
+    // remove or mark invite accepted
+    await _firestore.collection('invites').doc(inviteId).delete();
   }
 
   Future<void> _createDefaultUserProfile({

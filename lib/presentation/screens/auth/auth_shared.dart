@@ -237,7 +237,7 @@ class _LeafHero extends StatelessWidget {
             ),
           ),
         ),
-        Positioned(
+        const Positioned(
           right: 22,
           top: 86,
           child: _HeroPhotoTile(
@@ -245,7 +245,7 @@ class _LeafHero extends StatelessWidget {
             size: 124,
           ),
         ),
-        Positioned(
+        const Positioned(
           right: 84,
           top: 170,
           child: _HeroPhotoTile(

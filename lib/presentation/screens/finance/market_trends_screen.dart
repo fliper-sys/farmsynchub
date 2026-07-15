@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../../../core/services/gemini_service.dart';
+import '../../../core/services/market_data_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../domain/models/farm.dart';
@@ -32,11 +34,19 @@ class _MarketTrendsScreenState extends ConsumerState<MarketTrendsScreen> {
   bool _showLocalOnly = false;
   String _deviceLocationLabel = '';
   bool _isResolvingLocation = false;
+  bool _isLoadingLiveMarketData = false;
+  String _lastRequestedLocation = '';
+  List<MarketPricePoint> _liveMarketPrices = const <MarketPricePoint>[];
 
   @override
   void initState() {
     super.initState();
     _searchController = TextEditingController();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadLiveMarketData();
+      }
+    });
     _searchController.addListener(() {
       if (mounted) {
         setState(() => _searchText = _searchController.text.trim().toLowerCase());
@@ -90,6 +100,39 @@ class _MarketTrendsScreenState extends ConsumerState<MarketTrendsScreen> {
       final bool matchesLocal = !_showLocalOnly || group.isLocalTo(locationFocus);
       return matchesSearch && matchesLocal;
     }).toList(growable: false);
+
+    if (locationFocus.isNotEmpty && locationFocus != _lastRequestedLocation) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _loadLiveMarketData(location: locationFocus, products: visible.take(4).map((group) => group.productName).toList(growable: false));
+        }
+      });
+    }
+
+    final String aiInsight = GeminiService.instance.buildLocalMarketTrendInsight(
+      location: locationFocus,
+      trendData: visible
+          .take(4)
+          .map((group) => <String, dynamic>{
+                'productName': group.productName,
+                'currentPrice': group.latestPrice,
+                'previousAverage': group.previousAverage,
+                'proposedFuturePrice': group.proposedFuturePrice,
+                'unit': group.unit,
+                'trendPercent': group.trendPercent,
+                'direction': group.isRising ? 'rising' : 'falling',
+              })
+          .toList(growable: false),
+      nearbyMarketData: _liveMarketPrices
+          .take(3)
+          .map((point) => <String, dynamic>{
+                'productName': point.productName,
+                'price': point.price,
+                'unit': point.unit,
+                'marketName': point.marketName,
+              })
+          .toList(growable: false),
+    );
 
     return SoftScreenScaffold(
       onBack: () => Navigator.of(context).canPop() ? Navigator.of(context).pop() : context.go('/finance'),
@@ -191,6 +234,43 @@ class _MarketTrendsScreenState extends ConsumerState<MarketTrendsScreen> {
           ],
         ),
         const SizedBox(height: 18),
+        AppCard(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    const Icon(Icons.auto_awesome_rounded, size: 18),
+                    const SizedBox(width: 8),
+                    Text('AI market outlook', style: Theme.of(context).textTheme.titleMedium),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(aiInsight, style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5)),
+                if (_isLoadingLiveMarketData) ...<Widget>[
+                  const SizedBox(height: 8),
+                  const Text('Refreshing nearby market feed...'),
+                ],
+                if (_liveMarketPrices.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 8),
+                  Text('Nearby market snapshot', style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 6),
+                  ..._liveMarketPrices.take(3).map((MarketPricePoint point) => Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          '• ${point.productName} @ ${point.marketName}: ${CurrencyUtils.formatCurrency(point.price)}/${point.unit}',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.4),
+                        ),
+                      )),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
         if (visible.isEmpty)
           const _EmptyTrendState()
         else
@@ -222,6 +302,55 @@ class _MarketTrendsScreenState extends ConsumerState<MarketTrendsScreen> {
         ),
       ],
     );
+  }
+
+  Future<void> _loadLiveMarketData({String? location, List<String>? products}) async {
+    final String currentLocation = (location ?? _deviceLocationLabel).trim();
+    final List<String> selectedProducts = (products ?? <String>[]).where((String item) => item.trim().isNotEmpty).toList(growable: false);
+    if (currentLocation.isEmpty || selectedProducts.isEmpty) {
+      return;
+    }
+
+    if (_lastRequestedLocation == currentLocation && _liveMarketPrices.isNotEmpty) {
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _isLoadingLiveMarketData = true;
+      _lastRequestedLocation = currentLocation;
+    });
+
+    try {
+      final MarketDataService service = MarketDataService(
+        baseUrl: const String.fromEnvironment('MARKET_API_BASE_URL', defaultValue: ''),
+        apiKey: const String.fromEnvironment('MARKET_API_KEY', defaultValue: ''),
+      );
+      final List<MarketPricePoint> prices = await service.fetchNearbyMarketPrices(
+        location: currentLocation,
+        products: selectedProducts,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _liveMarketPrices = prices;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _liveMarketPrices = const <MarketPricePoint>[];
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingLiveMarketData = false;
+        });
+      }
+    }
   }
 
   Future<void> _resolveLocation() async {
@@ -265,6 +394,7 @@ class _MarketTrendsScreenState extends ConsumerState<MarketTrendsScreen> {
         _deviceLocationLabel = label.isNotEmpty ? label : 'Current location';
         _showLocalOnly = true;
       });
+      await _loadLiveMarketData(location: _deviceLocationLabel, products: <String>['maize', 'eggs', 'feed']);
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

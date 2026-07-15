@@ -1,3 +1,4 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -187,12 +188,18 @@ class _PostAuthGateScreenState extends ConsumerState<PostAuthGateScreen>
     }
     final bool hasCompletedWalkthrough =
         userId == null ? false : await UserWalkthroughPreferences.isCompleted(userId);
+    final ConnectivityResult connectivity = await Connectivity().checkConnectivity();
+    final bool isOffline = connectivity == ConnectivityResult.none;
     if (!mounted) {
       return;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (profile?.isDisabled == true) {
         context.go('/account-restricted');
+        return;
+      }
+      if (isOffline) {
+        context.go(hasCompletedWalkthrough ? '/dashboard' : '/app-tour');
         return;
       }
       if (profile?.isComplete != true) {

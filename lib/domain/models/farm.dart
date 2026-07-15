@@ -491,6 +491,8 @@ class Farm {
     this.humidityPercent = 0,
     this.soilMoisturePercent = 0,
     this.precipitationMm = 0,
+    this.latitude,
+    this.longitude,
     this.greenhouseCount = 0,
     this.greenhouseAreaHa = 0,
     this.cropCapacityHa = 0,
@@ -522,6 +524,8 @@ class Farm {
   final double humidityPercent;
   final double soilMoisturePercent;
   final double precipitationMm;
+  final double? latitude;
+  final double? longitude;
   final int greenhouseCount;
   final double greenhouseAreaHa;
   final double cropCapacityHa;
@@ -560,6 +564,8 @@ class Farm {
     double? humidityPercent,
     double? soilMoisturePercent,
     double? precipitationMm,
+    double? latitude,
+    double? longitude,
     int? greenhouseCount,
     double? greenhouseAreaHa,
     double? cropCapacityHa,
@@ -591,6 +597,8 @@ class Farm {
       humidityPercent: humidityPercent ?? this.humidityPercent,
       soilMoisturePercent: soilMoisturePercent ?? this.soilMoisturePercent,
       precipitationMm: precipitationMm ?? this.precipitationMm,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
       greenhouseCount: greenhouseCount ?? this.greenhouseCount,
       greenhouseAreaHa: greenhouseAreaHa ?? this.greenhouseAreaHa,
       cropCapacityHa: cropCapacityHa ?? this.cropCapacityHa,
@@ -624,6 +632,8 @@ class Farm {
         'humidityPercent': humidityPercent,
         'soilMoisturePercent': soilMoisturePercent,
         'precipitationMm': precipitationMm,
+        'latitude': latitude,
+        'longitude': longitude,
         'greenhouseCount': greenhouseCount,
         'greenhouseAreaHa': greenhouseAreaHa,
         'cropCapacityHa': cropCapacityHa,
@@ -668,6 +678,8 @@ class Farm {
         humidityPercent: (json['humidityPercent'] as num?)?.toDouble() ?? 0,
         soilMoisturePercent: (json['soilMoisturePercent'] as num?)?.toDouble() ?? 0,
         precipitationMm: (json['precipitationMm'] as num?)?.toDouble() ?? 0,
+        latitude: (json['latitude'] as num?)?.toDouble(),
+        longitude: (json['longitude'] as num?)?.toDouble(),
         greenhouseCount: (json['greenhouseCount'] as num?)?.toInt() ?? 0,
         greenhouseAreaHa: (json['greenhouseAreaHa'] as num?)?.toDouble() ?? 0,
         cropCapacityHa: (json['cropCapacityHa'] as num?)?.toDouble() ?? 0,

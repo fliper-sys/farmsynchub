@@ -885,7 +885,7 @@ class _CropFormSheetState extends State<_CropFormSheet> {
     };
     final int base = baseCycleDays[key] ?? 90;
     final int protectedBonus = protectedEnvironment ? -7 : 0;
-    return ((base + protectedBonus).clamp(45, 540) as int);
+    return (base + protectedBonus).clamp(45, 540);
   }
 
   int _stageOffsetDays(CropStage stage) {

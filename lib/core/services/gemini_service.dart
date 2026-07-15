@@ -325,6 +325,52 @@ class GeminiService {
     );
   }
 
+  String buildLocalMarketTrendInsight({
+    required String location,
+    required List<Map<String, dynamic>> trendData,
+    List<Map<String, dynamic>>? nearbyMarketData,
+  }) {
+    if (trendData.isEmpty) {
+      return 'No market trend data is available for $location yet. Add sales, procurement, or inventory records to generate a local price outlook.';
+    }
+
+    final List<String> bullets = <String>[];
+    for (final Map<String, dynamic> item in trendData.take(4)) {
+      final String product = item['productName'] as String? ?? 'product';
+      final String unit = item['unit'] as String? ?? 'unit';
+      final double currentPrice = (item['currentPrice'] as num?)?.toDouble() ?? 0;
+      final double previousAverage = (item['previousAverage'] as num?)?.toDouble() ?? 0;
+      final double proposedFuturePrice = (item['proposedFuturePrice'] as num?)?.toDouble() ?? 0;
+      final double trendPercent = (item['trendPercent'] as num?)?.toDouble() ?? 0;
+      final String direction = item['direction'] as String? ?? 'steady';
+      final String directionLabel = direction == 'rising' ? 'rising' : direction == 'falling' ? 'falling' : 'steady';
+      bullets.add('- $product: current price ${CurrencyUtils.formatCurrency(currentPrice)}/$unit, previous average ${CurrencyUtils.formatCurrency(previousAverage)}, future estimate ${CurrencyUtils.formatCurrency(proposedFuturePrice)}. Trend is $directionLabel at ${trendPercent.toStringAsFixed(1)}%.');
+    }
+
+    final List<String> nearbyBullets = <String>[];
+    for (final Map<String, dynamic> item in nearbyMarketData?.take(3) ?? const <Map<String, dynamic>>[]) {
+      final String product = item['productName'] as String? ?? 'product';
+      final double price = (item['price'] as num?)?.toDouble() ?? 0;
+      final String unit = item['unit'] as String? ?? 'unit';
+      final String market = item['marketName'] as String? ?? 'nearby market';
+      nearbyBullets.add('- $product at $market: ${CurrencyUtils.formatCurrency(price)}/$unit.');
+    }
+
+    final String nearbySection = nearbyBullets.isEmpty
+        ? '- Nearby live market feed is unavailable right now. Use your own recorded history for the base outlook.'
+        : 'Nearby market snapshot\n${nearbyBullets.join('\n')}';
+
+    return '''Market outlook for $location
+- Based on your recorded prices and recent movement, the local market trend looks practical and data-driven.
+- Focus on the products below when planning sales, stocking, or procurement decisions.
+${bullets.join('\n')}
+
+$nearbySection
+
+Future estimate
+- Treat these figures as planning estimates only. Confirm with nearby buyers and current market checks before large decisions.''';
+  }
+
   List<String> getSuggestedQuestions(AiTopic topic) => _kSuggestedQuestions[topic] ?? const <String>[];
 
   void clearHistory(AiTopic topic) {

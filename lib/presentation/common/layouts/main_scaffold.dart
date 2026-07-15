@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -165,57 +166,28 @@ class MainScaffold extends ConsumerWidget {
         child: floatingActionButton,
       ),
       bottomNavigationBar: showBottomNavigation
-          ? SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(color: colorScheme.outlineVariant),
-                    boxShadow: <BoxShadow>[
-                      BoxShadow(
-                        color: Theme.of(context).brightness == Brightness.light
-                            ? AppColors.primary.withOpacity(0.08)
-                            : Colors.black.withOpacity(0.22),
-                        blurRadius: 30,
-                        offset: const Offset(0, 12),
+          ? _PremiumBottomNavigation(
+              currentIndex: currentIndex,
+              destinations: destinations,
+              isCompact: isCompactNavigation,
+              onDestinationSelected: (int index) {
+                final String featureKey = _featureKeyForIndex(index);
+                if (profile?.restrictedFeatures.contains(featureKey) == true) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        language.tr(
+                          en: 'This section is restricted for your account.',
+                          ha: 'An takaita wannan sashe a asusun ka.',
+                          fr: 'Cette section est restreinte pour votre compte.',
+                        ),
                       ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(30),
-                    child: NavigationBar(
-                      height: isCompactNavigation ? 68 : 80,
-                      labelBehavior: isCompactNavigation
-                          ? NavigationDestinationLabelBehavior.onlyShowSelected
-                          : NavigationDestinationLabelBehavior.alwaysShow,
-                      animationDuration: const Duration(milliseconds: 220),
-                      selectedIndex: currentIndex,
-                      destinations: destinations,
-                      onDestinationSelected: (int index) {
-                        final String featureKey = _featureKeyForIndex(index);
-                        if (profile?.restrictedFeatures.contains(featureKey) == true) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                language.tr(
-                                  en: 'This section is restricted for your account.',
-                                  ha: 'An takaita wannan sashe a asusun ka.',
-                                  fr: 'Cette section est restreinte pour votre compte.',
-                                ),
-                              ),
-                            ),
-                          );
-                          return;
-                        }
-                        onDestinationSelected(index);
-                      },
                     ),
-                  ),
-                ),
-              ),
+                  );
+                  return;
+                }
+                onDestinationSelected(index);
+              },
             )
           : null,
     );
@@ -355,6 +327,168 @@ String _featureKeyForIndex(int index) {
       return 'profile';
     default:
       return 'dashboard';
+  }
+}
+
+class _PremiumBottomNavigation extends StatelessWidget {
+  const _PremiumBottomNavigation({
+    required this.currentIndex,
+    required this.destinations,
+    required this.onDestinationSelected,
+    required this.isCompact,
+  });
+
+  final int currentIndex;
+  final List<NavigationDestination> destinations;
+  final ValueChanged<int> onDestinationSelected;
+  final bool isCompact;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final double height = isCompact ? 78 : 88;
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+            child: Container(
+              height: height,
+              padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? AppColors.darkBottomNavigation.withOpacity(0.90)
+                    : Colors.white.withOpacity(0.90),
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(
+                  color: isDark ? AppColors.darkBorder : theme.colorScheme.outlineVariant,
+                ),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: isDark
+                        ? AppColors.premiumGreen.withOpacity(0.12)
+                        : AppColors.primary.withOpacity(0.10),
+                    blurRadius: 34,
+                    offset: const Offset(0, 18),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: List<Widget>.generate(destinations.length, (int index) {
+                  final NavigationDestination destination = destinations[index];
+                  final bool selected = index == currentIndex;
+                  return Expanded(
+                    child: _PremiumNavItem(
+                      selected: selected,
+                      label: destination.label,
+                      icon: selected
+                          ? (destination.selectedIcon ?? destination.icon ?? const SizedBox.shrink())
+                          : (destination.icon ?? const SizedBox.shrink()),
+                      isCompact: isCompact,
+                      onTap: () => onDestinationSelected(index),
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PremiumNavItem extends StatelessWidget {
+  const _PremiumNavItem({
+    required this.selected,
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    required this.isCompact,
+  });
+
+  final bool selected;
+  final String label;
+  final Widget icon;
+  final VoidCallback onTap;
+  final bool isCompact;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color inactive = isDark ? const Color(0xFF9CA3AF) : theme.colorScheme.onSurfaceVariant;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        padding: EdgeInsets.symmetric(horizontal: selected && !isCompact ? 10 : 6, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: selected
+              ? const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: <Color>[
+                    Color(0xFF0B3D2D),
+                    Color(0xFF102A26),
+                  ],
+                )
+              : null,
+          boxShadow: selected
+              ? <BoxShadow>[
+                  BoxShadow(
+                    color: AppColors.premiumGreen.withOpacity(0.28),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            AnimatedScale(
+              scale: selected ? 1.12 : 1,
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              child: IconTheme(
+                data: IconThemeData(
+                  color: selected ? AppColors.premiumGreen : inactive,
+                  size: 24,
+                ),
+                child: icon,
+              ),
+            ),
+            const SizedBox(height: 5),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              style: theme.textTheme.labelSmall!.copyWith(
+                color: selected ? AppColors.premiumGreen : inactive,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                fontSize: selected ? 11.5 : 11,
+              ),
+              child: Text(
+                isCompact && !selected ? '' : label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

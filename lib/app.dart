@@ -7,6 +7,10 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 
+import 'domain/models/crop.dart';
+import 'domain/models/farm.dart';
+import 'domain/models/farm_activity.dart';
+import 'domain/models/livestock.dart';
 import 'domain/models/notification.dart' as domain;
 import 'data/remote/firebase_service.dart';
 import 'core/services/farm_notification_service.dart';
@@ -20,6 +24,7 @@ import 'presentation/screens/auth/account_restricted_screen.dart';
 import 'presentation/screens/auth/post_auth_gate_screen.dart';
 import 'presentation/screens/auth/phone_auth_screen.dart';
 import 'presentation/screens/auth/register_screen.dart';
+import 'presentation/screens/auth/invite_accept_screen.dart';
 import 'presentation/screens/auth/verify_email_screen.dart';
 import 'presentation/screens/admin/admin_dashboard_screen.dart';
 import 'presentation/screens/admin/admin_login_screen.dart';
@@ -54,6 +59,9 @@ import 'presentation/screens/onboarding/app_tour_screen.dart';
 import 'presentation/screens/notifications/notifications_screen.dart';
 import 'presentation/screens/notifications/notification_detail_screen.dart';
 import 'providers/app_preferences_provider.dart';
+import 'providers/crop_provider.dart';
+import 'providers/farm_provider.dart';
+import 'providers/livestock_provider.dart';
 import 'providers/notification_provider.dart';
 import 'providers/theme_provider.dart';
 
@@ -76,12 +84,16 @@ class _FarmsyncAppState extends ConsumerState<FarmsyncApp> {
   }
 
   Future<void> _initializeMessaging() async {
-    await ref.read(firebaseMessagingServiceProvider).initialize();
-    _messageSubscription = FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-    _appOpenSubscription = FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpen);
-    final RemoteMessage? initialMessage = await FirebaseMessaging.instance.getInitialMessage();
-    if (initialMessage != null) {
-      _handleMessageOpen(initialMessage);
+    try {
+      await ref.read(firebaseMessagingServiceProvider).initialize();
+      _messageSubscription = FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+      _appOpenSubscription = FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpen);
+      final RemoteMessage? initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+      if (initialMessage != null) {
+        _handleMessageOpen(initialMessage);
+      }
+    } catch (error) {
+      debugPrint('[Messaging] Startup initialization skipped: $error');
     }
   }
 
@@ -147,9 +159,374 @@ class _FarmsyncAppState extends ConsumerState<FarmsyncApp> {
         GlobalCupertinoLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
       ],
+      builder: (BuildContext context, Widget? child) {
+        return StartupResumePrompt(child: child ?? const SizedBox.shrink());
+      },
       routerConfig: _router,
       debugShowCheckedModeBanner: false,
     );
+  }
+}
+
+class StartupResumePrompt extends ConsumerStatefulWidget {
+  const StartupResumePrompt({
+    super.key,
+    required this.child,
+  });
+
+  final Widget child;
+
+  @override
+  ConsumerState<StartupResumePrompt> createState() => _StartupResumePromptState();
+}
+
+class _StartupResumePromptState extends ConsumerState<StartupResumePrompt> {
+  bool _shownThisLaunch = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<domain.Notification> notifications = ref.watch(notificationsProvider);
+    final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
+    final List<Crop> crops = ref.watch(cropsProvider).valueOrNull ?? <Crop>[];
+    final List<Livestock> livestock = ref.watch(livestockProvider).valueOrNull ?? <Livestock>[];
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeShowPrompt(
+        notifications: notifications,
+        farms: farms,
+        crops: crops,
+        livestock: livestock,
+      );
+    });
+
+    return widget.child;
+  }
+
+  Future<void> _maybeShowPrompt({
+    required List<domain.Notification> notifications,
+    required List<Farm> farms,
+    required List<Crop> crops,
+    required List<Livestock> livestock,
+  }) async {
+    if (_shownThisLaunch || !mounted) {
+      return;
+    }
+    final User? user = FirebaseService().currentUser;
+    if (user == null || (user.email?.isNotEmpty == true && !user.emailVerified)) {
+      return;
+    }
+
+    final _ResumeSummary summary = _buildResumeSummary(
+      notifications: notifications,
+      farms: farms,
+      crops: crops,
+      livestock: livestock,
+    );
+    if (!summary.hasContent) {
+      return;
+    }
+
+    _shownThisLaunch = true;
+    final String? route = await showDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) => _ResumeDialog(summary: summary),
+    );
+    if (!mounted || route == null || route.isEmpty) {
+      return;
+    }
+    context.go(route);
+  }
+}
+
+class _ResumeSummary {
+  const _ResumeSummary({
+    required this.latestAction,
+    required this.upcomingSchedules,
+    required this.openTodos,
+    required this.primaryRoute,
+  });
+
+  final _ResumeItem? latestAction;
+  final List<_ResumeItem> upcomingSchedules;
+  final List<_ResumeItem> openTodos;
+  final String primaryRoute;
+
+  bool get hasContent => latestAction != null || upcomingSchedules.isNotEmpty || openTodos.isNotEmpty;
+}
+
+class _ResumeItem {
+  const _ResumeItem({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.route,
+    required this.date,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final String route;
+  final DateTime date;
+}
+
+_ResumeSummary _buildResumeSummary({
+  required List<domain.Notification> notifications,
+  required List<Farm> farms,
+  required List<Crop> crops,
+  required List<Livestock> livestock,
+}) {
+  final DateTime now = DateTime.now();
+  final domain.Notification? latestNotification = notifications.isEmpty ? null : notifications.first;
+  final _ResumeItem? latestAction = latestNotification == null
+      ? null
+      : _ResumeItem(
+          title: latestNotification.title,
+          subtitle: latestNotification.message,
+          icon: Icons.notifications_active_rounded,
+          route: latestNotification.actionUrl?.isNotEmpty == true ? latestNotification.actionUrl! : '/notifications',
+          date: latestNotification.timestamp,
+        );
+
+  final List<_ResumeItem> schedules = farms
+      .expand(
+        (Farm farm) => farm.workspaceTasks
+            .where((FarmWorkspaceTask task) => !task.isCompleted && task.dueAt.isAfter(now.subtract(const Duration(hours: 2))))
+            .map(
+              (FarmWorkspaceTask task) => _ResumeItem(
+                title: task.title,
+                subtitle: '${farm.name} - ${_friendlyDueLabel(task.dueAt)}',
+                icon: Icons.schedule_rounded,
+                route: '/farms',
+                date: task.dueAt,
+              ),
+            ),
+      )
+      .toList()
+    ..sort((_ResumeItem a, _ResumeItem b) => a.date.compareTo(b.date));
+
+  final List<_ResumeItem> todos = <_ResumeItem>[
+    ...crops.expand(
+      (Crop crop) => crop.todoItems.where((FarmTodoItem item) => !item.isCompleted).map(
+            (FarmTodoItem item) => _ResumeItem(
+              title: item.title,
+              subtitle: '${crop.name} - ${_friendlyDueLabel(item.dueDate)}',
+              icon: Icons.spa_rounded,
+              route: '/crops',
+              date: item.dueDate,
+            ),
+          ),
+    ),
+    ...livestock.expand(
+      (Livestock item) => item.todoItems.where((FarmTodoItem task) => !task.isCompleted).map(
+            (FarmTodoItem task) => _ResumeItem(
+              title: task.title,
+              subtitle: '${_speciesLabelForResume(item.species)} - ${_friendlyDueLabel(task.dueDate)}',
+              icon: Icons.pets_rounded,
+              route: '/livestock',
+              date: task.dueDate,
+            ),
+          ),
+    ),
+  ]..sort((_ResumeItem a, _ResumeItem b) => a.date.compareTo(b.date));
+
+  final String primaryRoute = schedules.isNotEmpty
+      ? schedules.first.route
+      : todos.isNotEmpty
+          ? todos.first.route
+          : latestAction?.route ?? '/dashboard';
+
+  return _ResumeSummary(
+    latestAction: latestAction,
+    upcomingSchedules: schedules.take(3).toList(growable: false),
+    openTodos: todos.take(3).toList(growable: false),
+    primaryRoute: primaryRoute,
+  );
+}
+
+class _ResumeDialog extends StatelessWidget {
+  const _ResumeDialog({required this.summary});
+
+  final _ResumeSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: scheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Icon(Icons.playlist_add_check_circle_rounded, color: scheme.onPrimaryContainer),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text('Welcome back', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 3),
+                        Text('Your latest farm work is ready to continue.', style: theme.textTheme.bodySmall),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              if (summary.latestAction != null) ...<Widget>[
+                const _ResumeSectionTitle(label: 'Most recent action'),
+                _ResumeTile(item: summary.latestAction!),
+                const SizedBox(height: 14),
+              ],
+              if (summary.upcomingSchedules.isNotEmpty) ...<Widget>[
+                const _ResumeSectionTitle(label: 'Upcoming schedules'),
+                ...summary.upcomingSchedules.map((item) => _ResumeTile(item: item)),
+                const SizedBox(height: 14),
+              ],
+              if (summary.openTodos.isNotEmpty) ...<Widget>[
+                const _ResumeSectionTitle(label: 'Open todos'),
+                ...summary.openTodos.map((item) => _ResumeTile(item: item)),
+                const SizedBox(height: 16),
+              ],
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Later'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.of(context).pop(summary.primaryRoute),
+                      icon: const Icon(Icons.arrow_forward_rounded),
+                      label: const Text('Continue'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ResumeSectionTitle extends StatelessWidget {
+  const _ResumeSectionTitle({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        label.toUpperCase(),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.4,
+            ),
+      ),
+    );
+  }
+}
+
+class _ResumeTile extends StatelessWidget {
+  const _ResumeTile({required this.item});
+
+  final _ResumeItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(item.icon, color: theme.colorScheme.onPrimaryContainer, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleSmall),
+                const SizedBox(height: 3),
+                Text(item.subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _friendlyDueLabel(DateTime date) {
+  final DateTime now = DateTime.now();
+  final DateTime today = DateTime(now.year, now.month, now.day);
+  final DateTime dueDay = DateTime(date.year, date.month, date.day);
+  final int dayDelta = dueDay.difference(today).inDays;
+  final String time = '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  if (dayDelta < 0) {
+    return 'Overdue';
+  }
+  if (dayDelta == 0) {
+    return 'Today at $time';
+  }
+  if (dayDelta == 1) {
+    return 'Tomorrow at $time';
+  }
+  return '${date.day}/${date.month}/${date.year} at $time';
+}
+
+String _speciesLabelForResume(LivestockSpecies species) {
+  switch (species) {
+    case LivestockSpecies.goat:
+      return 'Goats';
+    case LivestockSpecies.chicken:
+      return 'Chickens';
+    case LivestockSpecies.pig:
+      return 'Pigs';
+    case LivestockSpecies.cattle:
+      return 'Cattle';
+    case LivestockSpecies.sheep:
+      return 'Sheep';
   }
 }
 
@@ -187,6 +564,13 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => const RegisterScreen(),
       redirect: (context, state) {
         return _postAuthRouteForUser(FirebaseService().currentUser);
+      },
+    ),
+    GoRoute(
+      path: '/invite/:token',
+      builder: (context, state) {
+        final String token = state.pathParameters['token'] ?? '';
+        return InviteAcceptScreen(token: token);
       },
     ),
     GoRoute(

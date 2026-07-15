@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/remote/firebase_service.dart';
@@ -6,7 +8,11 @@ import 'auth_provider.dart';
 
 final userProfileProvider =
     StateNotifierProvider<UserProfileController, AsyncValue<UserProfile?>>((ref) {
-  return UserProfileController(ref.watch(firebaseServiceProvider));
+  final UserProfileController controller = UserProfileController(ref.watch(firebaseServiceProvider));
+  ref.listen(authStateProvider, (_, __) {
+    controller.loadProfile();
+  });
+  return controller;
 });
 
 class UserProfileController extends StateNotifier<AsyncValue<UserProfile?>> {
@@ -34,6 +40,7 @@ class UserProfileController extends StateNotifier<AsyncValue<UserProfile?>> {
     if (!mounted) {
       return;
     }
+
     state = const AsyncValue.loading();
     try {
       final UserProfile? profile = await _firebaseService.getUserProfile();
@@ -53,13 +60,19 @@ class UserProfileController extends StateNotifier<AsyncValue<UserProfile?>> {
     if (!mounted) {
       return;
     }
-    state = const AsyncValue.loading();
+
     try {
       await _firebaseService.saveUserProfile(profile);
       if (!mounted) {
         return;
       }
-      state = AsyncValue.data(profile);
+
+      final UserProfile? persistedProfile = await _firebaseService.getUserProfile();
+      if (!mounted) {
+        return;
+      }
+
+      state = AsyncValue.data(persistedProfile ?? profile);
     } catch (error, stackTrace) {
       if (!mounted) {
         return;

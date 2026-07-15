@@ -55,7 +55,7 @@ class _AdminUserDetailScreenState extends ConsumerState<AdminUserDetailScreen> {
         message: 'Use the hidden admin login to edit user profiles and restrictions.',
       );
     }
-    final UserProfile? user = adminState.users.firstWhere(
+    final UserProfile user = adminState.users.firstWhere(
       (UserProfile item) => item.uid == widget.userId,
       orElse: () => UserProfile(
         uid: '',

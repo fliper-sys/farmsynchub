@@ -81,7 +81,7 @@ class _LessonCertificateScreenState extends State<LessonCertificateScreen> {
                     const SizedBox(height: 4),
                     Text('Completed: ${app_date.DateUtils.formatDateTime(widget.record.completedAt)}'),
                     const SizedBox(height: 4),
-                    Text('This certificate is ready for sharing to WhatsApp, email, or cloud storage.'),
+                    const Text('This certificate is ready for sharing to WhatsApp, email, or cloud storage.'),
                   ],
                 ),
               ),

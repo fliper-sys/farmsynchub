@@ -2,14 +2,29 @@ import 'package:flutter/material.dart';
 
 /// Centralized application color tokens for AgriCare.
 abstract final class AppColors {
+  static const Color darkPrimaryBackground = Color(0xFF070B11);
+  static const Color darkSecondaryBackground = Color(0xFF0D121A);
+  static const Color darkCard = Color(0xFF111827);
+  static const Color darkElevatedCard = Color(0xFF151D29);
+  static const Color darkBottomNavigation = Color(0xFF0B1018);
+  static const Color premiumGreen = Color(0xFF32D583);
+  static const Color secondaryGreen = Color(0xFF22C55E);
+  static const Color tealAccent = Color(0xFF14B8A6);
+  static const Color premiumWarning = Color(0xFFFBBF24);
+  static const Color premiumDanger = Color(0xFFEF4444);
+  static const Color darkPrimaryText = Color(0xFFFFFFFF);
+  static const Color darkSecondaryText = Color(0xFFC7CDD6);
+  static const Color darkMutedText = Color(0xFF8A93A2);
+  static const Color darkBorder = Color(0x661F2937);
+
   /// Deep botanical green used as the primary brand color.
-  static const Color primary = Color.fromARGB(255, 79, 104, 90);
+  static const Color primary = Color(0xFF32D583);
 
   /// Medium green used for active states and FABs.
-  static const Color primaryMid = Color(0xFF4D8F5E);
+  static const Color primaryMid = Color(0xFF22C55E);
 
   /// Bright green used for progress and highlight states.
-  static const Color primaryLight = Color(0xFF81C784);
+  static const Color primaryLight = Color(0xFF32D583);
 
   /// Warm cream surface for light mode containers.
   static const Color surfaceLight = Color(0xFFFFFBF2);
@@ -18,13 +33,13 @@ abstract final class AppColors {
   static const Color surfaceSoft = Color(0xFFF2FAEE);
 
   /// Deep green background for dark mode.
-  static const Color surfaceDark = Color(0xFF0F1F13);
+  static const Color surfaceDark = darkPrimaryBackground;
 
   /// Elevated card surface for dark mode.
-  static const Color cardDark = Color(0xFF1A2E1F);
+  static const Color cardDark = darkCard;
 
   /// Harvest amber accent for warnings and sunny weather states.
-  static const Color amberAccent = Color(0xFFF2BE63);
+  static const Color amberAccent = premiumWarning;
 
   /// Golden surface used in weather hero cards.
   static const Color sunGold = Color(0xFFF8D58A);
@@ -45,7 +60,7 @@ abstract final class AppColors {
   static const Color borderLight = Color(0xFFE7E8DD);
 
   /// Dark border color for dark surfaces.
-  static const Color borderDark = Color(0xFF2A4A35);
+  static const Color borderDark = darkBorder;
 
   /// Subsistence farmer badge background.
   static const Color subsistenceBadgeBackground = Color(0xFFF5D060);
@@ -66,11 +81,11 @@ abstract final class AppColors {
   static const Color marketOrientedBadgeForeground = Color(0xFF1A6635);
 
   /// Synced indicator color.
-  static const Color syncSuccess = Color(0xFF4CAF76);
+  static const Color syncSuccess = secondaryGreen;
 
   /// Pending sync indicator color.
   static const Color syncPending = Color(0xFFE8A020);
 
   /// Error indicator color.
-  static const Color syncError = Color(0xFFC65B46);
+  static const Color syncError = premiumDanger;
 }
