@@ -3,13 +3,13 @@ import 'package:intl/intl.dart';
 /// Utility functions for currency formatting and calculations.
 abstract final class CurrencyUtils {
   static final NumberFormat _currencyFormat = NumberFormat.currency(
-    symbol: 'NGN ',
+    symbol: 'NGN\u00A0',
     decimalDigits: 2,
     locale: 'en_NG',
   );
 
   static final NumberFormat _compactFormat = NumberFormat.compactCurrency(
-    symbol: 'NGN ',
+    symbol: 'NGN\u00A0',
     decimalDigits: 1,
   );
 
@@ -25,7 +25,11 @@ abstract final class CurrencyUtils {
 
   /// Parses a currency string back to double.
   static double parseCurrency(String currencyString) {
-    final String cleaned = currencyString.replaceAll('NGN', '').replaceAll(',', '').trim();
+    final String cleaned = currencyString
+        .replaceAll('NGN', '')
+        .replaceAll('\u00A0', '')
+        .replaceAll(',', '')
+        .trim();
     return double.tryParse(cleaned) ?? 0.0;
   }
 

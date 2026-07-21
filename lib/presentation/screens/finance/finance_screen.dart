@@ -57,15 +57,15 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     final FinanceSnapshot snapshot =
         FinanceSnapshot.fromTransactions(transactions);
     final List<Transaction> sales = transactions
-        .where((Transaction item) =>
-            item.recordKind == TransactionRecordKind.sale)
+        .where(
+            (Transaction item) => item.recordKind == TransactionRecordKind.sale)
         .toList(growable: false);
     final List<Transaction> procurement = transactions
         .where((Transaction item) =>
             item.recordKind == TransactionRecordKind.procurement)
         .toList(growable: false);
-    final List<Transaction> recentActivities = transactions
-        .toList(growable: false)
+    final List<Transaction> recentActivities = transactions.toList(
+        growable: false)
       ..sort((Transaction a, Transaction b) =>
           b.transactionDate.compareTo(a.transactionDate));
     final List<Transaction> topRecentActivities =
@@ -157,8 +157,9 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
 
   List<_ExpenseCategoryData> _buildExpenseCategories(
       Map<TransactionCategory, double> categoryTotals) {
-    final List<MapEntry<TransactionCategory, double>> sorted = categoryTotals.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final List<MapEntry<TransactionCategory, double>> sorted =
+        categoryTotals.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
     return sorted
         .take(5)
         .map((entry) => _ExpenseCategoryData(
@@ -420,8 +421,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     );
   }
 
-  void _openReceiptDetail(
-      BuildContext context, Transaction transaction) {
+  void _openReceiptDetail(BuildContext context, Transaction transaction) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ReceiptDetailScreen(transaction: transaction),
@@ -612,6 +612,8 @@ class _PremiumHeroHeader extends StatelessWidget {
                                 children: <Widget>[
                                   Text(
                                     'Income',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: theme.textTheme.labelSmall?.copyWith(
                                       color: Colors.white.withOpacity(0.6),
                                     ),
@@ -619,6 +621,8 @@ class _PremiumHeroHeader extends StatelessWidget {
                                   const SizedBox(height: 2),
                                   Text(
                                     CurrencyUtils.formatCompactCurrency(income),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: theme.textTheme.titleSmall?.copyWith(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w700,
@@ -633,8 +637,7 @@ class _PremiumHeroHeader extends StatelessWidget {
                                     horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
                                   color: incomeChange > 0
-                                      ? const Color(0xFF32D583)
-                                          .withOpacity(0.2)
+                                      ? const Color(0xFF32D583).withOpacity(0.2)
                                       : const Color(0xFFEF4444)
                                           .withOpacity(0.2),
                                   borderRadius: BorderRadius.circular(6),
@@ -684,6 +687,8 @@ class _PremiumHeroHeader extends StatelessWidget {
                                 children: <Widget>[
                                   Text(
                                     'Expenses',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: theme.textTheme.labelSmall?.copyWith(
                                       color: Colors.white.withOpacity(0.6),
                                     ),
@@ -692,6 +697,8 @@ class _PremiumHeroHeader extends StatelessWidget {
                                   Text(
                                     CurrencyUtils.formatCompactCurrency(
                                         expenses),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: theme.textTheme.titleSmall?.copyWith(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w700,
@@ -706,8 +713,7 @@ class _PremiumHeroHeader extends StatelessWidget {
                                     horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
                                   color: expenseChange < 0
-                                      ? const Color(0xFF32D583)
-                                          .withOpacity(0.2)
+                                      ? const Color(0xFF32D583).withOpacity(0.2)
                                       : const Color(0xFFEF4444)
                                           .withOpacity(0.2),
                                   borderRadius: BorderRadius.circular(6),
@@ -861,9 +867,7 @@ class _QuickActionStrip extends StatelessWidget {
                   'Quick Actions',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: isDark
-                        ? Colors.white
-                        : theme.colorScheme.onSurface,
+                    color: isDark ? Colors.white : theme.colorScheme.onSurface,
                   ),
                 ),
                 const Spacer(),
@@ -881,7 +885,7 @@ class _QuickActionStrip extends StatelessWidget {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: actions.length,
-separatorBuilder: (context, index) => const SizedBox(width: 14),
+              separatorBuilder: (context, index) => const SizedBox(width: 14),
               itemBuilder: (BuildContext context, int index) {
                 final _QuickActionItem action = actions[index];
                 return _ActionCircleTile(
@@ -1022,9 +1026,8 @@ class _SpendingBreakdownCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Container(
         decoration: BoxDecoration(
-          color: isDark
-              ? theme.colorScheme.surfaceContainerHighest
-              : Colors.white,
+          color:
+              isDark ? theme.colorScheme.surfaceContainerHighest : Colors.white,
           borderRadius: BorderRadius.circular(24),
           boxShadow: <BoxShadow>[
             BoxShadow(
@@ -1061,9 +1064,8 @@ class _SpendingBreakdownCard extends StatelessWidget {
                     'Spending Breakdown',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: isDark
-                          ? Colors.white
-                          : theme.colorScheme.onSurface,
+                      color:
+                          isDark ? Colors.white : theme.colorScheme.onSurface,
                     ),
                   ),
                   const Spacer(),
@@ -1151,9 +1153,7 @@ class _CategoryBar extends StatelessWidget {
               CurrencyUtils.formatCompactCurrency(amount),
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w700,
-                color: isDark
-                    ? Colors.white
-                    : theme.colorScheme.onSurface,
+                color: isDark ? Colors.white : theme.colorScheme.onSurface,
               ),
             ),
             const SizedBox(width: 8),
@@ -1209,9 +1209,8 @@ class _RecentActivityCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Container(
         decoration: BoxDecoration(
-          color: isDark
-              ? theme.colorScheme.surfaceContainerHighest
-              : Colors.white,
+          color:
+              isDark ? theme.colorScheme.surfaceContainerHighest : Colors.white,
           borderRadius: BorderRadius.circular(24),
           boxShadow: <BoxShadow>[
             BoxShadow(
@@ -1234,8 +1233,7 @@ class _RecentActivityCard extends StatelessWidget {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color:
-                          const Color(0xFF3B82F6).withOpacity(0.1),
+                      color: const Color(0xFF3B82F6).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
@@ -1249,9 +1247,8 @@ class _RecentActivityCard extends StatelessWidget {
                     'Recent Activity',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: isDark
-                          ? Colors.white
-                          : theme.colorScheme.onSurface,
+                      color:
+                          isDark ? Colors.white : theme.colorScheme.onSurface,
                     ),
                   ),
                   const Spacer(),
@@ -1313,12 +1310,10 @@ class _ActivityRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isIncome = transaction.type == TransactionType.income;
-    final Color accentColor = isIncome
-        ? const Color(0xFF32D583)
-        : const Color(0xFFF97316);
-    final IconData icon = isIncome
-        ? Icons.arrow_upward_rounded
-        : Icons.arrow_downward_rounded;
+    final Color accentColor =
+        isIncome ? const Color(0xFF32D583) : const Color(0xFFF97316);
+    final IconData icon =
+        isIncome ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded;
 
     return Row(
       children: <Widget>[
@@ -1365,9 +1360,7 @@ class _ActivityRow extends StatelessWidget {
           CurrencyUtils.formatCurrency(transaction.amount),
           style: theme.textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.w800,
-            color: isIncome
-                ? const Color(0xFF32D583)
-                : const Color(0xFFF97316),
+            color: isIncome ? const Color(0xFF32D583) : const Color(0xFFF97316),
           ),
         ),
       ],
@@ -1398,9 +1391,8 @@ class _SmartInsightsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final double profitMargin = income > 0
-        ? ((income - expenses) / income * 100)
-        : 0;
+    final double profitMargin =
+        income > 0 ? ((income - expenses) / income * 100) : 0;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -1457,9 +1449,7 @@ class _SmartInsightsCard extends StatelessWidget {
                     'Smart Insights',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: isDark
-                          ? Colors.white
-                          : const Color(0xFF0F3D3E),
+                      color: isDark ? Colors.white : const Color(0xFF0F3D3E),
                     ),
                   ),
                 ],
@@ -1572,15 +1562,17 @@ class _InsightStat extends StatelessWidget {
               children: <Widget>[
                 Text(
                   value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.labelLarge?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: isDark
-                        ? Colors.white
-                        : const Color(0xFF0F3D3E),
+                    color: isDark ? Colors.white : const Color(0xFF0F3D3E),
                   ),
                 ),
                 Text(
                   label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -1610,17 +1602,19 @@ class _InsightStat extends StatelessWidget {
             children: <Widget>[
               Text(
                 label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
               Text(
                 value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w800,
-                  color: isDark
-                      ? Colors.white
-                      : const Color(0xFF0F3D3E),
+                  color: isDark ? Colors.white : const Color(0xFF0F3D3E),
                 ),
               ),
             ],
@@ -1657,9 +1651,8 @@ class _QuickExportBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Container(
         decoration: BoxDecoration(
-          color: isDark
-              ? theme.colorScheme.surfaceContainerHighest
-              : Colors.white,
+          color:
+              isDark ? theme.colorScheme.surfaceContainerHighest : Colors.white,
           borderRadius: BorderRadius.circular(24),
           boxShadow: <BoxShadow>[
             BoxShadow(
@@ -1679,15 +1672,13 @@ class _QuickExportBar extends StatelessWidget {
                 child: SizedBox(
                   height: 50,
                   child: ElevatedButton.icon(
-                    onPressed: isExporting || !hasTransactions
-                        ? null
-                        : onExport,
+                    onPressed:
+                        isExporting || !hasTransactions ? null : onExport,
                     icon: isExporting
                         ? const SizedBox(
                             width: 18,
                             height: 18,
-                            child:
-                                CircularProgressIndicator(strokeWidth: 2),
+                            child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.picture_as_pdf_rounded),
                     label: const Text('Export Report'),
@@ -1707,9 +1698,8 @@ class _QuickExportBar extends StatelessWidget {
                 child: SizedBox(
                   height: 50,
                   child: OutlinedButton.icon(
-                    onPressed: isExporting || !hasTransactions
-                        ? null
-                        : onShareSummary,
+                    onPressed:
+                        isExporting || !hasTransactions ? null : onShareSummary,
                     icon: const Icon(Icons.share_rounded),
                     label: const Text('Share Summary'),
                     style: OutlinedButton.styleFrom(
@@ -1934,8 +1924,7 @@ class _ReceiptDetailScreenState extends ConsumerState<ReceiptDetailScreen> {
       scheme: 'mailto',
       path: buyerEmail.isEmpty ? sellerEmail : buyerEmail,
       queryParameters: <String, String>{
-        if (sellerEmail.isNotEmpty && buyerEmail.isNotEmpty)
-          'cc': sellerEmail,
+        if (sellerEmail.isNotEmpty && buyerEmail.isNotEmpty) 'cc': sellerEmail,
         'subject': 'FarmSync Receipt $receiptNumber',
         'body':
             'Receipt number: $receiptNumber\nTotal: ${CurrencyUtils.formatCurrency(total)}',
@@ -1982,7 +1971,8 @@ class _ReceiptPreviewCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Text(
-                        transaction.recordKind == TransactionRecordKind.procurement
+                        transaction.recordKind ==
+                                TransactionRecordKind.procurement
                             ? 'Procurement Record'
                             : 'Sales Receipt',
                         style: Theme.of(context).textTheme.titleLarge,
@@ -2710,4 +2700,3 @@ class _InventoryDraft {
   final double costPrice;
   final double unitPrice;
 }
-
