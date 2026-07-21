@@ -177,8 +177,24 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
       return null;
     }
 
+    final DocumentReference<Map<String, dynamic>> docRef =
+        _firestore.collection('users').doc(userId);
+
+    // Prefer the on-device cache first so a previously-signed-in user isn't
+    // stuck waiting on a network round trip that may never resolve offline.
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> cached =
+          await docRef.get(const GetOptions(source: Source.cache));
+      final Map<String, dynamic>? cachedData = cached.data();
+      if (cachedData != null) {
+        return UserProfile.fromJson(cachedData);
+      }
+    } catch (_) {
+      // No cached document yet; fall through to a server fetch.
+    }
+
     final DocumentSnapshot<Map<String, dynamic>> snapshot =
-        await _firestore.collection('users').doc(userId).get();
+        await docRef.get().timeout(const Duration(seconds: 8));
     final Map<String, dynamic>? data = snapshot.data();
     if (data == null) {
       return null;

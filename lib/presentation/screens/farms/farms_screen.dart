@@ -95,32 +95,41 @@ class FarmsScreen extends ConsumerWidget {
           const SizedBox(height: 18),
         ],
         const SoftSectionTitle(title: 'Structure overview'),
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: SoftInfoChip(
-                label: 'Managed land',
-                value: '${totalHectares.toStringAsFixed(1)} ha',
-                color: const Color(0xFFE5F5D8),
-              ),
+        AppCard(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: _CompactStatTile(
+                    icon: Icons.map_rounded,
+                    label: 'Managed land',
+                    value: '${totalHectares.toStringAsFixed(1)} ha',
+                    color: const Color(0xFFE5F5D8),
+                  ),
+                ),
+                _VerticalDivider(),
+                Expanded(
+                  child: _CompactStatTile(
+                    icon: Icons.account_balance_wallet_rounded,
+                    label: 'Inventory value',
+                    value: CurrencyUtils.formatCompactCurrency(inventoryValue),
+                    color: const Color(0xFFDFF1FF),
+                  ),
+                ),
+                _VerticalDivider(),
+                Expanded(
+                  child: _CompactStatTile(
+                    icon: Icons.sync_rounded,
+                    label: 'Pending sync',
+                    value: '$pendingSync',
+                    color: const Color(0xFFFFEBD2),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: SoftInfoChip(
-                label: 'Inventory value',
-                value: CurrencyUtils.formatCompactCurrency(inventoryValue),
-                color: const Color(0xFFDFF1FF),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: SoftInfoChip(
-                label: 'Pending sync',
-                value: '$pendingSync',
-                color: const Color(0xFFFFEBD2),
-              ),
-            ),
-          ],
+          ),
         ),
         const SizedBox(height: 18),
         SoftSectionTitle(

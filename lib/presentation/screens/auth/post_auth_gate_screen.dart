@@ -177,19 +177,21 @@ class _PostAuthGateScreenState extends ConsumerState<PostAuthGateScreen>
   Future<void> _handleNavigation(UserProfile? profile) async {
     _navigated = true;
     final String? userId = ref.read(firebaseServiceProvider).currentUser?.uid;
-    try {
-      await Future.wait(<Future<void>>[
-        ref.read(notificationsProvider.notifier).refresh(),
-        ref.read(newsFeedProvider.notifier).refresh(),
-        ref.read(transactionsProvider.notifier).refresh(),
-      ]);
-    } catch (_) {
-      // Remote refresh is useful, but it should not block workspace entry.
+    final ConnectivityResult connectivity = await Connectivity().checkConnectivity();
+    final bool isOffline = connectivity == ConnectivityResult.none;
+    if (!isOffline) {
+      try {
+        await Future.wait(<Future<void>>[
+          ref.read(notificationsProvider.notifier).refresh(),
+          ref.read(newsFeedProvider.notifier).refresh(),
+          ref.read(transactionsProvider.notifier).refresh(),
+        ]).timeout(const Duration(seconds: 10));
+      } catch (_) {
+        // Remote refresh is useful, but it should not block workspace entry.
+      }
     }
     final bool hasCompletedWalkthrough =
         userId == null ? false : await UserWalkthroughPreferences.isCompleted(userId);
-    final ConnectivityResult connectivity = await Connectivity().checkConnectivity();
-    final bool isOffline = connectivity == ConnectivityResult.none;
     if (!mounted) {
       return;
     }
