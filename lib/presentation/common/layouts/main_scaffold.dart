@@ -99,12 +99,14 @@ class MainScaffold extends ConsumerWidget {
       NavigationDestination(
         icon: const Icon(Icons.grass_outlined),
         selectedIcon: const Icon(Icons.grass_rounded),
-        label: language.tr(en: AppStrings.crops, ha: 'Amfanin gona', fr: 'Cultures'),
+        label: language.tr(
+            en: AppStrings.crops, ha: 'Amfanin gona', fr: 'Cultures'),
       ),
       NavigationDestination(
         icon: const Icon(Icons.pets_outlined),
         selectedIcon: const Icon(Icons.pets),
-        label: language.tr(en: AppStrings.livestock, ha: 'Dabbobi', fr: 'Bétail'),
+        label:
+            language.tr(en: AppStrings.livestock, ha: 'Dabbobi', fr: 'Bétail'),
       ),
       NavigationDestination(
         icon: const Icon(Icons.account_balance_wallet_outlined),
@@ -119,7 +121,8 @@ class MainScaffold extends ConsumerWidget {
       NavigationDestination(
         icon: const Icon(Icons.person_outline_rounded),
         selectedIcon: const Icon(Icons.person_rounded),
-        label: language.tr(en: AppStrings.profile, ha: 'Bayanan kaina', fr: 'Profil'),
+        label: language.tr(
+            en: AppStrings.profile, ha: 'Bayanan kaina', fr: 'Profil'),
       ),
     ];
 
@@ -224,7 +227,8 @@ class MainScaffold extends ConsumerWidget {
               children: <Widget>[
                 Text(
                   'Sync status',
-                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                  style: theme.textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 12),
                 _SyncSheetRow(
@@ -252,7 +256,8 @@ class MainScaffold extends ConsumerWidget {
                 const SizedBox(height: 12),
                 _SyncSheetRow(
                   icon: Icons.pending_actions_rounded,
-                  title: '${overview.pendingCount} pending item${overview.pendingCount == 1 ? '' : 's'}',
+                  title:
+                      '${overview.pendingCount} pending item${overview.pendingCount == 1 ? '' : 's'}',
                   detail: overview.pendingCount == 0
                       ? 'No local changes are waiting to be uploaded.'
                       : 'Open the dashboard or tap sync to push the queued updates.',
@@ -266,7 +271,8 @@ class MainScaffold extends ConsumerWidget {
                       : 'Last sync attempt',
                   detail: overview.lastAttemptAt == null
                       ? 'We will record the next sync attempt here.'
-                      : MaterialLocalizations.of(sheetContext).formatFullDate(overview.lastAttemptAt!),
+                      : MaterialLocalizations.of(sheetContext)
+                          .formatFullDate(overview.lastAttemptAt!),
                   color: colorScheme.primary,
                 ),
                 const SizedBox(height: 20),
@@ -276,7 +282,9 @@ class MainScaffold extends ConsumerWidget {
                       child: FilledButton.icon(
                         onPressed: canSync
                             ? () async {
-                                await ref.read(syncOverviewProvider.notifier).runSync();
+                                await ref
+                                    .read(syncOverviewProvider.notifier)
+                                    .runSync();
                                 Navigator.of(sheetContext).pop();
                               }
                             : null,
@@ -284,7 +292,8 @@ class MainScaffold extends ConsumerWidget {
                             ? const SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.sync_rounded),
                         label: Text(
@@ -295,7 +304,9 @@ class MainScaffold extends ConsumerWidget {
                     const SizedBox(width: 12),
                     TextButton(
                       onPressed: () async {
-                        await ref.read(syncOverviewProvider.notifier).refreshOverview();
+                        await ref
+                            .read(syncOverviewProvider.notifier)
+                            .refreshOverview();
                         Navigator.of(sheetContext).pop();
                       },
                       child: const Text('Refresh'),
@@ -347,7 +358,7 @@ class _PremiumBottomNavigation extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final double height = isCompact ? 78 : 88;
+    final double height = isCompact ? 86 : 88;
 
     return SafeArea(
       top: false,
@@ -359,14 +370,17 @@ class _PremiumBottomNavigation extends StatelessWidget {
             filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
             child: Container(
               height: height,
-              padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 12, vertical: 10),
+              padding: EdgeInsets.symmetric(
+                  horizontal: isCompact ? 8 : 12, vertical: 10),
               decoration: BoxDecoration(
                 color: isDark
                     ? AppColors.darkBottomNavigation.withOpacity(0.90)
                     : Colors.white.withOpacity(0.90),
                 borderRadius: BorderRadius.circular(30),
                 border: Border.all(
-                  color: isDark ? AppColors.darkBorder : theme.colorScheme.outlineVariant,
+                  color: isDark
+                      ? AppColors.darkBorder
+                      : theme.colorScheme.outlineVariant,
                 ),
                 boxShadow: <BoxShadow>[
                   BoxShadow(
@@ -379,7 +393,8 @@ class _PremiumBottomNavigation extends StatelessWidget {
                 ],
               ),
               child: Row(
-                children: List<Widget>.generate(destinations.length, (int index) {
+                children:
+                    List<Widget>.generate(destinations.length, (int index) {
                   final NavigationDestination destination = destinations[index];
                   final bool selected = index == currentIndex;
                   return Expanded(
@@ -387,7 +402,9 @@ class _PremiumBottomNavigation extends StatelessWidget {
                       selected: selected,
                       label: destination.label,
                       icon: selected
-                          ? (destination.selectedIcon ?? destination.icon ?? const SizedBox.shrink())
+                          ? (destination.selectedIcon ??
+                              destination.icon ??
+                              const SizedBox.shrink())
                           : (destination.icon ?? const SizedBox.shrink()),
                       isCompact: isCompact,
                       onTap: () => onDestinationSelected(index),
@@ -422,7 +439,8 @@ class _PremiumNavItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color inactive = isDark ? const Color(0xFF9CA3AF) : theme.colorScheme.onSurfaceVariant;
+    final Color inactive =
+        isDark ? const Color(0xFF9CA3AF) : theme.colorScheme.onSurfaceVariant;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -431,7 +449,9 @@ class _PremiumNavItem extends StatelessWidget {
         duration: const Duration(milliseconds: 320),
         curve: Curves.easeOutCubic,
         margin: const EdgeInsets.symmetric(horizontal: 2),
-        padding: EdgeInsets.symmetric(horizontal: selected && !isCompact ? 10 : 6, vertical: 8),
+        padding: EdgeInsets.symmetric(
+            horizontal: selected && !isCompact ? 10 : 6,
+            vertical: isCompact ? 6 : 8),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
           gradient: selected
@@ -585,7 +605,8 @@ class _SyncStatusPill extends StatelessWidget {
                       Text(
                         '$pendingCount pending',
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: visualState.foregroundColor.withOpacity(0.8),
+                              color:
+                                  visualState.foregroundColor.withOpacity(0.8),
                               fontWeight: FontWeight.w600,
                             ),
                       ),
@@ -605,11 +626,15 @@ class _SyncStatusPill extends StatelessWidget {
     );
   }
 
-  _SyncVisualState _resolveState(ColorScheme colorScheme, AppLanguage language) {
+  _SyncVisualState _resolveState(
+      ColorScheme colorScheme, AppLanguage language) {
     switch (syncStatus) {
       case SyncStatus.synced:
         return _SyncVisualState(
-          label: language.tr(en: AppStrings.syncStatusSynced, ha: 'An daidaita', fr: 'Synchronise'),
+          label: language.tr(
+              en: AppStrings.syncStatusSynced,
+              ha: 'An daidaita',
+              fr: 'Synchronise'),
           backgroundColor: colorScheme.primary.withOpacity(0.10),
           borderColor: colorScheme.primary.withOpacity(0.18),
           dotColor: colorScheme.primary,
@@ -617,7 +642,10 @@ class _SyncStatusPill extends StatelessWidget {
         );
       case SyncStatus.pending:
         return _SyncVisualState(
-          label: language.tr(en: AppStrings.syncStatusPending, ha: 'Ana jira', fr: 'En attente'),
+          label: language.tr(
+              en: AppStrings.syncStatusPending,
+              ha: 'Ana jira',
+              fr: 'En attente'),
           backgroundColor: colorScheme.tertiary.withOpacity(0.12),
           borderColor: colorScheme.tertiary.withOpacity(0.20),
           dotColor: colorScheme.tertiary,
@@ -625,7 +653,10 @@ class _SyncStatusPill extends StatelessWidget {
         );
       case SyncStatus.offline:
         return _SyncVisualState(
-          label: language.tr(en: AppStrings.syncStatusOffline, ha: 'Babu layi', fr: 'Hors ligne'),
+          label: language.tr(
+              en: AppStrings.syncStatusOffline,
+              ha: 'Babu layi',
+              fr: 'Hors ligne'),
           backgroundColor: colorScheme.outlineVariant.withOpacity(0.26),
           borderColor: colorScheme.outlineVariant.withOpacity(0.40),
           dotColor: colorScheme.onSurfaceVariant,
@@ -649,7 +680,8 @@ class _ProfileAvatarButton extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colorScheme = theme.colorScheme;
     final String initials = _initialsFor(profile?.fullName ?? '');
-    final Uint8List? imageBytes = _profileImageBytes(profile?.profileImageBase64);
+    final Uint8List? imageBytes =
+        _profileImageBytes(profile?.profileImageBase64);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -677,7 +709,8 @@ class _ProfileAvatarButton extends StatelessWidget {
                     ? Image.memory(
                         imageBytes,
                         fit: BoxFit.cover,
-                        errorBuilder: (BuildContext context, Object error, StackTrace? stackTrace) {
+                        errorBuilder: (BuildContext context, Object error,
+                            StackTrace? stackTrace) {
                           return Center(
                             child: Text(
                               initials,
@@ -742,7 +775,8 @@ class _SyncSheetRow extends StatelessWidget {
             children: <Widget>[
               Text(
                 title,
-                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 4),
               Text(
@@ -776,17 +810,24 @@ class _SyncVisualState {
 }
 
 String _initialsFor(String name) {
-  final List<String> parts = name.trim().split(RegExp(r'\s+')).where((String part) => part.isNotEmpty).toList();
+  final List<String> parts = name
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((String part) => part.isNotEmpty)
+      .toList();
   if (parts.isEmpty) {
     return 'U';
   }
   if (parts.length == 1) {
     final String value = parts.first.trim();
-    return value.length >= 2 ? value.substring(0, 2).toUpperCase() : value.substring(0, 1).toUpperCase();
+    return value.length >= 2
+        ? value.substring(0, 2).toUpperCase()
+        : value.substring(0, 1).toUpperCase();
   }
   final String first = parts.first.trim();
   final String last = parts.last.trim();
-  return '${first.isNotEmpty ? first[0] : 'U'}${last.isNotEmpty ? last[0] : 'U'}'.toUpperCase();
+  return '${first.isNotEmpty ? first[0] : 'U'}${last.isNotEmpty ? last[0] : 'U'}'
+      .toUpperCase();
 }
 
 Uint8List? _profileImageBytes(String? base64Image) {

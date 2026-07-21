@@ -2,10 +2,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/extensions/context_extensions.dart';
+import '../../../core/constants/app_strings.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/date_utils.dart' as app_date;
 import '../../../core/utils/validators.dart';
@@ -13,7 +15,6 @@ import '../../../domain/models/crop.dart';
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/livestock.dart';
 import '../../../domain/models/transaction.dart';
-import '../../../domain/models/user_profile.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/crop_provider.dart';
 import '../../../providers/farm_provider.dart';
@@ -41,49 +42,72 @@ class FarmsScreen extends ConsumerWidget {
       data: (List<Farm> items) => items,
       orElse: () => <Farm>[],
     );
-    final List<Farm> visibleFarms = _visibleFarms(
+    final List<Farm> visibleFarms = visibleFarmsFor(
       farms,
       currentUser: currentUser,
       profile: profile,
     );
-    final Set<String> visibleFarmIds = visibleFarms.map((Farm farm) => farm.id).toSet();
+    final Set<String> visibleFarmIds =
+        visibleFarms.map((Farm farm) => farm.id).toSet();
     final List<Crop> crops = ref.watch(cropsProvider).maybeWhen(
-      data: (List<Crop> items) => items.where((Crop item) => visibleFarmIds.contains(item.farmId)).toList(growable: false),
-      orElse: () => <Crop>[],
-    );
+          data: (List<Crop> items) => items
+              .where((Crop item) => visibleFarmIds.contains(item.farmId))
+              .toList(growable: false),
+          orElse: () => <Crop>[],
+        );
     final List<Livestock> livestock = ref.watch(livestockProvider).maybeWhen(
-      data: (List<Livestock> items) =>
-          items.where((Livestock item) => visibleFarmIds.contains(item.farmId)).toList(growable: false),
-      orElse: () => <Livestock>[],
-    );
-    final List<Transaction> transactions = ref.watch(transactionsProvider).maybeWhen(
-      data: (List<Transaction> items) =>
-          items.where((Transaction item) => visibleFarmIds.contains(item.farmId)).toList(growable: false),
-      orElse: () => <Transaction>[],
-    );
+          data: (List<Livestock> items) => items
+              .where((Livestock item) => visibleFarmIds.contains(item.farmId))
+              .toList(growable: false),
+          orElse: () => <Livestock>[],
+        );
+    final List<Transaction> transactions = ref
+        .watch(transactionsProvider)
+        .maybeWhen(
+          data: (List<Transaction> items) => items
+              .where((Transaction item) => visibleFarmIds.contains(item.farmId))
+              .toList(growable: false),
+          orElse: () => <Transaction>[],
+        );
 
-    final double totalHectares = visibleFarms.fold(0, (double sum, Farm farm) => sum + farm.sizeHa);
-    final int pendingSync = visibleFarms.where((Farm farm) => !farm.isSynced).length;
+    final double totalHectares =
+        visibleFarms.fold(0, (double sum, Farm farm) => sum + farm.sizeHa);
+    final int pendingSync =
+        visibleFarms.where((Farm farm) => !farm.isSynced).length;
     final double inventoryValue = livestock.fold(
           0.0,
           (double sum, Livestock item) => sum + item.estimatedValue,
         ) +
-        crops.fold<double>(0.0, (double sum, Crop item) => sum + item.totalInputCost);
+        crops.fold<double>(
+            0.0, (double sum, Crop item) => sum + item.totalInputCost);
     final double totalOperatingCost = transactions
         .where((Transaction item) => item.type == TransactionType.expense)
         .fold<double>(0.0, (double sum, Transaction item) => sum + item.amount);
-    final int fieldNotesCount = crops.where((Crop crop) => crop.notes.trim().isNotEmpty).length +
+    final int fieldNotesCount = crops
+            .where((Crop crop) => crop.notes.trim().isNotEmpty)
+            .length +
         visibleFarms.where((Farm farm) => farm.notes.trim().isNotEmpty).length;
 
     return SoftScreenScaffold(
       heroTitle: 'Farm operations',
-      heroSubtitle: 'Create farm records, update land profiles, and keep crop, livestock, and finance activity linked to the right place.',
+      heroSubtitle:
+          'Create farm records, update land profiles, and keep crop, livestock, and finance activity linked to the right place.',
       heroIcon: Icons.agriculture_rounded,
       heroVariant: FarmArtworkVariant.field,
       heroBadge: '${visibleFarms.length} managed farms',
-      trailing: _HeroActionButton(
-        icon: Icons.add_rounded,
-        onTap: () => _openFarmSheet(context, ref),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          _HeroActionButton(
+            icon: Icons.checklist_rounded,
+            onTap: () => context.go('/farm-tasks'),
+          ),
+          const SizedBox(width: 10),
+          _HeroActionButton(
+            icon: Icons.add_rounded,
+            onTap: () => _openFarmSheet(context, ref),
+          ),
+        ],
       ),
       sections: <Widget>[
         if (farmsAsync.hasError) ...<Widget>[
@@ -109,7 +133,7 @@ class FarmsScreen extends ConsumerWidget {
                     color: const Color(0xFFE5F5D8),
                   ),
                 ),
-                _VerticalDivider(),
+                const _CompactDivider(),
                 Expanded(
                   child: _CompactStatTile(
                     icon: Icons.account_balance_wallet_rounded,
@@ -118,7 +142,7 @@ class FarmsScreen extends ConsumerWidget {
                     color: const Color(0xFFDFF1FF),
                   ),
                 ),
-                _VerticalDivider(),
+                const _CompactDivider(),
                 Expanded(
                   child: _CompactStatTile(
                     icon: Icons.sync_rounded,
@@ -152,11 +176,18 @@ class FarmsScreen extends ConsumerWidget {
               padding: const EdgeInsets.only(bottom: 14),
               child: _FarmManagementCard(
                 farm: farm,
-                crops: crops.where((Crop crop) => crop.farmId == farm.id).toList(),
-                livestock: livestock.where((Livestock animal) => animal.farmId == farm.id).toList(),
-                transactions: transactions.where((Transaction item) => item.farmId == farm.id).toList(),
+                crops:
+                    crops.where((Crop crop) => crop.farmId == farm.id).toList(),
+                livestock: livestock
+                    .where((Livestock animal) => animal.farmId == farm.id)
+                    .toList(),
+                transactions: transactions
+                    .where((Transaction item) => item.farmId == farm.id)
+                    .toList(),
                 onOpen: () async {
-                  await ref.read(activeFarmProvider.notifier).setActiveFarm(farm.id);
+                  await ref
+                      .read(activeFarmProvider.notifier)
+                      .setActiveFarm(farm.id);
                   if (context.mounted) {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -187,7 +218,8 @@ class FarmsScreen extends ConsumerWidget {
             Expanded(
               child: _ProcessCard(
                 title: 'Planting cycle',
-                detail: 'Seed scheduling, spacing, and expected harvest windows.',
+                detail:
+                    'Seed scheduling, spacing, and expected harvest windows.',
                 status: 'Tracked',
                 color: Color(0xFFDFF1FF),
                 icon: Icons.event_note_rounded,
@@ -229,7 +261,8 @@ class FarmsScreen extends ConsumerWidget {
               children: <Widget>[
                 _DocumentationRow(
                   title: 'Field notes',
-                  subtitle: 'Daily observations, irrigation changes, and crop issues.',
+                  subtitle:
+                      'Daily observations, irrigation changes, and crop issues.',
                   trailing: '$fieldNotesCount linked entries',
                   icon: Icons.sticky_note_2_rounded,
                   color: const Color(0xFFDFF1FF),
@@ -242,15 +275,18 @@ class FarmsScreen extends ConsumerWidget {
                 const SizedBox(height: 12),
                 _DocumentationRow(
                   title: 'Input logs',
-                  subtitle: 'Track feed, fertiliser, labour, and tool usage by farm.',
-                  trailing: CurrencyUtils.formatCompactCurrency(totalOperatingCost),
+                  subtitle:
+                      'Track feed, fertiliser, labour, and tool usage by farm.',
+                  trailing:
+                      CurrencyUtils.formatCompactCurrency(totalOperatingCost),
                   icon: Icons.playlist_add_check_circle_rounded,
                   color: const Color(0xFFE9F4DB),
                 ),
                 const SizedBox(height: 12),
                 _DocumentationRow(
                   title: 'Compliance records',
-                  subtitle: 'Farmer category, water source, and farm condition snapshots.',
+                  subtitle:
+                      'Farmer category, water source, and farm condition snapshots.',
                   trailing: '${visibleFarms.length} profiles',
                   icon: Icons.verified_user_rounded,
                   color: const Color(0xFFFFEBD0),
@@ -267,7 +303,8 @@ class FarmsScreen extends ConsumerWidget {
               child: _InventoryPanel(
                 title: 'Crop inventory',
                 count: '${crops.length} active records',
-                detail: '${crops.where((Crop crop) => crop.status == CropStatus.ready).length} ready for harvest',
+                detail:
+                    '${crops.where((Crop crop) => crop.status == CropStatus.ready).length} ready for harvest',
                 color: const Color(0xFFE7F4D8),
                 icon: Icons.spa_rounded,
                 onTap: () => Navigator.of(context).push(
@@ -281,7 +318,8 @@ class FarmsScreen extends ConsumerWidget {
             Expanded(
               child: _InventoryPanel(
                 title: 'Livestock inventory',
-                count: '${livestock.fold(0, (int sum, Livestock item) => sum + item.count)} animals',
+                count:
+                    '${livestock.fold(0, (int sum, Livestock item) => sum + item.count)} animals',
                 detail: '${livestock.length} managed groups',
                 color: const Color(0xFFDDEEFF),
                 icon: Icons.pets_rounded,
@@ -467,8 +505,10 @@ class _FarmManagementCard extends StatelessWidget {
           Stack(
             children: <Widget>[
               FarmSceneArtwork(
-                height: 170,
-                variant: crops.isEmpty ? FarmArtworkVariant.field : FarmArtworkVariant.crops,
+                height: 150,
+                variant: crops.isEmpty
+                    ? FarmArtworkVariant.field
+                    : FarmArtworkVariant.crops,
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(28),
                   topRight: Radius.circular(28),
@@ -486,7 +526,8 @@ class _FarmManagementCard extends StatelessWidget {
                     }
                     onDelete();
                   },
-                  itemBuilder: (BuildContext context) => const <PopupMenuEntry<String>>[
+                  itemBuilder: (BuildContext context) =>
+                      const <PopupMenuEntry<String>>[
                     PopupMenuItem<String>(
                       value: 'edit',
                       child: Text('Edit farm'),
@@ -501,7 +542,8 @@ class _FarmManagementCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: theme.colorScheme.surface.withOpacity(0.94),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: theme.colorScheme.outlineVariant),
+                      border:
+                          Border.all(color: theme.colorScheme.outlineVariant),
                     ),
                     child: const Icon(Icons.more_horiz_rounded),
                   ),
@@ -519,16 +561,34 @@ class _FarmManagementCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         farm.name,
-                        style: theme.textTheme.titleLarge?.copyWith(fontSize: 28),
+                        style:
+                            theme.textTheme.titleLarge?.copyWith(fontSize: 24),
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: farm.isSynced ? const Color(0xFFE9F4DB) : const Color(0xFFFFEBD0),
+                        color: farm.isSynced
+                            ? AppColors.syncSuccess.withOpacity(0.18)
+                            : AppColors.syncPending.withOpacity(0.18),
                         borderRadius: BorderRadius.circular(999),
                       ),
-                      child: Text(farm.isSynced ? 'Synced' : 'Pending'),
+                      child: Text(
+                        farm.isSynced
+                            ? AppStrings.syncStatusSynced
+                            : AppStrings.syncStatusPending,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: ThemeData.estimateBrightnessForColor(
+                                      farm.isSynced
+                                          ? AppColors.syncSuccess
+                                          : AppColors.syncPending) ==
+                                  Brightness.dark
+                              ? Colors.white
+                              : const Color(0xFF1F4030),
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -542,18 +602,29 @@ class _FarmManagementCard extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 8,
                   children: <Widget>[
-                    _MiniTag(text: _categoryLabel(farm.farmerCategory), color: const Color(0xFFEAF0DE)),
-                    _MiniTag(text: _soilLabel(farm.soilType), color: const Color(0xFFFFEBD0)),
-                    _MiniTag(text: _waterLabel(farm.waterSource), color: const Color(0xFFDFF1FF)),
-                    if (farm.supportsCrops) _MiniTag(text: '${crops.length} crop records', color: const Color(0xFFE8F4D8)),
+                    _MiniTag(
+                        text: _categoryLabel(farm.farmerCategory),
+                        color: const Color(0xFFEAF0DE)),
+                    _MiniTag(
+                        text: _soilLabel(farm.soilType),
+                        color: const Color(0xFFFFEBD0)),
+                    _MiniTag(
+                        text: _waterLabel(farm.waterSource),
+                        color: const Color(0xFFDFF1FF)),
+                    if (farm.supportsCrops)
+                      _MiniTag(
+                          text: '${crops.length} crop records',
+                          color: const Color(0xFFE8F4D8)),
                     if (farm.supportsLivestock)
                       _MiniTag(
-                        text: '${livestock.fold(0, (int sum, Livestock item) => sum + item.count)} livestock',
+                        text:
+                            '${livestock.fold(0, (int sum, Livestock item) => sum + item.count)} livestock',
                         color: const Color(0xFFEAF0DE),
                       ),
                     if (farm.supportsGreenhouse)
                       _MiniTag(
-                        text: '${farm.greenhouseCount} greenhouse${farm.greenhouseCount == 1 ? '' : 's'}',
+                        text:
+                            '${farm.greenhouseCount} greenhouse${farm.greenhouseCount == 1 ? '' : 's'}',
                         color: const Color(0xFFEDE8FF),
                       ),
                   ],
@@ -564,7 +635,8 @@ class _FarmManagementCard extends StatelessWidget {
                     Expanded(
                       child: _FarmStatTile(
                         label: 'Documentation',
-                        value: '${crops.length + livestock.length + farm.documents.length} entries',
+                        value:
+                            '${crops.length + livestock.length + farm.documents.length} entries',
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -578,7 +650,8 @@ class _FarmManagementCard extends StatelessWidget {
                     Expanded(
                       child: _FarmStatTile(
                         label: 'Climate',
-                        value: '${farm.temperatureCelsius.toStringAsFixed(0)} C',
+                        value:
+                            '${farm.temperatureCelsius.toStringAsFixed(0)} C',
                       ),
                     ),
                   ],
@@ -592,13 +665,45 @@ class _FarmManagementCard extends StatelessWidget {
                     border: Border.all(color: theme.colorScheme.outlineVariant),
                   ),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      const Icon(Icons.fact_check_rounded),
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: theme.brightness == Brightness.dark
+                              ? Color.alphaBlend(
+                                  const Color(0xFFE9F4DB).withOpacity(0.22),
+                                  theme.colorScheme.surface)
+                              : const Color(0xFFE9F4DB),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(
+                          Icons.fact_check_rounded,
+                          color: theme.brightness == Brightness.dark
+                              ? theme.colorScheme.onSurface
+                              : const Color(0xFF44624E),
+                        ),
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Text(
-                          'Last farm update ${app_date.DateUtils.formatDate(farm.updatedAt)}. Keep structure, notes, inventory, and processes refreshed from this space.',
-                          style: theme.textTheme.bodySmall?.copyWith(height: 1.5),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              'Last updated',
+                              style: theme.textTheme.bodySmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${app_date.DateUtils.formatDate(farm.updatedAt)}. Keep structure, notes, inventory, and processes refreshed from this space.',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                height: 1.5,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -755,7 +860,8 @@ class _FarmFormSheetState extends State<_FarmFormSheet> {
     final bool isEditing = widget.initialFarm != null;
 
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
@@ -789,7 +895,10 @@ class _FarmFormSheetState extends State<_FarmFormSheet> {
                   isEditing
                       ? 'Update the core details for this farm profile.'
                       : 'Add a new farm so crops, animals, and records can be linked correctly.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(height: 1.5),
                 ),
                 const SizedBox(height: 18),
                 AppTextField(
@@ -808,7 +917,8 @@ class _FarmFormSheetState extends State<_FarmFormSheet> {
                   controller: _sizeController,
                   label: 'Farm size (ha)',
                   hint: '1.2',
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                 ),
                 const SizedBox(height: 14),
                 _DropdownField<FarmType>(
@@ -858,16 +968,20 @@ class _FarmFormSheetState extends State<_FarmFormSheet> {
                     }
                   },
                 ),
-                if (_farmType == FarmType.crop || _farmType == FarmType.combined || _farmType == FarmType.greenhouse) ...<Widget>[
+                if (_farmType == FarmType.crop ||
+                    _farmType == FarmType.combined ||
+                    _farmType == FarmType.greenhouse) ...<Widget>[
                   const SizedBox(height: 14),
                   AppTextField(
                     controller: _cropCapacityController,
                     label: 'Crop capacity (ha)',
                     hint: '0.8',
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                   ),
                 ],
-                if (_farmType == FarmType.livestock || _farmType == FarmType.combined) ...<Widget>[
+                if (_farmType == FarmType.livestock ||
+                    _farmType == FarmType.combined) ...<Widget>[
                   const SizedBox(height: 14),
                   AppTextField(
                     controller: _livestockCapacityController,
@@ -876,7 +990,8 @@ class _FarmFormSheetState extends State<_FarmFormSheet> {
                     keyboardType: TextInputType.number,
                   ),
                 ],
-                if (_farmType == FarmType.greenhouse || _farmType == FarmType.combined) ...<Widget>[
+                if (_farmType == FarmType.greenhouse ||
+                    _farmType == FarmType.combined) ...<Widget>[
                   const SizedBox(height: 14),
                   Row(
                     children: <Widget>[
@@ -894,7 +1009,8 @@ class _FarmFormSheetState extends State<_FarmFormSheet> {
                           controller: _greenhouseAreaController,
                           label: 'Greenhouse area (ha)',
                           hint: '0.2',
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
                         ),
                       ),
                     ],
@@ -907,7 +1023,9 @@ class _FarmFormSheetState extends State<_FarmFormSheet> {
                   children: <Widget>[
                     Expanded(
                       child: AppButton.secondary(
-                        onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+                        onPressed: _isSaving
+                            ? null
+                            : () => Navigator.of(context).pop(),
                         child: const Text('Cancel'),
                       ),
                     ),
@@ -931,14 +1049,19 @@ class _FarmFormSheetState extends State<_FarmFormSheet> {
   _FarmPlanningSummary _farmPlanningSummary() {
     final double sizeHa = double.tryParse(_sizeController.text.trim()) ?? 0;
     final double cropCapacity = _suggestedCropCapacity(sizeHa, _farmType);
-    final int livestockCapacity = _suggestedLivestockCapacity(sizeHa, _farmType);
+    final int livestockCapacity =
+        _suggestedLivestockCapacity(sizeHa, _farmType);
     final double greenhouseArea = _suggestedGreenhouseArea(sizeHa, _farmType);
     final int greenhouseUnits = _suggestedGreenhouseUnits(sizeHa, _farmType);
     final String note = switch (_farmType) {
-      FarmType.crop => 'Crop farms usually reserve most of the land for planting, then leave room for paths and water access.',
-      FarmType.livestock => 'Livestock farms should keep capacity conservative so housing, hygiene, and feed handling stay manageable.',
-      FarmType.greenhouse => 'Greenhouses work best when area is used intensively and the shelter plan stays compact.',
-      FarmType.combined => 'Combined farms should split space between crops, stock, and movement corridors to keep the workflow calm.',
+      FarmType.crop =>
+        'Crop farms usually reserve most of the land for planting, then leave room for paths and water access.',
+      FarmType.livestock =>
+        'Livestock farms should keep capacity conservative so housing, hygiene, and feed handling stay manageable.',
+      FarmType.greenhouse =>
+        'Greenhouses work best when area is used intensively and the shelter plan stays compact.',
+      FarmType.combined =>
+        'Combined farms should split space between crops, stock, and movement corridors to keep the workflow calm.',
     };
 
     return _FarmPlanningSummary(
@@ -947,7 +1070,8 @@ class _FarmFormSheetState extends State<_FarmFormSheet> {
       greenhouseAreaHa: greenhouseArea,
       greenhouseUnits: greenhouseUnits,
       landUseNote: note,
-      formulaNote: 'Formulas use farm size as the starting point, then adjust by the selected farm type.',
+      formulaNote:
+          'Formulas use farm size as the starting point, then adjust by the selected farm type.',
     );
   }
 
@@ -1006,7 +1130,8 @@ class _FarmFormSheetState extends State<_FarmFormSheet> {
     final String? nameError = Validators.combine(
       <String? Function(String?)>[
         (String? value) => Validators.required(value, fieldName: 'Farm name'),
-        (String? value) => Validators.maxLength(value, 40, fieldName: 'Farm name'),
+        (String? value) =>
+            Validators.maxLength(value, 40, fieldName: 'Farm name'),
       ],
       _nameController.text,
     );
@@ -1055,10 +1180,14 @@ class _FarmFormSheetState extends State<_FarmFormSheet> {
         farmerCategory: _farmerCategory,
         soilType: _soilType,
         waterSource: _waterSource,
-        cropCapacityHa: double.tryParse(_cropCapacityController.text.trim()) ?? 0,
-        livestockCapacity: int.tryParse(_livestockCapacityController.text.trim()) ?? 0,
-        greenhouseCount: int.tryParse(_greenhouseCountController.text.trim()) ?? 0,
-        greenhouseAreaHa: double.tryParse(_greenhouseAreaController.text.trim()) ?? 0,
+        cropCapacityHa:
+            double.tryParse(_cropCapacityController.text.trim()) ?? 0,
+        livestockCapacity:
+            int.tryParse(_livestockCapacityController.text.trim()) ?? 0,
+        greenhouseCount:
+            int.tryParse(_greenhouseCountController.text.trim()) ?? 0,
+        greenhouseAreaHa:
+            double.tryParse(_greenhouseAreaController.text.trim()) ?? 0,
       ),
     );
   }
@@ -1140,11 +1269,13 @@ class _DropdownField<T> extends StatelessWidget {
         fillColor: Theme.of(context).colorScheme.surface,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+          borderSide:
+              BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+          borderSide:
+              BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
       ),
@@ -1197,8 +1328,11 @@ class _FarmPlanningCard extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     const Color tint = Color(0xFFE8F4D8);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color iconBackground = isDark ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface) : tint;
-    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
+    final Color iconBackground = isDark
+        ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface)
+        : tint;
+    final Color iconForeground =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
     return AppCard(
       color: theme.colorScheme.surfaceContainerHighest,
@@ -1215,7 +1349,10 @@ class _FarmPlanningCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: iconBackground,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: isDark ? tint.withOpacity(0.42) : Colors.transparent),
+                    border: Border.all(
+                        color: isDark
+                            ? tint.withOpacity(0.42)
+                            : Colors.transparent),
                   ),
                   child: Icon(Icons.insights_rounded, color: iconForeground),
                 ),
@@ -1223,7 +1360,8 @@ class _FarmPlanningCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     'Farm planning estimate',
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ),
               ],
@@ -1233,10 +1371,21 @@ class _FarmPlanningCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: <Widget>[
-                _MiniTag(text: '${summary.cropCapacityHa.toStringAsFixed(1)} ha crop space', color: const Color(0xFFE8F4D8)),
-                _MiniTag(text: '${summary.livestockCapacity} livestock units', color: const Color(0xFFDFF1FF)),
-                _MiniTag(text: '${summary.greenhouseUnits} greenhouse unit${summary.greenhouseUnits == 1 ? '' : 's'}', color: const Color(0xFFFFEBD0)),
-                _MiniTag(text: '${summary.greenhouseAreaHa.toStringAsFixed(1)} ha greenhouse area', color: const Color(0xFFEDE8FF)),
+                _MiniTag(
+                    text:
+                        '${summary.cropCapacityHa.toStringAsFixed(1)} ha crop space',
+                    color: const Color(0xFFE8F4D8)),
+                _MiniTag(
+                    text: '${summary.livestockCapacity} livestock units',
+                    color: const Color(0xFFDFF1FF)),
+                _MiniTag(
+                    text:
+                        '${summary.greenhouseUnits} greenhouse unit${summary.greenhouseUnits == 1 ? '' : 's'}',
+                    color: const Color(0xFFFFEBD0)),
+                _MiniTag(
+                    text:
+                        '${summary.greenhouseAreaHa.toStringAsFixed(1)} ha greenhouse area',
+                    color: const Color(0xFFEDE8FF)),
               ],
             ),
             const SizedBox(height: 12),
@@ -1288,7 +1437,8 @@ class _HeroActionButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+          border:
+              Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         child: Icon(icon),
       ),
@@ -1324,7 +1474,8 @@ class _EmptyFarmState extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'Create your first farm profile to start linking crops, livestock, and financial activity.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+              style:
+                  Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
@@ -1381,8 +1532,11 @@ class _InlineNotice extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color iconBackground = isDark ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface) : color;
-    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
+    final Color iconBackground = isDark
+        ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface)
+        : color;
+    final Color iconForeground =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
     return AppCard(
       color: theme.colorScheme.surfaceContainerHighest,
@@ -1396,7 +1550,9 @@ class _InlineNotice extends StatelessWidget {
               decoration: BoxDecoration(
                 color: iconBackground,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: isDark ? color.withOpacity(0.42) : Colors.transparent),
+                border: Border.all(
+                    color:
+                        isDark ? color.withOpacity(0.42) : Colors.transparent),
               ),
               child: Icon(icon, color: iconForeground),
             ),
@@ -1405,6 +1561,68 @@ class _InlineNotice extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _CompactStatTile extends StatelessWidget {
+  const _CompactStatTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color iconBackground = isDark
+        ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface)
+        : color;
+    final Color iconForeground =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
+
+    return Column(
+      children: <Widget>[
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: iconBackground,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+                color: isDark ? color.withOpacity(0.42) : Colors.transparent),
+          ),
+          child: Icon(icon, color: iconForeground, size: 20),
+        ),
+        const SizedBox(height: 8),
+        Text(value,
+            style: theme.textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        Text(label,
+            style: theme.textTheme.bodySmall, textAlign: TextAlign.center),
+      ],
+    );
+  }
+}
+
+class _CompactDivider extends StatelessWidget {
+  const _CompactDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 48,
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      color: Theme.of(context).colorScheme.outlineVariant,
     );
   }
 }
@@ -1431,9 +1649,12 @@ class _FarmStatTile extends StatelessWidget {
       ),
       child: Column(
         children: <Widget>[
-          Text(value, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          Text(value,
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
-          Text(label, style: theme.textTheme.bodySmall, textAlign: TextAlign.center),
+          Text(label,
+              style: theme.textTheme.bodySmall, textAlign: TextAlign.center),
         ],
       ),
     );
@@ -1459,8 +1680,11 @@ class _ProcessCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color iconBackground = isDark ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface) : color;
-    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
+    final Color iconBackground = isDark
+        ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface)
+        : color;
+    final Color iconForeground =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
     return AppCard(
       color: theme.colorScheme.surfaceContainerHighest,
@@ -1475,16 +1699,21 @@ class _ProcessCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: iconBackground,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: isDark ? color.withOpacity(0.42) : Colors.transparent),
+                border: Border.all(
+                    color:
+                        isDark ? color.withOpacity(0.42) : Colors.transparent),
               ),
               child: Icon(icon, color: iconForeground),
             ),
             const SizedBox(height: 14),
-            Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            Text(title,
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
-            Text(detail, style: theme.textTheme.bodySmall?.copyWith(height: 1.5)),
+            Text(detail,
+                style: theme.textTheme.bodySmall?.copyWith(height: 1.5)),
             const SizedBox(height: 12),
-            Text(status, style: theme.textTheme.labelLarge),
+            _MiniTag(text: status, color: color),
           ],
         ),
       ),
@@ -1513,8 +1742,11 @@ class _DocumentationRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color iconBackground = isDark ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface) : color;
-    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
+    final Color iconBackground = isDark
+        ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface)
+        : color;
+    final Color iconForeground =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
     final Widget content = Container(
       padding: const EdgeInsets.all(14),
@@ -1531,7 +1763,8 @@ class _DocumentationRow extends StatelessWidget {
             decoration: BoxDecoration(
               color: iconBackground,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: isDark ? color.withOpacity(0.42) : Colors.transparent),
+              border: Border.all(
+                  color: isDark ? color.withOpacity(0.42) : Colors.transparent),
             ),
             child: Icon(icon, color: iconForeground),
           ),
@@ -1540,14 +1773,39 @@ class _DocumentationRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                Text(title,
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
-                Text(subtitle, style: theme.textTheme.bodySmall?.copyWith(height: 1.5)),
+                Text(subtitle,
+                    style: theme.textTheme.bodySmall?.copyWith(height: 1.5)),
               ],
             ),
           ),
           const SizedBox(width: 10),
-          Text(trailing, style: theme.textTheme.labelLarge),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Color.alphaBlend(
+                      color.withOpacity(0.22), theme.colorScheme.surface)
+                  : color,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                  color: isDark
+                      ? color.withOpacity(0.44)
+                      : color.withOpacity(0.85)),
+            ),
+            child: Text(
+              trailing,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: isDark
+                    ? theme.colorScheme.onSurface
+                    : const Color(0xFF284231),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1585,8 +1843,11 @@ class _InventoryPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color iconBackground = isDark ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface) : color;
-    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
+    final Color iconBackground = isDark
+        ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface)
+        : color;
+    final Color iconForeground =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
     return AppCard(
       onTap: onTap,
@@ -1602,16 +1863,21 @@ class _InventoryPanel extends StatelessWidget {
               decoration: BoxDecoration(
                 color: iconBackground,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: isDark ? color.withOpacity(0.42) : Colors.transparent),
+                border: Border.all(
+                    color:
+                        isDark ? color.withOpacity(0.42) : Colors.transparent),
               ),
               child: Icon(icon, color: iconForeground),
             ),
             const SizedBox(height: 14),
-            Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            Text(title,
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
             Text(count, style: theme.textTheme.titleLarge),
             const SizedBox(height: 4),
-            Text(detail, style: theme.textTheme.bodySmall?.copyWith(height: 1.5)),
+            Text(detail,
+                style: theme.textTheme.bodySmall?.copyWith(height: 1.5)),
           ],
         ),
       ),
@@ -1632,8 +1898,11 @@ class _MiniTag extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color background = isDark ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface) : color;
-    final Color foreground = isDark ? theme.colorScheme.onSurface : const Color(0xFF284231);
+    final Color background = isDark
+        ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface)
+        : color;
+    final Color foreground =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFF284231);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1653,40 +1922,6 @@ class _MiniTag extends StatelessWidget {
       ),
     );
   }
-}
-
-List<Farm> _visibleFarms(
-  List<Farm> farms, {
-  required User? currentUser,
-  required UserProfile? profile,
-}) {
-  if (currentUser == null) {
-    return farms;
-  }
-
-  final List<Farm> accessibleFarms = farms
-      .where(
-        (Farm farm) =>
-            farm.ownerUid == currentUser.uid ||
-            farm.ownerEmail == currentUser.email ||
-            farm.workspaceMembers.any(
-              (FarmWorkspaceMember member) =>
-                  member.email == currentUser.email ||
-                  member.id == currentUser.uid ||
-                  member.allowedFarmIds.contains(farm.id),
-            ),
-      )
-      .toList(growable: false);
-
-  if (accessibleFarms.isNotEmpty) {
-    return accessibleFarms;
-  }
-
-  if (profile?.accountRole != null && profile!.accountRole != UserAccountRole.owner) {
-    return <Farm>[];
-  }
-
-  return farms;
 }
 
 class FarmDraft {

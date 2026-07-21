@@ -10,7 +10,8 @@ import '../domain/models/notification.dart';
 import 'auth_provider.dart';
 
 /// Provider for managing notifications.
-final notificationsProvider = StateNotifierProvider<NotificationsNotifier, List<Notification>>((ref) {
+final notificationsProvider =
+    StateNotifierProvider<NotificationsNotifier, List<Notification>>((ref) {
   return NotificationsNotifier(
     ref.read(firebaseServiceProvider),
     ref.watch(authStateProvider).valueOrNull?.uid,
@@ -19,7 +20,8 @@ final notificationsProvider = StateNotifierProvider<NotificationsNotifier, List<
 
 /// State notifier for notifications management.
 class NotificationsNotifier extends StateNotifier<List<Notification>> {
-  NotificationsNotifier(this._firebaseService, this._currentUserId) : super([]) {
+  NotificationsNotifier(this._firebaseService, this._currentUserId)
+      : super([]) {
     _loadNotifications();
   }
 
@@ -31,17 +33,28 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
 
   String get _storageKey {
     final String? userId = _currentUserId ?? _firebaseService.currentUser?.uid;
-    return userId == null || userId.isEmpty ? _notificationsKey : '${_notificationsKey}_$userId';
+    return userId == null || userId.isEmpty
+        ? _notificationsKey
+        : '${_notificationsKey}_$userId';
   }
 
   /// Loads notifications from shared preferences.
   Future<void> _loadNotifications() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    final List<String> notificationsJson = prefs.getStringList(_storageKey) ?? <String>[];
+    if (!mounted) {
+      return;
+    }
+    final List<String> notificationsJson =
+        prefs.getStringList(_storageKey) ?? <String>[];
     final List<Notification> localNotifications = notificationsJson
-        .map((String jsonStr) => Notification.fromMap(jsonDecode(jsonStr) as Map<String, dynamic>))
+        .map((String jsonStr) =>
+            Notification.fromMap(jsonDecode(jsonStr) as Map<String, dynamic>))
         .toList();
-    final List<Notification> remoteNotifications = await _loadRemoteNotifications();
+    final List<Notification> remoteNotifications =
+        await _loadRemoteNotifications();
+    if (!mounted) {
+      return;
+    }
     final Map<String, Notification> merged = <String, Notification>{};
 
     for (final Notification localNotification in localNotifications) {
@@ -51,16 +64,20 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
     for (final Notification remoteNotification in remoteNotifications) {
       final Notification? existing = merged[remoteNotification.id];
       if (existing != null) {
-        merged[remoteNotification.id] = remoteNotification.copyWith(isRead: existing.isRead);
+        merged[remoteNotification.id] =
+            remoteNotification.copyWith(isRead: existing.isRead);
       } else {
         merged[remoteNotification.id] = remoteNotification;
       }
     }
 
     state = merged.values.toList()
-      ..sort((Notification a, Notification b) => b.timestamp.compareTo(a.timestamp));
+      ..sort((Notification a, Notification b) =>
+          b.timestamp.compareTo(a.timestamp));
 
-    if (notificationsJson.isEmpty && remoteNotifications.isEmpty && state.isNotEmpty) {
+    if (notificationsJson.isEmpty &&
+        remoteNotifications.isEmpty &&
+        state.isNotEmpty) {
       await _saveNotifications();
     }
   }
@@ -69,10 +86,12 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
 
   Future<List<Notification>> _loadRemoteNotifications() async {
     try {
-      final List<Map<String, dynamic>> records = await _firebaseService.getGlobalFromFirestore(_remoteCollection);
+      final List<Map<String, dynamic>> records =
+          await _firebaseService.getGlobalFromFirestore(_remoteCollection);
       return records
           .map(Notification.fromMap)
-          .where((Notification notification) => _shouldShowRemoteNotification(notification))
+          .where((Notification notification) =>
+              _shouldShowRemoteNotification(notification))
           .toList(growable: false);
     } catch (_) {
       return <Notification>[];
@@ -89,7 +108,8 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
       return true;
     }
     final String? targetUserId = metadata['targetUserId'] as String?;
-    final String? currentUserId = _currentUserId ?? _firebaseService.currentUser?.uid;
+    final String? currentUserId =
+        _currentUserId ?? _firebaseService.currentUser?.uid;
     return targetUserId != null && targetUserId == currentUserId;
   }
 
@@ -148,11 +168,16 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
       },
     );
 
-    await _firebaseService.syncGlobalToFirestore(_remoteCollection, notification.toMap());
+    await _firebaseService.syncGlobalToFirestore(
+        _remoteCollection, notification.toMap());
+    if (!mounted) {
+      return;
+    }
 
     if (_shouldShowRemoteNotification(notification)) {
-      state = <Notification>[notification, ...state]
-        ..sort((Notification a, Notification b) => b.timestamp.compareTo(a.timestamp));
+      state = <Notification>[notification, ...state]..sort(
+          (Notification a, Notification b) =>
+              b.timestamp.compareTo(a.timestamp));
       await _saveNotifications();
       if (showDeviceNotification) {
         await FarmNotificationService.instance.showNow(
@@ -200,13 +225,17 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
 
   /// Marks all notifications as read.
   void markAllAsRead() {
-    state = state.map((notification) => notification.copyWith(isRead: true)).toList();
+    state = state
+        .map((notification) => notification.copyWith(isRead: true))
+        .toList();
     _saveNotifications();
   }
 
   /// Removes a notification.
   void removeNotification(String notificationId) {
-    state = state.where((notification) => notification.id != notificationId).toList();
+    state = state
+        .where((notification) => notification.id != notificationId)
+        .toList();
     _saveNotifications();
   }
 
@@ -215,8 +244,8 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
     if (state.any((item) => item.id == notification.id)) {
       return;
     }
-    state = <Notification>[notification, ...state]
-      ..sort((Notification a, Notification b) => b.timestamp.compareTo(a.timestamp));
+    state = <Notification>[notification, ...state]..sort(
+        (Notification a, Notification b) => b.timestamp.compareTo(a.timestamp));
     _saveNotifications();
   }
 
@@ -227,9 +256,10 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
   }
 
   /// Gets unread notifications count.
-  int get unreadCount => state.where((notification) => !notification.isRead).length;
+  int get unreadCount =>
+      state.where((notification) => !notification.isRead).length;
 
   /// Gets read notifications count.
-  int get readCount => state.where((notification) => notification.isRead).length;
-
+  int get readCount =>
+      state.where((notification) => notification.isRead).length;
 }

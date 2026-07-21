@@ -3,11 +3,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../domain/models/user_profile.dart';
 import '../../../providers/ai_chat_provider.dart';
 import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/sync_provider.dart';
 import '../../../providers/theme_provider.dart';
+import '../../../providers/user_profile_provider.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
@@ -33,6 +35,7 @@ class SettingsScreen extends ConsumerWidget {
     final AppSettings appSettings = ref.watch(appSettingsProvider);
     final SyncOverview syncOverview = ref.watch(syncOverviewProvider);
     final User? currentUser = ref.watch(firebaseServiceProvider).currentUser;
+    final UserProfile? profile = ref.watch(userProfileProvider).valueOrNull;
     final ThemeData theme = Theme.of(context);
 
     return Scaffold(
@@ -68,20 +71,23 @@ class SettingsScreen extends ConsumerWidget {
         ),
         heroIcon: Icons.tune_rounded,
         heroVariant: FarmArtworkVariant.dashboard,
-        heroBadge: appLanguage.tr(en: 'Preferences', ha: 'Zabuka', fr: 'Preferences'),
+        heroBadge:
+            appLanguage.tr(en: 'Preferences', ha: 'Zabuka', fr: 'Preferences'),
         trailing: Container(
           width: 48,
           height: 48,
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+            border:
+                Border.all(color: Theme.of(context).colorScheme.outlineVariant),
           ),
           child: const Icon(Icons.settings_suggest_rounded),
         ),
         sections: <Widget>[
           SoftSectionTitle(
-            title: appLanguage.tr(en: 'Appearance', ha: 'Kallo', fr: 'Apparence'),
+            title:
+                appLanguage.tr(en: 'Appearance', ha: 'Kallo', fr: 'Apparence'),
             titleStyle: theme.textTheme.titleMedium?.copyWith(
               color: theme.brightness == Brightness.dark
                   ? theme.colorScheme.onSurface
@@ -99,7 +105,9 @@ class SettingsScreen extends ConsumerWidget {
                     subtitle: 'Follow your device preference automatically.',
                     icon: Icons.brightness_auto_rounded,
                     selected: themeMode == ThemeMode.system,
-                    onTap: () => ref.read(themeProvider.notifier).setThemeMode(ThemeMode.system),
+                    onTap: () => ref
+                        .read(themeProvider.notifier)
+                        .setThemeMode(ThemeMode.system),
                   ),
                   const SizedBox(height: 12),
                   _ModeTile(
@@ -107,7 +115,9 @@ class SettingsScreen extends ConsumerWidget {
                     subtitle: 'Keep the soft cream and green daytime look.',
                     icon: Icons.light_mode_rounded,
                     selected: themeMode == ThemeMode.light,
-                    onTap: () => ref.read(themeProvider.notifier).setThemeMode(ThemeMode.light),
+                    onTap: () => ref
+                        .read(themeProvider.notifier)
+                        .setThemeMode(ThemeMode.light),
                   ),
                   const SizedBox(height: 12),
                   _ModeTile(
@@ -115,14 +125,20 @@ class SettingsScreen extends ConsumerWidget {
                     subtitle: 'Switch to a darker field-ready interface.',
                     icon: Icons.dark_mode_rounded,
                     selected: themeMode == ThemeMode.dark,
-                    onTap: () => ref.read(themeProvider.notifier).setThemeMode(ThemeMode.dark),
+                    onTap: () => ref
+                        .read(themeProvider.notifier)
+                        .setThemeMode(ThemeMode.dark),
                   ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 18),
-          SoftSectionTitle(title: appLanguage.tr(en: 'AI preferences', ha: 'Zabukan AI', fr: 'Preferences IA')),
+          SoftSectionTitle(
+              title: appLanguage.tr(
+                  en: 'AI preferences',
+                  ha: 'Zabukan AI',
+                  fr: 'Preferences IA')),
           AppCard(
             color: theme.colorScheme.surfaceContainerHighest,
             child: Padding(
@@ -156,7 +172,9 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 18),
-          SoftSectionTitle(title: appLanguage.tr(en: 'Notifications', ha: 'Sanarwa', fr: 'Notifications')),
+          SoftSectionTitle(
+              title: appLanguage.tr(
+                  en: 'Notifications', ha: 'Sanarwa', fr: 'Notifications')),
           AppCard(
             color: theme.colorScheme.surfaceContainerHighest,
             child: Padding(
@@ -165,7 +183,10 @@ class SettingsScreen extends ConsumerWidget {
                 children: <Widget>[
                   _ToggleSettingsRow(
                     icon: Icons.notifications_active_rounded,
-                    title: appLanguage.tr(en: 'Push notifications', ha: 'Sanarwar waya', fr: 'Notifications push'),
+                    title: appLanguage.tr(
+                        en: 'Push notifications',
+                        ha: 'Sanarwar waya',
+                        fr: 'Notifications push'),
                     subtitle: appLanguage.tr(
                       en: 'Enable or disable app alerts, farm updates, and incoming messages.',
                       ha: 'Bada damar ko kashe sanarwar app, sabuntawar gona, da saƙonni masu zuwa.',
@@ -173,12 +194,17 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     value: appSettings.notificationsEnabled,
                     tint: const Color(0xFFE9F4DB),
-                    onChanged: (bool value) => ref.read(appSettingsProvider.notifier).setNotificationsEnabled(value),
+                    onChanged: (bool value) => ref
+                        .read(appSettingsProvider.notifier)
+                        .setNotificationsEnabled(value),
                   ),
                   const SizedBox(height: 12),
                   _ToggleSettingsRow(
                     icon: Icons.alarm_on_rounded,
-                    title: appLanguage.tr(en: 'Reminder notifications', ha: 'Sanarwar tunatarwa', fr: 'Notifications de rappel'),
+                    title: appLanguage.tr(
+                        en: 'Reminder notifications',
+                        ha: 'Sanarwar tunatarwa',
+                        fr: 'Notifications de rappel'),
                     subtitle: appLanguage.tr(
                       en: 'Control crop and livestock reminder alerts separately.',
                       ha: 'Sarrafa sanarwar tunatarwa ga amfanin gona da dabbobi daban.',
@@ -186,13 +212,36 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     value: appSettings.reminderNotificationsEnabled,
                     tint: const Color(0xFFDFF1FF),
-                    onChanged: (bool value) =>
-                        ref.read(appSettingsProvider.notifier).setReminderNotificationsEnabled(value),
+                    onChanged: (bool value) => ref
+                        .read(appSettingsProvider.notifier)
+                        .setReminderNotificationsEnabled(value),
+                  ),
+                  const SizedBox(height: 12),
+                  _ToggleSettingsRow(
+                    icon: Icons.wb_sunny_rounded,
+                    title: appLanguage.tr(
+                        en: 'Daily updates',
+                        ha: 'Sabuntawa ta yau da kullum',
+                        fr: 'Mises a jour quotidiennes'),
+                    subtitle: appLanguage.tr(
+                      en: 'A morning summary of today\'s farm tasks and a quick farming fact.',
+                      ha: 'Takaitaccen ayyukan gona na yau da wani gaskiyar noma da safe.',
+                      fr: 'Un resume matinal des taches du jour et une astuce agricole rapide.',
+                    ),
+                    value: profile?.dailyUpdatesEnabled ?? true,
+                    tint: const Color(0xFFFFEBD0),
+                    onChanged: (bool value) {
+                      if (profile != null) {
+                        ref.read(userProfileProvider.notifier).saveProfile(
+                            profile.copyWith(dailyUpdatesEnabled: value));
+                      }
+                    },
                   ),
                   const SizedBox(height: 12),
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 14),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.surface,
                       borderRadius: BorderRadius.circular(22),
@@ -200,7 +249,8 @@ class SettingsScreen extends ConsumerWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Icon(Icons.help_outline_rounded, color: theme.colorScheme.primary, size: 20),
+                        Icon(Icons.help_outline_rounded,
+                            color: theme.colorScheme.primary, size: 20),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -212,7 +262,8 @@ class SettingsScreen extends ConsumerWidget {
                                   ha: 'Yadda sanarwa ke aiki',
                                   fr: 'Comment fonctionnent les notifications',
                                 ),
-                                style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                                style: theme.textTheme.labelLarge
+                                    ?.copyWith(fontWeight: FontWeight.w700),
                               ),
                               const SizedBox(height: 4),
                               Text(
@@ -234,7 +285,11 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 18),
-          SoftSectionTitle(title: appLanguage.tr(en: 'Farm preferences', ha: 'Zabukan gona', fr: 'Preferences de ferme')),
+          SoftSectionTitle(
+              title: appLanguage.tr(
+                  en: 'Farm preferences',
+                  ha: 'Zabukan gona',
+                  fr: 'Preferences de ferme')),
           AppCard(
             color: theme.colorScheme.surfaceContainerHighest,
             child: Padding(
@@ -243,7 +298,8 @@ class SettingsScreen extends ConsumerWidget {
                 children: <Widget>[
                   _SettingsRow(
                     icon: Icons.translate_rounded,
-                    title: appLanguage.tr(en: 'Language', ha: 'Harshe', fr: 'Langue'),
+                    title: appLanguage.tr(
+                        en: 'Language', ha: 'Harshe', fr: 'Langue'),
                     value: appLanguage.label,
                     tint: const Color(0xFFDFF1FF),
                     onTap: () => _showAppLanguageSheet(context, ref),
@@ -251,7 +307,10 @@ class SettingsScreen extends ConsumerWidget {
                   const SizedBox(height: 12),
                   _ToggleSettingsRow(
                     icon: Icons.sync_rounded,
-                    title: appLanguage.tr(en: 'Auto sync when online', ha: 'Auto sync idan akwai intanet', fr: 'Synchronisation auto'),
+                    title: appLanguage.tr(
+                        en: 'Auto sync when online',
+                        ha: 'Auto sync idan akwai intanet',
+                        fr: 'Synchronisation auto'),
                     subtitle: appLanguage.tr(
                       en: 'Sync offline records as soon as internet is available.',
                       ha: 'Aika bayanan da aka rubuta offline da zarar an samu intanet.',
@@ -259,12 +318,17 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     value: appSettings.autoSyncEnabled,
                     tint: const Color(0xFFFFEBD0),
-                    onChanged: (bool value) => ref.read(appSettingsProvider.notifier).setAutoSyncEnabled(value),
+                    onChanged: (bool value) => ref
+                        .read(appSettingsProvider.notifier)
+                        .setAutoSyncEnabled(value),
                   ),
                   const SizedBox(height: 12),
                   _ToggleSettingsRow(
                     icon: Icons.fingerprint_rounded,
-                    title: appLanguage.tr(en: 'Biometric lock', ha: 'Kulle da biometrik', fr: 'Verrou biometrique'),
+                    title: appLanguage.tr(
+                        en: 'Biometric lock',
+                        ha: 'Kulle da biometrik',
+                        fr: 'Verrou biometrique'),
                     subtitle: appLanguage.tr(
                       en: 'Require device biometric unlock on supported phones.',
                       ha: 'Bukaci budewa da sawun yatsa ko fuska a wayoyin da ke goyon baya.',
@@ -272,14 +336,19 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     value: appSettings.biometricLockEnabled,
                     tint: const Color(0xFFEAD9FF),
-                    onChanged: (bool value) =>
-                        ref.read(appSettingsProvider.notifier).setBiometricLockEnabled(value),
+                    onChanged: (bool value) => ref
+                        .read(appSettingsProvider.notifier)
+                        .setBiometricLockEnabled(value),
                   ),
                   const SizedBox(height: 12),
                   _SettingsRow(
                     icon: Icons.download_rounded,
-                    title: appLanguage.tr(en: 'Export reports', ha: 'Fitar da rahoto', fr: 'Exporter les rapports'),
-                    value: appLanguage.tr(en: 'Weekly PDF', ha: 'PDF na mako', fr: 'PDF hebdo'),
+                    title: appLanguage.tr(
+                        en: 'Export reports',
+                        ha: 'Fitar da rahoto',
+                        fr: 'Exporter les rapports'),
+                    value: appLanguage.tr(
+                        en: 'Weekly PDF', ha: 'PDF na mako', fr: 'PDF hebdo'),
                     tint: const Color(0xFFFFEBD0),
                   ),
                 ],
@@ -287,7 +356,9 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 18),
-          SoftSectionTitle(title: appLanguage.tr(en: 'Security', ha: 'Tsaro', fr: 'Securite')),
+          SoftSectionTitle(
+              title:
+                  appLanguage.tr(en: 'Security', ha: 'Tsaro', fr: 'Securite')),
           AppCard(
             color: theme.colorScheme.surfaceContainerHighest,
             child: Padding(
@@ -296,28 +367,48 @@ class SettingsScreen extends ConsumerWidget {
                 children: <Widget>[
                   _SettingsRow(
                     icon: Icons.lock_reset_rounded,
-                    title: appLanguage.tr(en: 'Change password', ha: 'Canza kalmar sirri', fr: 'Changer le mot de passe'),
-                    value: currentUser?.email ?? appLanguage.tr(en: 'Update account password', ha: 'Sabunta kalmar sirri', fr: 'Mettre a jour le mot de passe'),
+                    title: appLanguage.tr(
+                        en: 'Change password',
+                        ha: 'Canza kalmar sirri',
+                        fr: 'Changer le mot de passe'),
+                    value: currentUser?.email ??
+                        appLanguage.tr(
+                            en: 'Update account password',
+                            ha: 'Sabunta kalmar sirri',
+                            fr: 'Mettre a jour le mot de passe'),
                     tint: const Color(0xFFEAD9FF),
                     onTap: () => _showChangePasswordSheet(context, ref),
                   ),
                   const SizedBox(height: 12),
                   _SettingsRow(
                     icon: Icons.email_rounded,
-                    title: appLanguage.tr(en: 'Send password reset', ha: 'Aika sabon kalmar sirri', fr: 'Envoyer la reinitialisation'),
-                    value: currentUser?.email ?? appLanguage.tr(en: 'Reset via email', ha: 'Sake saitin ta imel', fr: 'Reinitialiser par e-mail'),
+                    title: appLanguage.tr(
+                        en: 'Send password reset',
+                        ha: 'Aika sabon kalmar sirri',
+                        fr: 'Envoyer la reinitialisation'),
+                    value: currentUser?.email ??
+                        appLanguage.tr(
+                            en: 'Reset via email',
+                            ha: 'Sake saitin ta imel',
+                            fr: 'Reinitialiser par e-mail'),
                     tint: const Color(0xFFDFF1FF),
                     onTap: currentUser?.email == null
                         ? null
-                        : () => _sendPasswordReset(context, ref, currentUser!.email!),
+                        : () => _sendPasswordReset(
+                            context, ref, currentUser!.email!),
                   ),
                   const SizedBox(height: 12),
                   _SettingsRow(
                     icon: Icons.verified_user_rounded,
-                    title: appLanguage.tr(en: 'Email verification status', ha: 'Matsayin tabbatar da imel', fr: 'Statut de verification'),
+                    title: appLanguage.tr(
+                        en: 'Email verification status',
+                        ha: 'Matsayin tabbatar da imel',
+                        fr: 'Statut de verification'),
                     value: currentUser?.emailVerified == true
-                        ? appLanguage.tr(en: 'Verified', ha: 'An tabbatar', fr: 'Verifie')
-                        : appLanguage.tr(en: 'Pending', ha: 'Ana jira', fr: 'En attente'),
+                        ? appLanguage.tr(
+                            en: 'Verified', ha: 'An tabbatar', fr: 'Verifie')
+                        : appLanguage.tr(
+                            en: 'Pending', ha: 'Ana jira', fr: 'En attente'),
                     tint: const Color(0xFFE9F4DB),
                   ),
                 ],
@@ -325,7 +416,9 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 18),
-          SoftSectionTitle(title: appLanguage.tr(en: 'Support', ha: 'Taimako', fr: 'Support')),
+          SoftSectionTitle(
+              title:
+                  appLanguage.tr(en: 'Support', ha: 'Taimako', fr: 'Support')),
           AppCard(
             color: theme.colorScheme.surfaceContainerHighest,
             child: Padding(
@@ -334,7 +427,10 @@ class SettingsScreen extends ConsumerWidget {
                 children: <Widget>[
                   _SettingsRow(
                     icon: Icons.support_agent_rounded,
-                    title: appLanguage.tr(en: 'Email support', ha: 'Taimako ta imel', fr: 'Support par e-mail'),
+                    title: appLanguage.tr(
+                        en: 'Email support',
+                        ha: 'Taimako ta imel',
+                        fr: 'Support par e-mail'),
                     value: 'support@farmsync.lbtech.site',
                     tint: const Color(0xFFFFEBD0),
                     onTap: () => _launchUri(context, _supportEmailUri),
@@ -342,8 +438,14 @@ class SettingsScreen extends ConsumerWidget {
                   const SizedBox(height: 12),
                   _SettingsRow(
                     icon: Icons.chat_rounded,
-                    title: appLanguage.tr(en: 'Join WhatsApp support', ha: 'Shiga taimakon WhatsApp', fr: 'Rejoindre WhatsApp'),
-                    value: appLanguage.tr(en: 'Open community', ha: 'Bude al umma', fr: 'Ouvrir la communaute'),
+                    title: appLanguage.tr(
+                        en: 'Join WhatsApp support',
+                        ha: 'Shiga taimakon WhatsApp',
+                        fr: 'Rejoindre WhatsApp'),
+                    value: appLanguage.tr(
+                        en: 'Open community',
+                        ha: 'Bude al umma',
+                        fr: 'Ouvrir la communaute'),
                     tint: const Color(0xFFDDF7E4),
                     onTap: () => _launchUri(context, _whatsAppUri),
                   ),
@@ -352,7 +454,11 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 18),
-          SoftSectionTitle(title: appLanguage.tr(en: 'Connection and alerts', ha: 'Hada da sanarwa', fr: 'Connexion et alertes')),
+          SoftSectionTitle(
+              title: appLanguage.tr(
+                  en: 'Connection and alerts',
+                  ha: 'Hada da sanarwa',
+                  fr: 'Connexion et alertes')),
           Row(
             children: <Widget>[
               Expanded(
@@ -389,7 +495,8 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _showAppLanguageSheet(BuildContext context, WidgetRef ref) async {
+  Future<void> _showAppLanguageSheet(
+      BuildContext context, WidgetRef ref) async {
     final AppLanguage current = ref.read(appLanguageProvider);
     await showModalBottomSheet<void>(
       context: context,
@@ -406,14 +513,17 @@ class SettingsScreen extends ConsumerWidget {
             children: AppLanguage.values
                 .map(
                   (AppLanguage language) => ListTile(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18)),
                     leading: const Icon(Icons.language_rounded),
                     title: Text(language.label),
                     trailing: current == language
                         ? const Icon(Icons.check_circle_rounded)
                         : null,
                     onTap: () async {
-                      await ref.read(appLanguageProvider.notifier).setLanguage(language);
+                      await ref
+                          .read(appLanguageProvider.notifier)
+                          .setLanguage(language);
                       if (context.mounted) {
                         Navigator.of(context).pop();
                       }
@@ -428,7 +538,8 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   Future<void> _launchUri(BuildContext context, Uri uri) async {
-    final bool launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    final bool launched =
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!launched && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not open link right now.')),
@@ -454,7 +565,8 @@ class SettingsScreen extends ConsumerWidget {
             children: ai.supportedLanguages
                 .map(
                   (String language) => ListTile(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18)),
                     leading: const Icon(Icons.language_rounded),
                     title: Text(language),
                     trailing: ai.language == language
@@ -475,10 +587,13 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _showChangePasswordSheet(BuildContext context, WidgetRef ref) async {
-    final TextEditingController currentPasswordController = TextEditingController();
+  Future<void> _showChangePasswordSheet(
+      BuildContext context, WidgetRef ref) async {
+    final TextEditingController currentPasswordController =
+        TextEditingController();
     final TextEditingController newPasswordController = TextEditingController();
-    final TextEditingController confirmPasswordController = TextEditingController();
+    final TextEditingController confirmPasswordController =
+        TextEditingController();
     bool isSaving = false;
 
     await showModalBottomSheet<void>(
@@ -487,21 +602,29 @@ class SettingsScreen extends ConsumerWidget {
       backgroundColor: Colors.transparent,
       builder: (BuildContext sheetContext) {
         return StatefulBuilder(
-          builder: (BuildContext context, void Function(void Function()) setState) {
+          builder:
+              (BuildContext context, void Function(void Function()) setState) {
             Future<void> submit() async {
-              final String currentPassword = currentPasswordController.text.trim();
+              final String currentPassword =
+                  currentPasswordController.text.trim();
               final String newPassword = newPasswordController.text.trim();
-              final String confirmPassword = confirmPasswordController.text.trim();
+              final String confirmPassword =
+                  confirmPasswordController.text.trim();
 
-              if (currentPassword.isEmpty || newPassword.isEmpty || confirmPassword.isEmpty) {
+              if (currentPassword.isEmpty ||
+                  newPassword.isEmpty ||
+                  confirmPassword.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Fill all password fields first.')),
+                  const SnackBar(
+                      content: Text('Fill all password fields first.')),
                 );
                 return;
               }
               if (newPassword.length < 6) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Choose a stronger password with at least 6 characters.')),
+                  const SnackBar(
+                      content: Text(
+                          'Choose a stronger password with at least 6 characters.')),
                 );
                 return;
               }
@@ -521,13 +644,15 @@ class SettingsScreen extends ConsumerWidget {
                 if (context.mounted) {
                   Navigator.of(context).pop();
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Password changed successfully.')),
+                    const SnackBar(
+                        content: Text('Password changed successfully.')),
                   );
                 }
               } catch (error) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Could not change password: $error')),
+                    SnackBar(
+                        content: Text('Could not change password: $error')),
                   );
                 }
               } finally {
@@ -544,7 +669,8 @@ class SettingsScreen extends ConsumerWidget {
               child: Container(
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(28)),
                 ),
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
                 child: Column(
@@ -564,7 +690,10 @@ class SettingsScreen extends ConsumerWidget {
                     const SizedBox(height: 18),
                     Text(
                       'Change password',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -616,9 +745,12 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _sendPasswordReset(BuildContext context, WidgetRef ref, String email) async {
+  Future<void> _sendPasswordReset(
+      BuildContext context, WidgetRef ref, String email) async {
     try {
-      await ref.read(authControllerProvider.notifier).sendPasswordResetEmail(email);
+      await ref
+          .read(authControllerProvider.notifier)
+          .sendPasswordResetEmail(email);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Password reset email sent to $email')),
@@ -652,7 +784,9 @@ class _ModeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final Color iconForeground = selected ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant;
+    final Color iconForeground = selected
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurfaceVariant;
 
     return InkWell(
       onTap: onTap,
@@ -666,7 +800,9 @@ class _ModeTile extends StatelessWidget {
               : theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
-            color: selected ? theme.colorScheme.primary : theme.colorScheme.outlineVariant,
+            color: selected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outlineVariant,
             width: selected ? 1.4 : 1,
           ),
         ),
@@ -690,7 +826,8 @@ class _ModeTile extends StatelessWidget {
                 children: <Widget>[
                   Text(
                     label,
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -702,8 +839,12 @@ class _ModeTile extends StatelessWidget {
             ),
             const SizedBox(width: 10),
             Icon(
-              selected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-              color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
+              selected
+                  ? Icons.check_circle_rounded
+                  : Icons.radio_button_unchecked_rounded,
+              color: selected
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
             ),
           ],
         ),
@@ -731,8 +872,11 @@ class _SettingsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color iconBackground = isDark ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface) : tint;
-    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
+    final Color iconBackground = isDark
+        ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface)
+        : tint;
+    final Color iconForeground =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
     return InkWell(
       onTap: onTap,
@@ -751,7 +895,9 @@ class _SettingsRow extends StatelessWidget {
               decoration: BoxDecoration(
                 color: iconBackground,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: isDark ? tint.withOpacity(0.42) : Colors.transparent),
+                border: Border.all(
+                    color:
+                        isDark ? tint.withOpacity(0.42) : Colors.transparent),
               ),
               child: Icon(icon, color: iconForeground),
             ),
@@ -759,7 +905,8 @@ class _SettingsRow extends StatelessWidget {
             Expanded(
               child: Text(
                 title,
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700),
               ),
             ),
             Flexible(
@@ -771,7 +918,9 @@ class _SettingsRow extends StatelessWidget {
             ),
             const SizedBox(width: 6),
             Icon(
-              onTap == null ? Icons.info_outline_rounded : Icons.chevron_right_rounded,
+              onTap == null
+                  ? Icons.info_outline_rounded
+                  : Icons.chevron_right_rounded,
             ),
           ],
         ),
@@ -801,8 +950,11 @@ class _ToggleSettingsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color iconBackground = isDark ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface) : tint;
-    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
+    final Color iconBackground = isDark
+        ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface)
+        : tint;
+    final Color iconForeground =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -818,7 +970,8 @@ class _ToggleSettingsRow extends StatelessWidget {
             decoration: BoxDecoration(
               color: iconBackground,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: isDark ? tint.withOpacity(0.42) : Colors.transparent),
+              border: Border.all(
+                  color: isDark ? tint.withOpacity(0.42) : Colors.transparent),
             ),
             child: Icon(
               icon,
@@ -832,7 +985,8 @@ class _ToggleSettingsRow extends StatelessWidget {
               children: <Widget>[
                 Text(
                   title,
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 4),
                 Text(

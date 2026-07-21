@@ -33,21 +33,147 @@ import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
+import '../../common/widgets/soft_progress_bar.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
 import '../crops/crop_detail_screen.dart';
 import 'farm_insight_summary_screen.dart';
 import '../livestock/livestock_detail_screen.dart';
 
-class FarmDetailScreen extends ConsumerWidget {
+class FarmDetailScreen extends ConsumerStatefulWidget {
   const FarmDetailScreen({
     super.key,
     required this.farmId,
+    this.initialSection,
   });
 
   final String farmId;
 
+  /// When set, scrolls to and expands this collapsible section on first load
+  /// (see [_collapsibleSectionIds]) — used when deep-linking from other
+  /// screens, e.g. the cross-farm task center.
+  final String? initialSection;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FarmDetailScreen> createState() => _FarmDetailScreenState();
+}
+
+const List<String> _collapsibleSectionIds = <String>[
+  'operationProfile',
+  'workspaceBoard',
+  'greenhousePlanner',
+  'workspaceMembers',
+  'taskCalendar',
+  'activityLog',
+  'farmNotes',
+  'documentStorage',
+  'linkedPerformance',
+  'cycleTracking',
+  'linkedCrops',
+  'linkedLivestock',
+];
+
+const Map<String, String> _sectionTitles = <String, String>{
+  'operationProfile': 'Operation profile',
+  'workspaceBoard': 'Workspace board',
+  'greenhousePlanner': 'Greenhouse planner',
+  'workspaceMembers': 'Workspace members',
+  'taskCalendar': 'Task calendar',
+  'activityLog': 'Activity log',
+  'farmNotes': 'Farm notes',
+  'documentStorage': 'Document storage',
+  'linkedPerformance': 'Linked performance',
+  'cycleTracking': 'Cycle tracking',
+  'linkedCrops': 'Linked crops',
+  'linkedLivestock': 'Linked livestock',
+};
+
+class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
+  late final ScrollController _scrollController = ScrollController();
+  final Map<String, GlobalKey> _sectionKeys = <String, GlobalKey>{
+    for (final String id in _collapsibleSectionIds) id: GlobalKey(),
+  };
+  final Map<String, bool> _expanded = <String, bool>{
+    for (final String id in _collapsibleSectionIds) id: true,
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    final String? initialSection = widget.initialSection;
+    if (initialSection != null) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _scrollToSection(initialSection));
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _openSectionMenu(BuildContext context, List<String> availableIds) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext sheetContext) {
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(sheetContext).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text('Jump to section',
+                    style: Theme.of(sheetContext).textTheme.headlineSmall),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: availableIds
+                        .map(
+                          (String id) => ListTile(
+                            title: Text(_sectionTitles[id]!),
+                            onTap: () {
+                              Navigator.of(sheetContext).pop();
+                              _scrollToSection(id);
+                            },
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _scrollToSection(String id) {
+    setState(() => _expanded[id] = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final BuildContext? sectionContext = _sectionKeys[id]?.currentContext;
+      if (sectionContext != null) {
+        Scrollable.ensureVisible(
+          sectionContext,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          alignment: 0.02,
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String farmId = widget.farmId;
     final currentUser = ref.watch(firebaseServiceProvider).currentUser;
     final UserProfile? profile = ref.watch(userProfileProvider).valueOrNull;
     final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
@@ -67,7 +193,8 @@ class FarmDetailScreen extends ConsumerWidget {
 
     ref.read(activeFarmProvider.notifier).setActiveFarm(farm.id);
 
-    if (!_canAccessFarm(farm, currentUser?.uid, currentUser?.email, profile?.accountRole)) {
+    if (!_canAccessFarm(
+        farm, currentUser?.uid, currentUser?.email, profile?.accountRole)) {
       return Scaffold(
         appBar: AppBar(),
         body: const Center(child: Text('You do not have access to this farm.')),
@@ -77,13 +204,16 @@ class FarmDetailScreen extends ConsumerWidget {
     final List<Crop> crops = (ref.watch(cropsProvider).valueOrNull ?? <Crop>[])
         .where((Crop item) => item.farmId == farmId)
         .toList(growable: false);
-    final List<Livestock> livestock = (ref.watch(livestockProvider).valueOrNull ?? <Livestock>[])
-        .where((Livestock item) => item.farmId == farmId)
-        .toList(growable: false);
-    final List<Transaction> transactions = (ref.watch(transactionsProvider).valueOrNull ?? <Transaction>[])
-        .where((Transaction item) => item.farmId == farmId)
-        .toList(growable: false);
-    final _GreenhousePlanSummary? greenhousePlan = farm.supportsGreenhouse ? _greenhousePlanSummary(farm) : null;
+    final List<Livestock> livestock =
+        (ref.watch(livestockProvider).valueOrNull ?? <Livestock>[])
+            .where((Livestock item) => item.farmId == farmId)
+            .toList(growable: false);
+    final List<Transaction> transactions =
+        (ref.watch(transactionsProvider).valueOrNull ?? <Transaction>[])
+            .where((Transaction item) => item.farmId == farmId)
+            .toList(growable: false);
+    final _GreenhousePlanSummary? greenhousePlan =
+        farm.supportsGreenhouse ? _greenhousePlanSummary(farm) : null;
 
     final double income = transactions
         .where((Transaction item) => item.type == TransactionType.income)
@@ -91,22 +221,35 @@ class FarmDetailScreen extends ConsumerWidget {
     final double expenses = transactions
         .where((Transaction item) => item.type == TransactionType.expense)
         .fold<double>(0, (double sum, Transaction item) => sum + item.amount);
-    final int animalCount = livestock.fold<int>(0, (int sum, Livestock item) => sum + item.count);
-    final double plantedAreaHa = crops.fold<double>(0, (double sum, Crop item) => sum + item.areaHa);
-    final int cropOpenTasks = crops.fold<int>(0, (int sum, Crop item) => sum + item.openTaskCount);
-    final int livestockOpenTasks = livestock.fold<int>(0, (int sum, Livestock item) => sum + item.openTaskCount);
+    final int animalCount =
+        livestock.fold<int>(0, (int sum, Livestock item) => sum + item.count);
+    final double plantedAreaHa =
+        crops.fold<double>(0, (double sum, Crop item) => sum + item.areaHa);
+    final int cropOpenTasks =
+        crops.fold<int>(0, (int sum, Crop item) => sum + item.openTaskCount);
+    final int livestockOpenTasks = livestock.fold<int>(
+        0, (int sum, Livestock item) => sum + item.openTaskCount);
     final int urgentFarmTasks = farm.workspaceTasks
-        .where((FarmWorkspaceTask item) => !item.isCompleted && item.dueAt.isBefore(DateTime.now().add(const Duration(days: 2))))
+        .where((FarmWorkspaceTask item) =>
+            !item.isCompleted &&
+            item.dueAt.isBefore(DateTime.now().add(const Duration(days: 2))))
         .length;
     final int harvestReadyCount = crops
-        .where((Crop item) => item.status == CropStatus.ready || item.daysToHarvest <= 7)
+        .where((Crop item) =>
+            item.status == CropStatus.ready || item.daysToHarvest <= 7)
         .length;
     final int healthWatchCount = livestock
-        .where((Livestock item) => item.healthScore < 75 || item.vaccinationStatus < 75)
+        .where((Livestock item) =>
+            item.healthScore < 75 || item.vaccinationStatus < 75)
         .length;
-    final double cropCapacity = farm.cropCapacityHa > 0 ? farm.cropCapacityHa : farm.sizeHa;
-    final double cropUtilization = cropCapacity <= 0 ? 0 : (plantedAreaHa / cropCapacity).clamp(0, 1).toDouble();
-    final double livestockUtilization = farm.livestockCapacity <= 0 ? 0 : (animalCount / farm.livestockCapacity).clamp(0, 1).toDouble();
+    final double cropCapacity =
+        farm.cropCapacityHa > 0 ? farm.cropCapacityHa : farm.sizeHa;
+    final double cropUtilization = cropCapacity <= 0
+        ? 0
+        : (plantedAreaHa / cropCapacity).clamp(0, 1).toDouble();
+    final double livestockUtilization = farm.livestockCapacity <= 0
+        ? 0
+        : (animalCount / farm.livestockCapacity).clamp(0, 1).toDouble();
     final String operatingStatus = _farmOperatingStatus(
       urgentFarmTasks: urgentFarmTasks,
       harvestReadyCount: harvestReadyCount,
@@ -134,16 +277,31 @@ class FarmDetailScreen extends ConsumerWidget {
               ),
             ),
           ),
+          IconButton(
+            icon: const Icon(Icons.list_alt_rounded),
+            tooltip: 'Jump to section',
+            onPressed: () => _openSectionMenu(
+              context,
+              greenhousePlan == null
+                  ? _collapsibleSectionIds
+                      .where((String id) => id != 'greenhousePlanner')
+                      .toList()
+                  : _collapsibleSectionIds,
+            ),
+          ),
         ],
       ),
       body: SoftScreenScaffold(
+        scrollController: _scrollController,
         heroTitle: farm.name,
-        heroSubtitle: '${farm.ward} ward - ${_farmTypeLabel(farm.farmType)} - ${farm.sizeHa.toStringAsFixed(1)} ha',
+        heroSubtitle:
+            '${farm.ward} ward - ${_farmTypeLabel(farm.farmType)} - ${farm.sizeHa.toStringAsFixed(1)} ha',
         heroIcon: Icons.agriculture_rounded,
         heroVariant: farm.coverImageBase64.isEmpty
             ? FarmArtworkVariant.field
             : FarmArtworkVariant.crops,
-        heroBadge: '${farm.workspaceMembers.length} members - ${farm.openWorkspaceTaskCount} open tasks',
+        heroBadge:
+            '${farm.workspaceMembers.length} members - ${farm.openWorkspaceTaskCount} open tasks',
         trailing: Column(
           children: <Widget>[
             SizedBox(
@@ -195,8 +353,10 @@ class FarmDetailScreen extends ConsumerWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
-                            Text('Status: $operatingStatus', style: Theme.of(context).textTheme.titleLarge),
-                            const SizedBox(height: 8),
+                            _Tag(
+                                text: operatingStatus,
+                                color: _operatingStatusColor(operatingStatus)),
+                            const SizedBox(height: 10),
                             Text(
                               _farmFocusNarrative(
                                 farm: farm,
@@ -206,7 +366,10 @@ class FarmDetailScreen extends ConsumerWidget {
                                 harvestReadyCount: harvestReadyCount,
                                 healthWatchCount: healthWatchCount,
                               ),
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(height: 1.5),
                             ),
                           ],
                         ),
@@ -218,11 +381,21 @@ class FarmDetailScreen extends ConsumerWidget {
                     spacing: 10,
                     runSpacing: 10,
                     children: <Widget>[
-                      _Tag(text: '$urgentFarmTasks urgent farm tasks', color: const Color(0xFFFFEBD0)),
-                      _Tag(text: '$cropOpenTasks crop reminders', color: const Color(0xFFE5F5D8)),
-                      _Tag(text: '$livestockOpenTasks livestock reminders', color: const Color(0xFFDFF1FF)),
-                      _Tag(text: '$harvestReadyCount harvest windows', color: const Color(0xFFEDE8FF)),
-                      _Tag(text: '$healthWatchCount animal health watch', color: const Color(0xFFFFEBD0)),
+                      _Tag(
+                          text: '$urgentFarmTasks urgent farm tasks',
+                          color: const Color(0xFFFFEBD0)),
+                      _Tag(
+                          text: '$cropOpenTasks crop reminders',
+                          color: const Color(0xFFE5F5D8)),
+                      _Tag(
+                          text: '$livestockOpenTasks livestock reminders',
+                          color: const Color(0xFFDFF1FF)),
+                      _Tag(
+                          text: '$harvestReadyCount harvest windows',
+                          color: const Color(0xFFEDE8FF)),
+                      _Tag(
+                          text: '$healthWatchCount animal health watch',
+                          color: const Color(0xFFFFEBD0)),
                     ],
                   ),
                 ],
@@ -272,9 +445,10 @@ class FarmDetailScreen extends ConsumerWidget {
                 child: _FarmMetricCard(
                   title: 'Planted area',
                   value: '${plantedAreaHa.toStringAsFixed(2)} ha',
-                  note: '${(cropUtilization * 100).round()}% of crop capacity',
+                  note: 'Of crop capacity',
                   icon: Icons.grid_view_rounded,
                   tint: const Color(0xFFE5F5D8),
+                  progress: cropUtilization,
                 ),
               ),
               const SizedBox(width: 12),
@@ -282,69 +456,374 @@ class FarmDetailScreen extends ConsumerWidget {
                 child: _FarmMetricCard(
                   title: 'Stocking',
                   value: '$animalCount',
-                  note: farm.livestockCapacity > 0 ? '${(livestockUtilization * 100).round()}% of animal capacity' : 'Capacity not set',
+                  note: farm.livestockCapacity > 0
+                      ? 'Of animal capacity'
+                      : 'Capacity not set',
                   icon: Icons.speed_rounded,
                   tint: const Color(0xFFDFF1FF),
+                  progress:
+                      farm.livestockCapacity > 0 ? livestockUtilization : null,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Operation profile'),
-          AppCard(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: <Widget>[
-                  _Tag(text: _farmTypeLabel(farm.farmType), color: const Color(0xFFE8F4D8)),
-                  if (farm.supportsCrops) _Tag(text: '${farm.cropCapacityHa.toStringAsFixed(1)} ha crop capacity', color: const Color(0xFFDFF1FF)),
-                  if (farm.supportsLivestock) _Tag(text: '${farm.livestockCapacity} livestock capacity', color: const Color(0xFFFFEBD0)),
-                  if (farm.supportsGreenhouse)
+          _CollapsibleSection(
+            sectionKey: _sectionKeys['operationProfile']!,
+            title: 'Operation profile',
+            expanded: _expanded['operationProfile']!,
+            onToggle: (bool value) =>
+                setState(() => _expanded['operationProfile'] = value),
+            child: AppCard(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: <Widget>[
                     _Tag(
-                      text: '${farm.greenhouseCount} greenhouse units on ${farm.greenhouseAreaHa.toStringAsFixed(1)} ha',
-                      color: const Color(0xFFEDE8FF),
-                    ),
-                ],
+                        text: _farmTypeLabel(farm.farmType),
+                        color: const Color(0xFFE8F4D8)),
+                    if (farm.supportsCrops)
+                      _Tag(
+                          text:
+                              '${farm.cropCapacityHa.toStringAsFixed(1)} ha crop capacity',
+                          color: const Color(0xFFDFF1FF)),
+                    if (farm.supportsLivestock)
+                      _Tag(
+                          text: '${farm.livestockCapacity} livestock capacity',
+                          color: const Color(0xFFFFEBD0)),
+                    if (farm.supportsGreenhouse)
+                      _Tag(
+                        text:
+                            '${farm.greenhouseCount} greenhouse units on ${farm.greenhouseAreaHa.toStringAsFixed(1)} ha',
+                        color: const Color(0xFFEDE8FF),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Workspace board'),
-          AppCard(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: <Widget>[
-                  _Tag(
-                    text: '${farm.workspaceMembers.length} members',
-                    color: const Color(0xFFE5F5D8),
-                  ),
-                  _Tag(
-                    text: '${farm.ownerCount} owners',
-                    color: const Color(0xFFDFF1FF),
-                  ),
-                  _Tag(
-                    text: '${farm.openWorkspaceTaskCount} open tasks',
-                    color: const Color(0xFFFFEBD0),
-                  ),
-                  _Tag(
-                    text: '${farm.financeEnabledMemberCount} finance users',
-                    color: const Color(0xFFEDE8FF),
-                  ),
-                ],
+          _CollapsibleSection(
+            sectionKey: _sectionKeys['workspaceBoard']!,
+            title: 'Workspace board',
+            expanded: _expanded['workspaceBoard']!,
+            onToggle: (bool value) =>
+                setState(() => _expanded['workspaceBoard'] = value),
+            child: AppCard(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: <Widget>[
+                    _Tag(
+                      text: '${farm.workspaceMembers.length} members',
+                      color: const Color(0xFFE5F5D8),
+                    ),
+                    _Tag(
+                      text: '${farm.ownerCount} owners',
+                      color: const Color(0xFFDFF1FF),
+                    ),
+                    _Tag(
+                      text: '${farm.openWorkspaceTaskCount} open tasks',
+                      color: const Color(0xFFFFEBD0),
+                    ),
+                    _Tag(
+                      text: '${farm.financeEnabledMemberCount} finance users',
+                      color: const Color(0xFFEDE8FF),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
           if (greenhousePlan != null) ...<Widget>[
             const SizedBox(height: 18),
-            const SoftSectionTitle(title: 'Greenhouse planner'),
-            AppCard(
+            _CollapsibleSection(
+              sectionKey: _sectionKeys['greenhousePlanner']!,
+              title: 'Greenhouse planner',
+              expanded: _expanded['greenhousePlanner']!,
+              onToggle: (bool value) =>
+                  setState(() => _expanded['greenhousePlanner'] = value),
+              child: AppCard(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        'Live greenhouse sizing is based on the farm area, current weather readings, and a conservative production layout. Farmers can keep these suggestions or override them if they already run a tighter system.',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(height: 1.5),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: SoftInfoChip(
+                              label: 'Plant slots',
+                              value: '${greenhousePlan.estimatedPlantSlots}',
+                              color: const Color(0xFFE5F5D8),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: SoftInfoChip(
+                              label: 'Water/day',
+                              value:
+                                  '${greenhousePlan.dailyWaterLitres.toStringAsFixed(0)} L',
+                              color: const Color(0xFFDFF1FF),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: SoftInfoChip(
+                              label: 'Substrate',
+                              value:
+                                  '${greenhousePlan.substrateVolumeLitres.toStringAsFixed(0)} L',
+                              color: const Color(0xFFEDE8FF),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: SoftInfoChip(
+                              label: 'Seed trays',
+                              value: '${greenhousePlan.seedlingTrayCount}',
+                              color: const Color(0xFFFFEBD0),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: SoftInfoChip(
+                              label: 'Usable area',
+                              value:
+                                  '${greenhousePlan.usableAreaM2.toStringAsFixed(0)} m²',
+                              color: const Color(0xFFE5F5D8),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: <Widget>[
+                          _Tag(
+                              text:
+                                  '${greenhousePlan.bedWidthM.toStringAsFixed(1)} m bed width',
+                              color: const Color(0xFFE8F4D8)),
+                          _Tag(
+                              text:
+                                  '${greenhousePlan.plantSpacingM.toStringAsFixed(2)} m plant spacing',
+                              color: const Color(0xFFDFF1FF)),
+                          _Tag(
+                              text:
+                                  '${greenhousePlan.interRowSpacingM.toStringAsFixed(2)} m inter-row space',
+                              color: const Color(0xFFFFEBD0)),
+                          _Tag(
+                              text:
+                                  '${greenhousePlan.irrigationRoundsPerDay} irrigation rounds/day',
+                              color: const Color(0xFFEDE8FF)),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      _SuggestionCard(
+                        icon: Icons.view_compact_alt_rounded,
+                        title: 'Layout formula',
+                        detail: greenhousePlan.layoutNote,
+                        tint: const Color(0xFFE8F4D8),
+                      ),
+                      const SizedBox(height: 12),
+                      _SuggestionCard(
+                        icon: Icons.water_drop_rounded,
+                        title: 'Irrigation schedule',
+                        detail: greenhousePlan.irrigationNote,
+                        tint: const Color(0xFFDFF1FF),
+                      ),
+                      const SizedBox(height: 12),
+                      _SuggestionCard(
+                        icon: Icons.grass_rounded,
+                        title: 'Soilless mix example',
+                        detail: greenhousePlan.mixNote,
+                        tint: const Color(0xFFEDE8FF),
+                      ),
+                      const SizedBox(height: 12),
+                      _SuggestionCard(
+                        icon: Icons.inventory_2_rounded,
+                        title: 'Inventory to record',
+                        detail:
+                            'Log seedlings, coco coir, mature compost, rice husk, drip line, emitters, grow bags, pH meter, trays, and nutrient salts. Start with about ${greenhousePlan.dripLineMeters.toStringAsFixed(0)} m of drip line and ${greenhousePlan.seedlingTrayCount} nursery trays for this setup.',
+                        tint: const Color(0xFFFFEBD0),
+                      ),
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: <Widget>[
+                          SizedBox(
+                            width: 180,
+                            child: AppButton.primary(
+                              onPressed: () => _logGreenhousePlan(
+                                  context, ref, farm!,
+                                  override: false),
+                              child: const Text('Save plan note'),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 180,
+                            child: AppButton.secondary(
+                              onPressed: () => _logGreenhousePlan(
+                                  context, ref, farm!,
+                                  override: true),
+                              child: const Text('I know my setup'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Column(
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: _QuickActionCard(
+                      icon: Icons.person_add_alt_1_rounded,
+                      label: 'Add member',
+                      tint: const Color(0xFFE5F5D8),
+                      onTap: () => _openMemberSheet(context, ref, farm!),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _QuickActionCard(
+                      icon: Icons.playlist_add_rounded,
+                      label: 'Add task',
+                      tint: const Color(0xFFDFF1FF),
+                      onTap: () => _openTaskSheet(context, ref, farm!),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: _QuickActionCard(
+                      icon: Icons.event_available_rounded,
+                      label: 'Create schedule',
+                      tint: const Color(0xFFFFEBD0),
+                      onTap: () => _openScheduleSheet(context, ref, farm!),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _QuickActionCard(
+                      icon: Icons.edit_note_rounded,
+                      label: 'Log update',
+                      tint: const Color(0xFFEDE8FF),
+                      onTap: () => _openActivitySheet(context, ref, farm!),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          _CollapsibleSection(
+            sectionKey: _sectionKeys['workspaceMembers']!,
+            title: 'Workspace members',
+            expanded: _expanded['workspaceMembers']!,
+            onToggle: (bool value) =>
+                setState(() => _expanded['workspaceMembers'] = value),
+            child: farm.workspaceMembers.isEmpty
+                ? const _EmptyInfoCard(
+                    message:
+                        'Invite workers, partners, or co-owners to share access to this farm.')
+                : Column(
+                    children: farm.workspaceMembers
+                        .take(6)
+                        .map(
+                          (FarmWorkspaceMember member) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _WorkspaceMemberTile(member: member),
+                          ),
+                        )
+                        .toList(),
+                  ),
+          ),
+          const SizedBox(height: 18),
+          _CollapsibleSection(
+            sectionKey: _sectionKeys['taskCalendar']!,
+            title: 'Task calendar',
+            expanded: _expanded['taskCalendar']!,
+            onToggle: (bool value) =>
+                setState(() => _expanded['taskCalendar'] = value),
+            child: farm.workspaceTasks.isEmpty
+                ? const _EmptyInfoCard(
+                    message:
+                        'No shared tasks yet. Add a schedule, assign it, and let the team update progress here.')
+                : _TaskCalendarCard(
+                    tasks: farm.workspaceTasks,
+                    onToggle: (FarmWorkspaceTask task) =>
+                        _toggleWorkspaceTask(context, ref, farm!, task),
+                    onEdit: (FarmWorkspaceTask task) =>
+                        _editWorkspaceTask(context, ref, farm!, task),
+                    onDelete: (FarmWorkspaceTask task) =>
+                        _deleteWorkspaceTask(context, ref, farm!, task),
+                  ),
+          ),
+          const SizedBox(height: 18),
+          _CollapsibleSection(
+            sectionKey: _sectionKeys['activityLog']!,
+            title: 'Activity log',
+            expanded: _expanded['activityLog']!,
+            onToggle: (bool value) =>
+                setState(() => _expanded['activityLog'] = value),
+            child: farm.activityLog.isEmpty
+                ? const _EmptyInfoCard(
+                    message:
+                        'Activity updates from workers and partners will appear here for the farm owner or co-owners.')
+                : Column(
+                    children: farm.activityLog
+                        .take(6)
+                        .map(
+                          (FarmActivityRecord activity) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _ActivityLogTile(activity: activity),
+                          ),
+                        )
+                        .toList(),
+                  ),
+          ),
+          const SizedBox(height: 18),
+          _CollapsibleSection(
+            sectionKey: _sectionKeys['farmNotes']!,
+            title: 'Farm notes',
+            expanded: _expanded['farmNotes']!,
+            onToggle: (bool value) =>
+                setState(() => _expanded['farmNotes'] = value),
+            child: AppCard(
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
               child: Padding(
                 padding: const EdgeInsets.all(18),
@@ -352,389 +831,304 @@ class FarmDetailScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      'Live greenhouse sizing is based on the farm area, current weather readings, and a conservative production layout. Farmers can keep these suggestions or override them if they already run a tighter system.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+                      farm.notes.trim().isEmpty
+                          ? 'No farm notes added yet.'
+                          : farm.notes,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(height: 1.5),
                     ),
                     const SizedBox(height: 14),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: SoftInfoChip(
-                            label: 'Plant slots',
-                            value: '${greenhousePlan.estimatedPlantSlots}',
-                            color: const Color(0xFFE5F5D8),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: SoftInfoChip(
-                            label: 'Water/day',
-                            value: '${greenhousePlan.dailyWaterLitres.toStringAsFixed(0)} L',
-                            color: const Color(0xFFDFF1FF),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: SoftInfoChip(
-                            label: 'Substrate',
-                            value: '${greenhousePlan.substrateVolumeLitres.toStringAsFixed(0)} L',
-                            color: const Color(0xFFEDE8FF),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: SoftInfoChip(
-                            label: 'Seed trays',
-                            value: '${greenhousePlan.seedlingTrayCount}',
-                            color: const Color(0xFFFFEBD0),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: SoftInfoChip(
-                            label: 'Usable area',
-                            value: '${greenhousePlan.usableAreaM2.toStringAsFixed(0)} m²',
-                            color: const Color(0xFFE5F5D8),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: <Widget>[
-                        _Tag(text: '${greenhousePlan.bedWidthM.toStringAsFixed(1)} m bed width', color: const Color(0xFFE8F4D8)),
-                        _Tag(text: '${greenhousePlan.plantSpacingM.toStringAsFixed(2)} m plant spacing', color: const Color(0xFFDFF1FF)),
-                        _Tag(text: '${greenhousePlan.interRowSpacingM.toStringAsFixed(2)} m inter-row space', color: const Color(0xFFFFEBD0)),
-                        _Tag(text: '${greenhousePlan.irrigationRoundsPerDay} irrigation rounds/day', color: const Color(0xFFEDE8FF)),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    _SuggestionCard(
-                      icon: Icons.view_compact_alt_rounded,
-                      title: 'Layout formula',
-                      detail: greenhousePlan.layoutNote,
-                      tint: const Color(0xFFE8F4D8),
-                    ),
-                    const SizedBox(height: 12),
-                    _SuggestionCard(
-                      icon: Icons.water_drop_rounded,
-                      title: 'Irrigation schedule',
-                      detail: greenhousePlan.irrigationNote,
-                      tint: const Color(0xFFDFF1FF),
-                    ),
-                    const SizedBox(height: 12),
-                    _SuggestionCard(
-                      icon: Icons.grass_rounded,
-                      title: 'Soilless mix example',
-                      detail: greenhousePlan.mixNote,
-                      tint: const Color(0xFFEDE8FF),
-                    ),
-                    const SizedBox(height: 12),
-                    _SuggestionCard(
-                      icon: Icons.inventory_2_rounded,
-                      title: 'Inventory to record',
-                      detail: 'Log seedlings, coco coir, mature compost, rice husk, drip line, emitters, grow bags, pH meter, trays, and nutrient salts. Start with about ${greenhousePlan.dripLineMeters.toStringAsFixed(0)} m of drip line and ${greenhousePlan.seedlingTrayCount} nursery trays for this setup.',
-                      tint: const Color(0xFFFFEBD0),
-                    ),
-                    const SizedBox(height: 14),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: <Widget>[
-                        SizedBox(
-                          width: 180,
-                          child: AppButton.primary(
-                            onPressed: () => _logGreenhousePlan(context, ref, farm!, override: false),
-                            child: const Text('Save plan note'),
-                          ),
-                        ),
-                        SizedBox(
-                          width: 180,
-                          child: AppButton.secondary(
-                            onPressed: () => _logGreenhousePlan(context, ref, farm!, override: true),
-                            child: const Text('I know my setup'),
-                          ),
-                        ),
-                      ],
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: AppButton.secondary(
+                        onPressed: () => _openNotesSheet(context, ref, farm!),
+                        child: const Text('Update notes'),
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
-          ],
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: <Widget>[
-              SizedBox(
-                width: 180,
-                child: AppButton.primary(
-                  onPressed: () => _openMemberSheet(context, ref, farm!),
-                  child: const Text('Add member'),
-                ),
-              ),
-              SizedBox(
-                width: 180,
-                child: AppButton.secondary(
-                  onPressed: () => _openTaskSheet(context, ref, farm!),
-                  child: const Text('Add task'),
-                ),
-              ),
-              SizedBox(
-                width: 180,
-                child: AppButton.primary(
-                  onPressed: () => _openScheduleSheet(context, ref, farm!),
-                  child: const Text('Create schedule'),
-                ),
-              ),
-              SizedBox(
-                width: 180,
-                child: AppButton.secondary(
-                  onPressed: () => _openActivitySheet(context, ref, farm!),
-                  child: const Text('Log update'),
-                ),
-              ),
-            ],
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Workspace members'),
-          if (farm.workspaceMembers.isEmpty)
-            const _EmptyInfoCard(message: 'Invite workers, partners, or co-owners to share access to this farm.')
-          else
-            ...farm.workspaceMembers.take(6).map(
-              (FarmWorkspaceMember member) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _WorkspaceMemberTile(member: member),
-              ),
-            ),
-          const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Task calendar'),
-          if (farm.workspaceTasks.isEmpty)
-            const _EmptyInfoCard(message: 'No shared tasks yet. Add a schedule, assign it, and let the team update progress here.')
-          else ...<Widget>[
-            _TaskCalendarCard(
-              tasks: farm.workspaceTasks,
-              onToggle: (FarmWorkspaceTask task) => _toggleWorkspaceTask(context, ref, farm!, task),
-              onEdit: (FarmWorkspaceTask task) => _editWorkspaceTask(context, ref, farm!, task),
-              onDelete: (FarmWorkspaceTask task) => _deleteWorkspaceTask(context, ref, farm!, task),
-            ),
-          ],
-          const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Activity log'),
-          if (farm.activityLog.isEmpty)
-            const _EmptyInfoCard(message: 'Activity updates from workers and partners will appear here for the farm owner or co-owners.')
-          else
-            ...farm.activityLog.take(6).map(
-              (FarmActivityRecord activity) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _ActivityLogTile(activity: activity),
-              ),
-            ),
-          const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Farm notes'),
-          AppCard(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    farm.notes.trim().isEmpty
-                        ? 'No farm notes added yet.'
-                        : farm.notes,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
-                  ),
-                  const SizedBox(height: 14),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: AppButton.secondary(
-                      onPressed: () => _openNotesSheet(context, ref, farm!),
-                      child: const Text('Update notes'),
+          _CollapsibleSection(
+            sectionKey: _sectionKeys['documentStorage']!,
+            title: 'Document storage',
+            expanded: _expanded['documentStorage']!,
+            onToggle: (bool value) =>
+                setState(() => _expanded['documentStorage'] = value),
+            child: farm.documents.isEmpty
+                ? AppCard(
+                    color:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
+                    child: const Padding(
+                      padding: EdgeInsets.all(18),
+                      child: Text(
+                        'No farm documents added yet. Add permits, contracts, inspection notes, or storage references.',
+                      ),
                     ),
+                  )
+                : Column(
+                    children: farm.documents
+                        .map(
+                          (FarmDocumentRecord document) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: AppCard(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest,
+                              child: ListTile(
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 18, vertical: 10),
+                                leading: Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFDFF1FF),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: const Icon(Icons.description_outlined),
+                                ),
+                                title: Text(document.title),
+                                subtitle: Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: Text(
+                                    '${document.type} - ${document.reference}\n${document.notes}',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(height: 1.5),
+                                  ),
+                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: <Widget>[
+                                    Builder(builder: (BuildContext ctx) {
+                                      final Uri? uri =
+                                          Uri.tryParse(document.reference);
+                                      final bool isUrl = uri != null &&
+                                          (uri.scheme == 'http' ||
+                                              uri.scheme == 'https');
+                                      return Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: <Widget>[
+                                          IconButton(
+                                            icon: const Icon(
+                                                Icons.open_in_new_rounded),
+                                            tooltip: isUrl
+                                                ? 'Open document'
+                                                : 'Open reference',
+                                            onPressed: isUrl
+                                                ? () async {
+                                                    try {
+                                                      if (!await launchUrl(uri!,
+                                                          mode: LaunchMode
+                                                              .externalApplication)) {
+                                                        ScaffoldMessenger.of(
+                                                                ctx)
+                                                            .showSnackBar(
+                                                                const SnackBar(
+                                                                    content: Text(
+                                                                        'Could not open link.')));
+                                                      }
+                                                    } catch (e) {
+                                                      ScaffoldMessenger.of(ctx)
+                                                          .showSnackBar(
+                                                              const SnackBar(
+                                                                  content: Text(
+                                                                      'Could not open link.')));
+                                                    }
+                                                  }
+                                                : () {
+                                                    ScaffoldMessenger.of(ctx)
+                                                        .showSnackBar(
+                                                            const SnackBar(
+                                                                content: Text(
+                                                                    'No direct link available — copy the reference instead.')));
+                                                  },
+                                          ),
+                                          IconButton(
+                                            icon:
+                                                const Icon(Icons.copy_rounded),
+                                            tooltip: 'Copy reference',
+                                            onPressed: () {
+                                              Clipboard.setData(ClipboardData(
+                                                  text: document.reference));
+                                              ScaffoldMessenger.of(ctx)
+                                                  .showSnackBar(const SnackBar(
+                                                      content: Text(
+                                                          'Document reference copied')));
+                                            },
+                                          ),
+                                        ],
+                                      );
+                                    }),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
                   ),
-                ],
-              ),
-            ),
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Document storage'),
-          if (farm.documents.isEmpty)
-            AppCard(
+          _CollapsibleSection(
+            sectionKey: _sectionKeys['linkedPerformance']!,
+            title: 'Linked performance',
+            expanded: _expanded['linkedPerformance']!,
+            onToggle: (bool value) =>
+                setState(() => _expanded['linkedPerformance'] = value),
+            child: AppCard(
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: const Padding(
-                padding: EdgeInsets.all(18),
-                child: Text(
-                  'No farm documents added yet. Add permits, contracts, inspection notes, or storage references.',
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  children: <Widget>[
+                    _LinkedRow(
+                        label: 'Farm income',
+                        value: CurrencyUtils.formatCurrency(income)),
+                    const SizedBox(height: 12),
+                    _LinkedRow(
+                        label: 'Farm expenses',
+                        value: CurrencyUtils.formatCurrency(expenses)),
+                    const SizedBox(height: 12),
+                    _LinkedRow(
+                        label: 'Transactions', value: '${transactions.length}'),
+                  ],
                 ),
-              ),
-            )
-          else
-            ...farm.documents.map(
-              (FarmDocumentRecord document) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: AppCard(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                      leading: Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFDFF1FF),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(Icons.description_outlined),
-                      ),
-                      title: Text(document.title),
-                      subtitle: Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text(
-                          '${document.type} - ${document.reference}\n${document.notes}',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.5),
-                        ),
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Builder(builder: (BuildContext ctx) {
-                            final Uri? uri = Uri.tryParse(document.reference);
-                            final bool isUrl = uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
-                            return Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                IconButton(
-                                  icon: const Icon(Icons.open_in_new_rounded),
-                                  tooltip: isUrl ? 'Open document' : 'Open reference',
-                                  onPressed: isUrl
-                                      ? () async {
-                                          try {
-                                            if (!await launchUrl(uri!, mode: LaunchMode.externalApplication)) {
-                                              ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Could not open link.')));
-                                            }
-                                          } catch (e) {
-                                            ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Could not open link.')));
-                                          }
-                                        }
-                                      : () {
-                                          ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('No direct link available — copy the reference instead.')));
-                                        },
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.copy_rounded),
-                                  tooltip: 'Copy reference',
-                                  onPressed: () {
-                                    Clipboard.setData(ClipboardData(text: document.reference));
-                                    ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Document reference copied')));
-                                  },
-                                ),
-                              ],
-                            );
-                          }),
-                        ],
-                      ),
-                    ),
-                  ),
-              ),
-            ),
-          const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Linked performance'),
-          AppCard(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                children: <Widget>[
-                  _LinkedRow(label: 'Farm income', value: CurrencyUtils.formatCurrency(income)),
-                  const SizedBox(height: 12),
-                  _LinkedRow(label: 'Farm expenses', value: CurrencyUtils.formatCurrency(expenses)),
-                  const SizedBox(height: 12),
-                  _LinkedRow(label: 'Transactions', value: '${transactions.length}'),
-                ],
               ),
             ),
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Cycle tracking'),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: _FarmMetricCard(
-                  title: 'Crop progress',
-                  value: crops.isEmpty ? 'No crops' : '${((crops.fold<double>(0, (double sum, Crop item) => sum + item.growthProgress) / crops.length) * 100).round()}%',
-                  note: 'Average growth cycle',
-                  icon: Icons.timeline_rounded,
-                  tint: const Color(0xFFE8F4D8),
+          _CollapsibleSection(
+            sectionKey: _sectionKeys['cycleTracking']!,
+            title: 'Cycle tracking',
+            expanded: _expanded['cycleTracking']!,
+            onToggle: (bool value) =>
+                setState(() => _expanded['cycleTracking'] = value),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: _FarmMetricCard(
+                    title: 'Crop progress',
+                    value: crops.isEmpty
+                        ? 'No crops'
+                        : '${((crops.fold<double>(0, (double sum, Crop item) => sum + item.growthProgress) / crops.length) * 100).round()}%',
+                    note: 'Average growth cycle',
+                    icon: Icons.timeline_rounded,
+                    tint: const Color(0xFFE8F4D8),
+                    progress: crops.isEmpty
+                        ? null
+                        : crops.fold<double>(
+                                0,
+                                (double sum, Crop item) =>
+                                    sum + item.growthProgress) /
+                            crops.length,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _FarmMetricCard(
-                  title: 'Animal growth',
-                  value: livestock.isEmpty ? 'No groups' : '${((livestock.fold<double>(0, (double sum, Livestock item) => sum + item.growthProgress) / livestock.length) * 100).round()}%',
-                  note: 'Average maturity cycle',
-                  icon: Icons.monitor_heart_rounded,
-                  tint: const Color(0xFFDFF1FF),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _FarmMetricCard(
+                    title: 'Animal growth',
+                    value: livestock.isEmpty
+                        ? 'No groups'
+                        : '${((livestock.fold<double>(0, (double sum, Livestock item) => sum + item.growthProgress) / livestock.length) * 100).round()}%',
+                    note: 'Average maturity cycle',
+                    icon: Icons.monitor_heart_rounded,
+                    tint: const Color(0xFFDFF1FF),
+                    progress: livestock.isEmpty
+                        ? null
+                        : livestock.fold<double>(
+                                0,
+                                (double sum, Livestock item) =>
+                                    sum + item.growthProgress) /
+                            livestock.length,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Linked crops'),
-          if (crops.isEmpty)
-            const _EmptyInfoCard(message: 'No crops linked to this farm yet.')
-          else
-            ...crops.take(4).map(
-              (Crop item) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _LinkedEntityTile(
-                  icon: Icons.spa_rounded,
-                  title: item.name,
-                  subtitle: '${item.variety} - ${_cropStageLabel(item.currentStage)} - ${item.daysToHarvest >= 0 ? '${item.daysToHarvest} days to harvest' : 'Harvest due'}',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => CropDetailScreen(cropId: item.id),
-                    ),
+          _CollapsibleSection(
+            sectionKey: _sectionKeys['linkedCrops']!,
+            title: 'Linked crops',
+            expanded: _expanded['linkedCrops']!,
+            onToggle: (bool value) =>
+                setState(() => _expanded['linkedCrops'] = value),
+            child: crops.isEmpty
+                ? const _EmptyInfoCard(
+                    message: 'No crops linked to this farm yet.')
+                : Column(
+                    children: crops
+                        .take(4)
+                        .map(
+                          (Crop item) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _LinkedEntityTile(
+                              icon: Icons.spa_rounded,
+                              title: item.name,
+                              subtitle:
+                                  '${item.variety} - ${item.daysToHarvest >= 0 ? '${item.daysToHarvest} days to harvest' : 'Harvest due'}',
+                              statusBadge: _Tag(
+                                  text: _cropStageLabel(item.currentStage),
+                                  color: const Color(0xFFE8F4D8)),
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) =>
+                                      CropDetailScreen(cropId: item.id),
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
                   ),
-                ),
-              ),
-            ),
+          ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Linked livestock'),
-          if (livestock.isEmpty)
-            const _EmptyInfoCard(message: 'No livestock groups linked to this farm yet.')
-          else
-            ...livestock.take(4).map(
-              (Livestock item) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _LinkedEntityTile(
-                  icon: Icons.pets_rounded,
-                  title: _speciesLabel(item.species),
-                  subtitle: '${item.breed} - ${_growthStageLabel(item.growthStage)} - ${item.count} animals',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => LivestockDetailScreen(livestockId: item.id),
-                    ),
+          _CollapsibleSection(
+            sectionKey: _sectionKeys['linkedLivestock']!,
+            title: 'Linked livestock',
+            expanded: _expanded['linkedLivestock']!,
+            onToggle: (bool value) =>
+                setState(() => _expanded['linkedLivestock'] = value),
+            child: livestock.isEmpty
+                ? const _EmptyInfoCard(
+                    message: 'No livestock groups linked to this farm yet.')
+                : Column(
+                    children: livestock
+                        .take(4)
+                        .map(
+                          (Livestock item) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _LinkedEntityTile(
+                              icon: Icons.pets_rounded,
+                              title: _speciesLabel(item.species),
+                              subtitle: '${item.breed} - ${item.count} animals',
+                              statusBadge: _Tag(
+                                  text: _growthStageLabel(item.growthStage),
+                                  color: const Color(0xFFDFF1FF)),
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => LivestockDetailScreen(
+                                      livestockId: item.id),
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
                   ),
-                ),
-              ),
-            ),
+          ),
           const SizedBox(height: 18),
           const SoftSectionTitle(title: 'Farm suggestions'),
           _SuggestionCard(
             icon: Icons.water_drop_rounded,
-            title: farm.soilMoisturePercent < 40 ? 'Irrigation priority' : 'Moisture stable',
+            title: farm.soilMoisturePercent < 40
+                ? 'Irrigation priority'
+                : 'Moisture stable',
             detail: farm.soilMoisturePercent < 40
                 ? 'Soil moisture is below the comfortable range. Schedule watering, mulch exposed beds, and inspect young crops first.'
                 : 'Current soil moisture is workable. Keep monitoring after hot afternoons or rainfall changes.',
@@ -743,7 +1137,9 @@ class FarmDetailScreen extends ConsumerWidget {
           const SizedBox(height: 12),
           _SuggestionCard(
             icon: Icons.cloud_queue_rounded,
-            title: farm.precipitationMm > 12 ? 'Rainfall watch' : 'Weather window open',
+            title: farm.precipitationMm > 12
+                ? 'Rainfall watch'
+                : 'Weather window open',
             detail: farm.precipitationMm > 12
                 ? 'Rainfall is high enough to check drainage, storage cover, and livestock housing before evening.'
                 : 'Precipitation risk is low. This is a good window for harvesting, spraying, transport, or field inspection.',
@@ -753,7 +1149,8 @@ class FarmDetailScreen extends ConsumerWidget {
           _SuggestionCard(
             icon: Icons.inventory_2_rounded,
             title: 'Sales readiness',
-            detail: transactions.any((Transaction item) => item.recordKind == TransactionRecordKind.sale)
+            detail: transactions.any((Transaction item) =>
+                    item.recordKind == TransactionRecordKind.sale)
                 ? 'This farm already has sales records. Review receipts and inventory before the next market trip.'
                 : 'No sale has been registered for this farm yet. Add produce inventory from Finance when harvest starts.',
             tint: const Color(0xFFE5F5D8),
@@ -775,7 +1172,8 @@ class FarmDetailScreen extends ConsumerWidget {
   }
 
   Widget _buildWeatherSummarySection(BuildContext context, Farm farm) {
-    final WeatherLocation location = WeatherReadingService.resolveLocation(farm: farm);
+    final WeatherLocation location =
+        WeatherReadingService.resolveLocation(farm: farm);
 
     return FutureBuilder<WeatherReading>(
       future: const WeatherReadingService().fetchCurrent(
@@ -784,11 +1182,17 @@ class FarmDetailScreen extends ConsumerWidget {
       ),
       builder: (BuildContext context, AsyncSnapshot<WeatherReading> snapshot) {
         final WeatherReading? reading = snapshot.data;
-        final double temperature = reading?.temperatureCelsius ?? farm.temperatureCelsius;
-        final double humidity = reading?.humidityPercent ?? farm.humidityPercent;
-        final double soilMoisture = reading?.soilMoisturePercent ?? farm.soilMoisturePercent;
-        final double precipitation = reading?.precipitationMm ?? farm.precipitationMm;
-        final bool isLoading = snapshot.connectionState == ConnectionState.waiting && reading == null;
+        final double temperature =
+            reading?.temperatureCelsius ?? farm.temperatureCelsius;
+        final double humidity =
+            reading?.humidityPercent ?? farm.humidityPercent;
+        final double soilMoisture =
+            reading?.soilMoisturePercent ?? farm.soilMoisturePercent;
+        final double precipitation =
+            reading?.precipitationMm ?? farm.precipitationMm;
+        final bool isLoading =
+            snapshot.connectionState == ConnectionState.waiting &&
+                reading == null;
 
         return Column(
           children: <Widget>[
@@ -797,7 +1201,9 @@ class FarmDetailScreen extends ConsumerWidget {
                 Expanded(
                   child: SoftInfoChip(
                     label: 'Temperature',
-                    value: isLoading ? 'Loading…' : '${temperature.toStringAsFixed(1)} C',
+                    value: isLoading
+                        ? 'Loading…'
+                        : '${temperature.toStringAsFixed(1)} C',
                     color: const Color(0xFFFFEBD0),
                   ),
                 ),
@@ -805,7 +1211,9 @@ class FarmDetailScreen extends ConsumerWidget {
                 Expanded(
                   child: SoftInfoChip(
                     label: 'Humidity',
-                    value: isLoading ? 'Loading…' : '${humidity.toStringAsFixed(0)}%',
+                    value: isLoading
+                        ? 'Loading…'
+                        : '${humidity.toStringAsFixed(0)}%',
                     color: const Color(0xFFDFF1FF),
                   ),
                 ),
@@ -817,7 +1225,9 @@ class FarmDetailScreen extends ConsumerWidget {
                 Expanded(
                   child: SoftInfoChip(
                     label: 'Soil moisture',
-                    value: isLoading ? 'Loading…' : '${soilMoisture.toStringAsFixed(0)}%',
+                    value: isLoading
+                        ? 'Loading…'
+                        : '${soilMoisture.toStringAsFixed(0)}%',
                     color: const Color(0xFFE5F5D8),
                   ),
                 ),
@@ -825,7 +1235,9 @@ class FarmDetailScreen extends ConsumerWidget {
                 Expanded(
                   child: SoftInfoChip(
                     label: 'Precipitation',
-                    value: isLoading ? 'Loading…' : '${precipitation.toStringAsFixed(0)} mm',
+                    value: isLoading
+                        ? 'Loading…'
+                        : '${precipitation.toStringAsFixed(0)} mm',
                     color: const Color(0xFFEDE8FF),
                   ),
                 ),
@@ -837,7 +1249,8 @@ class FarmDetailScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _pickFarmImage(BuildContext context, WidgetRef ref, Farm farm) async {
+  Future<void> _pickFarmImage(
+      BuildContext context, WidgetRef ref, Farm farm) async {
     final XFile? file = await ImagePicker().pickImage(
       source: ImageSource.gallery,
       imageQuality: 75,
@@ -860,8 +1273,10 @@ class FarmDetailScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _openMetricsSheet(BuildContext context, WidgetRef ref, Farm farm) async {
-    final _FarmMetricsDraft? draft = await showModalBottomSheet<_FarmMetricsDraft>(
+  Future<void> _openMetricsSheet(
+      BuildContext context, WidgetRef ref, Farm farm) async {
+    final _FarmMetricsDraft? draft =
+        await showModalBottomSheet<_FarmMetricsDraft>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -893,7 +1308,8 @@ class FarmDetailScreen extends ConsumerWidget {
     }
     final _GreenhousePlanSummary summary = _greenhousePlanSummary(farm);
     final DateTime now = DateTime.now();
-    final String action = override ? 'Overrode greenhouse plan' : 'Reviewed greenhouse plan';
+    final String action =
+        override ? 'Overrode greenhouse plan' : 'Reviewed greenhouse plan';
     final String detail = override
         ? 'The farmer chose to continue with a custom greenhouse setup after reviewing the live spacing, irrigation, and substrate suggestions.'
         : 'Suggested spacing, irrigation, substrate mix, and inventory notes were saved for greenhouse planning.';
@@ -904,8 +1320,11 @@ class FarmDetailScreen extends ConsumerWidget {
           actorName: farm.ownerName.isEmpty ? 'Farm owner' : farm.ownerName,
           actorRole: FarmWorkspaceRole.owner,
           action: action,
-          detail: '$detail Layout: ${summary.estimatedPlantSlots} plant slots, ${summary.dailyWaterLitres.toStringAsFixed(0)} L/day, ${summary.substrateVolumeLitres.toStringAsFixed(0)} L substrate.',
-          audience: farm.ownerCount > 1 ? FarmActivityAudience.owners : FarmActivityAudience.workspace,
+          detail:
+              '$detail Layout: ${summary.estimatedPlantSlots} plant slots, ${summary.dailyWaterLitres.toStringAsFixed(0)} L/day, ${summary.substrateVolumeLitres.toStringAsFixed(0)} L substrate.',
+          audience: farm.ownerCount > 1
+              ? FarmActivityAudience.owners
+              : FarmActivityAudience.workspace,
           createdAt: now,
         ),
         ...farm.activityLog,
@@ -916,36 +1335,45 @@ class FarmDetailScreen extends ConsumerWidget {
     await ref.read(farmsProvider.notifier).updateFarm(updated);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(override ? 'Custom greenhouse plan kept.' : 'Greenhouse plan saved to activity log.')),
+        SnackBar(
+            content: Text(override
+                ? 'Custom greenhouse plan kept.'
+                : 'Greenhouse plan saved to activity log.')),
       );
     }
   }
 
-  Future<void> _openNotesSheet(BuildContext context, WidgetRef ref, Farm farm) async {
-    final TextEditingController controller = TextEditingController(text: farm.notes);
+  Future<void> _openNotesSheet(
+      BuildContext context, WidgetRef ref, Farm farm) async {
+    final TextEditingController controller =
+        TextEditingController(text: farm.notes);
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (BuildContext context) {
         return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+          padding:
+              EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
           child: Container(
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(28)),
             ),
             padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text('Farm notes', style: Theme.of(context).textTheme.headlineSmall),
+                Text('Farm notes',
+                    style: Theme.of(context).textTheme.headlineSmall),
                 const SizedBox(height: 14),
                 AppTextField(
                   controller: controller,
                   label: 'Notes',
-                  hint: 'Add field observations, storage plans, or seasonal reminders',
+                  hint:
+                      'Add field observations, storage plans, or seasonal reminders',
                   maxLines: 5,
                 ),
                 const SizedBox(height: 18),
@@ -976,8 +1404,10 @@ class FarmDetailScreen extends ConsumerWidget {
     controller.dispose();
   }
 
-  Future<void> _openDocumentSheet(BuildContext context, WidgetRef ref, Farm farm) async {
-    final _FarmDocumentDraft? draft = await showModalBottomSheet<_FarmDocumentDraft>(
+  Future<void> _openDocumentSheet(
+      BuildContext context, WidgetRef ref, Farm farm) async {
+    final _FarmDocumentDraft? draft =
+        await showModalBottomSheet<_FarmDocumentDraft>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -1006,8 +1436,10 @@ class FarmDetailScreen extends ConsumerWidget {
         );
   }
 
-  Future<void> _openMemberSheet(BuildContext context, WidgetRef ref, Farm farm) async {
-    final _WorkspaceMemberDraft? draft = await showModalBottomSheet<_WorkspaceMemberDraft>(
+  Future<void> _openMemberSheet(
+      BuildContext context, WidgetRef ref, Farm farm) async {
+    final _WorkspaceMemberDraft? draft =
+        await showModalBottomSheet<_WorkspaceMemberDraft>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -1025,7 +1457,9 @@ class FarmDetailScreen extends ConsumerWidget {
       email: draft.email,
       phone: draft.phone,
       role: draft.role,
-      allowedFarmIds: draft.allowedFarmIds.isEmpty ? <String>[farm.id] : draft.allowedFarmIds,
+      allowedFarmIds: draft.allowedFarmIds.isEmpty
+          ? <String>[farm.id]
+          : draft.allowedFarmIds,
       financeAccess: draft.financeAccess,
       canManageTasks: draft.canManageTasks,
       canManageSchedule: draft.canManageSchedule,
@@ -1043,8 +1477,11 @@ class FarmDetailScreen extends ConsumerWidget {
           actorName: 'System',
           actorRole: FarmWorkspaceRole.owner,
           action: 'Added member',
-          detail: '${member.name} joined as ${member.roleLabel} with ${member.financeAccessLabel}.',
-          audience: farm.ownerCount > 1 ? FarmActivityAudience.owners : FarmActivityAudience.workspace,
+          detail:
+              '${member.name} joined as ${member.roleLabel} with ${member.financeAccessLabel}.',
+          audience: farm.ownerCount > 1
+              ? FarmActivityAudience.owners
+              : FarmActivityAudience.workspace,
           createdAt: now,
         ),
         ...farm.activityLog,
@@ -1058,18 +1495,21 @@ class FarmDetailScreen extends ConsumerWidget {
       final String inviteId = const Uuid().v4();
       await ref.read(firebaseServiceProvider).createInvite(
             id: inviteId,
-        email: member.email,
-        name: member.name,
+            email: member.email,
+            name: member.name,
             farmId: farm.id,
             role: member.role.name,
             allowedFarmIds: member.allowedFarmIds,
-            createdBy: ref.read(firebaseServiceProvider).currentUser?.email ?? 'system',
+            createdBy: ref.read(firebaseServiceProvider).currentUser?.email ??
+                'system',
             createdAt: now,
           );
       await ref.read(farmEmailServiceProvider).sendInviteNotification(
             toEmail: member.email,
             recipientName: member.name,
-            inviterName: ref.read(firebaseServiceProvider).currentUser?.displayName ?? 'Farm owner',
+            inviterName:
+                ref.read(firebaseServiceProvider).currentUser?.displayName ??
+                    'Farm owner',
             farmName: farm.name,
             inviteToken: inviteId,
             role: member.roleLabel,
@@ -1077,8 +1517,10 @@ class FarmDetailScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _openTaskSheet(BuildContext context, WidgetRef ref, Farm farm) async {
-    final _WorkspaceTaskDraft? draft = await showModalBottomSheet<_WorkspaceTaskDraft>(
+  Future<void> _openTaskSheet(
+      BuildContext context, WidgetRef ref, Farm farm) async {
+    final _WorkspaceTaskDraft? draft =
+        await showModalBottomSheet<_WorkspaceTaskDraft>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -1093,6 +1535,7 @@ class FarmDetailScreen extends ConsumerWidget {
       id: const Uuid().v4(),
       title: draft.title,
       details: draft.details,
+      assigneeId: draft.assigneeId,
       assigneeName: draft.assigneeName,
       assigneeRole: draft.assigneeRole,
       dueAt: draft.dueAt,
@@ -1112,7 +1555,8 @@ class FarmDetailScreen extends ConsumerWidget {
           actorName: draft.createdBy,
           actorRole: FarmWorkspaceRole.owner,
           action: 'Added task',
-          detail: '${task.title} is due ${app_date.DateUtils.formatDateTime(task.dueAt)}.',
+          detail:
+              '${task.title} is due ${app_date.DateUtils.formatDateTime(task.dueAt)}.',
           audience: FarmActivityAudience.owners,
           relatedTaskId: task.id,
           createdAt: now,
@@ -1124,27 +1568,31 @@ class FarmDetailScreen extends ConsumerWidget {
     );
     await ref.read(farmsProvider.notifier).updateFarm(updated);
     await ref.read(notificationsProvider.notifier).publishNotification(
-          title: 'Farm schedule created',
-          message: '${task.title} is due ${app_date.DateUtils.formatDateTime(task.dueAt)}.',
-          type: app_notification.NotificationType.info,
-          actionUrl: '/farms',
-          audience: 'single',
-          targetUserId: ref.read(firebaseServiceProvider).currentUser?.uid,
-          metadata: <String, dynamic>{
-            'source': 'farm_schedule',
-            'farmId': farm.id,
-            'taskId': task.id,
-          },
-        );
+      title: 'Farm schedule created',
+      message:
+          '${task.title} is due ${app_date.DateUtils.formatDateTime(task.dueAt)}.',
+      type: app_notification.NotificationType.info,
+      actionUrl: '/farms',
+      audience: 'single',
+      targetUserId: ref.read(firebaseServiceProvider).currentUser?.uid,
+      metadata: <String, dynamic>{
+        'source': 'farm_schedule',
+        'farmId': farm.id,
+        'taskId': task.id,
+      },
+    );
     await _scheduleReminderForTask(farm: farm, task: task, ref: ref);
     if (farm.ownerEmail.isNotEmpty) {
       await ref.read(farmEmailServiceProvider).sendScheduleNotification(
             toEmail: farm.ownerEmail,
-            recipientName: farm.ownerName.isNotEmpty ? farm.ownerName : 'Farm owner',
+            recipientName:
+                farm.ownerName.isNotEmpty ? farm.ownerName : 'Farm owner',
             farmName: farm.name,
             taskTitle: task.title,
             dueLabel: app_date.DateUtils.formatDateTime(task.dueAt),
-            detail: task.details.isEmpty ? 'A new farm task has been scheduled for review.' : task.details,
+            detail: task.details.isEmpty
+                ? 'A new farm task has been scheduled for review.'
+                : task.details,
           );
     }
   }
@@ -1159,7 +1607,8 @@ class FarmDetailScreen extends ConsumerWidget {
       await FarmNotificationService.instance.cancel(task.id.hashCode.abs());
       return;
     }
-    final DateTime reminderAt = task.dueAt.subtract(Duration(minutes: task.reminderLeadMinutes));
+    final DateTime reminderAt =
+        task.dueAt.subtract(Duration(minutes: task.reminderLeadMinutes));
     final DateTime now = DateTime.now();
     if (!forceReschedule && reminderAt.isBefore(now)) {
       return;
@@ -1167,24 +1616,33 @@ class FarmDetailScreen extends ConsumerWidget {
     await FarmNotificationService.instance.scheduleAt(
       id: task.id.hashCode.abs(),
       title: 'Farm reminder: ${task.title}',
-      body: task.details.isEmpty ? '${farm.name} task is due soon.' : task.details,
+      body: task.details.isEmpty
+          ? '${farm.name} task is due soon.'
+          : task.details,
       scheduledAt: reminderAt,
       payload: '/farms',
     );
     await ref.read(notificationsProvider.notifier).publishNotification(
-      title: 'Reminder scheduled',
-      message: '${task.title} will remind you ${app_date.DateUtils.formatDateTime(reminderAt)}.',
-      type: app_notification.NotificationType.info,
-      actionUrl: '/farms',
-      audience: 'single',
-      targetUserId: ref.read(firebaseServiceProvider).currentUser?.uid,
-      metadata: <String, dynamic>{'source': 'farm_schedule', 'farmId': farm.id, 'taskId': task.id},
-      showDeviceNotification: false,
-    );
+          title: 'Reminder scheduled',
+          message:
+              '${task.title} will remind you ${app_date.DateUtils.formatDateTime(reminderAt)}.',
+          type: app_notification.NotificationType.info,
+          actionUrl: '/farms',
+          audience: 'single',
+          targetUserId: ref.read(firebaseServiceProvider).currentUser?.uid,
+          metadata: <String, dynamic>{
+            'source': 'farm_schedule',
+            'farmId': farm.id,
+            'taskId': task.id
+          },
+          showDeviceNotification: false,
+        );
   }
 
-  Future<void> _openActivitySheet(BuildContext context, WidgetRef ref, Farm farm) async {
-    final _WorkspaceActivityDraft? draft = await showModalBottomSheet<_WorkspaceActivityDraft>(
+  Future<void> _openActivitySheet(
+      BuildContext context, WidgetRef ref, Farm farm) async {
+    final _WorkspaceActivityDraft? draft =
+        await showModalBottomSheet<_WorkspaceActivityDraft>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -1202,7 +1660,8 @@ class FarmDetailScreen extends ConsumerWidget {
       action: draft.action,
       detail: draft.detail,
       audience: draft.audience,
-      sentToOwners: draft.sentToOwners || draft.audience == FarmActivityAudience.owners,
+      sentToOwners:
+          draft.sentToOwners || draft.audience == FarmActivityAudience.owners,
       createdAt: now,
     );
     final Farm updated = farm.copyWith(
@@ -1212,22 +1671,25 @@ class FarmDetailScreen extends ConsumerWidget {
     );
     await ref.read(farmsProvider.notifier).updateFarm(updated);
     await ref.read(notificationsProvider.notifier).publishNotification(
-          title: 'Farm activity logged',
-          message: '${draft.action}: ${draft.detail}',
-          type: app_notification.NotificationType.info,
-          actionUrl: '/farms',
-          audience: activity.sentToOwners ? 'single' : 'all',
-          targetUserId: activity.sentToOwners ? ref.read(firebaseServiceProvider).currentUser?.uid : null,
-          metadata: <String, dynamic>{
-            'source': 'worker_log',
-            'farmId': farm.id,
-            'activityId': activity.id,
-          },
-        );
+      title: 'Farm activity logged',
+      message: '${draft.action}: ${draft.detail}',
+      type: app_notification.NotificationType.info,
+      actionUrl: '/farms',
+      audience: activity.sentToOwners ? 'single' : 'all',
+      targetUserId: activity.sentToOwners
+          ? ref.read(firebaseServiceProvider).currentUser?.uid
+          : null,
+      metadata: <String, dynamic>{
+        'source': 'worker_log',
+        'farmId': farm.id,
+        'activityId': activity.id,
+      },
+    );
     if (farm.ownerEmail.isNotEmpty && draft.sentToOwners) {
       await ref.read(farmEmailServiceProvider).sendWorkerLogNotification(
             toEmail: farm.ownerEmail,
-            recipientName: farm.ownerName.isNotEmpty ? farm.ownerName : 'Farm owner',
+            recipientName:
+                farm.ownerName.isNotEmpty ? farm.ownerName : 'Farm owner',
             farmName: farm.name,
             action: draft.action,
             detail: draft.detail,
@@ -1235,8 +1697,10 @@ class FarmDetailScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _openScheduleSheet(BuildContext context, WidgetRef ref, Farm farm) async {
-    final _WorkspaceScheduleDraft? draft = await showModalBottomSheet<_WorkspaceScheduleDraft>(
+  Future<void> _openScheduleSheet(
+      BuildContext context, WidgetRef ref, Farm farm) async {
+    final _WorkspaceScheduleDraft? draft =
+        await showModalBottomSheet<_WorkspaceScheduleDraft>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -1252,8 +1716,10 @@ class FarmDetailScreen extends ConsumerWidget {
     for (int i = 0; i < draft.occurrences; i++) {
       final FarmWorkspaceTask task = FarmWorkspaceTask(
         id: const Uuid().v4(),
-        title: draft.title + (draft.occurrences > 1 ? ' (${i + 1}/${draft.occurrences})' : ''),
+        title: draft.title +
+            (draft.occurrences > 1 ? ' (${i + 1}/${draft.occurrences})' : ''),
         details: '${draft.details}\n[Schedule: ${draft.recurrenceLabel}]',
+        assigneeId: draft.assigneeId,
         assigneeName: draft.assigneeName,
         assigneeRole: draft.assigneeRole,
         dueAt: occurrence,
@@ -1268,12 +1734,15 @@ class FarmDetailScreen extends ConsumerWidget {
       created.add(task);
 
       if (draft.reminderEnabled) {
-        final DateTime reminderAt = occurrence.subtract(Duration(minutes: draft.reminderLeadMinutes));
+        final DateTime reminderAt =
+            occurrence.subtract(Duration(minutes: draft.reminderLeadMinutes));
         if (reminderAt.isAfter(DateTime.now())) {
           await FarmNotificationService.instance.scheduleAt(
             id: task.id.hashCode.abs(),
             title: 'Reminder: ${task.title}',
-            body: task.details.isEmpty ? '${farm.name} scheduled task is due.' : task.details,
+            body: task.details.isEmpty
+                ? '${farm.name} scheduled task is due.'
+                : task.details,
             scheduledAt: reminderAt,
             payload: '/farms',
           );
@@ -1292,7 +1761,8 @@ class FarmDetailScreen extends ConsumerWidget {
           occurrence = occurrence.add(const Duration(days: 7));
           break;
         case _Recurrence.monthly:
-          occurrence = DateTime(occurrence.year, occurrence.month + 1, occurrence.day, occurrence.hour, occurrence.minute);
+          occurrence = DateTime(occurrence.year, occurrence.month + 1,
+              occurrence.day, occurrence.hour, occurrence.minute);
           break;
       }
     }
@@ -1305,7 +1775,8 @@ class FarmDetailScreen extends ConsumerWidget {
           actorName: draft.createdBy,
           actorRole: FarmWorkspaceRole.owner,
           action: 'Created schedule',
-          detail: '${draft.title} — ${draft.recurrenceLabel} · ${draft.occurrences} occurrences',
+          detail:
+              '${draft.title} — ${draft.recurrenceLabel} · ${draft.occurrences} occurrences',
           audience: FarmActivityAudience.owners,
           createdAt: now,
         ),
@@ -1331,22 +1802,28 @@ class FarmDetailScreen extends ConsumerWidget {
 
     if (farm.ownerEmail.isNotEmpty) {
       await ref.read(farmEmailServiceProvider).sendScheduleNotification(
-        toEmail: farm.ownerEmail,
-        recipientName: farm.ownerName.isNotEmpty ? farm.ownerName : 'Farm owner',
-        farmName: farm.name,
-        taskTitle: draft.title,
-        dueLabel: app_date.DateUtils.formatDateTime(created.first.dueAt),
-        detail: draft.details.isEmpty ? 'A new farm schedule has been created.' : draft.details,
-      );
+            toEmail: farm.ownerEmail,
+            recipientName:
+                farm.ownerName.isNotEmpty ? farm.ownerName : 'Farm owner',
+            farmName: farm.name,
+            taskTitle: draft.title,
+            dueLabel: app_date.DateUtils.formatDateTime(created.first.dueAt),
+            detail: draft.details.isEmpty
+                ? 'A new farm schedule has been created.'
+                : draft.details,
+          );
     }
   }
 
-  Future<void> _editWorkspaceTask(BuildContext context, WidgetRef ref, Farm farm, FarmWorkspaceTask task) async {
-    final _WorkspaceTaskDraft? draft = await showModalBottomSheet<_WorkspaceTaskDraft>(
+  Future<void> _editWorkspaceTask(BuildContext context, WidgetRef ref,
+      Farm farm, FarmWorkspaceTask task) async {
+    final _WorkspaceTaskDraft? draft =
+        await showModalBottomSheet<_WorkspaceTaskDraft>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (BuildContext context) => _WorkspaceTaskSheet(farm: farm, existingTask: task),
+      builder: (BuildContext context) =>
+          _WorkspaceTaskSheet(farm: farm, existingTask: task),
     );
     if (draft == null) {
       return;
@@ -1356,6 +1833,7 @@ class FarmDetailScreen extends ConsumerWidget {
     final FarmWorkspaceTask updatedTask = task.copyWith(
       title: draft.title,
       details: draft.details,
+      assigneeId: draft.assigneeId,
       assigneeName: draft.assigneeName,
       assigneeRole: draft.assigneeRole,
       dueAt: draft.dueAt,
@@ -1365,7 +1843,8 @@ class FarmDetailScreen extends ConsumerWidget {
       updatedAt: now,
     );
     final List<FarmWorkspaceTask> nextTasks = farm.workspaceTasks
-        .map((FarmWorkspaceTask current) => current.id == task.id ? updatedTask : current)
+        .map((FarmWorkspaceTask current) =>
+            current.id == task.id ? updatedTask : current)
         .toList(growable: false);
     final Farm updated = farm.copyWith(
       workspaceTasks: nextTasks,
@@ -1375,7 +1854,8 @@ class FarmDetailScreen extends ConsumerWidget {
           actorName: draft.createdBy,
           actorRole: FarmWorkspaceRole.owner,
           action: 'Updated task',
-          detail: '${updatedTask.title} was adjusted for ${app_date.DateUtils.formatDateTime(updatedTask.dueAt)}.',
+          detail:
+              '${updatedTask.title} was adjusted for ${app_date.DateUtils.formatDateTime(updatedTask.dueAt)}.',
           audience: FarmActivityAudience.owners,
           relatedTaskId: updatedTask.id,
           createdAt: now,
@@ -1386,21 +1866,28 @@ class FarmDetailScreen extends ConsumerWidget {
       isSynced: false,
     );
     await ref.read(farmsProvider.notifier).updateFarm(updated);
-    await _scheduleReminderForTask(farm: farm, task: updatedTask, ref: ref, forceReschedule: true);
+    await _scheduleReminderForTask(
+        farm: farm, task: updatedTask, ref: ref, forceReschedule: true);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Task updated.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Task updated.')));
     }
   }
 
-  Future<void> _deleteWorkspaceTask(BuildContext context, WidgetRef ref, Farm farm, FarmWorkspaceTask task) async {
+  Future<void> _deleteWorkspaceTask(BuildContext context, WidgetRef ref,
+      Farm farm, FarmWorkspaceTask task) async {
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) => AlertDialog(
         title: const Text('Remove task?'),
         content: Text('Delete ${task.title}?'),
         actions: <Widget>[
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Delete')),
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete')),
         ],
       ),
     );
@@ -1408,7 +1895,9 @@ class FarmDetailScreen extends ConsumerWidget {
       return;
     }
 
-    final List<FarmWorkspaceTask> nextTasks = farm.workspaceTasks.where((FarmWorkspaceTask current) => current.id != task.id).toList(growable: false);
+    final List<FarmWorkspaceTask> nextTasks = farm.workspaceTasks
+        .where((FarmWorkspaceTask current) => current.id != task.id)
+        .toList(growable: false);
     final Farm updated = farm.copyWith(
       workspaceTasks: nextTasks,
       activityLog: <FarmActivityRecord>[
@@ -1430,11 +1919,13 @@ class FarmDetailScreen extends ConsumerWidget {
     await ref.read(farmsProvider.notifier).updateFarm(updated);
     await FarmNotificationService.instance.cancel(task.id.hashCode.abs());
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Task removed.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Task removed.')));
     }
   }
 
-  Future<void> _toggleWorkspaceTask(BuildContext context, WidgetRef ref, Farm farm, FarmWorkspaceTask task) async {
+  Future<void> _toggleWorkspaceTask(BuildContext context, WidgetRef ref,
+      Farm farm, FarmWorkspaceTask task) async {
     final DateTime now = DateTime.now();
     final bool markDone = !task.isCompleted;
     final FarmWorkspaceTask updatedTask = task.copyWith(
@@ -1445,17 +1936,21 @@ class FarmDetailScreen extends ConsumerWidget {
       updatedAt: now,
     );
     final List<FarmWorkspaceTask> nextTasks = farm.workspaceTasks
-        .map((FarmWorkspaceTask current) => current.id == task.id ? updatedTask : current)
+        .map((FarmWorkspaceTask current) =>
+            current.id == task.id ? updatedTask : current)
         .toList(growable: false);
     final Farm updated = farm.copyWith(
       workspaceTasks: nextTasks,
       activityLog: <FarmActivityRecord>[
         FarmActivityRecord(
           id: const Uuid().v4(),
-          actorName: updatedTask.assigneeName.isEmpty ? 'Workspace team' : updatedTask.assigneeName,
+          actorName: updatedTask.assigneeName.isEmpty
+              ? 'Workspace team'
+              : updatedTask.assigneeName,
           actorRole: updatedTask.assigneeRole,
           action: markDone ? 'Completed task' : 'Reopened task',
-          detail: '${updatedTask.title} was ${markDone ? 'marked done' : 'reopened'}.',
+          detail:
+              '${updatedTask.title} was ${markDone ? 'marked done' : 'reopened'}.',
           audience: FarmActivityAudience.owners,
           relatedTaskId: updatedTask.id,
           createdAt: now,
@@ -1467,35 +1962,43 @@ class FarmDetailScreen extends ConsumerWidget {
     );
     await ref.read(farmsProvider.notifier).updateFarm(updated);
     await ref.read(notificationsProvider.notifier).publishNotification(
-          title: markDone ? 'Farm task completed' : 'Farm task reopened',
-          message: '${updatedTask.title} was ${markDone ? 'marked done' : 'reopened'}.',
-          type: markDone ? app_notification.NotificationType.success : app_notification.NotificationType.info,
-          actionUrl: '/farms',
-          audience: 'single',
-          targetUserId: ref.read(firebaseServiceProvider).currentUser?.uid,
-          metadata: <String, dynamic>{
-            'source': 'farm_schedule',
-            'farmId': farm.id,
-            'taskId': updatedTask.id,
-          },
-        );
+      title: markDone ? 'Farm task completed' : 'Farm task reopened',
+      message:
+          '${updatedTask.title} was ${markDone ? 'marked done' : 'reopened'}.',
+      type: markDone
+          ? app_notification.NotificationType.success
+          : app_notification.NotificationType.info,
+      actionUrl: '/farms',
+      audience: 'single',
+      targetUserId: ref.read(firebaseServiceProvider).currentUser?.uid,
+      metadata: <String, dynamic>{
+        'source': 'farm_schedule',
+        'farmId': farm.id,
+        'taskId': updatedTask.id,
+      },
+    );
     if (!markDone && task.reminderEnabled) {
-      await _scheduleReminderForTask(farm: farm, task: updatedTask, ref: ref, forceReschedule: true);
+      await _scheduleReminderForTask(
+          farm: farm, task: updatedTask, ref: ref, forceReschedule: true);
     } else if (markDone) {
-      await FarmNotificationService.instance.cancel(updatedTask.id.hashCode.abs());
+      await FarmNotificationService.instance
+          .cancel(updatedTask.id.hashCode.abs());
     }
     if (farm.ownerEmail.isNotEmpty) {
       await ref.read(farmEmailServiceProvider).sendWorkerLogNotification(
             toEmail: farm.ownerEmail,
-            recipientName: farm.ownerName.isNotEmpty ? farm.ownerName : 'Farm owner',
+            recipientName:
+                farm.ownerName.isNotEmpty ? farm.ownerName : 'Farm owner',
             farmName: farm.name,
             action: markDone ? 'Completed task' : 'Reopened task',
-            detail: '${updatedTask.title} was ${markDone ? 'marked done' : 'reopened'}.',
+            detail:
+                '${updatedTask.title} was ${markDone ? 'marked done' : 'reopened'}.',
           );
     }
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(markDone ? 'Task completed.' : 'Task reopened.')),
+        SnackBar(
+            content: Text(markDone ? 'Task completed.' : 'Task reopened.')),
       );
     }
   }
@@ -1572,6 +2075,7 @@ class _WorkspaceTaskDraft {
   const _WorkspaceTaskDraft({
     required this.title,
     required this.details,
+    required this.assigneeId,
     required this.assigneeName,
     required this.assigneeRole,
     required this.dueAt,
@@ -1582,6 +2086,7 @@ class _WorkspaceTaskDraft {
 
   final String title;
   final String details;
+  final String assigneeId;
   final String assigneeName;
   final FarmWorkspaceRole assigneeRole;
   final DateTime dueAt;
@@ -1614,6 +2119,7 @@ class _WorkspaceScheduleDraft {
   const _WorkspaceScheduleDraft({
     required this.title,
     required this.details,
+    required this.assigneeId,
     required this.assigneeName,
     required this.assigneeRole,
     required this.startAt,
@@ -1626,6 +2132,7 @@ class _WorkspaceScheduleDraft {
 
   final String title;
   final String details;
+  final String assigneeId;
   final String assigneeName;
   final FarmWorkspaceRole assigneeRole;
   final DateTime startAt;
@@ -1656,19 +2163,39 @@ class _WorkspaceScheduleSheet extends StatefulWidget {
   final Farm farm;
 
   @override
-  State<_WorkspaceScheduleSheet> createState() => _WorkspaceScheduleSheetState();
+  State<_WorkspaceScheduleSheet> createState() =>
+      _WorkspaceScheduleSheetState();
 }
 
 class _WorkspaceScheduleSheetState extends State<_WorkspaceScheduleSheet> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _detailsController = TextEditingController();
-  final TextEditingController _assigneeController = TextEditingController();
-  final TextEditingController _occurrencesController = TextEditingController(text: '1');
-  final TextEditingController _leadController = TextEditingController(text: '60');
+  final TextEditingController _occurrencesController =
+      TextEditingController(text: '1');
+  final TextEditingController _leadController =
+      TextEditingController(text: '60');
   FarmWorkspaceRole _assigneeRole = FarmWorkspaceRole.worker;
   _Recurrence _recurrence = _Recurrence.none;
   DateTime _startAt = DateTime.now().add(const Duration(hours: 1));
   bool _reminderEnabled = true;
+  late String _assigneeId = _assigneeOptions.first.key;
+
+  List<MapEntry<String, String>> get _assigneeOptions {
+    final Farm farm = widget.farm;
+    return <MapEntry<String, String>>[
+      MapEntry<String, String>(farm.ownerUid,
+          farm.ownerName.isEmpty ? 'Farm owner' : farm.ownerName),
+      for (final FarmWorkspaceMember member in farm.workspaceMembers)
+        MapEntry<String, String>(member.id, member.name),
+    ];
+  }
+
+  String _assigneeNameFor(String id) {
+    return _assigneeOptions
+        .firstWhere((MapEntry<String, String> option) => option.key == id,
+            orElse: () => MapEntry<String, String>(id, id))
+        .value;
+  }
 
   Future<void> _pickDateTime() async {
     final DateTime? date = await showDatePicker(
@@ -1683,13 +2210,15 @@ class _WorkspaceScheduleSheetState extends State<_WorkspaceScheduleSheet> {
       initialTime: TimeOfDay(hour: _startAt.hour, minute: _startAt.minute),
     );
     if (time == null) return;
-    setState(() => _startAt = DateTime(date.year, date.month, date.day, time.hour, time.minute));
+    setState(() => _startAt =
+        DateTime(date.year, date.month, date.day, time.hour, time.minute));
   }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
@@ -1700,25 +2229,49 @@ class _WorkspaceScheduleSheetState extends State<_WorkspaceScheduleSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text('Create schedule', style: Theme.of(context).textTheme.headlineSmall),
+            Text('Create schedule',
+                style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 12),
-            AppTextField(controller: _titleController, label: 'Title', hint: 'E.g. Irrigation, Vaccination'),
+            AppTextField(
+                controller: _titleController,
+                label: 'Title',
+                hint: 'E.g. Irrigation, Vaccination'),
             const SizedBox(height: 8),
-            AppTextField(controller: _detailsController, label: 'Details', hint: 'Notes for the task', maxLines: 3),
+            AppTextField(
+                controller: _detailsController,
+                label: 'Details',
+                hint: 'Notes for the task',
+                maxLines: 3),
             const SizedBox(height: 8),
-            AppTextField(controller: _assigneeController, label: 'Assignee name', hint: 'Worker or team name'),
+            _EnumDropdownField<String>(
+              label: 'Assignee',
+              value: _assigneeId,
+              items: _assigneeOptions
+                  .map((MapEntry<String, String> option) => option.key)
+                  .toList(),
+              itemLabel: _assigneeNameFor,
+              onChanged: (String? value) {
+                if (value != null) {
+                  setState(() => _assigneeId = value);
+                }
+              },
+            ),
             const SizedBox(height: 8),
             Row(children: <Widget>[
-              Expanded(child: DropdownButtonFormField<FarmWorkspaceRole>(
+              Expanded(
+                  child: DropdownButtonFormField<FarmWorkspaceRole>(
                 value: _assigneeRole,
                 items: FarmWorkspaceRole.values
-                    .map((FarmWorkspaceRole r) => DropdownMenuItem(value: r, child: Text(_farmRoleLabel(r))))
+                    .map((FarmWorkspaceRole r) => DropdownMenuItem(
+                        value: r, child: Text(_farmRoleLabel(r))))
                     .toList(),
-                onChanged: (FarmWorkspaceRole? v) => setState(() => _assigneeRole = v ?? FarmWorkspaceRole.worker),
+                onChanged: (FarmWorkspaceRole? v) => setState(
+                    () => _assigneeRole = v ?? FarmWorkspaceRole.worker),
                 decoration: const InputDecoration(labelText: 'Assignee role'),
               )),
               const SizedBox(width: 12),
-              Expanded(child: GestureDetector(
+              Expanded(
+                  child: GestureDetector(
                 onTap: _pickDateTime,
                 child: InputDecorator(
                   decoration: const InputDecoration(labelText: 'Start'),
@@ -1728,52 +2281,82 @@ class _WorkspaceScheduleSheetState extends State<_WorkspaceScheduleSheet> {
             ]),
             const SizedBox(height: 8),
             Row(children: <Widget>[
-              Expanded(child: DropdownButtonFormField<_Recurrence>(
+              Expanded(
+                  child: DropdownButtonFormField<_Recurrence>(
                 value: _recurrence,
-                items: <_Recurrence>[_Recurrence.none, _Recurrence.daily, _Recurrence.weekly, _Recurrence.monthly]
-                    .map((e) => DropdownMenuItem(value: e, child: Text(switch (e) {
+                items: <_Recurrence>[
+                  _Recurrence.none,
+                  _Recurrence.daily,
+                  _Recurrence.weekly,
+                  _Recurrence.monthly
+                ]
+                    .map((e) => DropdownMenuItem(
+                        value: e,
+                        child: Text(switch (e) {
                           _Recurrence.none => 'Once',
                           _Recurrence.daily => 'Daily',
                           _Recurrence.weekly => 'Weekly',
                           _Recurrence.monthly => 'Monthly',
                         })))
                     .toList(),
-                onChanged: (v) => setState(() => _recurrence = v ?? _Recurrence.none),
+                onChanged: (v) =>
+                    setState(() => _recurrence = v ?? _Recurrence.none),
                 decoration: const InputDecoration(labelText: 'Recurrence'),
               )),
               const SizedBox(width: 12),
-              Expanded(child: AppTextField(controller: _occurrencesController, label: 'Occurrences', hint: '1', keyboardType: TextInputType.number)),
+              Expanded(
+                  child: AppTextField(
+                      controller: _occurrencesController,
+                      label: 'Occurrences',
+                      hint: '1',
+                      keyboardType: TextInputType.number)),
             ]),
             const SizedBox(height: 8),
             Row(children: <Widget>[
-              Expanded(child: CheckboxListTile(
+              Expanded(
+                  child: CheckboxListTile(
                 value: _reminderEnabled,
-                onChanged: (bool? v) => setState(() => _reminderEnabled = v ?? true),
+                onChanged: (bool? v) =>
+                    setState(() => _reminderEnabled = v ?? true),
                 title: const Text('Enable reminder'),
                 controlAffinity: ListTileControlAffinity.leading,
               )),
               const SizedBox(width: 12),
-              SizedBox(width: 120, child: AppTextField(controller: _leadController, label: 'Lead mins', keyboardType: TextInputType.number)),
+              SizedBox(
+                  width: 120,
+                  child: AppTextField(
+                      controller: _leadController,
+                      label: 'Lead mins',
+                      keyboardType: TextInputType.number)),
             ]),
             const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
               child: AppButton.primary(
                 onPressed: () {
-                  final int occurrences = int.tryParse(_occurrencesController.text.trim()) ?? 1;
-                  final int lead = int.tryParse(_leadController.text.trim()) ?? 60;
+                  final int occurrences =
+                      int.tryParse(_occurrencesController.text.trim()) ?? 1;
+                  final int lead =
+                      int.tryParse(_leadController.text.trim()) ?? 60;
                   if (_titleController.text.trim().isEmpty) return;
                   final _WorkspaceScheduleDraft draft = _WorkspaceScheduleDraft(
                     title: _titleController.text.trim(),
                     details: _detailsController.text.trim(),
-                    assigneeName: _assigneeController.text.trim(),
+                    assigneeId: _assigneeId,
+                    assigneeName: _assigneeNameFor(_assigneeId),
                     assigneeRole: _assigneeRole,
                     startAt: _startAt,
                     recurrence: _recurrence,
-                    occurrences: occurrences < 1 ? 1 : occurrences > 24 ? 24 : occurrences,
+                    occurrences: occurrences < 1
+                        ? 1
+                        : occurrences > 24
+                            ? 24
+                            : occurrences,
                     reminderEnabled: _reminderEnabled,
                     reminderLeadMinutes: lead,
-                    createdBy: widget.farm.ownerName.isNotEmpty ? widget.farm.ownerName : 'Owner',
+                    createdBy: widget.farm.ownerName.isNotEmpty
+                        ? widget.farm.ownerName
+                        : 'Owner',
                   );
                   Navigator.of(context).pop(draft);
                 },
@@ -1790,7 +2373,6 @@ class _WorkspaceScheduleSheetState extends State<_WorkspaceScheduleSheet> {
   void dispose() {
     _titleController.dispose();
     _detailsController.dispose();
-    _assigneeController.dispose();
     _occurrencesController.dispose();
     _leadController.dispose();
     super.dispose();
@@ -1836,7 +2418,8 @@ class _WorkspaceMemberSheetState extends State<_WorkspaceMemberSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SingleChildScrollView(
         child: Container(
           decoration: BoxDecoration(
@@ -1848,13 +2431,23 @@ class _WorkspaceMemberSheetState extends State<_WorkspaceMemberSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text('Add workspace member', style: Theme.of(context).textTheme.headlineSmall),
+              Text('Add workspace member',
+                  style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 14),
-              AppTextField(controller: _nameController, label: 'Full name', hint: 'Worker, partner, or co-owner'),
+              AppTextField(
+                  controller: _nameController,
+                  label: 'Full name',
+                  hint: 'Worker, partner, or co-owner'),
               const SizedBox(height: 12),
-              AppTextField(controller: _emailController, label: 'Email', hint: 'member@farm.com'),
+              AppTextField(
+                  controller: _emailController,
+                  label: 'Email',
+                  hint: 'member@farm.com'),
               const SizedBox(height: 12),
-              AppTextField(controller: _phoneController, label: 'Phone', hint: '+234 or local number'),
+              AppTextField(
+                  controller: _phoneController,
+                  label: 'Phone',
+                  hint: '+234 or local number'),
               const SizedBox(height: 12),
               _EnumDropdownField<FarmWorkspaceRole>(
                 label: 'Role',
@@ -1892,25 +2485,29 @@ class _WorkspaceMemberSheetState extends State<_WorkspaceMemberSheet> {
                   children: <Widget>[
                     CheckboxListTile(
                       value: _canManageTasks,
-                      onChanged: (bool? value) => setState(() => _canManageTasks = value ?? false),
+                      onChanged: (bool? value) =>
+                          setState(() => _canManageTasks = value ?? false),
                       title: const Text('Can manage tasks'),
                       dense: true,
                     ),
                     CheckboxListTile(
                       value: _canManageSchedule,
-                      onChanged: (bool? value) => setState(() => _canManageSchedule = value ?? false),
+                      onChanged: (bool? value) =>
+                          setState(() => _canManageSchedule = value ?? false),
                       title: const Text('Can manage schedules'),
                       dense: true,
                     ),
                     CheckboxListTile(
                       value: _canPostUpdates,
-                      onChanged: (bool? value) => setState(() => _canPostUpdates = value ?? false),
+                      onChanged: (bool? value) =>
+                          setState(() => _canPostUpdates = value ?? false),
                       title: const Text('Can post updates'),
                       dense: true,
                     ),
                     CheckboxListTile(
                       value: _canViewActivityLog,
-                      onChanged: (bool? value) => setState(() => _canViewActivityLog = value ?? false),
+                      onChanged: (bool? value) =>
+                          setState(() => _canViewActivityLog = value ?? false),
                       title: const Text('Can view activity log'),
                       dense: true,
                     ),
@@ -1933,14 +2530,19 @@ class _WorkspaceMemberSheetState extends State<_WorkspaceMemberSheet> {
   }
 
   void _submit() {
-    final String? nameError = Validators.required(_nameController.text.trim(), fieldName: 'Full name');
+    final String? nameError = Validators.required(_nameController.text.trim(),
+        fieldName: 'Full name');
     if (nameError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(nameError)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(nameError)));
       return;
     }
-    final String? emailError = Validators.required(_emailController.text.trim(), fieldName: 'Email') ?? Validators.email(_emailController.text.trim());
+    final String? emailError =
+        Validators.required(_emailController.text.trim(), fieldName: 'Email') ??
+            Validators.email(_emailController.text.trim());
     if (emailError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(emailError)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(emailError)));
       return;
     }
 
@@ -1980,12 +2582,30 @@ class _WorkspaceTaskSheet extends StatefulWidget {
 class _WorkspaceTaskSheetState extends State<_WorkspaceTaskSheet> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _detailsController = TextEditingController();
-  final TextEditingController _assigneeController = TextEditingController();
-  final TextEditingController _createdByController = TextEditingController(text: 'Farm owner');
+  final TextEditingController _createdByController =
+      TextEditingController(text: 'Farm owner');
   FarmWorkspaceRole _role = FarmWorkspaceRole.worker;
   DateTime _dueAt = DateTime.now().add(const Duration(days: 1));
   bool _reminderEnabled = true;
   int _reminderLeadMinutes = 60;
+  late String _assigneeId;
+
+  List<MapEntry<String, String>> get _assigneeOptions {
+    final Farm farm = widget.farm;
+    return <MapEntry<String, String>>[
+      MapEntry<String, String>(farm.ownerUid,
+          farm.ownerName.isEmpty ? 'Farm owner' : farm.ownerName),
+      for (final FarmWorkspaceMember member in farm.workspaceMembers)
+        MapEntry<String, String>(member.id, member.name),
+    ];
+  }
+
+  String _assigneeNameFor(String id) {
+    return _assigneeOptions
+        .firstWhere((MapEntry<String, String> option) => option.key == id,
+            orElse: () => MapEntry<String, String>(id, id))
+        .value;
+  }
 
   @override
   void initState() {
@@ -1994,12 +2614,23 @@ class _WorkspaceTaskSheetState extends State<_WorkspaceTaskSheet> {
     if (task != null) {
       _titleController.text = task.title;
       _detailsController.text = task.details;
-      _assigneeController.text = task.assigneeName;
-      _createdByController.text = task.createdBy.isEmpty ? 'Farm owner' : task.createdBy;
+      _createdByController.text =
+          task.createdBy.isEmpty ? 'Farm owner' : task.createdBy;
       _role = task.assigneeRole;
       _dueAt = task.dueAt;
       _reminderEnabled = task.reminderEnabled;
       _reminderLeadMinutes = task.reminderLeadMinutes;
+      _assigneeId = task.assigneeId.isNotEmpty
+          ? task.assigneeId
+          : _assigneeOptions
+              .firstWhere(
+                (MapEntry<String, String> option) =>
+                    option.value == task.assigneeName,
+                orElse: () => _assigneeOptions.first,
+              )
+              .key;
+    } else {
+      _assigneeId = _assigneeOptions.first.key;
     }
   }
 
@@ -2007,7 +2638,6 @@ class _WorkspaceTaskSheetState extends State<_WorkspaceTaskSheet> {
   void dispose() {
     _titleController.dispose();
     _detailsController.dispose();
-    _assigneeController.dispose();
     _createdByController.dispose();
     super.dispose();
   }
@@ -2015,7 +2645,8 @@ class _WorkspaceTaskSheetState extends State<_WorkspaceTaskSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SingleChildScrollView(
         child: Container(
           decoration: BoxDecoration(
@@ -2027,13 +2658,35 @@ class _WorkspaceTaskSheetState extends State<_WorkspaceTaskSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text(widget.existingTask == null ? 'Add workspace task' : 'Edit workspace task', style: Theme.of(context).textTheme.headlineSmall),
+              Text(
+                  widget.existingTask == null
+                      ? 'Add workspace task'
+                      : 'Edit workspace task',
+                  style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 14),
-              AppTextField(controller: _titleController, label: 'Task title', hint: 'Irrigation check, feed run, delivery'),
+              AppTextField(
+                  controller: _titleController,
+                  label: 'Task title',
+                  hint: 'Irrigation check, feed run, delivery'),
               const SizedBox(height: 12),
-              AppTextField(controller: _detailsController, label: 'Details', maxLines: 3),
+              AppTextField(
+                  controller: _detailsController,
+                  label: 'Details',
+                  maxLines: 3),
               const SizedBox(height: 12),
-              AppTextField(controller: _assigneeController, label: 'Assignee', hint: 'Worker name or partner'),
+              _EnumDropdownField<String>(
+                label: 'Assignee',
+                value: _assigneeId,
+                items: _assigneeOptions
+                    .map((MapEntry<String, String> option) => option.key)
+                    .toList(),
+                itemLabel: _assigneeNameFor,
+                onChanged: (String? value) {
+                  if (value != null) {
+                    setState(() => _assigneeId = value);
+                  }
+                },
+              ),
               const SizedBox(height: 12),
               _EnumDropdownField<FarmWorkspaceRole>(
                 label: 'Assignee role',
@@ -2054,7 +2707,8 @@ class _WorkspaceTaskSheetState extends State<_WorkspaceTaskSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text('Due date', style: Theme.of(context).textTheme.labelLarge),
+                      Text('Due date',
+                          style: Theme.of(context).textTheme.labelLarge),
                       const SizedBox(height: 10),
                       Text(app_date.DateUtils.formatDateTime(_dueAt)),
                       const SizedBox(height: 12),
@@ -2065,8 +2719,10 @@ class _WorkspaceTaskSheetState extends State<_WorkspaceTaskSheet> {
                               onPressed: () async {
                                 final DateTime? picked = await showDatePicker(
                                   context: context,
-                                  firstDate: DateTime.now().subtract(const Duration(days: 7)),
-                                  lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
+                                  firstDate: DateTime.now()
+                                      .subtract(const Duration(days: 7)),
+                                  lastDate: DateTime.now()
+                                      .add(const Duration(days: 365 * 3)),
                                   initialDate: _dueAt,
                                 );
                                 if (picked == null) {
@@ -2122,9 +2778,11 @@ class _WorkspaceTaskSheetState extends State<_WorkspaceTaskSheet> {
                   children: <Widget>[
                     SwitchListTile(
                       value: _reminderEnabled,
-                      onChanged: (bool value) => setState(() => _reminderEnabled = value),
+                      onChanged: (bool value) =>
+                          setState(() => _reminderEnabled = value),
                       title: const Text('Enable reminder'),
-                      subtitle: const Text('Sends a reminder before the due time'),
+                      subtitle:
+                          const Text('Sends a reminder before the due time'),
                     ),
                     _EnumDropdownField<int>(
                       label: 'Reminder lead',
@@ -2159,7 +2817,9 @@ class _WorkspaceTaskSheetState extends State<_WorkspaceTaskSheet> {
                 width: double.infinity,
                 child: AppButton.primary(
                   onPressed: _submit,
-                  child: Text(widget.existingTask == null ? 'Save task' : 'Update task'),
+                  child: Text(widget.existingTask == null
+                      ? 'Save task'
+                      : 'Update task'),
                 ),
               ),
             ],
@@ -2170,9 +2830,11 @@ class _WorkspaceTaskSheetState extends State<_WorkspaceTaskSheet> {
   }
 
   void _submit() {
-    final String? titleError = Validators.required(_titleController.text.trim(), fieldName: 'Task title');
+    final String? titleError = Validators.required(_titleController.text.trim(),
+        fieldName: 'Task title');
     if (titleError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(titleError)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(titleError)));
       return;
     }
 
@@ -2180,12 +2842,15 @@ class _WorkspaceTaskSheetState extends State<_WorkspaceTaskSheet> {
       _WorkspaceTaskDraft(
         title: _titleController.text.trim(),
         details: _detailsController.text.trim(),
-        assigneeName: _assigneeController.text.trim(),
+        assigneeId: _assigneeId,
+        assigneeName: _assigneeNameFor(_assigneeId),
         assigneeRole: _role,
         dueAt: _dueAt,
         reminderEnabled: _reminderEnabled,
         reminderLeadMinutes: _reminderLeadMinutes,
-        createdBy: _createdByController.text.trim().isEmpty ? 'Farm owner' : _createdByController.text.trim(),
+        createdBy: _createdByController.text.trim().isEmpty
+            ? 'Farm owner'
+            : _createdByController.text.trim(),
       ),
     );
   }
@@ -2197,11 +2862,13 @@ class _WorkspaceActivitySheet extends StatefulWidget {
   final Farm farm;
 
   @override
-  State<_WorkspaceActivitySheet> createState() => _WorkspaceActivitySheetState();
+  State<_WorkspaceActivitySheet> createState() =>
+      _WorkspaceActivitySheetState();
 }
 
 class _WorkspaceActivitySheetState extends State<_WorkspaceActivitySheet> {
-  final TextEditingController _actorController = TextEditingController(text: 'Farm owner');
+  final TextEditingController _actorController =
+      TextEditingController(text: 'Farm owner');
   final TextEditingController _actionController = TextEditingController();
   final TextEditingController _detailController = TextEditingController();
   FarmWorkspaceRole _role = FarmWorkspaceRole.owner;
@@ -2219,7 +2886,8 @@ class _WorkspaceActivitySheetState extends State<_WorkspaceActivitySheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SingleChildScrollView(
         child: Container(
           decoration: BoxDecoration(
@@ -2231,9 +2899,13 @@ class _WorkspaceActivitySheetState extends State<_WorkspaceActivitySheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text('Log activity', style: Theme.of(context).textTheme.headlineSmall),
+              Text('Log activity',
+                  style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 14),
-              AppTextField(controller: _actorController, label: 'Actor', hint: 'Worker, partner, or owner'),
+              AppTextField(
+                  controller: _actorController,
+                  label: 'Actor',
+                  hint: 'Worker, partner, or owner'),
               const SizedBox(height: 12),
               _EnumDropdownField<FarmWorkspaceRole>(
                 label: 'Actor role',
@@ -2247,9 +2919,13 @@ class _WorkspaceActivitySheetState extends State<_WorkspaceActivitySheet> {
                 },
               ),
               const SizedBox(height: 12),
-              AppTextField(controller: _actionController, label: 'Action', hint: 'Harvest update, payment, inspection'),
+              AppTextField(
+                  controller: _actionController,
+                  label: 'Action',
+                  hint: 'Harvest update, payment, inspection'),
               const SizedBox(height: 12),
-              AppTextField(controller: _detailController, label: 'Details', maxLines: 4),
+              AppTextField(
+                  controller: _detailController, label: 'Details', maxLines: 4),
               const SizedBox(height: 12),
               _EnumDropdownField<FarmActivityAudience>(
                 label: 'Share with',
@@ -2268,7 +2944,8 @@ class _WorkspaceActivitySheetState extends State<_WorkspaceActivitySheet> {
               const SizedBox(height: 12),
               SwitchListTile(
                 value: _sentToOwners,
-                onChanged: (bool value) => setState(() => _sentToOwners = value),
+                onChanged: (bool value) =>
+                    setState(() => _sentToOwners = value),
                 title: const Text('Notify owners'),
                 subtitle: const Text('Useful when the farm is co-owned'),
               ),
@@ -2288,19 +2965,26 @@ class _WorkspaceActivitySheetState extends State<_WorkspaceActivitySheet> {
   }
 
   void _submit() {
-    final String? actorError = Validators.required(_actorController.text.trim(), fieldName: 'Actor');
+    final String? actorError =
+        Validators.required(_actorController.text.trim(), fieldName: 'Actor');
     if (actorError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(actorError)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(actorError)));
       return;
     }
-    final String? actionError = Validators.required(_actionController.text.trim(), fieldName: 'Action');
+    final String? actionError =
+        Validators.required(_actionController.text.trim(), fieldName: 'Action');
     if (actionError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(actionError)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(actionError)));
       return;
     }
-    final String? detailError = Validators.required(_detailController.text.trim(), fieldName: 'Details');
+    final String? detailError = Validators.required(
+        _detailController.text.trim(),
+        fieldName: 'Details');
     if (detailError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(detailError)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(detailError)));
       return;
     }
 
@@ -2341,11 +3025,13 @@ class _EnumDropdownField<T> extends StatelessWidget {
         fillColor: Theme.of(context).colorScheme.surface,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+          borderSide:
+              BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+          borderSide:
+              BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
       ),
@@ -2379,12 +3065,15 @@ class _WorkspaceMemberTile extends StatelessWidget {
     return AppCard(
       color: theme.colorScheme.surfaceContainerHighest,
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         leading: Container(
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: member.isActive ? const Color(0xFFE5F5D8) : const Color(0xFFFFEBD0),
+            color: member.isActive
+                ? const Color(0xFFE5F5D8)
+                : const Color(0xFFFFEBD0),
             borderRadius: BorderRadius.circular(16),
           ),
           child: const Icon(Icons.groups_rounded),
@@ -2404,9 +3093,15 @@ class _WorkspaceMemberTile extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: <Widget>[
-                  _Tag(text: member.financeAccessLabel, color: const Color(0xFFDFF1FF)),
-                  _Tag(text: '${member.allowedFarmIds.length} farm(s)', color: const Color(0xFFEDE8FF)),
-                  _Tag(text: member.canManageTasks ? 'Tasks' : 'No task access', color: const Color(0xFFE5F5D8)),
+                  _Tag(
+                      text: member.financeAccessLabel,
+                      color: const Color(0xFFDFF1FF)),
+                  _Tag(
+                      text: '${member.allowedFarmIds.length} farm(s)',
+                      color: const Color(0xFFEDE8FF)),
+                  _Tag(
+                      text: member.canManageTasks ? 'Tasks' : 'No task access',
+                      color: const Color(0xFFE5F5D8)),
                 ],
               ),
             ],
@@ -2432,7 +3127,9 @@ class _TaskCalendarCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Map<String, List<FarmWorkspaceTask>> grouped = FarmTaskCalendarService.groupTasksByDay(tasks, referenceDate: DateTime.now());
+    final Map<String, List<FarmWorkspaceTask>> grouped =
+        FarmTaskCalendarService.groupTasksByDay(tasks,
+            referenceDate: DateTime.now());
     final List<String> sortedDays = grouped.keys.toList()..sort();
     return AppCard(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -2441,13 +3138,15 @@ class _TaskCalendarCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text('Upcoming tasks', style: Theme.of(context).textTheme.titleMedium),
+            Text('Upcoming tasks',
+                style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
             if (sortedDays.isEmpty)
               const Text('No upcoming tasks right now.')
             else
               ...sortedDays.take(4).map((String day) {
-                final List<FarmWorkspaceTask> dayTasks = grouped[day] ?? <FarmWorkspaceTask>[];
+                final List<FarmWorkspaceTask> dayTasks =
+                    grouped[day] ?? <FarmWorkspaceTask>[];
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Column(
@@ -2455,18 +3154,21 @@ class _TaskCalendarCard extends StatelessWidget {
                     children: <Widget>[
                       Text(
                         _formatDayLabel(day),
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelLarge
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 8),
                       ...dayTasks.map((FarmWorkspaceTask task) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: _TaskListItem(
-                          task: task,
-                          onToggle: () => onToggle(task),
-                          onEdit: () => onEdit(task),
-                          onDelete: () => onDelete(task),
-                        ),
-                      )),
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: _TaskListItem(
+                              task: task,
+                              onToggle: () => onToggle(task),
+                              onEdit: () => onEdit(task),
+                              onDelete: () => onDelete(task),
+                            ),
+                          )),
                     ],
                   ),
                 );
@@ -2480,10 +3182,14 @@ class _TaskCalendarCard extends StatelessWidget {
   String _formatDayLabel(String dayKey) {
     final DateTime parsed = DateTime.tryParse(dayKey) ?? DateTime.now();
     final DateTime now = DateTime.now();
-    if (parsed.year == now.year && parsed.month == now.month && parsed.day == now.day) {
+    if (parsed.year == now.year &&
+        parsed.month == now.month &&
+        parsed.day == now.day) {
       return 'Today';
     }
-    if (parsed.year == now.year && parsed.month == now.month && parsed.day == now.day + 1) {
+    if (parsed.year == now.year &&
+        parsed.month == now.month &&
+        parsed.day == now.day + 1) {
       return 'Tomorrow';
     }
     return '${parsed.day}/${parsed.month}/${parsed.year}';
@@ -2511,7 +3217,8 @@ class _TaskListItem extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.35)),
+        border: Border.all(
+            color: theme.colorScheme.outlineVariant.withOpacity(0.35)),
       ),
       child: Row(
         children: <Widget>[
@@ -2521,17 +3228,22 @@ class _TaskListItem extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(task.title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                Text(task.title,
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
                 Text(
                   '${app_date.DateUtils.formatDateTime(task.dueAt)}${task.reminderEnabled ? ' • ${task.reminderLeadMinutes}m reminder' : ''}',
-                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                 ),
               ],
             ),
           ),
           IconButton(onPressed: onEdit, icon: const Icon(Icons.edit_outlined)),
-          IconButton(onPressed: onDelete, icon: const Icon(Icons.delete_outline_rounded)),
+          IconButton(
+              onPressed: onDelete,
+              icon: const Icon(Icons.delete_outline_rounded)),
         ],
       ),
     );
@@ -2549,7 +3261,8 @@ class _ActivityLogTile extends StatelessWidget {
     return AppCard(
       color: theme.colorScheme.surfaceContainerHighest,
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         leading: Container(
           width: 48,
           height: 48,
@@ -2576,9 +3289,16 @@ class _ActivityLogTile extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: <Widget>[
-                  _Tag(text: activity.audienceLabel, color: const Color(0xFFE5F5D8)),
-                  _Tag(text: app_date.DateUtils.formatDateTime(activity.createdAt), color: const Color(0xFFFFEBD0)),
-                  if (activity.sentToOwners) const _Tag(text: 'Sent to owners', color: Color(0xFFDFF1FF)),
+                  _Tag(
+                      text: activity.audienceLabel,
+                      color: const Color(0xFFE5F5D8)),
+                  _Tag(
+                      text:
+                          app_date.DateUtils.formatDateTime(activity.createdAt),
+                      color: const Color(0xFFFFEBD0)),
+                  if (activity.sentToOwners)
+                    const _Tag(
+                        text: 'Sent to owners', color: Color(0xFFDFF1FF)),
                 ],
               ),
             ],
@@ -2650,6 +3370,19 @@ String _farmOperatingStatus({
   return 'Stable workflow';
 }
 
+Color _operatingStatusColor(String status) {
+  switch (status) {
+    case 'Attention needed':
+    case 'Water priority':
+      return const Color(0xFFFFEBD0);
+    case 'Harvest planning':
+      return const Color(0xFFEDE8FF);
+    case 'Stable workflow':
+    default:
+      return const Color(0xFFE5F5D8);
+  }
+}
+
 String _farmFocusNarrative({
   required Farm farm,
   required int urgentFarmTasks,
@@ -2690,21 +3423,128 @@ class _Tag extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color background = isDark ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface) : color;
-    final Color foreground = isDark ? theme.colorScheme.onSurface : const Color(0xFF284231);
+    final Color background = isDark
+        ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface)
+        : color;
+    final Color foreground =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFF284231);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: isDark ? color.withOpacity(0.44) : color.withOpacity(0.85)),
+        border: Border.all(
+            color: isDark ? color.withOpacity(0.44) : color.withOpacity(0.85)),
       ),
       child: Text(
         text,
         style: theme.textTheme.labelMedium?.copyWith(
           color: foreground,
           fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _CollapsibleSection extends StatelessWidget {
+  const _CollapsibleSection({
+    required this.sectionKey,
+    required this.title,
+    required this.expanded,
+    required this.onToggle,
+    required this.child,
+  });
+
+  final GlobalKey sectionKey;
+  final String title;
+  final bool expanded;
+  final ValueChanged<bool> onToggle;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: sectionKey,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => onToggle(!expanded),
+          child: SoftSectionTitle(
+            title: title,
+            action: AnimatedRotation(
+              turns: expanded ? 0 : -0.25,
+              duration: const Duration(milliseconds: 200),
+              child: const Icon(Icons.keyboard_arrow_down_rounded),
+            ),
+          ),
+        ),
+        ClipRect(
+          child: AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeInOut,
+            alignment: Alignment.topCenter,
+            child: expanded ? child : const SizedBox(width: double.infinity),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _QuickActionCard extends StatelessWidget {
+  const _QuickActionCard({
+    required this.icon,
+    required this.label,
+    required this.tint,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color tint;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color iconBackground = isDark
+        ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface)
+        : tint;
+    final Color iconForeground =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
+
+    return AppCard(
+      onTap: onTap,
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: <Widget>[
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: iconBackground,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                    color:
+                        isDark ? tint.withOpacity(0.42) : Colors.transparent),
+              ),
+              child: Icon(icon, color: iconForeground),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -2718,6 +3558,7 @@ class _FarmMetricCard extends StatelessWidget {
     required this.note,
     required this.icon,
     required this.tint,
+    this.progress,
   });
 
   final String title;
@@ -2725,13 +3566,17 @@ class _FarmMetricCard extends StatelessWidget {
   final String note;
   final IconData icon;
   final Color tint;
+  final double? progress;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color iconBackground = isDark ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface) : tint;
-    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
+    final Color iconBackground = isDark
+        ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface)
+        : tint;
+    final Color iconForeground =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
     return AppCard(
       color: theme.colorScheme.surfaceContainerHighest,
@@ -2746,7 +3591,9 @@ class _FarmMetricCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: iconBackground,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: isDark ? tint.withOpacity(0.42) : Colors.transparent),
+                border: Border.all(
+                    color:
+                        isDark ? tint.withOpacity(0.42) : Colors.transparent),
               ),
               child: Icon(icon, color: iconForeground),
             ),
@@ -2756,6 +3603,19 @@ class _FarmMetricCard extends StatelessWidget {
             Text(value, style: theme.textTheme.titleMedium),
             const SizedBox(height: 6),
             Text(note, style: theme.textTheme.bodySmall),
+            if (progress != null) ...<Widget>[
+              const SizedBox(height: 10),
+              SoftProgressBar(progress: progress!, tint: tint),
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  '${(progress!.clamp(0.0, 1.0) * 100).round()}%',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -2789,12 +3649,14 @@ class _LinkedEntityTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.statusBadge,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final Widget? statusBadge;
 
   @override
   Widget build(BuildContext context) {
@@ -2804,7 +3666,16 @@ class _LinkedEntityTile extends StatelessWidget {
       child: ListTile(
         leading: Icon(icon),
         title: Text(title),
-        subtitle: Text(subtitle),
+        subtitle: statusBadge == null
+            ? Text(subtitle)
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(subtitle),
+                  const SizedBox(height: 6),
+                  statusBadge!,
+                ],
+              ),
         trailing: const Icon(Icons.chevron_right_rounded),
       ),
     );
@@ -2845,44 +3716,56 @@ class _SuggestionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color iconBackground = isDark ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface) : tint;
-    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
+    final Color iconBackground = isDark
+        ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface)
+        : tint;
+    final Color iconForeground =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
     return AppCard(
       color: theme.colorScheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: iconBackground,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: isDark ? tint.withOpacity(0.42) : Colors.transparent),
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: tint, width: 3)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(13, 16, 16, 16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: iconBackground,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                      color:
+                          isDark ? tint.withOpacity(0.42) : Colors.transparent),
+                ),
+                child: Icon(icon, color: iconForeground),
               ),
-              child: Icon(icon, color: iconForeground),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    title,
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    detail,
-                    style: theme.textTheme.bodySmall?.copyWith(height: 1.5),
-                  ),
-                ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      detail,
+                      style: theme.textTheme.bodySmall?.copyWith(height: 1.5),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -2934,7 +3817,8 @@ class _FarmMetricsSheetState extends State<_FarmMetricsSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
@@ -2945,11 +3829,13 @@ class _FarmMetricsSheetState extends State<_FarmMetricsSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text('Update environmental metrics', style: Theme.of(context).textTheme.headlineSmall),
+            Text('Update environmental metrics',
+                style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 8),
             Text(
               'Use live weather to fill temperature, humidity, rainfall, and surface soil moisture when available. You can still adjust the values before saving.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.45),
+              style:
+                  Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.45),
             ),
             const SizedBox(height: 14),
             SizedBox(
@@ -2977,25 +3863,29 @@ class _FarmMetricsSheetState extends State<_FarmMetricsSheet> {
             AppTextField(
               controller: _temperatureController,
               label: 'Temperature (C)',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
             ),
             const SizedBox(height: 12),
             AppTextField(
               controller: _humidityController,
               label: 'Humidity (%)',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
             ),
             const SizedBox(height: 12),
             AppTextField(
               controller: _soilController,
               label: 'Soil moisture (%)',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
             ),
             const SizedBox(height: 12),
             AppTextField(
               controller: _rainController,
               label: 'Precipitation (mm)',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
             ),
             const SizedBox(height: 18),
             SizedBox(
@@ -3024,15 +3914,18 @@ class _FarmMetricsSheetState extends State<_FarmMetricsSheet> {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
-      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-        _showMessage('Location permission is needed to fetch live weather readings.');
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        _showMessage(
+            'Location permission is needed to fetch live weather readings.');
         return;
       }
 
       final Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.medium,
       );
-      final WeatherReading reading = await const WeatherReadingService().fetchCurrent(
+      final WeatherReading reading =
+          await const WeatherReadingService().fetchCurrent(
         latitude: position.latitude,
         longitude: position.longitude,
       );
@@ -3041,11 +3934,13 @@ class _FarmMetricsSheetState extends State<_FarmMetricsSheet> {
         return;
       }
       setState(() {
-        _temperatureController.text = reading.temperatureCelsius.toStringAsFixed(1);
+        _temperatureController.text =
+            reading.temperatureCelsius.toStringAsFixed(1);
         _humidityController.text = reading.humidityPercent.toStringAsFixed(0);
         _rainController.text = reading.precipitationMm.toStringAsFixed(1);
         if (reading.soilMoisturePercent != null) {
-          _soilController.text = reading.soilMoisturePercent!.toStringAsFixed(0);
+          _soilController.text =
+              reading.soilMoisturePercent!.toStringAsFixed(0);
         }
       });
       _showMessage('Live weather readings added. Review and save when ready.');
@@ -3062,13 +3957,15 @@ class _FarmMetricsSheetState extends State<_FarmMetricsSheet> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _submit() {
     Navigator.of(context).pop(
       _FarmMetricsDraft(
-        temperatureCelsius: double.tryParse(_temperatureController.text.trim()) ?? 0,
+        temperatureCelsius:
+            double.tryParse(_temperatureController.text.trim()) ?? 0,
         humidityPercent: double.tryParse(_humidityController.text.trim()) ?? 0,
         soilMoisturePercent: double.tryParse(_soilController.text.trim()) ?? 0,
         precipitationMm: double.tryParse(_rainController.text.trim()) ?? 0,
@@ -3102,7 +3999,8 @@ class _FarmDocumentSheetState extends State<_FarmDocumentSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
@@ -3113,15 +4011,26 @@ class _FarmDocumentSheetState extends State<_FarmDocumentSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text('Add farm document', style: Theme.of(context).textTheme.headlineSmall),
+            Text('Add farm document',
+                style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 14),
-            AppTextField(controller: _titleController, label: 'Title', hint: 'Input invoice'),
+            AppTextField(
+                controller: _titleController,
+                label: 'Title',
+                hint: 'Input invoice'),
             const SizedBox(height: 12),
-            AppTextField(controller: _typeController, label: 'Type', hint: 'Invoice, permit, contract'),
+            AppTextField(
+                controller: _typeController,
+                label: 'Type',
+                hint: 'Invoice, permit, contract'),
             const SizedBox(height: 12),
-            AppTextField(controller: _referenceController, label: 'Storage reference', hint: 'Shelf A / Google Drive / Box 2'),
+            AppTextField(
+                controller: _referenceController,
+                label: 'Storage reference',
+                hint: 'Shelf A / Google Drive / Box 2'),
             const SizedBox(height: 12),
-            AppTextField(controller: _notesController, label: 'Notes', maxLines: 3),
+            AppTextField(
+                controller: _notesController, label: 'Notes', maxLines: 3),
             const SizedBox(height: 18),
             SizedBox(
               width: double.infinity,
@@ -3137,15 +4046,19 @@ class _FarmDocumentSheetState extends State<_FarmDocumentSheet> {
   }
 
   void _submit() {
-    final String? titleError = Validators.required(_titleController.text.trim(), fieldName: 'Title');
+    final String? titleError =
+        Validators.required(_titleController.text.trim(), fieldName: 'Title');
     if (titleError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(titleError)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(titleError)));
       return;
     }
     Navigator.of(context).pop(
       _FarmDocumentDraft(
         title: _titleController.text.trim(),
-        type: _typeController.text.trim().isEmpty ? 'Document' : _typeController.text.trim(),
+        type: _typeController.text.trim().isEmpty
+            ? 'Document'
+            : _typeController.text.trim(),
         reference: _referenceController.text.trim(),
         notes: _notesController.text.trim(),
       ),
@@ -3222,14 +4135,18 @@ class _GreenhousePlanSummary {
 }
 
 _GreenhousePlanSummary _greenhousePlanSummary(Farm farm) {
-  final double greenhouseAreaHa = farm.greenhouseAreaHa > 0 ? farm.greenhouseAreaHa : math.max(farm.sizeHa * 0.12, 0.05);
+  final double greenhouseAreaHa = farm.greenhouseAreaHa > 0
+      ? farm.greenhouseAreaHa
+      : math.max(farm.sizeHa * 0.12, 0.05);
   final double usableAreaM2 = greenhouseAreaHa * 10000 * 0.72;
   final double plantSpacingM = farm.temperatureCelsius >= 32 ? 0.40 : 0.35;
   final double interRowSpacingM = farm.temperatureCelsius >= 32 ? 0.70 : 0.60;
   const double bedWidthM = 1.20;
-  final int estimatedPlantSlots = math.max(1, (usableAreaM2 / (plantSpacingM * interRowSpacingM)).floor());
+  final int estimatedPlantSlots =
+      math.max(1, (usableAreaM2 / (plantSpacingM * interRowSpacingM)).floor());
   final int seedlingTrayCount = math.max(1, (estimatedPlantSlots / 98).ceil());
-  final int irrigationRoundsPerDay = (farm.temperatureCelsius >= 32 || farm.soilMoisturePercent < 35) ? 3 : 2;
+  final int irrigationRoundsPerDay =
+      (farm.temperatureCelsius >= 32 || farm.soilMoisturePercent < 35) ? 3 : 2;
   double waterPerPlantLitres = 0.20;
   if (farm.temperatureCelsius >= 32) {
     waterPerPlantLitres += 0.05;

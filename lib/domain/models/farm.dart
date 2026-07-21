@@ -115,7 +115,8 @@ class FarmDocumentRecord {
       type: json['type'] as String? ?? 'Document',
       reference: json['reference'] as String? ?? '',
       notes: json['notes'] as String? ?? '',
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now(),
     );
   }
 }
@@ -247,8 +248,10 @@ class FarmWorkspaceMember {
       canPostUpdates: json['canPostUpdates'] as bool? ?? false,
       canViewActivityLog: json['canViewActivityLog'] as bool? ?? true,
       isActive: json['isActive'] as bool? ?? true,
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
-      updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now(),
+      updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
+          DateTime.now(),
       lastSeenAt: DateTime.tryParse(json['lastSeenAt'] as String? ?? ''),
     );
   }
@@ -262,6 +265,7 @@ class FarmWorkspaceTask {
     required this.createdAt,
     required this.updatedAt,
     this.details = '',
+    this.assigneeId = '',
     this.assigneeName = '',
     this.assigneeRole = FarmWorkspaceRole.worker,
     this.status = FarmTaskStatus.open,
@@ -275,6 +279,7 @@ class FarmWorkspaceTask {
   final String id;
   final String title;
   final String details;
+  final String assigneeId;
   final String assigneeName;
   final FarmWorkspaceRole assigneeRole;
   final DateTime dueAt;
@@ -300,6 +305,7 @@ class FarmWorkspaceTask {
     String? id,
     String? title,
     String? details,
+    String? assigneeId,
     String? assigneeName,
     FarmWorkspaceRole? assigneeRole,
     DateTime? dueAt,
@@ -317,6 +323,7 @@ class FarmWorkspaceTask {
       id: id ?? this.id,
       title: title ?? this.title,
       details: details ?? this.details,
+      assigneeId: assigneeId ?? this.assigneeId,
       assigneeName: assigneeName ?? this.assigneeName,
       assigneeRole: assigneeRole ?? this.assigneeRole,
       dueAt: dueAt ?? this.dueAt,
@@ -335,6 +342,7 @@ class FarmWorkspaceTask {
         'id': id,
         'title': title,
         'details': details,
+        'assigneeId': assigneeId,
         'assigneeName': assigneeName,
         'assigneeRole': assigneeRole.name,
         'dueAt': dueAt.toIso8601String(),
@@ -353,12 +361,14 @@ class FarmWorkspaceTask {
       id: json['id'] as String? ?? '',
       title: json['title'] as String? ?? 'Farm task',
       details: json['details'] as String? ?? '',
+      assigneeId: json['assigneeId'] as String? ?? '',
       assigneeName: json['assigneeName'] as String? ?? '',
       assigneeRole: FarmWorkspaceRole.values.firstWhere(
         (FarmWorkspaceRole value) => value.name == json['assigneeRole'],
         orElse: () => FarmWorkspaceRole.worker,
       ),
-      dueAt: DateTime.tryParse(json['dueAt'] as String? ?? '') ?? DateTime.now(),
+      dueAt:
+          DateTime.tryParse(json['dueAt'] as String? ?? '') ?? DateTime.now(),
       status: FarmTaskStatus.values.firstWhere(
         (FarmTaskStatus value) => value.name == json['status'],
         orElse: () => FarmTaskStatus.open,
@@ -368,8 +378,10 @@ class FarmWorkspaceTask {
       completedAt: DateTime.tryParse(json['completedAt'] as String? ?? ''),
       createdBy: json['createdBy'] as String? ?? '',
       updatedBy: json['updatedBy'] as String? ?? '',
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
-      updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now(),
+      updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
+          DateTime.now(),
     );
   }
 }
@@ -463,7 +475,8 @@ class FarmActivityRecord {
       relatedTaskId: json['relatedTaskId'] as String? ?? '',
       relatedMemberId: json['relatedMemberId'] as String? ?? '',
       sentToOwners: json['sentToOwners'] as bool? ?? true,
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now(),
     );
   }
 }
@@ -536,12 +549,28 @@ class Farm {
   final List<FarmActivityRecord> activityLog;
   final String workspaceNotes;
 
-  bool get supportsCrops => <FarmType>[FarmType.crop, FarmType.greenhouse, FarmType.combined].contains(farmType);
-  bool get supportsLivestock => <FarmType>[FarmType.livestock, FarmType.combined].contains(farmType);
-  bool get supportsGreenhouse => <FarmType>[FarmType.greenhouse, FarmType.combined].contains(farmType);
-  int get ownerCount => workspaceMembers.where((FarmWorkspaceMember item) => <FarmWorkspaceRole>[FarmWorkspaceRole.owner, FarmWorkspaceRole.coOwner].contains(item.role)).length;
-  int get openWorkspaceTaskCount => workspaceTasks.where((FarmWorkspaceTask item) => !item.isCompleted).length;
-  int get financeEnabledMemberCount => workspaceMembers.where((FarmWorkspaceMember item) => item.financeAccess != FarmFinanceAccess.none).length;
+  bool get supportsCrops => <FarmType>[
+        FarmType.crop,
+        FarmType.greenhouse,
+        FarmType.combined
+      ].contains(farmType);
+  bool get supportsLivestock =>
+      <FarmType>[FarmType.livestock, FarmType.combined].contains(farmType);
+  bool get supportsGreenhouse =>
+      <FarmType>[FarmType.greenhouse, FarmType.combined].contains(farmType);
+  int get ownerCount => workspaceMembers
+      .where((FarmWorkspaceMember item) => <FarmWorkspaceRole>[
+            FarmWorkspaceRole.owner,
+            FarmWorkspaceRole.coOwner
+          ].contains(item.role))
+      .length;
+  int get openWorkspaceTaskCount => workspaceTasks
+      .where((FarmWorkspaceTask item) => !item.isCompleted)
+      .length;
+  int get financeEnabledMemberCount => workspaceMembers
+      .where((FarmWorkspaceMember item) =>
+          item.financeAccess != FarmFinanceAccess.none)
+      .length;
 
   Farm copyWith({
     String? id,
@@ -638,10 +667,17 @@ class Farm {
         'greenhouseAreaHa': greenhouseAreaHa,
         'cropCapacityHa': cropCapacityHa,
         'livestockCapacity': livestockCapacity,
-        'documents': documents.map((FarmDocumentRecord item) => item.toJson()).toList(),
-        'workspaceMembers': workspaceMembers.map((FarmWorkspaceMember item) => item.toJson()).toList(),
-        'workspaceTasks': workspaceTasks.map((FarmWorkspaceTask item) => item.toJson()).toList(),
-        'activityLog': activityLog.map((FarmActivityRecord item) => item.toJson()).toList(),
+        'documents':
+            documents.map((FarmDocumentRecord item) => item.toJson()).toList(),
+        'workspaceMembers': workspaceMembers
+            .map((FarmWorkspaceMember item) => item.toJson())
+            .toList(),
+        'workspaceTasks': workspaceTasks
+            .map((FarmWorkspaceTask item) => item.toJson())
+            .toList(),
+        'activityLog': activityLog
+            .map((FarmActivityRecord item) => item.toJson())
+            .toList(),
         'workspaceNotes': workspaceNotes,
       };
 
@@ -666,17 +702,21 @@ class Farm {
           (WaterSource value) => value.name == json['waterSource'],
           orElse: () => WaterSource.rainfall,
         ),
-        createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
-        updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
+        createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+            DateTime.now(),
+        updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
+            DateTime.now(),
         isSynced: json['isSynced'] as bool? ?? false,
         ownerUid: json['ownerUid'] as String? ?? '',
         ownerEmail: json['ownerEmail'] as String? ?? '',
         ownerName: json['ownerName'] as String? ?? '',
         coverImageBase64: json['coverImageBase64'] as String? ?? '',
         notes: json['notes'] as String? ?? '',
-        temperatureCelsius: (json['temperatureCelsius'] as num?)?.toDouble() ?? 0,
+        temperatureCelsius:
+            (json['temperatureCelsius'] as num?)?.toDouble() ?? 0,
         humidityPercent: (json['humidityPercent'] as num?)?.toDouble() ?? 0,
-        soilMoisturePercent: (json['soilMoisturePercent'] as num?)?.toDouble() ?? 0,
+        soilMoisturePercent:
+            (json['soilMoisturePercent'] as num?)?.toDouble() ?? 0,
         precipitationMm: (json['precipitationMm'] as num?)?.toDouble() ?? 0,
         latitude: (json['latitude'] as num?)?.toDouble(),
         longitude: (json['longitude'] as num?)?.toDouble(),

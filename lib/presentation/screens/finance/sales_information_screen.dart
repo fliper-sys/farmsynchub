@@ -18,18 +18,20 @@ import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
 
-
 class SalesInformationScreen extends ConsumerStatefulWidget {
   const SalesInformationScreen({super.key});
 
   static const String routeName = '/sales-info';
 
   @override
-  ConsumerState<SalesInformationScreen> createState() => _SalesInformationScreenState();
+  ConsumerState<SalesInformationScreen> createState() =>
+      _SalesInformationScreenState();
 }
 
-class _SalesInformationScreenState extends ConsumerState<SalesInformationScreen> {
-  final OperationsHistoryReportService _reportService = OperationsHistoryReportService();
+class _SalesInformationScreenState
+    extends ConsumerState<SalesInformationScreen> {
+  final OperationsHistoryReportService _reportService =
+      OperationsHistoryReportService();
   final ReportFileSaver _fileSaver = createReportFileSaver();
   final ReportShareService _shareService = const ReportShareService();
   final TextEditingController _searchController = TextEditingController();
@@ -42,7 +44,8 @@ class _SalesInformationScreenState extends ConsumerState<SalesInformationScreen>
     super.initState();
     _searchController.addListener(() {
       if (mounted) {
-        setState(() => _searchText = _searchController.text.trim().toLowerCase());
+        setState(
+            () => _searchText = _searchController.text.trim().toLowerCase());
       }
     });
   }
@@ -56,32 +59,53 @@ class _SalesInformationScreenState extends ConsumerState<SalesInformationScreen>
   @override
   Widget build(BuildContext context) {
     final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
-    final List<Transaction> allTransactions = ref.watch(transactionsProvider).valueOrNull ?? <Transaction>[];
+    final List<Transaction> allTransactions =
+        ref.watch(transactionsProvider).valueOrNull ?? <Transaction>[];
     final OperationsHubState operations = ref.watch(operationsHubProvider);
     final List<Transaction> sales = allTransactions
-        .where((Transaction item) => item.recordKind == TransactionRecordKind.sale)
+        .where(
+            (Transaction item) => item.recordKind == TransactionRecordKind.sale)
         .where((Transaction item) => _farmId.isEmpty || item.farmId == _farmId)
         .where((Transaction item) {
-          if (_searchText.isEmpty) return true;
-          final String haystack = '${item.description} ${item.productName} ${item.counterpartyName} ${item.receiptNumber} ${item.notes}'.toLowerCase();
-          return haystack.contains(_searchText);
-        })
-        .toList(growable: false)
-      ..sort((Transaction a, Transaction b) => b.transactionDate.compareTo(a.transactionDate));
+      if (_searchText.isEmpty) return true;
+      final String haystack =
+          '${item.description} ${item.productName} ${item.counterpartyName} ${item.receiptNumber} ${item.notes}'
+              .toLowerCase();
+      return haystack.contains(_searchText);
+    }).toList(growable: false)
+      ..sort((Transaction a, Transaction b) =>
+          b.transactionDate.compareTo(a.transactionDate));
 
-    final double totalRevenue = sales.fold<double>(0, (double sum, Transaction item) => sum + item.amount);
+    final double totalRevenue = sales.fold<double>(
+        0, (double sum, Transaction item) => sum + item.amount);
     final double averageSale = sales.isEmpty ? 0 : totalRevenue / sales.length;
-    final int customerCount = sales.map((Transaction item) => item.counterpartyName.trim()).where((String value) => value.isNotEmpty).toSet().length;
+    final int customerCount = sales
+        .map((Transaction item) => item.counterpartyName.trim())
+        .where((String value) => value.isNotEmpty)
+        .toSet()
+        .length;
     final Map<String, double> productRevenue = <String, double>{};
     for (final Transaction sale in sales) {
-      final String key = sale.productName.trim().isEmpty ? sale.description.trim() : sale.productName.trim();
-      productRevenue.update(key.isEmpty ? 'Unknown product' : key, (double value) => value + sale.amount, ifAbsent: () => sale.amount);
+      final String key = sale.productName.trim().isEmpty
+          ? sale.description.trim()
+          : sale.productName.trim();
+      productRevenue.update(key.isEmpty ? 'Unknown product' : key,
+          (double value) => value + sale.amount,
+          ifAbsent: () => sale.amount);
     }
-    final List<MapEntry<String, double>> topProducts = productRevenue.entries.toList()
-      ..sort((MapEntry<String, double> a, MapEntry<String, double> b) => b.value.compareTo(a.value));
+    final List<MapEntry<String, double>> topProducts = productRevenue.entries
+        .toList()
+      ..sort((MapEntry<String, double> a, MapEntry<String, double> b) =>
+          b.value.compareTo(a.value));
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.of(context).canPop()
+              ? Navigator.of(context).pop()
+              : context.go('/finance'),
+        ),
         title: const Text('Sales information'),
         actions: <Widget>[
           IconButton(
@@ -109,7 +133,8 @@ class _SalesInformationScreenState extends ConsumerState<SalesInformationScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text('Sales analytics', style: Theme.of(context).textTheme.titleLarge),
+                  Text('Sales analytics',
+                      style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 8),
                   const Text(
                     'See buyer trends, product revenue, and a focused sales history. Use the workspace for full sale entry and receipt actions.',
@@ -119,10 +144,18 @@ class _SalesInformationScreenState extends ConsumerState<SalesInformationScreen>
                     spacing: 12,
                     runSpacing: 12,
                     children: <Widget>[
-                      _MetricChip(label: 'Sales', value: sales.length.toString()),
-                      _MetricChip(label: 'Revenue', value: CurrencyUtils.formatCompactCurrency(totalRevenue)),
-                      _MetricChip(label: 'Customers', value: customerCount.toString()),
-                      _MetricChip(label: 'Average', value: CurrencyUtils.formatCompactCurrency(averageSale)),
+                      _MetricChip(
+                          label: 'Sales', value: sales.length.toString()),
+                      _MetricChip(
+                          label: 'Revenue',
+                          value: CurrencyUtils.formatCompactCurrency(
+                              totalRevenue)),
+                      _MetricChip(
+                          label: 'Customers', value: customerCount.toString()),
+                      _MetricChip(
+                          label: 'Average',
+                          value:
+                              CurrencyUtils.formatCompactCurrency(averageSale)),
                     ],
                   ),
                   const SizedBox(height: 14),
@@ -137,7 +170,8 @@ class _SalesInformationScreenState extends ConsumerState<SalesInformationScreen>
                       AppButton.secondary(
                         onPressed: sales.isEmpty || _isExporting
                             ? null
-                            : () => _exportHistory(context, farms, sales, totalRevenue),
+                            : () => _exportHistory(
+                                context, farms, sales, totalRevenue),
                         child: const Text('Share PDF'),
                       ),
                     ],
@@ -162,31 +196,41 @@ class _SalesInformationScreenState extends ConsumerState<SalesInformationScreen>
           ),
           const SizedBox(height: 16),
           if (topProducts.isNotEmpty) ...<Widget>[
-            Text('Top products', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            Text('Top products',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 10),
             ...topProducts.take(3).map(
-              (MapEntry<String, double> entry) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _HistoryCard(
-                  title: entry.key,
-                  subtitle: 'Revenue leader',
-                  meta: CurrencyUtils.formatCurrency(entry.value),
-                  amount: CurrencyUtils.formatCurrency(entry.value),
+                  (MapEntry<String, double> entry) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _HistoryCard(
+                      title: entry.key,
+                      subtitle: 'Revenue leader',
+                      meta: CurrencyUtils.formatCurrency(entry.value),
+                      amount: CurrencyUtils.formatCurrency(entry.value),
+                    ),
+                  ),
                 ),
-              ),
-            ),
             const SizedBox(height: 8),
           ],
           if (sales.isEmpty)
-            const _EmptyState(message: 'No sales history matches the current filters.')
+            const _EmptyState(
+                message: 'No sales history matches the current filters.')
           else
             ...sales.map(
               (Transaction transaction) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: _HistoryCard(
-                  title: transaction.productName.isEmpty ? transaction.description : transaction.productName,
-                  subtitle: transaction.counterpartyName.isEmpty ? 'Customer not set' : transaction.counterpartyName,
-                  meta: '${transaction.receiptNumber} • ${appDate(transaction.transactionDate)}',
+                  title: transaction.productName.isEmpty
+                      ? transaction.description
+                      : transaction.productName,
+                  subtitle: transaction.counterpartyName.isEmpty
+                      ? 'Customer not set'
+                      : transaction.counterpartyName,
+                  meta:
+                      '${transaction.receiptNumber} • ${appDate(transaction.transactionDate)}',
                   amount: CurrencyUtils.formatCurrency(transaction.amount),
                 ),
               ),
@@ -214,7 +258,8 @@ class _SalesInformationScreenState extends ConsumerState<SalesInformationScreen>
   ) async {
     setState(() => _isExporting = true);
     try {
-      final String fileName = 'farmsync_sales_history_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final String fileName =
+          'farmsync_sales_history_${DateTime.now().millisecondsSinceEpoch}.pdf';
       final Uint8List bytes = await _reportService.buildReport(
         title: 'Sales history',
         subtitle: 'Revenue and buyer history exported from FarmSync Hub',
@@ -224,7 +269,8 @@ class _SalesInformationScreenState extends ConsumerState<SalesInformationScreen>
         expenses: 0,
         categoryTotals: _categoryTotals(sales),
       );
-      final String path = await _fileSaver.savePdf(bytes: bytes, fileName: fileName);
+      final String path =
+          await _fileSaver.savePdf(bytes: bytes, fileName: fileName);
       await _shareService.sharePdf(
         filePath: path,
         fileName: fileName,
@@ -242,7 +288,8 @@ class _SalesInformationScreenState extends ConsumerState<SalesInformationScreen>
   }
 
   Map<TransactionCategory, double> _categoryTotals(List<Transaction> items) {
-    final Map<TransactionCategory, double> totals = <TransactionCategory, double>{};
+    final Map<TransactionCategory, double> totals =
+        <TransactionCategory, double>{};
     for (final Transaction item in items) {
       totals.update(
         item.category,
@@ -304,7 +351,11 @@ class _MetricChip extends StatelessWidget {
         children: <Widget>[
           Text(label, style: Theme.of(context).textTheme.labelSmall),
           const SizedBox(height: 4),
-          Text(value, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          Text(value,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700)),
         ],
       ),
     );
@@ -333,7 +384,11 @@ class _HistoryCard extends StatelessWidget {
         title: Text(title),
         subtitle: Text('$subtitle\n$meta'),
         isThreeLine: true,
-        trailing: Text(amount, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+        trailing: Text(amount,
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.w700)),
       ),
     );
   }
@@ -356,4 +411,5 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-String appDate(DateTime dateTime) => '${dateTime.day.toString().padLeft(2, '0')}/${dateTime.month.toString().padLeft(2, '0')}/${dateTime.year}';
+String appDate(DateTime dateTime) =>
+    '${dateTime.day.toString().padLeft(2, '0')}/${dateTime.month.toString().padLeft(2, '0')}/${dateTime.year}';

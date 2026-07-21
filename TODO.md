@@ -1,3 +1,15 @@
+# Console Error Fixes
+
+- [X] **Error 1: "Bad state: Tried to use NotificationsNotifier after dispose was called"**
+  - Fixed in `lib/providers/notification_provider.dart` — Added `mounted` check after `SharedPreferences.getInstance()` await in `_loadNotifications()`.
+
+- [X] **Error 2: "Navigator operation requested with a context that does not include a Navigator"**
+  - Fixed in `lib/app.dart` — Added `GlobalKey<NavigatorState>` to GoRouter and used `_rootNavigatorKey.currentContext` in `showDialog` calls within `_maybeShowPrompt()` and `_maybeShowFunFactPopup()` of `_StartupResumePromptState`.
+
+- [X] **Minor: Helvetica/Helvetica-Bold Unicode warning** — Informational only, from `dart_pdf` library; not blocking.
+
+---
+
 # UI Modification Plan - Farm Screens
 
 ## Phase 1: Farms Screen (`farms_screen.dart`)

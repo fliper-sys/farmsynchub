@@ -1,10 +1,14 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
+import '../core/services/farm_task_calendar_service.dart';
 import '../data/repositories/farm_repository.dart';
 import '../data/repositories/firestore_repositories.dart';
 import '../domain/models/farm.dart';
+import '../domain/models/user_profile.dart';
 import 'auth_provider.dart';
+import 'user_profile_provider.dart';
 
 /// Provider for farm repository.
 final farmRepositoryProvider = Provider<FarmRepository>((ref) {
@@ -12,15 +16,70 @@ final farmRepositoryProvider = Provider<FarmRepository>((ref) {
 });
 
 /// Provider for list of farms.
-final farmsProvider = StateNotifierProvider<FarmsNotifier, AsyncValue<List<Farm>>>((ref) {
+final farmsProvider =
+    StateNotifierProvider<FarmsNotifier, AsyncValue<List<Farm>>>((ref) {
   final repository = ref.watch(farmRepositoryProvider);
   return FarmsNotifier(repository);
 });
 
 /// Persisted active farm selection used by the dashboard and workspace cards.
-final activeFarmProvider = StateNotifierProvider<ActiveFarmNotifier, String?>((ref) {
+final activeFarmProvider =
+    StateNotifierProvider<ActiveFarmNotifier, String?>((ref) {
   return ActiveFarmNotifier();
 });
+
+/// Every workspace task across every farm the current user can access.
+final allFarmTaskEntriesProvider = Provider<List<FarmTaskEntry>>((ref) {
+  final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
+  final User? currentUser = ref.watch(firebaseServiceProvider).currentUser;
+  final UserProfile? profile = ref.watch(userProfileProvider).valueOrNull;
+  final List<Farm> visibleFarms =
+      visibleFarmsFor(farms, currentUser: currentUser, profile: profile);
+
+  return <FarmTaskEntry>[
+    for (final Farm farm in visibleFarms)
+      for (final FarmWorkspaceTask task in farm.workspaceTasks)
+        FarmTaskEntry(farm: farm, task: task),
+  ];
+});
+
+/// Filters [farms] down to the ones the given user can access, based on
+/// ownership, workspace membership, or (for legacy accounts without explicit
+/// membership records) an owner-level account role.
+List<Farm> visibleFarmsFor(
+  List<Farm> farms, {
+  required User? currentUser,
+  required UserProfile? profile,
+}) {
+  if (currentUser == null) {
+    return farms;
+  }
+
+  final List<Farm> accessibleFarms = farms
+      .where(
+        (Farm farm) =>
+            farm.ownerUid == currentUser.uid ||
+            farm.ownerEmail == currentUser.email ||
+            farm.workspaceMembers.any(
+              (FarmWorkspaceMember member) =>
+                  member.email == currentUser.email ||
+                  member.id == currentUser.uid ||
+                  member.allowedFarmIds.contains(farm.id),
+            ),
+      )
+      .toList(growable: false);
+
+  if (accessibleFarms.isNotEmpty) {
+    return accessibleFarms;
+  }
+
+  if (profile?.accountRole != null &&
+      profile!.accountRole != UserAccountRole.owner) {
+    return <Farm>[];
+  }
+
+  return farms;
+}
 
 /// State notifier for managing farms.
 class FarmsNotifier extends StateNotifier<AsyncValue<List<Farm>>> {
@@ -108,8 +167,10 @@ class FarmsNotifier extends StateNotifier<AsyncValue<List<Farm>>> {
   }
 
   void _upsertFarmInState(Farm farm) {
-    final List<Farm> currentFarms = List<Farm>.from(state.valueOrNull ?? const <Farm>[]);
-    final int index = currentFarms.indexWhere((Farm item) => item.id == farm.id);
+    final List<Farm> currentFarms =
+        List<Farm>.from(state.valueOrNull ?? const <Farm>[]);
+    final int index =
+        currentFarms.indexWhere((Farm item) => item.id == farm.id);
     if (index == -1) {
       currentFarms.add(farm);
     } else {
@@ -120,7 +181,8 @@ class FarmsNotifier extends StateNotifier<AsyncValue<List<Farm>>> {
   }
 
   void _removeFarmFromState(String farmId) {
-    final List<Farm> currentFarms = List<Farm>.from(state.valueOrNull ?? const <Farm>[]);
+    final List<Farm> currentFarms =
+        List<Farm>.from(state.valueOrNull ?? const <Farm>[]);
     currentFarms.removeWhere((Farm item) => item.id == farmId);
     state = AsyncValue.data(currentFarms);
   }
@@ -139,7 +201,9 @@ class ActiveFarmNotifier extends StateNotifier<String?> {
     if (!mounted) {
       return;
     }
-    state = savedFarmId != null && savedFarmId.trim().isNotEmpty ? savedFarmId : null;
+    state = savedFarmId != null && savedFarmId.trim().isNotEmpty
+        ? savedFarmId
+        : null;
   }
 
   Future<void> setActiveFarm(String farmId) async {

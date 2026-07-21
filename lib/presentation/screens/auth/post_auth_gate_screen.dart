@@ -49,7 +49,8 @@ class _PostAuthGateScreenState extends ConsumerState<PostAuthGateScreen>
 
   @override
   Widget build(BuildContext context) {
-    final AsyncValue<UserProfile?> profileAsync = ref.watch(userProfileProvider);
+    final AsyncValue<UserProfile?> profileAsync =
+        ref.watch(userProfileProvider);
     final ThemeData theme = Theme.of(context);
     final ColorScheme scheme = theme.colorScheme;
     final bool isDark = theme.brightness == Brightness.dark;
@@ -66,9 +67,7 @@ class _PostAuthGateScreenState extends ConsumerState<PostAuthGateScreen>
           return;
         }
         _navigated = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          context.go('/account-setup');
-        });
+        _handleProfileError();
       },
     );
 
@@ -103,9 +102,11 @@ class _PostAuthGateScreenState extends ConsumerState<PostAuthGateScreen>
                     Align(
                       alignment: Alignment.topRight,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
-                          color: scheme.surface.withOpacity(isDark ? 0.22 : 0.78),
+                          color:
+                              scheme.surface.withOpacity(isDark ? 0.22 : 0.78),
                           borderRadius: BorderRadius.circular(999),
                           border: Border.all(color: scheme.outlineVariant),
                         ),
@@ -124,7 +125,8 @@ class _PostAuthGateScreenState extends ConsumerState<PostAuthGateScreen>
                         border: Border.all(color: scheme.outlineVariant),
                         boxShadow: <BoxShadow>[
                           BoxShadow(
-                            color: AppColors.primary.withOpacity(isDark ? 0.18 : 0.10),
+                            color: AppColors.primary
+                                .withOpacity(isDark ? 0.18 : 0.10),
                             blurRadius: 28,
                             offset: const Offset(0, 16),
                           ),
@@ -151,7 +153,8 @@ class _PostAuthGateScreenState extends ConsumerState<PostAuthGateScreen>
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         height: 1.6,
-                        color: isDark ? Colors.white70 : scheme.onSurfaceVariant,
+                        color:
+                            isDark ? Colors.white70 : scheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 28),
@@ -174,11 +177,42 @@ class _PostAuthGateScreenState extends ConsumerState<PostAuthGateScreen>
     );
   }
 
+  /// Checks connectivity with a short timeout — if the platform channel
+  /// stalls (seen on some devices during network-state transitions), treat
+  /// that as offline rather than hanging navigation indefinitely.
+  Future<bool> _checkOffline() async {
+    try {
+      final ConnectivityResult connectivity = await Connectivity()
+          .checkConnectivity()
+          .timeout(const Duration(seconds: 3));
+      return connectivity == ConnectivityResult.none;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  Future<void> _handleProfileError() async {
+    final String? userId = ref.read(firebaseServiceProvider).currentUser?.uid;
+    final bool isOffline = await _checkOffline();
+    final bool hasCompletedWalkthrough = userId == null
+        ? false
+        : await UserWalkthroughPreferences.isCompleted(userId);
+    if (!mounted) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (isOffline) {
+        context.go(hasCompletedWalkthrough ? '/dashboard' : '/app-tour');
+        return;
+      }
+      context.go('/account-setup');
+    });
+  }
+
   Future<void> _handleNavigation(UserProfile? profile) async {
     _navigated = true;
     final String? userId = ref.read(firebaseServiceProvider).currentUser?.uid;
-    final ConnectivityResult connectivity = await Connectivity().checkConnectivity();
-    final bool isOffline = connectivity == ConnectivityResult.none;
+    final bool isOffline = await _checkOffline();
     if (!isOffline) {
       try {
         await Future.wait(<Future<void>>[
@@ -190,8 +224,9 @@ class _PostAuthGateScreenState extends ConsumerState<PostAuthGateScreen>
         // Remote refresh is useful, but it should not block workspace entry.
       }
     }
-    final bool hasCompletedWalkthrough =
-        userId == null ? false : await UserWalkthroughPreferences.isCompleted(userId);
+    final bool hasCompletedWalkthrough = userId == null
+        ? false
+        : await UserWalkthroughPreferences.isCompleted(userId);
     if (!mounted) {
       return;
     }

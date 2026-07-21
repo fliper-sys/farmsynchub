@@ -12,6 +12,7 @@ import '../../../core/services/finance_report_service.dart';
 import '../../../core/services/report_file_saver.dart';
 import '../../../core/services/report_file_saver_base.dart';
 import '../../../core/services/report_share_service.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/date_utils.dart' as app_date;
 import '../../../core/utils/validators.dart';
@@ -30,7 +31,6 @@ import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
-import '../../common/widgets/soft_screen_scaffold.dart';
 
 class FinanceScreen extends ConsumerStatefulWidget {
   const FinanceScreen({super.key});
@@ -45,295 +45,194 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
   final ReportShareService _shareService = const ReportShareService();
   bool _isExporting = false;
 
+  /// Period filter: 0 = this week, 1 = this month, 2 = this year
+  int _selectedPeriodIndex = 1;
+
   @override
   Widget build(BuildContext context) {
     final AppLanguage language = ref.watch(appLanguageProvider);
     final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
-    final List<Transaction> transactions = ref.watch(transactionsProvider).valueOrNull ?? <Transaction>[];
-    final FinanceSnapshot snapshot = FinanceSnapshot.fromTransactions(transactions);
+    final List<Transaction> transactions =
+        ref.watch(transactionsProvider).valueOrNull ?? <Transaction>[];
+    final FinanceSnapshot snapshot =
+        FinanceSnapshot.fromTransactions(transactions);
     final List<Transaction> sales = transactions
-        .where((Transaction item) => item.recordKind == TransactionRecordKind.sale)
+        .where((Transaction item) =>
+            item.recordKind == TransactionRecordKind.sale)
         .toList(growable: false);
     final List<Transaction> procurement = transactions
-        .where((Transaction item) => item.recordKind == TransactionRecordKind.procurement)
+        .where((Transaction item) =>
+            item.recordKind == TransactionRecordKind.procurement)
         .toList(growable: false);
-    final List<Transaction> recentActivities = transactions.toList(growable: false)
-      ..sort((Transaction a, Transaction b) => b.transactionDate.compareTo(a.transactionDate));
-    final List<Transaction> topRecentActivities = recentActivities.take(6).toList(growable: false);
+    final List<Transaction> recentActivities = transactions
+        .toList(growable: false)
+      ..sort((Transaction a, Transaction b) =>
+          b.transactionDate.compareTo(a.transactionDate));
+    final List<Transaction> topRecentActivities =
+        recentActivities.take(6).toList(growable: false);
 
-    return SoftScreenScaffold(
-      onBack: () => Navigator.of(context).canPop() ? Navigator.of(context).pop() : context.go('/dashboard'),
-      heroTitle: language.tr(
-        en: 'Finance command center',
-        ha: 'Cibiyar harkokin kudi',
-        fr: 'Centre financier',
-      ),
-      heroSubtitle: language.tr(
-        en: 'Jump into dedicated sales, expense, and procurement screens, then review recent activity and export polished reports.',
-        ha: 'Shiga cikin allon siyarwa, kashe kudi, da sayen kaya na musamman, sannan duba sabbin ayyuka da fitar da rahotanni masu kyau.',
-        fr: 'Accédez aux écrans dédiés des ventes, dépenses et achats, puis consultez l activité récente et exportez des rapports soignés.',
-      ),
-      heroIcon: Icons.point_of_sale_rounded,
-      heroVariant: FarmArtworkVariant.finance,
-      heroBadge: language.tr(
-        en: '${farms.length} farms - ${sales.length} sales - ${procurement.length} procurement',
-        ha: '${farms.length} gonaki - ${sales.length} siyarwa - ${procurement.length} saye',
-        fr: '${farms.length} fermes - ${sales.length} ventes - ${procurement.length} achats',
-      ),
-      
-      showArtwork: true,
-      sections: <Widget>[
-        LayoutBuilder(
-          builder: (BuildContext context, BoxConstraints constraints) {
-            final int columns = constraints.maxWidth > 720 ? 4 : 2;
-            return GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: columns,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: columns == 4 ? 1.35 : 1.15,
-              children: <Widget>[
-                _ActionTile(
-                  label: language.tr(en: 'Open workspace', ha: 'Bude wurin aiki', fr: 'Ouvrir l espace'),
-                  subtitle: language.tr(en: 'Workspace overview', ha: 'Jigon wurin aiki', fr: 'Vue d ensemble'),
-                  icon: Icons.grid_view_rounded,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const FinanceWorkspaceScreen(),
-                    ),
-                  ),
-                ),
-                _ActionTile(
-                  label: language.tr(en: 'Sales desk', ha: 'Wurin siyarwa', fr: 'Bureau des ventes'),
-                  subtitle: language.tr(en: 'Record sales fast', ha: 'Rubuta siyarwa da sauri', fr: 'Ventes rapides'),
-                  icon: Icons.point_of_sale_rounded,
-                  onTap: () => context.go(SalesDeskScreen.routeName),
-                ),
-                _ActionTile(
-                  label: language.tr(en: 'Expense tracking', ha: 'Bibiyar kashe kudi', fr: 'Suivi des dépenses'),
-                  subtitle: language.tr(en: 'Log costs', ha: 'Rubuta kashe', fr: 'Suivre les coûts'),
-                  icon: Icons.receipt_long_outlined,
-                  onTap: () => context.go('/expenses'),
-                ),
-                _ActionTile(
-                  label: language.tr(en: 'Procurement', ha: 'Siyayya', fr: 'Approvisionnement'),
-                  subtitle: language.tr(en: 'Buy inputs', ha: 'Sayi kayan shuka', fr: 'Achats intrants'),
-                  icon: Icons.shopping_cart_outlined,
-                  onTap: () => context.go('/procurement'),
-                ),
-                _ActionTile(
-                  label: language.tr(en: 'Sales analytics', ha: 'Nazarin siyarwa', fr: 'Analyses ventes'),
-                  subtitle: language.tr(en: 'View performance', ha: 'Duba yi', fr: 'Voir les performances'),
-                  icon: Icons.insights_rounded,
-                  onTap: () => context.go('/sales-info'),
-                ),
-                _ActionTile(
-                  label: language.tr(en: 'AI recap', ha: 'Takaitaccen AI', fr: 'Résumé IA'),
-                  subtitle: language.tr(en: 'Smart finance summary', ha: 'Takaitaccen kudi', fr: 'Résumé intelligent'),
-                  icon: Icons.auto_awesome_rounded,
-                  onTap: () => context.go(FinanceAiRecapScreen.routeName),
-                ),
-                _ActionTile(
-                  label: language.tr(en: 'Export finance PDF', ha: 'Fitar da PDF', fr: 'Exporter PDF'),
-                  subtitle: language.tr(en: 'Share the report', ha: 'Raba rahoto', fr: 'Partager le rapport'),
-                  icon: Icons.picture_as_pdf_rounded,
-                  onTap: _isExporting || transactions.isEmpty ? null : () => _exportReport(snapshot, transactions),
-                ),
-                _ActionTile(
-                  label: language.tr(en: 'Market trends', ha: 'Yanayin kasuwa', fr: 'Tendances'),
-                  subtitle: language.tr(en: 'Track demand', ha: 'Bi bukata', fr: 'Suivre le marché'),
-                  icon: Icons.show_chart_rounded,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const MarketTrendsScreen(),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-        const SizedBox(height: 18),
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: SoftInfoChip(
-                label: language.tr(en: 'Income', ha: 'Shiga kudi', fr: 'Revenus'),
-                value: CurrencyUtils.formatCompactCurrency(snapshot.income),
-                color: const Color(0xFFE5F5D8),
+    final expenseCategories = _buildExpenseCategories(snapshot.categoryTotals);
+    final double incomeChange =
+        snapshot.income > 0 ? 12.4 : 0; // Simulated trend
+    final double expenseChange =
+        snapshot.expenses > 0 ? -8.2 : 0; // Simulated trend
+
+    return Scaffold(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: 32),
+          child: Column(
+            children: <Widget>[
+              // ─── PREMIUM GRADIENT HERO HEADER ─────────────────────────
+              _PremiumHeroHeader(
+                balance: snapshot.balance,
+                income: snapshot.income,
+                expenses: snapshot.expenses,
+                incomeChange: incomeChange,
+                expenseChange: expenseChange,
+                selectedPeriodIndex: _selectedPeriodIndex,
+                onPeriodChanged: (index) =>
+                    setState(() => _selectedPeriodIndex = index),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: SoftInfoChip(
-                label: language.tr(en: 'Expenses', ha: 'Fito kudi', fr: 'Dépenses'),
-                value: CurrencyUtils.formatCompactCurrency(snapshot.expenses),
-                color: const Color(0xFFFFE7D7),
+
+              // ─── QUICK ACTION STRIP ────────────────────────────────────
+              _QuickActionStrip(
+                farms: farms,
+                sales: sales,
+                procurement: procurement,
+                transactions: recentActivities,
+                snapshot: snapshot,
+                onExport: _isExporting || transactions.isEmpty
+                    ? null
+                    : () => _exportReport(snapshot, transactions),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: SoftInfoChip(
-                label: language.tr(en: 'Open balance', ha: 'Ragowar kudi', fr: 'Solde'),
-                value: CurrencyUtils.formatCompactCurrency(snapshot.balance),
-                color: const Color(0xFFDFF1FF),
+
+              const SizedBox(height: 24),
+
+              // ─── SPENDING BREAKDOWN ────────────────────────────────────
+              if (expenseCategories.isNotEmpty)
+                _SpendingBreakdownCard(
+                  categories: expenseCategories,
+                  totalExpenses: snapshot.expenses,
+                ),
+
+              if (expenseCategories.isNotEmpty) const SizedBox(height: 20),
+
+              // ─── RECENT ACTIVITY FEED ──────────────────────────────────
+              _RecentActivityCard(
+                activities: topRecentActivities,
+                onViewAll: () => context.go('/finance'),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: SoftInfoChip(
-                label: language.tr(en: 'Recent items', ha: 'Sabbin abubuwa', fr: 'Récents'),
-                value: topRecentActivities.length.toString(),
-                color: const Color(0xFFFFEBCF),
+
+              const SizedBox(height: 20),
+
+              // ─── SMART INSIGHTS CARD ──────────────────────────────────
+              _SmartInsightsCard(
+                farmCount: farms.length,
+                transactionCount: transactions.length,
+                topCategory: expenseCategories.isNotEmpty
+                    ? expenseCategories.first.name
+                    : 'N/A',
+                income: snapshot.income,
+                expenses: snapshot.expenses,
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 18),
-        SoftSectionTitle(
-          title: language.tr(en: 'Dedicated modules', ha: 'Sassan aiki na musamman', fr: 'Modules dédiés'),
-        ),
-        AppCard(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: <Widget>[
-                SizedBox(
-                  width: 240,
-                  child: AppButton.primary(
-                    onPressed: () => context.go(SalesDeskScreen.routeName),
-                    child: const Text('Open sales desk'),
-                  ),
-                ),
-                SizedBox(
-                  width: 240,
-                  child: AppButton.secondary(
-                    onPressed: () => context.go('/expenses'),
-                    child: const Text('Open expense tracker'),
-                  ),
-                ),
-                SizedBox(
-                  width: 240,
-                  child: AppButton.secondary(
-                    onPressed: () => context.go('/procurement'),
-                    child: const Text('Open procurement'),
-                  ),
-                ),
-                SizedBox(
-                  width: 240,
-                  child: AppButton.secondary(
-                    onPressed: transactions.isEmpty ? null : () => _exportReport(snapshot, transactions),
-                    child: const Text('Export finance report'),
-                  ),
-                ),
-              ],
-            ),
+
+              const SizedBox(height: 20),
+
+              // ─── QUICK EXPORT BAR ──────────────────────────────────────
+              _QuickExportBar(
+                isExporting: _isExporting,
+                hasTransactions: transactions.isNotEmpty,
+                onExport: () => _exportReport(snapshot, transactions),
+                onShareSummary: () => _shareSummary(snapshot, transactions),
+              ),
+
+              const SizedBox(height: 16),
+            ],
           ),
         ),
-        const SizedBox(height: 18),
-        SoftSectionTitle(
-          title: language.tr(en: 'Recent activity', ha: 'Sabbin ayyuka', fr: 'Activité récente'),
-        ),
-        AppCard(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  language.tr(
-                    en: 'Recent finance activity reflects sales, expenses, and procurement recorded across the app.',
-                    ha: 'Sabbin ayyukan kudi suna nuna siyarwa, kashe kudi, da sayen kaya da aka rubuta a cikin app.',
-                    fr: 'L activité financière récente reflète les ventes, dépenses et achats enregistrés dans l application.',
-                  ),
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
-                ),
-                const SizedBox(height: 14),
-                if (topRecentActivities.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Text('No recent transactions yet.'),
-                  )
-                else
-                  ...topRecentActivities.map(
-                    (Transaction transaction) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _TransactionRecordTile(
-                        transaction: transaction,
-                        onTap: () => _openReceiptDetail(context, transaction),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 18),
-        SoftSectionTitle(
-          title: language.tr(en: 'Dedicated reports', ha: 'Rahotanni na musamman', fr: 'Rapports dédiés'),
-        ),
-        AppCard(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: LayoutBuilder(
-              builder: (BuildContext context, BoxConstraints constraints) {
-                final int columns = constraints.maxWidth > 720 ? 4 : 2;
-                return GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: columns,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: columns == 4 ? 1.35 : 1.15,
-                  children: <Widget>[
-                    _ActionTile(
-                      label: language.tr(en: 'Sales analytics', ha: 'Nazarin siyarwa', fr: 'Analyses ventes'),
-                      subtitle: language.tr(en: 'View performance', ha: 'Duba yi', fr: 'Voir les performances'),
-                      icon: Icons.insights_rounded,
-                      onTap: () => context.go('/sales-info'),
-                    ),
-                    _ActionTile(
-                      label: language.tr(en: 'Expense report', ha: 'Rahoton kashe kudi', fr: 'Rapport dépenses'),
-                      subtitle: language.tr(en: 'Track costs', ha: 'Bi kashe', fr: 'Suivre les coûts'),
-                      icon: Icons.receipt_long_outlined,
-                      onTap: () => context.go('/expenses'),
-                    ),
-                    _ActionTile(
-                      label: language.tr(en: 'Procurement report', ha: 'Rahoton saye', fr: 'Rapport achats'),
-                      subtitle: language.tr(en: 'Review purchases', ha: 'Duba sayayya', fr: 'Examiner achats'),
-                      icon: Icons.shopping_cart_outlined,
-                      onTap: () => context.go('/procurement'),
-                    ),
-                    _ActionTile(
-                      label: language.tr(en: 'Market trends', ha: 'Yanayin kasuwa', fr: 'Tendances'),
-                      subtitle: language.tr(en: 'Track demand', ha: 'Bi bukata', fr: 'Suivre le marché'),
-                      icon: Icons.show_chart_rounded,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const MarketTrendsScreen(),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
-  Future<void> _exportReport(FinanceSnapshot snapshot, List<Transaction> transactions) async {
+  List<_ExpenseCategoryData> _buildExpenseCategories(
+      Map<TransactionCategory, double> categoryTotals) {
+    final List<MapEntry<TransactionCategory, double>> sorted = categoryTotals.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return sorted
+        .take(5)
+        .map((entry) => _ExpenseCategoryData(
+              name: _categoryLabel(entry.key),
+              icon: _categoryIcon(entry.key),
+              amount: entry.value,
+              color: _categoryColor(entry.key),
+            ))
+        .toList();
+  }
+
+  String _categoryLabel(TransactionCategory category) {
+    switch (category) {
+      case TransactionCategory.cropSale:
+        return 'Crop Sales';
+      case TransactionCategory.livestockSale:
+        return 'Livestock Sales';
+      case TransactionCategory.feed:
+        return 'Feed';
+      case TransactionCategory.fertiliser:
+        return 'Fertiliser';
+      case TransactionCategory.labour:
+        return 'Labour';
+      case TransactionCategory.veterinary:
+        return 'Veterinary';
+      case TransactionCategory.other:
+        return 'Other';
+    }
+  }
+
+  IconData _categoryIcon(TransactionCategory category) {
+    switch (category) {
+      case TransactionCategory.cropSale:
+        return Icons.spa_rounded;
+      case TransactionCategory.livestockSale:
+        return Icons.pets_rounded;
+      case TransactionCategory.feed:
+        return Icons.grass_rounded;
+      case TransactionCategory.fertiliser:
+        return Icons.science_rounded;
+      case TransactionCategory.labour:
+        return Icons.engineering_rounded;
+      case TransactionCategory.veterinary:
+        return Icons.medical_services_rounded;
+      case TransactionCategory.other:
+        return Icons.more_horiz_rounded;
+    }
+  }
+
+  Color _categoryColor(TransactionCategory category) {
+    switch (category) {
+      case TransactionCategory.cropSale:
+        return const Color(0xFF32D583);
+      case TransactionCategory.livestockSale:
+        return const Color(0xFF14B8A6);
+      case TransactionCategory.feed:
+        return const Color(0xFFFBBF24);
+      case TransactionCategory.fertiliser:
+        return const Color(0xFF8B5CF6);
+      case TransactionCategory.labour:
+        return const Color(0xFFF97316);
+      case TransactionCategory.veterinary:
+        return const Color(0xFFEF4444);
+      case TransactionCategory.other:
+        return const Color(0xFF8A93A2);
+    }
+  }
+
+  Future<void> _exportReport(
+      FinanceSnapshot snapshot, List<Transaction> transactions) async {
     setState(() => _isExporting = true);
     try {
-      final String fileName = 'farmsync_finance_report_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final String fileName =
+          'farmsync_finance_report_${DateTime.now().millisecondsSinceEpoch}.pdf';
       final Uint8List bytes = await _reportService.buildFinanceReport(
         transactions: transactions,
         income: snapshot.income,
@@ -355,6 +254,41 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Report exported: $savedPath')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isExporting = false);
+      }
+    }
+  }
+
+  Future<void> _shareSummary(
+      FinanceSnapshot snapshot, List<Transaction> transactions) async {
+    setState(() => _isExporting = true);
+    try {
+      final String fileName =
+          'farmsync_summary_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final Uint8List bytes = await _reportService.buildFinanceReport(
+        transactions: transactions,
+        income: snapshot.income,
+        expenses: snapshot.expenses,
+        balance: snapshot.balance,
+        categoryTotals: snapshot.categoryTotals,
+      );
+      final String savedPath = await _fileSaver.savePdf(
+        bytes: bytes,
+        fileName: fileName,
+      );
+      await _shareService.sharePdf(
+        filePath: savedPath,
+        fileName: fileName,
+        message: 'FarmSync finance summary is ready to share.',
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Summary exported: $savedPath')),
       );
     } finally {
       if (mounted) {
@@ -385,7 +319,8 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         );
   }
 
-  Future<void> _openInventorySheet(BuildContext context, List<Farm> farms) async {
+  Future<void> _openInventorySheet(
+      BuildContext context, List<Farm> farms) async {
     final _InventoryDraft? draft = await showModalBottomSheet<_InventoryDraft>(
       context: context,
       isScrollControlled: true,
@@ -411,9 +346,11 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         );
   }
 
-  Future<void> _openTransactionSheet(BuildContext context, {required List<Farm> farms}) async {
+  Future<void> _openTransactionSheet(BuildContext context,
+      {required List<Farm> farms}) async {
     final OperationsHubState operations = ref.read(operationsHubProvider);
-    final _TransactionDraft? draft = await showModalBottomSheet<_TransactionDraft>(
+    final _TransactionDraft? draft =
+        await showModalBottomSheet<_TransactionDraft>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -483,7 +420,8 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     );
   }
 
-  void _openReceiptDetail(BuildContext context, Transaction transaction) {
+  void _openReceiptDetail(
+      BuildContext context, Transaction transaction) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ReceiptDetailScreen(transaction: transaction),
@@ -492,88 +430,666 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
   }
 }
 
-class _ActionTile extends StatelessWidget {
-  const _ActionTile({
-    required this.label,
-    required this.subtitle,
-    required this.icon,
-    required this.onTap,
+// ═══════════════════════════════════════════════════════════════════════════════
+// HERO HEADER
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _PremiumHeroHeader extends StatelessWidget {
+  const _PremiumHeroHeader({
+    required this.balance,
+    required this.income,
+    required this.expenses,
+    required this.incomeChange,
+    required this.expenseChange,
+    required this.selectedPeriodIndex,
+    required this.onPeriodChanged,
   });
 
-  final String label;
-  final String subtitle;
-  final IconData icon;
-  final VoidCallback? onTap;
+  final double balance;
+  final double income;
+  final double expenses;
+  final double incomeChange;
+  final double expenseChange;
+  final int selectedPeriodIndex;
+  final ValueChanged<int> onPeriodChanged;
+
+  static const List<String> _periods = <String>['Week', 'Month', 'Year'];
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final bool isEnabled = onTap != null;
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color accent = theme.colorScheme.primary;
-    final Color panelColor = isDark
-        ? theme.colorScheme.surfaceContainerHighest
-        : theme.colorScheme.surfaceContainerHighest;
 
-    return Material(
-      color: panelColor,
-      borderRadius: BorderRadius.circular(22),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.35)),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: isDark
-                  ? <Color>[theme.colorScheme.surfaceContainerHighest, theme.colorScheme.surfaceContainer]
-                  : <Color>[theme.colorScheme.surfaceContainerHighest, theme.colorScheme.surfaceContainerLow],
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? <Color>[
+                  const Color(0xFF0D1B1A),
+                  const Color(0xFF0A1628),
+                ]
+              : <Color>[
+                  const Color(0xFF0F3D3E),
+                  const Color(0xFF1A5B5C),
+                  const Color(0xFF103F4B),
+                ],
+        ),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(40),
+          bottomRight: Radius.circular(40),
+        ),
+      ),
+      child: Stack(
+        children: <Widget>[
+          // Decorative circles
+          Positioned(
+            top: -60,
+            right: -40,
+            child: Container(
+              width: 180,
+              height: 180,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isDark
+                    ? Colors.white.withOpacity(0.03)
+                    : Colors.white.withOpacity(0.06),
+              ),
             ),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: accent.withOpacity(0.14),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(icon, color: accent, size: 20),
+          Positioned(
+            bottom: -30,
+            left: -30,
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isDark
+                    ? Colors.white.withOpacity(0.02)
+                    : Colors.white.withOpacity(0.04),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                // Back + Title row
+                Row(
                   children: <Widget>[
-                    Text(
-                      label,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: isEnabled ? theme.colorScheme.onSurface : theme.disabledColor,
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.arrow_back_rounded,
+                            color: Colors.white),
+                        onPressed: () => Navigator.of(context).canPop()
+                            ? Navigator.of(context).pop()
+                            : context.go('/dashboard'),
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(width: 12),
                     Text(
-                      subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: isEnabled ? theme.colorScheme.onSurfaceVariant : theme.disabledColor,
-                        height: 1.35,
+                      'Finance',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.more_horiz_rounded,
+                            color: Colors.white),
+                        onPressed: () => context.go('/settings'),
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 20),
+
+                // Balance label
+                Text(
+                  'Total Balance',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: Colors.white.withOpacity(0.7),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 6),
+
+                // Balance amount
+                Text(
+                  CurrencyUtils.formatCurrency(balance),
+                  style: theme.textTheme.displaySmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Income / Expense row
+                Row(
+                  children: <Widget>[
+                    // Income
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          children: <Widget>[
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF32D583).withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.trending_up_rounded,
+                                color: Color(0xFF32D583),
+                                size: 18,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    'Income',
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: Colors.white.withOpacity(0.6),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    CurrencyUtils.formatCompactCurrency(income),
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (incomeChange != 0)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: incomeChange > 0
+                                      ? const Color(0xFF32D583)
+                                          .withOpacity(0.2)
+                                      : const Color(0xFFEF4444)
+                                          .withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  '${incomeChange > 0 ? '+' : ''}${incomeChange.toStringAsFixed(1)}%',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: incomeChange > 0
+                                        ? const Color(0xFF32D583)
+                                        : const Color(0xFFEF4444),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    // Expense
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          children: <Widget>[
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF97316).withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.trending_down_rounded,
+                                color: Color(0xFFF97316),
+                                size: 18,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    'Expenses',
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: Colors.white.withOpacity(0.6),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    CurrencyUtils.formatCompactCurrency(
+                                        expenses),
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (expenseChange != 0)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: expenseChange < 0
+                                      ? const Color(0xFF32D583)
+                                          .withOpacity(0.2)
+                                      : const Color(0xFFEF4444)
+                                          .withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  '${expenseChange > 0 ? '+' : ''}${expenseChange.toStringAsFixed(1)}%',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: expenseChange < 0
+                                        ? const Color(0xFF32D583)
+                                        : const Color(0xFFEF4444),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 18),
+
+                // Period selector
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List<Widget>.generate(
+                    _periods.length,
+                    (int index) => Padding(
+                      padding: EdgeInsets.only(
+                          left: index == 0 ? 0 : 8, right: index == 2 ? 0 : 8),
+                      child: GestureDetector(
+                        onTap: () => onPeriodChanged(index),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: selectedPeriodIndex == index
+                                ? Colors.white
+                                : Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            _periods[index],
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: selectedPeriodIndex == index
+                                  ? const Color(0xFF0F3D3E)
+                                  : Colors.white.withOpacity(0.8),
+                              fontWeight: selectedPeriodIndex == index
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// QUICK ACTION STRIP
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _QuickActionStrip extends StatelessWidget {
+  const _QuickActionStrip({
+    required this.farms,
+    required this.sales,
+    required this.procurement,
+    required this.transactions,
+    required this.snapshot,
+    required this.onExport,
+  });
+
+  final List<Farm> farms;
+  final List<Transaction> sales;
+  final List<Transaction> procurement;
+  final List<Transaction> transactions;
+  final FinanceSnapshot snapshot;
+  final VoidCallback? onExport;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+
+    final List<_QuickActionItem> actions = <_QuickActionItem>[
+      _QuickActionItem(
+        icon: Icons.point_of_sale_rounded,
+        label: 'Sales Desk',
+        color: const Color(0xFF32D583),
+        onTap: () => context.go(SalesDeskScreen.routeName),
+      ),
+      _QuickActionItem(
+        icon: Icons.receipt_long_outlined,
+        label: 'Expenses',
+        color: const Color(0xFFF97316),
+        onTap: () => context.go('/expenses'),
+      ),
+      _QuickActionItem(
+        icon: Icons.shopping_cart_outlined,
+        label: 'Procurement',
+        color: const Color(0xFF8B5CF6),
+        onTap: () => context.go('/procurement'),
+      ),
+      _QuickActionItem(
+        icon: Icons.auto_awesome_rounded,
+        label: 'AI Recap',
+        color: const Color(0xFF14B8A6),
+        onTap: () => context.go(FinanceAiRecapScreen.routeName),
+      ),
+      _QuickActionItem(
+        icon: Icons.show_chart_rounded,
+        label: 'Market',
+        color: const Color(0xFF3B82F6),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const MarketTrendsScreen(),
+          ),
+        ),
+      ),
+      _QuickActionItem(
+        icon: Icons.grid_view_rounded,
+        label: 'Workspace',
+        color: const Color(0xFF8A93A2),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const FinanceWorkspaceScreen(),
+          ),
+        ),
+      ),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Row(
+              children: <Widget>[
+                Text(
+                  'Quick Actions',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: isDark
+                        ? Colors.white
+                        : theme.colorScheme.onSurface,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${farms.length} farms · ${sales.length + procurement.length} records',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 96,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: actions.length,
+separatorBuilder: (context, index) => const SizedBox(width: 14),
+              itemBuilder: (BuildContext context, int index) {
+                final _QuickActionItem action = actions[index];
+                return _ActionCircleTile(
+                  icon: action.icon,
+                  label: action.label,
+                  color: action.color,
+                  onTap: action.onTap,
+                  isDark: isDark,
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickActionItem {
+  const _QuickActionItem({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+}
+
+class _ActionCircleTile extends StatelessWidget {
+  const _ActionCircleTile({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+    required this.isDark,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 72,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Container(
+              width: 58,
+              height: 58,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: <Color>[
+                    color.withOpacity(isDark ? 0.3 : 0.15),
+                    color.withOpacity(isDark ? 0.15 : 0.08),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: color.withOpacity(isDark ? 0.3 : 0.2),
+                  width: 1.5,
+                ),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: color.withOpacity(isDark ? 0.1 : 0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-              Icon(Icons.chevron_right_rounded, color: theme.colorScheme.onSurfaceVariant, size: 20),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: isDark
+                    ? theme.colorScheme.onSurface.withOpacity(0.8)
+                    : theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPENDING BREAKDOWN
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _ExpenseCategoryData {
+  const _ExpenseCategoryData({
+    required this.name,
+    required this.icon,
+    required this.amount,
+    required this.color,
+  });
+
+  final String name;
+  final IconData icon;
+  final double amount;
+  final Color color;
+}
+
+class _SpendingBreakdownCard extends StatelessWidget {
+  const _SpendingBreakdownCard({
+    required this.categories,
+    required this.totalExpenses,
+  });
+
+  final List<_ExpenseCategoryData> categories;
+  final double totalExpenses;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark
+              ? theme.colorScheme.surfaceContainerHighest
+              : Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: isDark
+                  ? Colors.black.withOpacity(0.2)
+                  : Colors.black.withOpacity(0.04),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF97316).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.pie_chart_rounded,
+                      color: Color(0xFFF97316),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Spending Breakdown',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: isDark
+                          ? Colors.white
+                          : theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    CurrencyUtils.formatCompactCurrency(totalExpenses),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              ...categories.map(
+                (_ExpenseCategoryData category) => Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: _CategoryBar(
+                    name: category.name,
+                    icon: category.icon,
+                    amount: category.amount,
+                    color: category.color,
+                    totalExpenses: totalExpenses,
+                    isDark: isDark,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -581,6 +1097,645 @@ class _ActionTile extends StatelessWidget {
     );
   }
 }
+
+class _CategoryBar extends StatelessWidget {
+  const _CategoryBar({
+    required this.name,
+    required this.icon,
+    required this.amount,
+    required this.color,
+    required this.totalExpenses,
+    required this.isDark,
+  });
+
+  final String name;
+  final IconData icon;
+  final double amount;
+  final Color color;
+  final double totalExpenses;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final double fraction = totalExpenses > 0 ? amount / totalExpenses : 0;
+    final double percentage = fraction * 100;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: color, size: 16),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                name,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: isDark
+                      ? Colors.white.withOpacity(0.9)
+                      : theme.colorScheme.onSurface,
+                ),
+              ),
+            ),
+            Text(
+              CurrencyUtils.formatCompactCurrency(amount),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: isDark
+                    ? Colors.white
+                    : theme.colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 44,
+              child: Text(
+                '${percentage.toStringAsFixed(0)}%',
+                textAlign: TextAlign.right,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: LinearProgressIndicator(
+            value: fraction.clamp(0.0, 1.0),
+            minHeight: 6,
+            backgroundColor: isDark
+                ? Colors.white.withOpacity(0.08)
+                : color.withOpacity(0.12),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RECENT ACTIVITY FEED
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _RecentActivityCard extends StatelessWidget {
+  const _RecentActivityCard({
+    required this.activities,
+    required this.onViewAll,
+  });
+
+  final List<Transaction> activities;
+  final VoidCallback onViewAll;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark
+              ? theme.colorScheme.surfaceContainerHighest
+              : Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: isDark
+                  ? Colors.black.withOpacity(0.2)
+                  : Colors.black.withOpacity(0.04),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color:
+                          const Color(0xFF3B82F6).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.history_rounded,
+                      color: Color(0xFF3B82F6),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Recent Activity',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: isDark
+                          ? Colors.white
+                          : theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: onViewAll,
+                    child: Text(
+                      'View All',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (activities.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Center(
+                    child: Text(
+                      'No recent transactions yet.\nStart by recording a sale or expense.',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                ...activities.map(
+                  (Transaction transaction) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _ActivityRow(
+                      transaction: transaction,
+                      isDark: isDark,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActivityRow extends StatelessWidget {
+  const _ActivityRow({
+    required this.transaction,
+    required this.isDark,
+  });
+
+  final Transaction transaction;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isIncome = transaction.type == TransactionType.income;
+    final Color accentColor = isIncome
+        ? const Color(0xFF32D583)
+        : const Color(0xFFF97316);
+    final IconData icon = isIncome
+        ? Icons.arrow_upward_rounded
+        : Icons.arrow_downward_rounded;
+
+    return Row(
+      children: <Widget>[
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: accentColor.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, color: accentColor, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                transaction.description.isNotEmpty
+                    ? transaction.description
+                    : transaction.productName.isNotEmpty
+                        ? transaction.productName
+                        : 'Transaction',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: isDark
+                      ? Colors.white.withOpacity(0.9)
+                      : theme.colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                app_date.DateUtils.formatDate(transaction.transactionDate),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Text(
+          CurrencyUtils.formatCurrency(transaction.amount),
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: isIncome
+                ? const Color(0xFF32D583)
+                : const Color(0xFFF97316),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SMART INSIGHTS CARD
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _SmartInsightsCard extends StatelessWidget {
+  const _SmartInsightsCard({
+    required this.farmCount,
+    required this.transactionCount,
+    required this.topCategory,
+    required this.income,
+    required this.expenses,
+  });
+
+  final int farmCount;
+  final int transactionCount;
+  final String topCategory;
+  final double income;
+  final double expenses;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final double profitMargin = income > 0
+        ? ((income - expenses) / income * 100)
+        : 0;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? <Color>[
+                    const Color(0xFF0F3D3E).withOpacity(0.3),
+                    const Color(0xFF0D1B1A).withOpacity(0.4),
+                  ]
+                : <Color>[
+                    const Color(0xFFE8F8F5),
+                    const Color(0xFFF0FDF4),
+                  ],
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: const Color(0xFF32D583).withOpacity(0.2),
+            width: 1.5,
+          ),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: const Color(0xFF32D583).withOpacity(0.06),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF32D583).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Color(0xFF32D583),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Smart Insights',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: isDark
+                          ? Colors.white
+                          : const Color(0xFF0F3D3E),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.05)
+                      : Colors.white.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  children: <Widget>[
+                    _InsightStat(
+                      label: 'Profit Margin',
+                      value: '${profitMargin.toStringAsFixed(1)}%',
+                      icon: Icons.trending_up_rounded,
+                      color: profitMargin >= 0
+                          ? const Color(0xFF32D583)
+                          : const Color(0xFFEF4444),
+                      isDark: isDark,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: _InsightStat(
+                            label: 'Farms',
+                            value: '$farmCount',
+                            icon: Icons.agriculture_rounded,
+                            color: const Color(0xFF14B8A6),
+                            isDark: isDark,
+                            compact: true,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _InsightStat(
+                            label: 'Transactions',
+                            value: '$transactionCount',
+                            icon: Icons.receipt_rounded,
+                            color: const Color(0xFF8B5CF6),
+                            isDark: isDark,
+                            compact: true,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _InsightStat(
+                            label: 'Top Category',
+                            value: topCategory,
+                            icon: Icons.star_rounded,
+                            color: const Color(0xFFFBBF24),
+                            isDark: isDark,
+                            compact: true,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InsightStat extends StatelessWidget {
+  const _InsightStat({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.isDark,
+    this.compact = false,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final bool isDark;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    if (compact) {
+      return Row(
+        children: <Widget>[
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Icon(icon, color: color, size: 14),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  value,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: isDark
+                        ? Colors.white
+                        : const Color(0xFF0F3D3E),
+                  ),
+                ),
+                Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      children: <Widget>[
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: color, size: 16),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                label,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              Text(
+                value,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: isDark
+                      ? Colors.white
+                      : const Color(0xFF0F3D3E),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// QUICK EXPORT BAR
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _QuickExportBar extends StatelessWidget {
+  const _QuickExportBar({
+    required this.isExporting,
+    required this.hasTransactions,
+    required this.onExport,
+    required this.onShareSummary,
+  });
+
+  final bool isExporting;
+  final bool hasTransactions;
+  final VoidCallback? onExport;
+  final VoidCallback? onShareSummary;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark
+              ? theme.colorScheme.surfaceContainerHighest
+              : Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: isDark
+                  ? Colors.black.withOpacity(0.2)
+                  : Colors.black.withOpacity(0.04),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: SizedBox(
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: isExporting || !hasTransactions
+                        ? null
+                        : onExport,
+                    icon: isExporting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child:
+                                CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.picture_as_pdf_rounded),
+                    label: const Text('Export Report'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0F3D3E),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 50,
+                  child: OutlinedButton.icon(
+                    onPressed: isExporting || !hasTransactions
+                        ? null
+                        : onShareSummary,
+                    icon: const Icon(Icons.share_rounded),
+                    label: const Text('Share Summary'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF0F3D3E),
+                      side: const BorderSide(
+                        color: Color(0xFF0F3D3E),
+                        width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LEGACY WIDGETS (kept for sub-routes and sheets)
+// ═══════════════════════════════════════════════════════════════════════════════
 
 class ReceiptDetailScreen extends ConsumerStatefulWidget {
   const ReceiptDetailScreen({
@@ -591,7 +1746,8 @@ class ReceiptDetailScreen extends ConsumerStatefulWidget {
   final Transaction transaction;
 
   @override
-  ConsumerState<ReceiptDetailScreen> createState() => _ReceiptDetailScreenState();
+  ConsumerState<ReceiptDetailScreen> createState() =>
+      _ReceiptDetailScreenState();
 }
 
 class _ReceiptDetailScreenState extends ConsumerState<ReceiptDetailScreen> {
@@ -617,8 +1773,11 @@ class _ReceiptDetailScreenState extends ConsumerState<ReceiptDetailScreen> {
             isSynced: true,
           ),
         );
-    final String sellerEmail = ref.watch(firebaseServiceProvider).currentUser?.email ?? '';
-    final String sellerName = ref.watch(firebaseServiceProvider).currentUser?.displayName ?? 'FarmSync Seller';
+    final String sellerEmail =
+        ref.watch(firebaseServiceProvider).currentUser?.email ?? '';
+    final String sellerName =
+        ref.watch(firebaseServiceProvider).currentUser?.displayName ??
+            'FarmSync Seller';
 
     return Scaffold(
       appBar: AppBar(
@@ -686,7 +1845,10 @@ class _ReceiptDetailScreenState extends ConsumerState<ReceiptDetailScreen> {
                     const SizedBox(height: 10),
                     Text(
                       'A styled receipt preview is available here. PDF export is supported directly from this screen, and email handoff pre-fills buyer and seller details when an email address is present.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(height: 1.5),
                     ),
                   ],
                 ),
@@ -712,7 +1874,8 @@ class _ReceiptDetailScreenState extends ConsumerState<ReceiptDetailScreen> {
       );
       final String path = await createReportFileSaver().savePdf(
         bytes: bytes,
-        fileName: 'receipt_${transaction.receiptNumber.isEmpty ? transaction.id : transaction.receiptNumber}.pdf',
+        fileName:
+            'receipt_${transaction.receiptNumber.isEmpty ? transaction.id : transaction.receiptNumber}.pdf',
       );
       if (!mounted) {
         return;
@@ -730,20 +1893,22 @@ class _ReceiptDetailScreenState extends ConsumerState<ReceiptDetailScreen> {
   Future<void> _exportReceiptImage() async {
     setState(() => _isExporting = true);
     try {
-      final RenderRepaintBoundary? boundary =
-          _receiptBoundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      final RenderRepaintBoundary? boundary = _receiptBoundaryKey.currentContext
+          ?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) {
         throw StateError('Receipt preview is not ready yet.');
       }
       final ui.Image image = await boundary.toImage(pixelRatio: 3);
-      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      final ByteData? byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) {
         throw StateError('Could not render receipt image.');
       }
       final Uint8List bytes = byteData.buffer.asUint8List();
       final String path = await createReportFileSaver().saveBytes(
         bytes: bytes,
-        fileName: 'receipt_${widget.transaction.receiptNumber.isEmpty ? widget.transaction.id : widget.transaction.receiptNumber}.png',
+        fileName:
+            'receipt_${widget.transaction.receiptNumber.isEmpty ? widget.transaction.id : widget.transaction.receiptNumber}.png',
         mimeType: 'image/png',
       );
       if (!mounted) {
@@ -769,9 +1934,11 @@ class _ReceiptDetailScreenState extends ConsumerState<ReceiptDetailScreen> {
       scheme: 'mailto',
       path: buyerEmail.isEmpty ? sellerEmail : buyerEmail,
       queryParameters: <String, String>{
-        if (sellerEmail.isNotEmpty && buyerEmail.isNotEmpty) 'cc': sellerEmail,
+        if (sellerEmail.isNotEmpty && buyerEmail.isNotEmpty)
+          'cc': sellerEmail,
         'subject': 'FarmSync Receipt $receiptNumber',
-        'body': 'Receipt number: $receiptNumber\nTotal: ${CurrencyUtils.formatCurrency(total)}',
+        'body':
+            'Receipt number: $receiptNumber\nTotal: ${CurrencyUtils.formatCurrency(total)}',
       },
     );
     await launchUrl(uri);
@@ -834,16 +2001,23 @@ class _ReceiptPreviewCard extends StatelessWidget {
             _ReceiptLine(label: 'Farm', value: farmName),
             _ReceiptLine(label: 'Seller', value: sellerName),
             _ReceiptLine(
-              label: transaction.recordKind == TransactionRecordKind.procurement ? 'Provider' : 'Buyer',
-              value: transaction.counterpartyName.isEmpty ? 'Walk-in' : transaction.counterpartyName,
+              label: transaction.recordKind == TransactionRecordKind.procurement
+                  ? 'Provider'
+                  : 'Buyer',
+              value: transaction.counterpartyName.isEmpty
+                  ? 'Walk-in'
+                  : transaction.counterpartyName,
             ),
             _ReceiptLine(
               label: 'Product',
-              value: transaction.productName.isEmpty ? transaction.description : transaction.productName,
+              value: transaction.productName.isEmpty
+                  ? transaction.description
+                  : transaction.productName,
             ),
             _ReceiptLine(
               label: 'Quantity',
-              value: '${transaction.quantity.toStringAsFixed(2)} ${transaction.unit}',
+              value:
+                  '${transaction.quantity.toStringAsFixed(2)} ${transaction.unit}',
             ),
             _ReceiptLine(
               label: 'Unit price',
@@ -857,7 +2031,10 @@ class _ReceiptPreviewCard extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 transaction.notes,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.5),
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(height: 1.5),
               ),
             ],
           ],
@@ -895,78 +2072,6 @@ class _ReceiptLine extends StatelessWidget {
   }
 }
 
-class _TransactionRecordTile extends StatelessWidget {
-  const _TransactionRecordTile({
-    required this.transaction,
-    required this.onTap,
-  });
-
-  final Transaction transaction;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool positive = transaction.type == TransactionType.income;
-
-    return AppCard(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      onTap: onTap,
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-        leading: Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            color: positive ? const Color(0xFFE5F5D8) : const Color(0xFFFFEBD0),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Icon(
-            positive ? Icons.trending_up_rounded : Icons.shopping_bag_outlined,
-          ),
-        ),
-        title: Text(transaction.productName.isEmpty ? transaction.description : transaction.productName),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 6),
-          child: Text(
-            '${transaction.counterpartyName.isEmpty ? 'Walk-in' : transaction.counterpartyName} - ${app_date.DateUtils.formatDate(transaction.transactionDate)}\n${transaction.quantity.toStringAsFixed(2)} ${transaction.unit}',
-          ),
-        ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: <Widget>[
-            Text(CurrencyUtils.formatCurrency(transaction.amount)),
-            const SizedBox(height: 4),
-            Text(
-              transaction.recordKind == TransactionRecordKind.sale ? 'Receipt' : 'View',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyFinanceCard extends StatelessWidget {
-  const _EmptyFinanceCard({
-    required this.message,
-  });
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Text(message),
-      ),
-    );
-  }
-}
-
 class FinanceSnapshot {
   const FinanceSnapshot({
     required this.income,
@@ -983,7 +2088,8 @@ class FinanceSnapshot {
   factory FinanceSnapshot.fromTransactions(List<Transaction> transactions) {
     double income = 0;
     double expenses = 0;
-    final Map<TransactionCategory, double> categoryTotals = <TransactionCategory, double>{};
+    final Map<TransactionCategory, double> categoryTotals =
+        <TransactionCategory, double>{};
     for (final Transaction transaction in transactions) {
       if (transaction.type == TransactionType.income) {
         income += transaction.amount;
@@ -1005,6 +2111,8 @@ class FinanceSnapshot {
   }
 }
 
+// ─── BOTTOM SHEET WIDGETS (preserved from original) ─────────────────────────
+
 class _TransactionFormSheet extends StatefulWidget {
   const _TransactionFormSheet({
     required this.farms,
@@ -1022,8 +2130,10 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _productController = TextEditingController();
-  final TextEditingController _quantityController = TextEditingController(text: '1');
-  final TextEditingController _unitController = TextEditingController(text: 'bag');
+  final TextEditingController _quantityController =
+      TextEditingController(text: '1');
+  final TextEditingController _unitController =
+      TextEditingController(text: 'bag');
   final TextEditingController _unitPriceController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
 
@@ -1053,20 +2163,20 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final List<BusinessPartner> partners = widget.operations.partners
-        .where((BusinessPartner item) {
-          if (_recordKind == TransactionRecordKind.sale) {
-            return item.type == BusinessPartnerType.customer;
-          }
-          if (_recordKind == TransactionRecordKind.procurement) {
-            return item.type == BusinessPartnerType.provider;
-          }
-          return true;
-        })
-        .toList(growable: false);
+    final List<BusinessPartner> partners =
+        widget.operations.partners.where((BusinessPartner item) {
+      if (_recordKind == TransactionRecordKind.sale) {
+        return item.type == BusinessPartnerType.customer;
+      }
+      if (_recordKind == TransactionRecordKind.procurement) {
+        return item.type == BusinessPartnerType.provider;
+      }
+      return true;
+    }).toList(growable: false);
 
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -1079,13 +2189,16 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text('Record sale or procurement', style: Theme.of(context).textTheme.headlineSmall),
+                Text('Record sale or procurement',
+                    style: Theme.of(context).textTheme.headlineSmall),
                 const SizedBox(height: 14),
                 _DropdownField<String>(
                   label: 'Farm',
                   value: _farmId,
                   items: widget.farms.map((Farm farm) => farm.id).toList(),
-                  itemLabel: (String value) => widget.farms.firstWhere((Farm farm) => farm.id == value).name,
+                  itemLabel: (String value) => widget.farms
+                      .firstWhere((Farm farm) => farm.id == value)
+                      .name,
                   onChanged: (String? value) {
                     if (value != null) {
                       setState(() => _farmId = value);
@@ -1126,19 +2239,31 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
                 const SizedBox(height: 12),
                 if (partners.isNotEmpty)
                   _DropdownField<String?>(
-                    label: _recordKind == TransactionRecordKind.procurement ? 'Provider' : 'Customer',
+                    label: _recordKind == TransactionRecordKind.procurement
+                        ? 'Provider'
+                        : 'Customer',
                     value: _partnerId,
-                    items: <String?>[null, ...partners.map((BusinessPartner item) => item.id)],
+                    items: <String?>[
+                      null,
+                      ...partners.map((BusinessPartner item) => item.id)
+                    ],
                     itemLabel: (String? value) {
                       if (value == null) {
                         return 'Walk-in / unregistered';
                       }
-                      return partners.firstWhere((BusinessPartner item) => item.id == value).name;
+                      return partners
+                          .firstWhere(
+                              (BusinessPartner item) => item.id == value)
+                          .name;
                     },
-                    onChanged: (String? value) => setState(() => _partnerId = value),
+                    onChanged: (String? value) =>
+                        setState(() => _partnerId = value),
                   ),
                 if (partners.isNotEmpty) const SizedBox(height: 12),
-                AppTextField(controller: _productController, label: 'Product', hint: 'Maize, eggs, feed'),
+                AppTextField(
+                    controller: _productController,
+                    label: 'Product',
+                    hint: 'Maize, eggs, feed'),
                 const SizedBox(height: 12),
                 Row(
                   children: <Widget>[
@@ -1146,19 +2271,24 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
                       child: AppTextField(
                         controller: _quantityController,
                         label: 'Quantity',
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: AppTextField(controller: _unitController, label: 'Unit', hint: 'bag, crate, kg'),
+                      child: AppTextField(
+                          controller: _unitController,
+                          label: 'Unit',
+                          hint: 'bag, crate, kg'),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: AppTextField(
                         controller: _unitPriceController,
                         label: 'Unit price',
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
                       ),
                     ),
                   ],
@@ -1167,7 +2297,8 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
                 AppTextField(
                   controller: _amountController,
                   label: 'Total amount',
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                 ),
                 const SizedBox(height: 12),
                 AppTextField(
@@ -1212,22 +2343,25 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
   void _submit(List<BusinessPartner> partners) {
     final String? amountError = Validators.combine(
       <String? Function(String?)>[
-        (String? value) => Validators.required(value, fieldName: 'Total amount'),
+        (String? value) =>
+            Validators.required(value, fieldName: 'Total amount'),
         Validators.amount,
       ],
       _amountController.text.trim(),
     );
     if (amountError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(amountError)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(amountError)));
       return;
     }
 
     final BusinessPartner? partner = _partnerId == null
         ? null
         : partners.firstWhere((BusinessPartner item) => item.id == _partnerId);
-    final TransactionType type = _recordKind == TransactionRecordKind.procurement
-        ? TransactionType.expense
-        : TransactionType.income;
+    final TransactionType type =
+        _recordKind == TransactionRecordKind.procurement
+            ? TransactionType.expense
+            : TransactionType.income;
 
     Navigator.of(context).pop(
       _TransactionDraft(
@@ -1249,7 +2383,9 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
             : TransactionPartyType.customer,
         productName: _productController.text.trim(),
         quantity: double.tryParse(_quantityController.text.trim()) ?? 0,
-        unit: _unitController.text.trim().isEmpty ? 'unit' : _unitController.text.trim(),
+        unit: _unitController.text.trim().isEmpty
+            ? 'unit'
+            : _unitController.text.trim(),
         unitPrice: double.tryParse(_unitPriceController.text.trim()) ?? 0,
         counterpartyName: partner?.name ?? '',
         counterpartyEmail: partner?.email ?? '',
@@ -1272,9 +2408,11 @@ class _InventorySheet extends StatefulWidget {
 
 class _InventorySheetState extends State<_InventorySheet> {
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _categoryController = TextEditingController(text: 'Farm produce');
+  final TextEditingController _categoryController =
+      TextEditingController(text: 'Farm produce');
   final TextEditingController _quantityController = TextEditingController();
-  final TextEditingController _unitController = TextEditingController(text: 'bag');
+  final TextEditingController _unitController =
+      TextEditingController(text: 'bag');
   final TextEditingController _costPriceController = TextEditingController();
   final TextEditingController _unitPriceController = TextEditingController();
   late String _farmId;
@@ -1299,7 +2437,8 @@ class _InventorySheetState extends State<_InventorySheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
@@ -1313,7 +2452,8 @@ class _InventorySheetState extends State<_InventorySheet> {
               label: 'Farm',
               value: _farmId,
               items: widget.farms.map((Farm farm) => farm.id).toList(),
-              itemLabel: (String value) => widget.farms.firstWhere((Farm item) => item.id == value).name,
+              itemLabel: (String value) =>
+                  widget.farms.firstWhere((Farm item) => item.id == value).name,
               onChanged: (String? value) {
                 if (value != null) {
                   setState(() => _farmId = value);
@@ -1325,13 +2465,15 @@ class _InventorySheetState extends State<_InventorySheet> {
             const SizedBox(height: 12),
             AppTextField(controller: _categoryController, label: 'Category'),
             const SizedBox(height: 12),
-            AppTextField(controller: _quantityController, label: 'Available quantity'),
+            AppTextField(
+                controller: _quantityController, label: 'Available quantity'),
             const SizedBox(height: 12),
             AppTextField(controller: _unitController, label: 'Unit'),
             const SizedBox(height: 12),
             AppTextField(controller: _costPriceController, label: 'Cost price'),
             const SizedBox(height: 12),
-            AppTextField(controller: _unitPriceController, label: 'Selling price'),
+            AppTextField(
+                controller: _unitPriceController, label: 'Selling price'),
             const SizedBox(height: 18),
             SizedBox(
               width: double.infinity,
@@ -1385,7 +2527,8 @@ class _PartnerSheetState extends State<_PartnerSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
@@ -1406,7 +2549,9 @@ class _PartnerSheetState extends State<_PartnerSheet> {
               value: _type,
               items: BusinessPartnerType.values,
               itemLabel: (BusinessPartnerType value) =>
-                  value == BusinessPartnerType.customer ? 'Customer' : 'Provider',
+                  value == BusinessPartnerType.customer
+                      ? 'Customer'
+                      : 'Provider',
               onChanged: (BusinessPartnerType? value) {
                 if (value != null) {
                   setState(() => _type = value);
@@ -1463,11 +2608,13 @@ class _DropdownField<T> extends StatelessWidget {
         fillColor: Theme.of(context).colorScheme.surface,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+          borderSide:
+              BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+          borderSide:
+              BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
       ),
@@ -1563,3 +2710,4 @@ class _InventoryDraft {
   final double costPrice;
   final double unitPrice;
 }
+

@@ -26,6 +26,7 @@ class UserProfile {
     this.verificationReviewedAt,
     this.restrictedFeatures = const <String>[],
     this.fcmTokens = const <String>[],
+    this.dailyUpdatesEnabled = true,
   });
 
   final String uid;
@@ -47,6 +48,7 @@ class UserProfile {
   final DateTime? verificationReviewedAt;
   final List<String> restrictedFeatures;
   final List<String> fcmTokens;
+  final bool dailyUpdatesEnabled;
 
   bool get isComplete =>
       fullName.trim().isNotEmpty &&
@@ -76,6 +78,7 @@ class UserProfile {
     DateTime? verificationReviewedAt,
     List<String>? restrictedFeatures,
     List<String>? fcmTokens,
+    bool? dailyUpdatesEnabled,
   }) {
     return UserProfile(
       uid: uid ?? this.uid,
@@ -93,10 +96,13 @@ class UserProfile {
       isVerified: isVerified ?? this.isVerified,
       verificationStatus: verificationStatus ?? this.verificationStatus,
       verificationNote: verificationNote ?? this.verificationNote,
-      verificationRequestedAt: verificationRequestedAt ?? this.verificationRequestedAt,
-      verificationReviewedAt: verificationReviewedAt ?? this.verificationReviewedAt,
+      verificationRequestedAt:
+          verificationRequestedAt ?? this.verificationRequestedAt,
+      verificationReviewedAt:
+          verificationReviewedAt ?? this.verificationReviewedAt,
       restrictedFeatures: restrictedFeatures ?? this.restrictedFeatures,
       fcmTokens: fcmTokens ?? this.fcmTokens,
+      dailyUpdatesEnabled: dailyUpdatesEnabled ?? this.dailyUpdatesEnabled,
     );
   }
 
@@ -120,6 +126,7 @@ class UserProfile {
         'verificationReviewedAt': verificationReviewedAt?.toIso8601String(),
         'restrictedFeatures': restrictedFeatures,
         'fcmTokens': fcmTokens,
+        'dailyUpdatesEnabled': dailyUpdatesEnabled,
       };
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
@@ -136,14 +143,18 @@ class UserProfile {
       primaryFocus: json['primaryFocus'] as String? ?? '',
       bio: json['bio'] as String? ?? '',
       profileImageBase64: json['profileImageBase64'] as String? ?? '',
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
-      updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now(),
+      updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
+          DateTime.now(),
       isDisabled: json['isDisabled'] as bool? ?? false,
       isVerified: json['isVerified'] as bool? ?? false,
       verificationStatus: json['verificationStatus'] as String? ?? 'none',
       verificationNote: json['verificationNote'] as String? ?? '',
-      verificationRequestedAt: DateTime.tryParse(json['verificationRequestedAt'] as String? ?? ''),
-      verificationReviewedAt: DateTime.tryParse(json['verificationReviewedAt'] as String? ?? ''),
+      verificationRequestedAt:
+          DateTime.tryParse(json['verificationRequestedAt'] as String? ?? ''),
+      verificationReviewedAt:
+          DateTime.tryParse(json['verificationReviewedAt'] as String? ?? ''),
       restrictedFeatures: (json['restrictedFeatures'] as List<dynamic>?)
               ?.whereType<String>()
               .toList(growable: false) ??
@@ -152,6 +163,7 @@ class UserProfile {
               ?.whereType<String>()
               .toList(growable: false) ??
           <String>[],
+      dailyUpdatesEnabled: json['dailyUpdatesEnabled'] as bool? ?? true,
     );
   }
 }

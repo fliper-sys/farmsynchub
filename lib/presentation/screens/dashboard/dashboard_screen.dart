@@ -31,7 +31,8 @@ class DashboardScreen extends ConsumerStatefulWidget {
   ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTickerProviderStateMixin {
+class _DashboardScreenState extends ConsumerState<DashboardScreen>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _intro;
   late final Animation<double> _fade;
   late final Animation<Offset> _slide;
@@ -44,7 +45,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
       duration: const Duration(milliseconds: 700),
     )..forward();
     _fade = CurvedAnimation(parent: _intro, curve: Curves.easeOutCubic);
-    _slide = Tween<Offset>(begin: const Offset(0, 0.035), end: Offset.zero).animate(_fade);
+    _slide = Tween<Offset>(begin: const Offset(0, 0.035), end: Offset.zero)
+        .animate(_fade);
   }
 
   @override
@@ -59,8 +61,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
     final AppLanguage language = ref.watch(appLanguageProvider);
     final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
     final List<Crop> crops = ref.watch(cropsProvider).valueOrNull ?? <Crop>[];
-    final List<Livestock> livestock = ref.watch(livestockProvider).valueOrNull ?? <Livestock>[];
-    final List<Transaction> transactions = ref.watch(transactionsProvider).valueOrNull ?? <Transaction>[];
+    final List<Livestock> livestock =
+        ref.watch(livestockProvider).valueOrNull ?? <Livestock>[];
+    final List<Transaction> transactions =
+        ref.watch(transactionsProvider).valueOrNull ?? <Transaction>[];
     final notifications = ref.watch(notificationsProvider);
     final currentUser = ref.watch(firebaseServiceProvider).currentUser;
     final profile = ref.watch(userProfileProvider).valueOrNull;
@@ -76,10 +80,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
     }
     activeFarm ??= farms.isNotEmpty ? farms.first : null;
 
-    final int animals = livestock.fold<int>(0, (int sum, Livestock item) => sum + item.count);
+    final int animals =
+        livestock.fold<int>(0, (int sum, Livestock item) => sum + item.count);
     final double balanceValue = transactions.fold<double>(
       0,
-      (double sum, Transaction item) => item.type == TransactionType.income ? sum + item.amount : sum - item.amount,
+      (double sum, Transaction item) => item.type == TransactionType.income
+          ? sum + item.amount
+          : sum - item.amount,
     );
     final int unread = notifications.where((item) => !item.isRead).length;
     final String userName = currentUser?.displayName?.trim().isNotEmpty == true
@@ -87,7 +94,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
         : profile?.fullName.trim().isNotEmpty == true
             ? profile!.fullName.trim()
             : 'Love Bari';
-    final String activeFocus = activeFarm?.name ?? (crops.isNotEmpty ? crops.first.name : 'Jane');
+    final String activeFocus =
+        activeFarm?.name ?? (crops.isNotEmpty ? crops.first.name : 'Jane');
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -96,13 +104,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
         foregroundColor: theme.colorScheme.onSurface,
         title: Text(language.tr(en: 'Home', ha: 'Gida', fr: 'Accueil')),
         actions: <Widget>[
-          _HeaderIcon(icon: Icons.school_outlined, onTap: () => context.go('/learn')),
+          _HeaderIcon(
+              icon: Icons.school_outlined, onTap: () => context.go('/learn')),
           _HeaderIcon(
             icon: Icons.notifications_none_rounded,
             badge: unread,
             onTap: () => context.go('/notifications'),
           ),
-          _HeaderIcon(icon: Icons.auto_awesome_rounded, onTap: () => context.go('/ai-advisor')),
+          _HeaderIcon(
+              icon: Icons.auto_awesome_rounded,
+              onTap: () => context.go('/ai-advisor')),
           const SizedBox(width: 10),
         ],
       ),
@@ -143,13 +154,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
                       pendingCount: sync.pendingCount,
                       hasConnection: sync.hasConnection,
                       onSyncTap: sync.hasConnection && !sync.isSyncing
-                          ? () => ref.read(syncOverviewProvider.notifier).runSync()
+                          ? () =>
+                              ref.read(syncOverviewProvider.notifier).runSync()
                           : null,
                     ),
                     const SizedBox(height: 20),
                     _TodayTasksCard(
                       farm: activeFarm,
-                      tasks: activeFarm?.workspaceTasks ?? const <FarmWorkspaceTask>[],
+                      tasks: activeFarm?.workspaceTasks ??
+                          const <FarmWorkspaceTask>[],
+                      onViewAll: () => context.go('/farm-tasks'),
                     ),
                     const SizedBox(height: 18),
                     _HeroSummaryCard(
@@ -187,7 +201,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
                         Expanded(
                           child: _MetricCard(
                             icon: Icons.account_balance_wallet_rounded,
-                            value: CurrencyUtils.formatCompactCurrency(balanceValue),
+                            value: CurrencyUtils.formatCompactCurrency(
+                                balanceValue),
                             title: 'Wallet balance',
                             subtitle: 'Open balance',
                             onTap: () => context.go('/finance'),
@@ -196,16 +211,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
                       ],
                     ),
                     const SizedBox(height: 26),
-                    _SectionTitle(title: language.tr(en: 'Management center', ha: 'Cibiyar gudanarwa', fr: 'Centre de gestion')),
+                    _SectionTitle(
+                        title: language.tr(
+                            en: 'Management center',
+                            ha: 'Cibiyar gudanarwa',
+                            fr: 'Centre de gestion')),
                     const SizedBox(height: 14),
                     _ManagementGrid(
                       actions: <_ManagementAction>[
-                        _ManagementAction(Icons.eco_rounded, 'Crops', '${crops.length} crop records', '/crops'),
-                        _ManagementAction(Icons.pets_rounded, 'Livestock', '${livestock.length} groups', '/livestock'),
-                        _ManagementAction(Icons.inventory_2_rounded, 'Inventory', 'Stock & supplies', '/finance'),
-                        _ManagementAction(Icons.account_balance_wallet_rounded, 'Finance', 'Sales & expenses', '/finance'),
-                        _ManagementAction(Icons.agriculture_rounded, 'Farms', '${farms.length} locations', '/farms'),
-                        _ManagementAction(Icons.cloud_queue_rounded, 'Weather', 'Live readings', '/farms'),
+                        _ManagementAction(Icons.eco_rounded, 'Crops',
+                            '${crops.length} crop records', '/crops'),
+                        _ManagementAction(Icons.pets_rounded, 'Livestock',
+                            '${livestock.length} groups', '/livestock'),
+                        _ManagementAction(Icons.inventory_2_rounded,
+                            'Inventory', 'Stock & supplies', '/finance'),
+                        _ManagementAction(Icons.account_balance_wallet_rounded,
+                            'Finance', 'Sales & expenses', '/finance'),
+                        _ManagementAction(Icons.agriculture_rounded, 'Farms',
+                            '${farms.length} locations', '/farms'),
+                        _ManagementAction(Icons.cloud_queue_rounded, 'Weather',
+                            'Live readings', '/farms'),
                       ],
                     ),
                     const SizedBox(height: 26),
@@ -213,7 +238,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
                       _SetupCard(onTap: () => context.go('/account-setup')),
                       const SizedBox(height: 22),
                     ],
-                    _SectionTitle(title: language.tr(en: 'Recent activity', ha: 'Ayyukan baya-bayan nan', fr: 'Activite recente')),
+                    _SectionTitle(
+                        title: language.tr(
+                            en: 'Recent activity',
+                            ha: 'Ayyukan baya-bayan nan',
+                            fr: 'Activite recente')),
                     const SizedBox(height: 14),
                     const ActivityFeed(),
                   ],
@@ -235,16 +264,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
 }
 
 class _TodayTasksCard extends StatelessWidget {
-  const _TodayTasksCard({required this.farm, required this.tasks});
+  const _TodayTasksCard(
+      {required this.farm, required this.tasks, this.onViewAll});
 
   final Farm? farm;
   final List<FarmWorkspaceTask> tasks;
+  final VoidCallback? onViewAll;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final DateTime now = DateTime.now();
-    final List<FarmWorkspaceTask> upcoming = FarmTaskCalendarService.todayAndUpcomingTasks(
+    final List<FarmWorkspaceTask> upcoming =
+        FarmTaskCalendarService.todayAndUpcomingTasks(
       tasks,
       referenceDate: now,
       maxDays: 7,
@@ -261,7 +293,10 @@ class _TodayTasksCard extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: <Color>[theme.colorScheme.primaryContainer, theme.colorScheme.secondaryContainer],
+          colors: <Color>[
+            theme.colorScheme.primaryContainer,
+            theme.colorScheme.secondaryContainer
+          ],
         ),
       ),
       child: Column(
@@ -269,51 +304,68 @@ class _TodayTasksCard extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              Icon(Icons.event_available_rounded, color: theme.colorScheme.onPrimaryContainer),
+              Icon(Icons.event_available_rounded,
+                  color: theme.colorScheme.onPrimaryContainer),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  farm != null ? 'Today\'s farm tasks • ${farm!.name}' : 'Today\'s farm tasks',
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  farm != null
+                      ? 'Today\'s farm tasks • ${farm!.name}'
+                      : 'Today\'s farm tasks',
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
           ...upcoming.map((FarmWorkspaceTask task) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface.withOpacity(0.7),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.6)),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Icon(Icons.circle, size: 9, color: theme.colorScheme.primary),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          task.title,
-                          style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700, height: 1.3),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${_friendlyDate(task.dueAt)} • ${task.assigneeName.isNotEmpty ? task.assigneeName : 'No assignee'}',
-                          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                        ),
-                      ],
-                    ),
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                        color:
+                            theme.colorScheme.outlineVariant.withOpacity(0.6)),
                   ),
-                ],
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Icon(Icons.circle,
+                          size: 9, color: theme.colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              task.title,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w700, height: 1.3),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${_friendlyDate(task.dueAt)} • ${task.assigneeName.isNotEmpty ? task.assigneeName : 'No assignee'}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )),
+          if (onViewAll != null)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: onViewAll,
+                child: const Text('View all tasks'),
               ),
             ),
-          )),
         ],
       ),
     );
@@ -359,7 +411,8 @@ class _SyncRow extends StatelessWidget {
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+            border:
+                Border.all(color: Theme.of(context).colorScheme.outlineVariant),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -368,19 +421,28 @@ class _SyncRow extends StatelessWidget {
                 width: 9,
                 height: 9,
                 decoration: BoxDecoration(
-                  color: hasConnection ? AppColors.premiumGreen : theme.colorScheme.onSurfaceVariant,
+                  color: hasConnection
+                      ? AppColors.premiumGreen
+                      : theme.colorScheme.onSurfaceVariant,
                   shape: BoxShape.circle,
                   boxShadow: hasConnection
                       ? <BoxShadow>[
-                          BoxShadow(color: AppColors.premiumGreen.withOpacity(0.55), blurRadius: 12),
+                          BoxShadow(
+                              color: AppColors.premiumGreen.withOpacity(0.55),
+                              blurRadius: 12),
                         ]
                       : null,
                 ),
               ),
               const SizedBox(width: 10),
-              Text(label, style: Theme.of(context).textTheme.labelLarge?.copyWith(color: AppColors.premiumGreen)),
+              Text(label,
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelLarge
+                      ?.copyWith(color: AppColors.premiumGreen)),
               const SizedBox(width: 8),
-              const Icon(Icons.chevron_right_rounded, color: AppColors.premiumGreen, size: 19),
+              const Icon(Icons.chevron_right_rounded,
+                  color: AppColors.premiumGreen, size: 19),
             ],
           ),
         ),
@@ -408,13 +470,16 @@ class _HeroSummaryCard extends StatefulWidget {
   State<_HeroSummaryCard> createState() => _HeroSummaryCardState();
 }
 
-class _HeroSummaryCardState extends State<_HeroSummaryCard> with SingleTickerProviderStateMixin {
+class _HeroSummaryCardState extends State<_HeroSummaryCard>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _leaf;
 
   @override
   void initState() {
     super.initState();
-    _leaf = AnimationController(vsync: this, duration: const Duration(seconds: 7))..repeat(reverse: true);
+    _leaf =
+        AnimationController(vsync: this, duration: const Duration(seconds: 7))
+          ..repeat(reverse: true);
   }
 
   @override
@@ -433,7 +498,8 @@ class _HeroSummaryCardState extends State<_HeroSummaryCard> with SingleTickerPro
           Positioned.fill(
             child: AnimatedBuilder(
               animation: _leaf,
-              builder: (_, __) => CustomPaint(painter: _LeafPatternPainter(_leaf.value)),
+              builder: (_, __) =>
+                  CustomPaint(painter: _LeafPatternPainter(_leaf.value)),
             ),
           ),
           Column(
@@ -446,7 +512,9 @@ class _HeroSummaryCardState extends State<_HeroSummaryCard> with SingleTickerPro
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text(widget.greeting, style: theme.textTheme.titleMedium?.copyWith(color: AppColors.premiumGreen)),
+                        Text(widget.greeting,
+                            style: theme.textTheme.titleMedium
+                                ?.copyWith(color: AppColors.premiumGreen)),
                         const SizedBox(height: 8),
                         Text(
                           widget.userName,
@@ -464,11 +532,14 @@ class _HeroSummaryCardState extends State<_HeroSummaryCard> with SingleTickerPro
                             children: <InlineSpan>[
                               TextSpan(
                                 text: widget.activeFocus,
-                                style: const TextStyle(color: AppColors.premiumGreen, fontWeight: FontWeight.w800),
+                                style: const TextStyle(
+                                    color: AppColors.premiumGreen,
+                                    fontWeight: FontWeight.w800),
                               ),
                             ],
                           ),
-                          style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant),
                         ),
                       ],
                     ),
@@ -484,8 +555,12 @@ class _HeroSummaryCardState extends State<_HeroSummaryCard> with SingleTickerPro
                     Expanded(
                       child: _HeroChip(
                         icon: Icons.check_circle_rounded,
-                        title: widget.pendingSync == 0 ? 'Everything synced' : '${widget.pendingSync} updates pending',
-                        subtitle: widget.pendingSync == 0 ? 'All data is up to date' : 'Tap sync when online',
+                        title: widget.pendingSync == 0
+                            ? 'Everything synced'
+                            : '${widget.pendingSync} updates pending',
+                        subtitle: widget.pendingSync == 0
+                            ? 'All data is up to date'
+                            : 'Tap sync when online',
                       ),
                     ),
                     SizedBox(width: stack ? 0 : 14, height: stack ? 12 : 0),
@@ -499,7 +574,11 @@ class _HeroSummaryCardState extends State<_HeroSummaryCard> with SingleTickerPro
                     ),
                   ];
                   return stack
-                      ? Column(children: chips.map((Widget item) => item is Expanded ? item.child : item).toList())
+                      ? Column(
+                          children: chips
+                              .map((Widget item) =>
+                                  item is Expanded ? item.child : item)
+                              .toList())
                       : Row(children: chips);
                 },
               ),
@@ -534,7 +613,8 @@ class _HeroChip extends StatelessWidget {
         curve: Curves.easeOutCubic,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest.withOpacity(theme.brightness == Brightness.dark ? 0.82 : 0.96),
+          color: theme.colorScheme.surfaceContainerHighest
+              .withOpacity(theme.brightness == Brightness.dark ? 0.82 : 0.96),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: theme.colorScheme.outlineVariant),
         ),
@@ -546,13 +626,20 @@ class _HeroChip extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(title, style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.onSurface, fontWeight: FontWeight.w800)),
+                  Text(title,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                          color: theme.colorScheme.onSurface,
+                          fontWeight: FontWeight.w800)),
                   const SizedBox(height: 3),
-                  Text(subtitle, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                  Text(subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant)),
                 ],
               ),
             ),
-            if (onTap != null) Icon(Icons.chevron_right_rounded, color: theme.colorScheme.onSurfaceVariant),
+            if (onTap != null)
+              Icon(Icons.chevron_right_rounded,
+                  color: theme.colorScheme.onSurfaceVariant),
           ],
         ),
       ),
@@ -605,15 +692,24 @@ class _MetricCardState extends State<_MetricCard> {
                 children: <Widget>[
                   _GlowIcon(icon: widget.icon),
                   const Spacer(),
-                  Icon(Icons.chevron_right_rounded, color: theme.colorScheme.onSurfaceVariant),
+                  Icon(Icons.chevron_right_rounded,
+                      color: theme.colorScheme.onSurfaceVariant),
                 ],
               ),
               const SizedBox(height: 20),
-              Text(widget.value, style: theme.textTheme.headlineSmall?.copyWith(color: AppColors.premiumGreen, fontWeight: FontWeight.w900)),
+              Text(widget.value,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                      color: AppColors.premiumGreen,
+                      fontWeight: FontWeight.w900)),
               const SizedBox(height: 8),
-              Text(widget.title, style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.onSurface, fontWeight: FontWeight.w800)),
+              Text(widget.title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                      color: theme.colorScheme.onSurface,
+                      fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
-              Text(widget.subtitle, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              Text(widget.subtitle,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
             ],
           ),
         ),
@@ -680,13 +776,22 @@ class _ManagementTile extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(action.title, style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w800)),
+                  Text(action.title,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurface,
+                          fontWeight: FontWeight.w800)),
                   const SizedBox(height: 4),
-                  Text(action.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  Text(action.subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant)),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            Icon(Icons.chevron_right_rounded,
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
           ],
         ),
       ),
@@ -712,10 +817,13 @@ class _SetupCard extends StatelessWidget {
             Expanded(
               child: Text(
                 'Finish your account setup to personalize your dashboard.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.45),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    height: 1.45),
               ),
             ),
-            Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            Icon(Icons.chevron_right_rounded,
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
           ],
         ),
       ),
@@ -744,7 +852,10 @@ class _PremiumPanel extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: isDark
               ? const <Color>[AppColors.darkCard, AppColors.darkElevatedCard]
-              : <Color>[theme.colorScheme.surfaceContainerHighest, theme.colorScheme.surfaceContainer],
+              : <Color>[
+                  theme.colorScheme.surfaceContainerHighest,
+                  theme.colorScheme.surfaceContainer
+                ],
         ),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: theme.colorScheme.outlineVariant),
@@ -787,10 +898,12 @@ class _GlowIcon extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(18),
         boxShadow: <BoxShadow>[
-          BoxShadow(color: AppColors.premiumGreen.withOpacity(0.26), blurRadius: 22),
+          BoxShadow(
+              color: AppColors.premiumGreen.withOpacity(0.26), blurRadius: 22),
         ],
       ),
-      child: Icon(icon, color: Theme.of(context).colorScheme.onPrimary, size: 28),
+      child:
+          Icon(icon, color: Theme.of(context).colorScheme.onPrimary, size: 28),
     );
   }
 }
@@ -802,9 +915,12 @@ class _ThemeToggleButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ThemeData theme = Theme.of(context);
     final ThemeMode mode = ref.watch(themeProvider);
-    final bool isDark = mode == ThemeMode.dark || (mode == ThemeMode.system && theme.brightness == Brightness.dark);
-    final IconData icon = isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded;
-    final String label = isDark ? 'Switch to light mode' : 'Switch to dark mode';
+    final bool isDark = mode == ThemeMode.dark ||
+        (mode == ThemeMode.system && theme.brightness == Brightness.dark);
+    final IconData icon =
+        isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded;
+    final String label =
+        isDark ? 'Switch to light mode' : 'Switch to dark mode';
 
     return InkWell(
       onTap: () => ref.read(themeProvider.notifier).toggleTheme(),
@@ -817,7 +933,9 @@ class _ThemeToggleButton extends ConsumerWidget {
           borderRadius: BorderRadius.circular(24),
           border: Border.all(color: theme.colorScheme.outlineVariant),
           boxShadow: <BoxShadow>[
-            BoxShadow(color: AppColors.premiumGreen.withOpacity(0.10), blurRadius: 22),
+            BoxShadow(
+                color: AppColors.premiumGreen.withOpacity(0.10),
+                blurRadius: 22),
           ],
         ),
         child: Tooltip(
@@ -847,7 +965,10 @@ class _SectionTitle extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        Text(title, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w900)),
+        Text(title,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface,
+                fontWeight: FontWeight.w900)),
       ],
     );
   }
@@ -879,10 +1000,14 @@ class _HeaderIcon extends StatelessWidget {
             top: 5,
             child: Container(
               padding: const EdgeInsets.all(5),
-              decoration: const BoxDecoration(color: AppColors.premiumGreen, shape: BoxShape.circle),
+              decoration: const BoxDecoration(
+                  color: AppColors.premiumGreen, shape: BoxShape.circle),
               child: Text(
                 badge > 9 ? '9+' : '$badge',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.onPrimary, fontWeight: FontWeight.w900, fontSize: 10),
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onPrimary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 10),
               ),
             ),
           ),
@@ -905,25 +1030,31 @@ class _LeafPatternPainter extends CustomPainter {
           AppColors.premiumGreen.withOpacity(0.06),
           Colors.transparent,
         ],
-      ).createShader(Rect.fromCircle(center: Offset(size.width * 0.82, size.height * 0.10), radius: size.width * 0.55));
+      ).createShader(Rect.fromCircle(
+          center: Offset(size.width * 0.82, size.height * 0.10),
+          radius: size.width * 0.55));
     canvas.drawRect(Offset.zero & size, glow);
 
     final Paint leafPaint = Paint()
       ..color = AppColors.premiumGreen.withOpacity(0.075)
       ..style = PaintingStyle.fill;
-    final Offset stem = Offset(size.width * 0.74, size.height * (0.70 + math.sin(progress * math.pi) * 0.02));
+    final Offset stem = Offset(size.width * 0.74,
+        size.height * (0.70 + math.sin(progress * math.pi) * 0.02));
     for (int i = 0; i < 5; i++) {
       final double angle = -1.25 + i * 0.36;
       final double length = size.width * (0.11 + i * 0.015);
-      final Offset end = Offset(stem.dx + math.cos(angle) * length, stem.dy + math.sin(angle) * length);
+      final Offset end = Offset(stem.dx + math.cos(angle) * length,
+          stem.dy + math.sin(angle) * length);
       final Path leaf = Path()
         ..moveTo(stem.dx, stem.dy)
         ..quadraticBezierTo((stem.dx + end.dx) / 2, end.dy - 34, end.dx, end.dy)
-        ..quadraticBezierTo((stem.dx + end.dx) / 2, end.dy + 28, stem.dx, stem.dy);
+        ..quadraticBezierTo(
+            (stem.dx + end.dx) / 2, end.dy + 28, stem.dx, stem.dy);
       canvas.drawPath(leaf, leafPaint);
     }
   }
 
   @override
-  bool shouldRepaint(covariant _LeafPatternPainter oldDelegate) => oldDelegate.progress != progress;
+  bool shouldRepaint(covariant _LeafPatternPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }

@@ -14,7 +14,8 @@ List<Map<String, dynamic>> mergeFirestoreRecords(
   List<Map<String, dynamic>> preferred,
   List<Map<String, dynamic>> fallback,
 ) {
-  final Map<String, Map<String, dynamic>> merged = <String, Map<String, dynamic>>{};
+  final Map<String, Map<String, dynamic>> merged =
+      <String, Map<String, dynamic>>{};
 
   for (final Map<String, dynamic> record in preferred) {
     final String? id = record['id'] as String?;
@@ -66,7 +67,8 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
     String? displayName,
     String? phoneNumber,
   }) async {
-    final UserCredential credential = await _auth.createUserWithEmailAndPassword(
+    final UserCredential credential =
+        await _auth.createUserWithEmailAndPassword(
       email: email,
       password: password,
     );
@@ -112,12 +114,14 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
     }
 
     try {
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
       final AuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
-      final UserCredential userCredential = await _auth.signInWithCredential(credential);
+      final UserCredential userCredential =
+          await _auth.signInWithCredential(credential);
       await _createDefaultUserProfile(
         uid: userCredential.user?.uid,
         email: userCredential.user?.email ?? '',
@@ -216,7 +220,10 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
   }
 
   Future<void> saveUserProfile(UserProfile profile) async {
-    await _firestore.collection('users').doc(profile.uid).set(profile.toJson(), SetOptions(merge: true));
+    await _firestore
+        .collection('users')
+        .doc(profile.uid)
+        .set(profile.toJson(), SetOptions(merge: true));
 
     if (currentUser != null && profile.fullName.trim().isNotEmpty) {
       await currentUser!.updateDisplayName(profile.fullName.trim());
@@ -238,21 +245,28 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
   }
 
   Future<List<UserProfile>> getAllUserProfiles() async {
-    final QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore.collection('users').get();
+    final QuerySnapshot<Map<String, dynamic>> snapshot =
+        await _firestore.collection('users').get();
     return snapshot.docs
-        .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) => UserProfile.fromJson(doc.data()))
+        .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+            UserProfile.fromJson(doc.data()))
         .toList(growable: false);
   }
 
   Future<List<VerifiedBadgeRequest>> getVerifiedBadgeRequests() async {
-    final QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore.collection('verified_badge_requests').get();
+    final QuerySnapshot<Map<String, dynamic>> snapshot =
+        await _firestore.collection('verified_badge_requests').get();
     return snapshot.docs
-        .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) => VerifiedBadgeRequest.fromJson(doc.data()))
+        .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+            VerifiedBadgeRequest.fromJson(doc.data()))
         .toList(growable: false);
   }
 
   Future<void> saveVerifiedBadgeRequest(VerifiedBadgeRequest request) async {
-    await _firestore.collection('verified_badge_requests').doc(request.id).set(request.toJson(), SetOptions(merge: true));
+    await _firestore
+        .collection('verified_badge_requests')
+        .doc(request.id)
+        .set(request.toJson(), SetOptions(merge: true));
   }
 
   Future<void> deleteVerifiedBadgeRequest(String id) async {
@@ -280,12 +294,15 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
     );
   }
 
-  Future<VerifiedBadgeRequest?> getVerifiedBadgeRequestByUserId(String userId) async {
+  Future<VerifiedBadgeRequest?> getVerifiedBadgeRequestByUserId(
+      String userId) async {
     if (userId.trim().isEmpty) {
       return null;
     }
-    final DocumentSnapshot<Map<String, dynamic>> snapshot =
-        await _firestore.collection('verified_badge_requests').doc(userId).get();
+    final DocumentSnapshot<Map<String, dynamic>> snapshot = await _firestore
+        .collection('verified_badge_requests')
+        .doc(userId)
+        .get();
     final Map<String, dynamic>? data = snapshot.data();
     if (data == null) {
       return null;
@@ -301,7 +318,9 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
     final VerifiedBadgeRequest request = VerifiedBadgeRequest(
       id: profile.uid,
       userId: profile.uid,
-      userName: profile.fullName.isNotEmpty ? profile.fullName : profile.email.split('@').first,
+      userName: profile.fullName.isNotEmpty
+          ? profile.fullName
+          : profile.email.split('@').first,
       email: profile.email,
       phoneNumber: profile.phoneNumber,
       ward: profile.ward,
@@ -332,7 +351,9 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
   }) async {
     final DateTime now = DateTime.now();
     final VerifiedBadgeRequest updated = request.copyWith(
-      status: approved ? VerifiedBadgeRequestStatus.approved : VerifiedBadgeRequestStatus.declined,
+      status: approved
+          ? VerifiedBadgeRequestStatus.approved
+          : VerifiedBadgeRequestStatus.declined,
       updatedAt: now,
       reviewedBy: reviewerName,
       reviewedAt: now,
@@ -371,7 +392,8 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
   /// Start a phone-number verification flow and return the verification ID.
   Future<String> signInWithPhoneNumber(String phoneNumber) async {
     if (kIsWeb) {
-      final ConfirmationResult confirmationResult = await _auth.signInWithPhoneNumber(phoneNumber);
+      final ConfirmationResult confirmationResult =
+          await _auth.signInWithPhoneNumber(phoneNumber);
       _webPhoneConfirmationResult = confirmationResult;
       return 'web-phone-confirmation';
     }
@@ -405,17 +427,21 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
   }
 
   /// Verify OTP
-  Future<UserCredential> verifyOTP(String verificationId, String smsCode) async {
+  Future<UserCredential> verifyOTP(
+      String verificationId, String smsCode) async {
     if (kIsWeb) {
-      final ConfirmationResult? confirmationResult = _webPhoneConfirmationResult;
+      final ConfirmationResult? confirmationResult =
+          _webPhoneConfirmationResult;
       if (confirmationResult == null) {
         throw FirebaseAuthException(
           code: 'session-expired',
-          message: 'Phone verification session has expired. Please request a new code.',
+          message:
+              'Phone verification session has expired. Please request a new code.',
         );
       }
 
-      final UserCredential userCredential = await confirmationResult.confirm(smsCode);
+      final UserCredential userCredential =
+          await confirmationResult.confirm(smsCode);
       _webPhoneConfirmationResult = null;
       await _createDefaultUserProfile(
         uid: userCredential.user?.uid,
@@ -430,7 +456,8 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
       verificationId: verificationId,
       smsCode: smsCode,
     );
-    final UserCredential userCredential = await _auth.signInWithCredential(credential);
+    final UserCredential userCredential =
+        await _auth.signInWithCredential(credential);
     await _createDefaultUserProfile(
       uid: userCredential.user?.uid,
       email: userCredential.user?.email ?? '',
@@ -448,7 +475,8 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
 
   /// Sync data to Firestore
   @override
-  Future<void> syncToFirestore(String collection, Map<String, dynamic> data) async {
+  Future<void> syncToFirestore(
+      String collection, Map<String, dynamic> data) async {
     final userId = currentUser?.uid;
     if (userId == null) throw Exception('User not authenticated');
     final String? documentId = data['id'] as String?;
@@ -464,7 +492,10 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
         .set(data, SetOptions(merge: true));
 
     try {
-      await _firestore.collection(collection).doc(documentId).set(data, SetOptions(merge: true));
+      await _firestore
+          .collection(collection)
+          .doc(documentId)
+          .set(data, SetOptions(merge: true));
     } catch (_) {
       // Ignore shared write failures so the user-scoped copy still persists.
     }
@@ -484,15 +515,21 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
           .collection('users')
           .doc(userId)
           .collection(collection)
-          .get();
-      userScoped.addAll(userSnapshot.docs.map((doc) => doc.data()).toList(growable: false));
+          .get()
+          .timeout(const Duration(seconds: 8));
+      userScoped.addAll(
+          userSnapshot.docs.map((doc) => doc.data()).toList(growable: false));
     } catch (_) {
       // Ignore user-scoped read failures and continue to fall back to shared records.
     }
 
     try {
-      final globalSnapshot = await _firestore.collection(collection).get();
-      globalScoped.addAll(globalSnapshot.docs.map((doc) => doc.data()).toList(growable: false));
+      final globalSnapshot = await _firestore
+          .collection(collection)
+          .get()
+          .timeout(const Duration(seconds: 8));
+      globalScoped.addAll(
+          globalSnapshot.docs.map((doc) => doc.data()).toList(growable: false));
     } catch (_) {
       // Ignore global read failures if the collection is unavailable.
     }
@@ -500,7 +537,8 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
     return mergeFirestoreRecords(userScoped, globalScoped);
   }
 
-  Future<Map<String, dynamic>?> getDocumentFromFirestore(String collection, String id) async {
+  Future<Map<String, dynamic>?> getDocumentFromFirestore(
+      String collection, String id) async {
     final userId = currentUser?.uid;
     if (userId == null) throw Exception('User not authenticated');
 
@@ -515,7 +553,8 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
       return userSnapshot.data();
     }
 
-    final globalSnapshot = await _firestore.collection(collection).doc(id).get();
+    final globalSnapshot =
+        await _firestore.collection(collection).doc(id).get();
     return globalSnapshot.data();
   }
 
@@ -539,12 +578,16 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
     }
   }
 
-  Future<void> syncGlobalToFirestore(String collection, Map<String, dynamic> data) async {
+  Future<void> syncGlobalToFirestore(
+      String collection, Map<String, dynamic> data) async {
     final String? documentId = data['id'] as String?;
     if (documentId == null || documentId.trim().isEmpty) {
       throw Exception('Cannot sync $collection record without a valid id');
     }
-    await _firestore.collection(collection).doc(documentId).set(data, SetOptions(merge: true));
+    await _firestore
+        .collection(collection)
+        .doc(documentId)
+        .set(data, SetOptions(merge: true));
   }
 
   Future<void> sendBroadcastNotification({
@@ -584,13 +627,19 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
     await deleteGlobalFromFirestore('app_admins', id);
   }
 
-  Future<List<Map<String, dynamic>>> getGlobalFromFirestore(String collection) async {
-    final QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore.collection(collection).get();
-    return snapshot.docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) => doc.data()).toList(growable: false);
+  Future<List<Map<String, dynamic>>> getGlobalFromFirestore(
+      String collection) async {
+    final QuerySnapshot<Map<String, dynamic>> snapshot =
+        await _firestore.collection(collection).get();
+    return snapshot.docs
+        .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) => doc.data())
+        .toList(growable: false);
   }
 
-  Future<Map<String, dynamic>?> getGlobalDocumentFromFirestore(String collection, String id) async {
-    final DocumentSnapshot<Map<String, dynamic>> snapshot = await _firestore.collection(collection).doc(id).get();
+  Future<Map<String, dynamic>?> getGlobalDocumentFromFirestore(
+      String collection, String id) async {
+    final DocumentSnapshot<Map<String, dynamic>> snapshot =
+        await _firestore.collection(collection).doc(id).get();
     return snapshot.data();
   }
 
@@ -630,7 +679,8 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
     required String newUid,
     String? fullName,
   }) async {
-    final Map<String, dynamic>? invite = await getGlobalDocumentFromFirestore('invites', inviteId);
+    final Map<String, dynamic>? invite =
+        await getGlobalDocumentFromFirestore('invites', inviteId);
     if (invite == null) {
       throw Exception('Invite not found');
     }
@@ -641,13 +691,15 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
       throw Exception('Invalid invite: missing farm id');
     }
 
-    final Map<String, dynamic>? farmDoc = await getGlobalDocumentFromFirestore('farms', farmId);
+    final Map<String, dynamic>? farmDoc =
+        await getGlobalDocumentFromFirestore('farms', farmId);
     if (farmDoc == null) {
       throw Exception('Farm not found');
     }
 
     // Update workspaceMembers matching the invited email to use the new uid and activate.
-    final List<dynamic> membersRaw = farmDoc['workspaceMembers'] as List<dynamic>? ?? <dynamic>[];
+    final List<dynamic> membersRaw =
+        farmDoc['workspaceMembers'] as List<dynamic>? ?? <dynamic>[];
     final DateTime now = DateTime.now();
     bool updated = false;
     final List<Map<String, dynamic>> updatedMembers = <Map<String, dynamic>>[];
@@ -655,7 +707,9 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
       final Map<String, dynamic> m = Map<String, dynamic>.from(raw as Map);
       if ((m['email'] as String? ?? '').toLowerCase() == email.toLowerCase()) {
         m['id'] = newUid;
-        m['name'] = (fullName != null && fullName.trim().isNotEmpty) ? fullName.trim() : (m['name'] as String? ?? '');
+        m['name'] = (fullName != null && fullName.trim().isNotEmpty)
+            ? fullName.trim()
+            : (m['name'] as String? ?? '');
         m['isActive'] = true;
         m['updatedAt'] = now.toIso8601String();
         updated = true;
@@ -671,7 +725,8 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
         'email': email,
         'phone': '',
         'role': invite['role'] as String? ?? 'worker',
-        'allowedFarmIds': invite['allowedFarmIds'] as List<dynamic>? ?? <String>[farmId],
+        'allowedFarmIds':
+            invite['allowedFarmIds'] as List<dynamic>? ?? <String>[farmId],
         'financeAccess': 'none',
         'canManageTasks': false,
         'canManageSchedule': false,
@@ -719,7 +774,10 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
       fcmTokens: const <String>[],
     );
 
-    await _firestore.collection('users').doc(uid).set(profile.toJson(), SetOptions(merge: true));
+    await _firestore
+        .collection('users')
+        .doc(uid)
+        .set(profile.toJson(), SetOptions(merge: true));
   }
 
   String _googleSignInErrorMessage(Object error) {

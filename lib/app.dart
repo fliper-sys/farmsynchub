@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -12,11 +13,15 @@ import 'domain/models/farm.dart';
 import 'domain/models/farm_activity.dart';
 import 'domain/models/livestock.dart';
 import 'domain/models/notification.dart' as domain;
+import 'domain/models/user_profile.dart';
 import 'data/remote/firebase_service.dart';
+import 'core/data/fun_facts.dart';
 import 'core/services/farm_notification_service.dart';
 import 'core/services/firebase_messaging_service.dart';
+import 'core/services/fun_fact_popup_preferences.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/common/layouts/main_scaffold.dart';
+import 'presentation/common/widgets/fun_fact_popup.dart';
 import 'presentation/screens/ai_advisor/ai_advisor_screen.dart';
 import 'presentation/screens/auth/forgot_password_screen.dart';
 import 'presentation/screens/auth/login_screen.dart';
@@ -39,6 +44,7 @@ import 'presentation/screens/admin/admin_user_detail_screen.dart';
 import 'presentation/screens/admin/admin_users_screen.dart';
 import 'presentation/screens/dashboard/dashboard_screen.dart';
 import 'presentation/screens/farms/farms_screen.dart';
+import 'presentation/screens/farms/farm_tasks_screen.dart';
 import 'presentation/screens/crops/crops_screen.dart';
 import 'presentation/screens/learn/learn_screen.dart';
 import 'presentation/screens/livestock/livestock_screen.dart';
@@ -64,6 +70,7 @@ import 'providers/farm_provider.dart';
 import 'providers/livestock_provider.dart';
 import 'providers/notification_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/user_profile_provider.dart';
 
 /// The root widget of the Farmsync application.
 class FarmsyncApp extends ConsumerStatefulWidget {
@@ -86,9 +93,12 @@ class _FarmsyncAppState extends ConsumerState<FarmsyncApp> {
   Future<void> _initializeMessaging() async {
     try {
       await ref.read(firebaseMessagingServiceProvider).initialize();
-      _messageSubscription = FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-      _appOpenSubscription = FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpen);
-      final RemoteMessage? initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+      _messageSubscription =
+          FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+      _appOpenSubscription =
+          FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpen);
+      final RemoteMessage? initialMessage =
+          await FirebaseMessaging.instance.getInitialMessage();
       if (initialMessage != null) {
         _handleMessageOpen(initialMessage);
       }
@@ -98,25 +108,33 @@ class _FarmsyncAppState extends ConsumerState<FarmsyncApp> {
   }
 
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
-    final String title = message.notification?.title ?? message.data['title'] as String? ?? 'FarmSync update';
-    final String body = message.notification?.body ?? message.data['body'] as String? ?? message.data['message'] as String? ?? '';
-    final String? actionUrl = message.data['actionUrl'] as String? ?? message.data['click_action'] as String?;
+    final String title = message.notification?.title ??
+        message.data['title'] as String? ??
+        'FarmSync update';
+    final String body = message.notification?.body ??
+        message.data['body'] as String? ??
+        message.data['message'] as String? ??
+        '';
+    final String? actionUrl = message.data['actionUrl'] as String? ??
+        message.data['click_action'] as String?;
 
     ref.read(notificationsProvider.notifier).addNotification(
-          title: title,
-          message: body,
-          actionUrl: actionUrl,
-          type: domain.NotificationType.info,
-          metadata: <String, dynamic>{
-            'source': 'fcm',
-            if (message.data.isNotEmpty) 'data': message.data,
-          },
-        );
+      title: title,
+      message: body,
+      actionUrl: actionUrl,
+      type: domain.NotificationType.info,
+      metadata: <String, dynamic>{
+        'source': 'fcm',
+        if (message.data.isNotEmpty) 'data': message.data,
+      },
+    );
 
-    final bool notificationsEnabled = ref.read(appSettingsProvider).notificationsEnabled;
+    final bool notificationsEnabled =
+        ref.read(appSettingsProvider).notificationsEnabled;
     if (notificationsEnabled) {
       await FarmNotificationService.instance.showNow(
-        id: message.messageId?.hashCode.abs() ?? DateTime.now().millisecondsSinceEpoch,
+        id: message.messageId?.hashCode.abs() ??
+            DateTime.now().millisecondsSinceEpoch,
         title: title,
         body: body,
         payload: actionUrl,
@@ -125,7 +143,8 @@ class _FarmsyncAppState extends ConsumerState<FarmsyncApp> {
   }
 
   void _handleMessageOpen(RemoteMessage message) {
-    final String? actionUrl = message.data['actionUrl'] as String? ?? message.data['click_action'] as String?;
+    final String? actionUrl = message.data['actionUrl'] as String? ??
+        message.data['click_action'] as String?;
     if (actionUrl != null && mounted) {
       context.go(actionUrl);
     }
@@ -177,7 +196,8 @@ class StartupResumePrompt extends ConsumerStatefulWidget {
   final Widget child;
 
   @override
-  ConsumerState<StartupResumePrompt> createState() => _StartupResumePromptState();
+  ConsumerState<StartupResumePrompt> createState() =>
+      _StartupResumePromptState();
 }
 
 class _StartupResumePromptState extends ConsumerState<StartupResumePrompt> {
@@ -185,10 +205,12 @@ class _StartupResumePromptState extends ConsumerState<StartupResumePrompt> {
 
   @override
   Widget build(BuildContext context) {
-    final List<domain.Notification> notifications = ref.watch(notificationsProvider);
+    final List<domain.Notification> notifications =
+        ref.watch(notificationsProvider);
     final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
     final List<Crop> crops = ref.watch(cropsProvider).valueOrNull ?? <Crop>[];
-    final List<Livestock> livestock = ref.watch(livestockProvider).valueOrNull ?? <Livestock>[];
+    final List<Livestock> livestock =
+        ref.watch(livestockProvider).valueOrNull ?? <Livestock>[];
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _maybeShowPrompt(
@@ -212,9 +234,11 @@ class _StartupResumePromptState extends ConsumerState<StartupResumePrompt> {
       return;
     }
     final User? user = FirebaseService().currentUser;
-    if (user == null || (user.email?.isNotEmpty == true && !user.emailVerified)) {
+    if (user == null ||
+        (user.email?.isNotEmpty == true && !user.emailVerified)) {
       return;
     }
+    _shownThisLaunch = true;
 
     final _ResumeSummary summary = _buildResumeSummary(
       notifications: notifications,
@@ -222,20 +246,68 @@ class _StartupResumePromptState extends ConsumerState<StartupResumePrompt> {
       crops: crops,
       livestock: livestock,
     );
-    if (!summary.hasContent) {
+    if (summary.hasContent) {
+      final BuildContext? navigatorContext = _rootNavigatorKey.currentContext;
+      if (navigatorContext == null) {
+        return;
+      }
+      final String? route = await showDialog<String>(
+        context: navigatorContext,
+        barrierDismissible: true,
+        builder: (BuildContext dialogContext) =>
+            _ResumeDialog(summary: summary),
+      );
+      if (!mounted) {
+        return;
+      }
+      if (route != null && route.isNotEmpty) {
+        context.go(route);
+      }
+    }
+
+    await _maybeShowFunFactPopup(user: user, farms: farms);
+  }
+
+  Future<void> _maybeShowFunFactPopup({
+    required User user,
+    required List<Farm> farms,
+  }) async {
+    if (!mounted) {
+      return;
+    }
+    final UserProfile? profile = ref.read(userProfileProvider).valueOrNull;
+    if (profile != null && !profile.dailyUpdatesEnabled) {
+      return;
+    }
+    final bool shouldShow =
+        await FunFactPopupPreferences.shouldShowToday(user.uid);
+    if (!shouldShow || !mounted) {
       return;
     }
 
-    _shownThisLaunch = true;
-    final String? route = await showDialog<String>(
-      context: context,
-      barrierDismissible: true,
-      builder: (BuildContext dialogContext) => _ResumeDialog(summary: summary),
-    );
-    if (!mounted || route == null || route.isEmpty) {
+    final bool hasCrops = farms.any((Farm farm) => farm.supportsCrops);
+    final bool hasLivestock = farms.any((Farm farm) => farm.supportsLivestock);
+    final FunFactCategory category = hasCrops && hasLivestock
+        ? (math.Random().nextBool()
+            ? FunFactCategory.crop
+            : FunFactCategory.livestock)
+        : hasCrops
+            ? FunFactCategory.crop
+            : hasLivestock
+                ? FunFactCategory.livestock
+                : FunFactCategory.general;
+    final FunFact fact = pickRandomFunFact(category);
+
+    final BuildContext? navigatorContext = _rootNavigatorKey.currentContext;
+    if (navigatorContext == null) {
       return;
     }
-    context.go(route);
+    await showDialog<void>(
+      context: navigatorContext,
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) => FunFactPopup(fact: fact),
+    );
+    await FunFactPopupPreferences.markShownToday(user.uid);
   }
 }
 
@@ -252,7 +324,10 @@ class _ResumeSummary {
   final List<_ResumeItem> openTodos;
   final String primaryRoute;
 
-  bool get hasContent => latestAction != null || upcomingSchedules.isNotEmpty || openTodos.isNotEmpty;
+  bool get hasContent =>
+      latestAction != null ||
+      upcomingSchedules.isNotEmpty ||
+      openTodos.isNotEmpty;
 }
 
 class _ResumeItem {
@@ -278,21 +353,26 @@ _ResumeSummary _buildResumeSummary({
   required List<Livestock> livestock,
 }) {
   final DateTime now = DateTime.now();
-  final domain.Notification? latestNotification = notifications.isEmpty ? null : notifications.first;
+  final domain.Notification? latestNotification =
+      notifications.isEmpty ? null : notifications.first;
   final _ResumeItem? latestAction = latestNotification == null
       ? null
       : _ResumeItem(
           title: latestNotification.title,
           subtitle: latestNotification.message,
           icon: Icons.notifications_active_rounded,
-          route: latestNotification.actionUrl?.isNotEmpty == true ? latestNotification.actionUrl! : '/notifications',
+          route: latestNotification.actionUrl?.isNotEmpty == true
+              ? latestNotification.actionUrl!
+              : '/notifications',
           date: latestNotification.timestamp,
         );
 
   final List<_ResumeItem> schedules = farms
       .expand(
         (Farm farm) => farm.workspaceTasks
-            .where((FarmWorkspaceTask task) => !task.isCompleted && task.dueAt.isAfter(now.subtract(const Duration(hours: 2))))
+            .where((FarmWorkspaceTask task) =>
+                !task.isCompleted &&
+                task.dueAt.isAfter(now.subtract(const Duration(hours: 2))))
             .map(
               (FarmWorkspaceTask task) => _ResumeItem(
                 title: task.title,
@@ -308,26 +388,29 @@ _ResumeSummary _buildResumeSummary({
 
   final List<_ResumeItem> todos = <_ResumeItem>[
     ...crops.expand(
-      (Crop crop) => crop.todoItems.where((FarmTodoItem item) => !item.isCompleted).map(
-            (FarmTodoItem item) => _ResumeItem(
-              title: item.title,
-              subtitle: '${crop.name} - ${_friendlyDueLabel(item.dueDate)}',
-              icon: Icons.spa_rounded,
-              route: '/crops',
-              date: item.dueDate,
-            ),
-          ),
+      (Crop crop) =>
+          crop.todoItems.where((FarmTodoItem item) => !item.isCompleted).map(
+                (FarmTodoItem item) => _ResumeItem(
+                  title: item.title,
+                  subtitle: '${crop.name} - ${_friendlyDueLabel(item.dueDate)}',
+                  icon: Icons.spa_rounded,
+                  route: '/crops',
+                  date: item.dueDate,
+                ),
+              ),
     ),
     ...livestock.expand(
-      (Livestock item) => item.todoItems.where((FarmTodoItem task) => !task.isCompleted).map(
-            (FarmTodoItem task) => _ResumeItem(
-              title: task.title,
-              subtitle: '${_speciesLabelForResume(item.species)} - ${_friendlyDueLabel(task.dueDate)}',
-              icon: Icons.pets_rounded,
-              route: '/livestock',
-              date: task.dueDate,
-            ),
-          ),
+      (Livestock item) =>
+          item.todoItems.where((FarmTodoItem task) => !task.isCompleted).map(
+                (FarmTodoItem task) => _ResumeItem(
+                  title: task.title,
+                  subtitle:
+                      '${_speciesLabelForResume(item.species)} - ${_friendlyDueLabel(task.dueDate)}',
+                  icon: Icons.pets_rounded,
+                  route: '/livestock',
+                  date: task.dueDate,
+                ),
+              ),
     ),
   ]..sort((_ResumeItem a, _ResumeItem b) => a.date.compareTo(b.date));
 
@@ -375,16 +458,20 @@ class _ResumeDialog extends StatelessWidget {
                       color: scheme.primaryContainer,
                       borderRadius: BorderRadius.circular(18),
                     ),
-                    child: Icon(Icons.playlist_add_check_circle_rounded, color: scheme.onPrimaryContainer),
+                    child: Icon(Icons.playlist_add_check_circle_rounded,
+                        color: scheme.onPrimaryContainer),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text('Welcome back', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                        Text('Welcome back',
+                            style: theme.textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w800)),
                         const SizedBox(height: 3),
-                        Text('Your latest farm work is ready to continue.', style: theme.textTheme.bodySmall),
+                        Text('Your latest farm work is ready to continue.',
+                            style: theme.textTheme.bodySmall),
                       ],
                     ),
                   ),
@@ -398,7 +485,8 @@ class _ResumeDialog extends StatelessWidget {
               ],
               if (summary.upcomingSchedules.isNotEmpty) ...<Widget>[
                 const _ResumeSectionTitle(label: 'Upcoming schedules'),
-                ...summary.upcomingSchedules.map((item) => _ResumeTile(item: item)),
+                ...summary.upcomingSchedules
+                    .map((item) => _ResumeTile(item: item)),
                 const SizedBox(height: 14),
               ],
               if (summary.openTodos.isNotEmpty) ...<Widget>[
@@ -418,7 +506,8 @@ class _ResumeDialog extends StatelessWidget {
                   Expanded(
                     flex: 2,
                     child: FilledButton.icon(
-                      onPressed: () => Navigator.of(context).pop(summary.primaryRoute),
+                      onPressed: () =>
+                          Navigator.of(context).pop(summary.primaryRoute),
                       icon: const Icon(Icons.arrow_forward_rounded),
                       label: const Text('Continue'),
                     ),
@@ -478,16 +567,23 @@ class _ResumeTile extends StatelessWidget {
               color: theme.colorScheme.primaryContainer,
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(item.icon, color: theme.colorScheme.onPrimaryContainer, size: 20),
+            child: Icon(item.icon,
+                color: theme.colorScheme.onPrimaryContainer, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleSmall),
+                Text(item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall),
                 const SizedBox(height: 3),
-                Text(item.subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall),
+                Text(item.subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall),
               ],
             ),
           ),
@@ -502,7 +598,8 @@ String _friendlyDueLabel(DateTime date) {
   final DateTime today = DateTime(now.year, now.month, now.day);
   final DateTime dueDay = DateTime(date.year, date.month, date.day);
   final int dayDelta = dueDay.difference(today).inDays;
-  final String time = '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  final String time =
+      '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   if (dayDelta < 0) {
     return 'Overdue';
   }
@@ -540,8 +637,13 @@ Locale _materialLocaleFor(AppLanguage language) {
   }
 }
 
+/// A navigator key used for showing dialogs from outside the GoRouter widget tree
+/// (e.g., from the MaterialApp.router builder which sits outside the router's Navigator).
+final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
+
 /// GoRouter configuration for the app navigation.
 final GoRouter _router = GoRouter(
+  navigatorKey: _rootNavigatorKey,
   initialLocation: '/splash',
   routes: [
     GoRoute(
@@ -714,19 +816,19 @@ final GoRouter _router = GoRouter(
           builder: (context, state) => const LivestockScreen(),
           redirect: _authRedirect,
         ),
-    GoRoute(
-      path: '/finance',
-      builder: (context, state) => const FinanceScreen(),
-      redirect: _authRedirect,
-    ),
-    GoRoute(
-      path: '/market-trends',
-      builder: (context, state) => const MarketTrendsScreen(),
-      redirect: _authRedirect,
-    ),
-    GoRoute(
-      path: '/news',
-      builder: (context, state) => const NewsScreen(),
+        GoRoute(
+          path: '/finance',
+          builder: (context, state) => const FinanceScreen(),
+          redirect: _authRedirect,
+        ),
+        GoRoute(
+          path: '/market-trends',
+          builder: (context, state) => const MarketTrendsScreen(),
+          redirect: _authRedirect,
+        ),
+        GoRoute(
+          path: '/news',
+          builder: (context, state) => const NewsScreen(),
           redirect: _authRedirect,
         ),
         GoRoute(
@@ -747,6 +849,17 @@ final GoRouter _router = GoRouter(
       redirect: _authRedirect,
     ),
     GoRoute(
+      path: '/learn/lesson/:id',
+      builder: (context, state) {
+        final LearningLesson? lesson =
+            findLearningLessonById(state.pathParameters['id'] ?? '');
+        return lesson == null
+            ? const LearnScreen()
+            : LearnLessonDetailScreen(lesson: lesson);
+      },
+      redirect: _authRedirect,
+    ),
+    GoRoute(
       path: '/procurement',
       builder: (context, state) => const ProcurementScreen(),
       redirect: _authRedirect,
@@ -754,6 +867,11 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/expenses',
       builder: (context, state) => const ExpenseTrackingScreen(),
+      redirect: _authRedirect,
+    ),
+    GoRoute(
+      path: '/farm-tasks',
+      builder: (context, state) => const FarmTasksScreen(),
       redirect: _authRedirect,
     ),
     GoRoute(
@@ -769,7 +887,8 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/sales/receipt/:receiptNumber',
       builder: (context, state) {
-        final String receiptNumber = state.pathParameters['receiptNumber'] ?? '';
+        final String receiptNumber =
+            state.pathParameters['receiptNumber'] ?? '';
         return SalesReceiptScreen(receiptNumber: receiptNumber);
       },
       redirect: _authRedirect,
