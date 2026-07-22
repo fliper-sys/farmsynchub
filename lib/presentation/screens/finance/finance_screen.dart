@@ -12,14 +12,12 @@ import '../../../core/services/finance_report_service.dart';
 import '../../../core/services/report_file_saver.dart';
 import '../../../core/services/report_file_saver_base.dart';
 import '../../../core/services/report_share_service.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/date_utils.dart' as app_date;
 import '../../../core/utils/validators.dart';
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/transaction.dart';
 import '../../../providers/auth_provider.dart';
-import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/finance_provider.dart';
 import '../../../providers/operations_hub_provider.dart';
@@ -30,7 +28,6 @@ import '../sales/sales_desk_screen.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
-import '../../common/widgets/farm_scene_artwork.dart';
 
 class FinanceScreen extends ConsumerStatefulWidget {
   const FinanceScreen({super.key});
@@ -50,17 +47,18 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final AppLanguage language = ref.watch(appLanguageProvider);
     final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
     final List<Transaction> transactions =
         ref.watch(transactionsProvider).valueOrNull ?? <Transaction>[];
+    final List<Transaction> periodTransactions =
+        _filterByPeriod(transactions, _selectedPeriodIndex);
     final FinanceSnapshot snapshot =
-        FinanceSnapshot.fromTransactions(transactions);
-    final List<Transaction> sales = transactions
+        FinanceSnapshot.fromTransactions(periodTransactions);
+    final List<Transaction> sales = periodTransactions
         .where(
             (Transaction item) => item.recordKind == TransactionRecordKind.sale)
         .toList(growable: false);
-    final List<Transaction> procurement = transactions
+    final List<Transaction> procurement = periodTransactions
         .where((Transaction item) =>
             item.recordKind == TransactionRecordKind.procurement)
         .toList(growable: false);
@@ -121,7 +119,13 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
               // ─── RECENT ACTIVITY FEED ──────────────────────────────────
               _RecentActivityCard(
                 activities: topRecentActivities,
-                onViewAll: () => context.go('/finance'),
+                onViewAll: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const FinanceWorkspaceScreen(),
+                  ),
+                ),
+                onTapTransaction: (Transaction transaction) =>
+                    _openReceiptDetail(context, transaction),
               ),
 
               const SizedBox(height: 20),
@@ -155,6 +159,17 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     );
   }
 
+  /// Filters transactions to the selected period (0 = week, 1 = month, 2 = year).
+  List<Transaction> _filterByPeriod(List<Transaction> transactions, int periodIndex) {
+    final DateTime now = DateTime.now();
+    final DateTime start = switch (periodIndex) {
+      0 => DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6)),
+      2 => DateTime(now.year, 1, 1),
+      _ => DateTime(now.year, now.month, 1),
+    };
+    return transactions.where((Transaction item) => !item.transactionDate.isBefore(start)).toList(growable: false);
+  }
+
   List<_ExpenseCategoryData> _buildExpenseCategories(
       Map<TransactionCategory, double> categoryTotals) {
     final List<MapEntry<TransactionCategory, double>> sorted =
@@ -169,63 +184,6 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
               color: _categoryColor(entry.key),
             ))
         .toList();
-  }
-
-  String _categoryLabel(TransactionCategory category) {
-    switch (category) {
-      case TransactionCategory.cropSale:
-        return 'Crop Sales';
-      case TransactionCategory.livestockSale:
-        return 'Livestock Sales';
-      case TransactionCategory.feed:
-        return 'Feed';
-      case TransactionCategory.fertiliser:
-        return 'Fertiliser';
-      case TransactionCategory.labour:
-        return 'Labour';
-      case TransactionCategory.veterinary:
-        return 'Veterinary';
-      case TransactionCategory.other:
-        return 'Other';
-    }
-  }
-
-  IconData _categoryIcon(TransactionCategory category) {
-    switch (category) {
-      case TransactionCategory.cropSale:
-        return Icons.spa_rounded;
-      case TransactionCategory.livestockSale:
-        return Icons.pets_rounded;
-      case TransactionCategory.feed:
-        return Icons.grass_rounded;
-      case TransactionCategory.fertiliser:
-        return Icons.science_rounded;
-      case TransactionCategory.labour:
-        return Icons.engineering_rounded;
-      case TransactionCategory.veterinary:
-        return Icons.medical_services_rounded;
-      case TransactionCategory.other:
-        return Icons.more_horiz_rounded;
-    }
-  }
-
-  Color _categoryColor(TransactionCategory category) {
-    switch (category) {
-      case TransactionCategory.cropSale:
-        return const Color(0xFF32D583);
-      case TransactionCategory.livestockSale:
-        return const Color(0xFF14B8A6);
-      case TransactionCategory.feed:
-        return const Color(0xFFFBBF24);
-      case TransactionCategory.fertiliser:
-        return const Color(0xFF8B5CF6);
-      case TransactionCategory.labour:
-        return const Color(0xFFF97316);
-      case TransactionCategory.veterinary:
-        return const Color(0xFFEF4444);
-      case TransactionCategory.other:
-        return const Color(0xFF8A93A2);
-    }
   }
 
   Future<void> _exportReport(
@@ -430,6 +388,63 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
   }
 }
 
+String _categoryLabel(TransactionCategory category) {
+  switch (category) {
+    case TransactionCategory.cropSale:
+      return 'Crop Sales';
+    case TransactionCategory.livestockSale:
+      return 'Livestock Sales';
+    case TransactionCategory.feed:
+      return 'Feed';
+    case TransactionCategory.fertiliser:
+      return 'Fertiliser';
+    case TransactionCategory.labour:
+      return 'Labour';
+    case TransactionCategory.veterinary:
+      return 'Veterinary';
+    case TransactionCategory.other:
+      return 'Other';
+  }
+}
+
+IconData _categoryIcon(TransactionCategory category) {
+  switch (category) {
+    case TransactionCategory.cropSale:
+      return Icons.spa_rounded;
+    case TransactionCategory.livestockSale:
+      return Icons.pets_rounded;
+    case TransactionCategory.feed:
+      return Icons.grass_rounded;
+    case TransactionCategory.fertiliser:
+      return Icons.science_rounded;
+    case TransactionCategory.labour:
+      return Icons.engineering_rounded;
+    case TransactionCategory.veterinary:
+      return Icons.medical_services_rounded;
+    case TransactionCategory.other:
+      return Icons.more_horiz_rounded;
+  }
+}
+
+Color _categoryColor(TransactionCategory category) {
+  switch (category) {
+    case TransactionCategory.cropSale:
+      return const Color(0xFF32D583);
+    case TransactionCategory.livestockSale:
+      return const Color(0xFF14B8A6);
+    case TransactionCategory.feed:
+      return const Color(0xFFFBBF24);
+    case TransactionCategory.fertiliser:
+      return const Color(0xFF8B5CF6);
+    case TransactionCategory.labour:
+      return const Color(0xFFF97316);
+    case TransactionCategory.veterinary:
+      return const Color(0xFFEF4444);
+    case TransactionCategory.other:
+      return const Color(0xFF8A93A2);
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // HERO HEADER
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -568,12 +583,17 @@ class _PremiumHeroHeader extends StatelessWidget {
                 const SizedBox(height: 6),
 
                 // Balance amount
-                Text(
-                  CurrencyUtils.formatCurrency(balance),
-                  style: theme.textTheme.displaySmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    CurrencyUtils.formatCurrency(balance),
+                    maxLines: 1,
+                    style: theme.textTheme.displaySmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                    ),
                   ),
                 ),
 
@@ -619,14 +639,17 @@ class _PremiumHeroHeader extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 2),
-                                  Text(
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
                                     CurrencyUtils.formatCompactCurrency(income),
                                     maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
                                     style: theme.textTheme.titleSmall?.copyWith(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w700,
                                     ),
+                                  ),
                                   ),
                                 ],
                               ),
@@ -694,14 +717,17 @@ class _PremiumHeroHeader extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 2),
-                                  Text(
-                                    CurrencyUtils.formatCompactCurrency(
-                                        expenses),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.titleSmall?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w700,
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      CurrencyUtils.formatCompactCurrency(
+                                          expenses),
+                                      maxLines: 1,
+                                      style: theme.textTheme.titleSmall?.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -1195,10 +1221,12 @@ class _RecentActivityCard extends StatelessWidget {
   const _RecentActivityCard({
     required this.activities,
     required this.onViewAll,
+    required this.onTapTransaction,
   });
 
   final List<Transaction> activities;
   final VoidCallback onViewAll;
+  final ValueChanged<Transaction> onTapTransaction;
 
   @override
   Widget build(BuildContext context) {
@@ -1286,6 +1314,7 @@ class _RecentActivityCard extends StatelessWidget {
                     child: _ActivityRow(
                       transaction: transaction,
                       isDark: isDark,
+                      onTap: () => onTapTransaction(transaction),
                     ),
                   ),
                 ),
@@ -1301,10 +1330,12 @@ class _ActivityRow extends StatelessWidget {
   const _ActivityRow({
     required this.transaction,
     required this.isDark,
+    required this.onTap,
   });
 
   final Transaction transaction;
   final bool isDark;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1315,7 +1346,10 @@ class _ActivityRow extends StatelessWidget {
     final IconData icon =
         isIncome ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded;
 
-    return Row(
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Row(
       children: <Widget>[
         Container(
           width: 44,
@@ -1363,7 +1397,14 @@ class _ActivityRow extends StatelessWidget {
             color: isIncome ? const Color(0xFF32D583) : const Color(0xFFF97316),
           ),
         ),
+        const SizedBox(width: 4),
+        Icon(
+          Icons.chevron_right_rounded,
+          size: 18,
+          color: theme.colorScheme.onSurfaceVariant.withOpacity(0.6),
+        ),
       ],
+      ),
     );
   }
 }
@@ -2151,6 +2192,22 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
     super.dispose();
   }
 
+  List<TransactionCategory> _categoryOptionsFor(TransactionRecordKind kind) {
+    if (kind == TransactionRecordKind.sale) {
+      return const <TransactionCategory>[
+        TransactionCategory.cropSale,
+        TransactionCategory.livestockSale,
+      ];
+    }
+    return const <TransactionCategory>[
+      TransactionCategory.feed,
+      TransactionCategory.fertiliser,
+      TransactionCategory.labour,
+      TransactionCategory.veterinary,
+      TransactionCategory.other,
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<BusinessPartner> partners =
@@ -2218,11 +2275,21 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
                     if (value != null) {
                       setState(() {
                         _recordKind = value;
-                        _category = value == TransactionRecordKind.procurement
-                            ? TransactionCategory.other
-                            : TransactionCategory.cropSale;
+                        _category = _categoryOptionsFor(value).first;
                         _partnerId = null;
                       });
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                _DropdownField<TransactionCategory>(
+                  label: 'Category',
+                  value: _category,
+                  items: _categoryOptionsFor(_recordKind),
+                  itemLabel: _categoryLabel,
+                  onChanged: (TransactionCategory? value) {
+                    if (value != null) {
+                      setState(() => _category = value);
                     }
                   },
                 ),
@@ -2357,11 +2424,7 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
       _TransactionDraft(
         farmId: _farmId,
         type: type,
-        category: _recordKind == TransactionRecordKind.procurement
-            ? TransactionCategory.other
-            : _productController.text.trim().toLowerCase().contains('livestock')
-                ? TransactionCategory.livestockSale
-                : TransactionCategory.cropSale,
+        category: _category,
         amount: double.parse(_amountController.text.trim()),
         description: _descriptionController.text.trim().isEmpty
             ? _productController.text.trim()
