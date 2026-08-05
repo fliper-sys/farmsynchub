@@ -21,6 +21,7 @@ import '../../../domain/models/livestock.dart';
 import '../../../domain/models/notification.dart' as app_notification;
 import '../../../domain/models/transaction.dart';
 import '../../../domain/models/user_profile.dart';
+import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/crop_provider.dart';
 import '../../../providers/farm_provider.dart';
@@ -87,6 +88,65 @@ const Map<String, String> _sectionTitles = <String, String>{
   'linkedLivestock': 'Linked livestock',
 };
 
+String _localizedSectionTitle(AppLanguage language, String id) {
+  switch (id) {
+    case 'operationProfile':
+      return language.tr(
+          en: 'Operation profile',
+          ha: 'Bayanin ayyuka',
+          fr: 'Profil d\'exploitation');
+    case 'workspaceBoard':
+      return language.tr(
+          en: 'Workspace board', ha: 'Allon aiki', fr: 'Tableau de travail');
+    case 'greenhousePlanner':
+      return language.tr(
+          en: 'Greenhouse planner',
+          ha: 'Tsarin gidan kore',
+          fr: 'Planificateur de serre');
+    case 'workspaceMembers':
+      return language.tr(
+          en: 'Workspace members',
+          ha: 'Mambobin aiki',
+          fr: 'Membres de l\'espace');
+    case 'taskCalendar':
+      return language.tr(
+          en: 'Task calendar',
+          ha: 'Kalandar ayyuka',
+          fr: 'Calendrier des taches');
+    case 'activityLog':
+      return language.tr(
+          en: 'Activity log', ha: 'Tarihin ayyuka', fr: 'Journal d\'activite');
+    case 'farmNotes':
+      return language.tr(
+          en: 'Farm notes', ha: 'Bayanan gona', fr: 'Notes de la ferme');
+    case 'documentStorage':
+      return language.tr(
+          en: 'Document storage',
+          ha: 'Ajiyar takardu',
+          fr: 'Stockage de documents');
+    case 'linkedPerformance':
+      return language.tr(
+          en: 'Linked performance',
+          ha: 'Ayyukan da suka hade',
+          fr: 'Performance liee');
+    case 'cycleTracking':
+      return language.tr(
+          en: 'Cycle tracking',
+          ha: 'Bin diddigin zagaye',
+          fr: 'Suivi du cycle');
+    case 'linkedCrops':
+      return language.tr(
+          en: 'Linked crops',
+          ha: 'Amfanin gona da aka hada',
+          fr: 'Cultures liees');
+    case 'linkedLivestock':
+      return language.tr(
+          en: 'Linked livestock', ha: 'Dabbobi da aka hada', fr: 'Elevage lie');
+    default:
+      return _sectionTitles[id] ?? id;
+  }
+}
+
 class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
   late final ScrollController _scrollController = ScrollController();
   final Map<String, GlobalKey> _sectionKeys = <String, GlobalKey>{
@@ -112,7 +172,8 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
     super.dispose();
   }
 
-  void _openSectionMenu(BuildContext context, List<String> availableIds) {
+  void _openSectionMenu(
+      BuildContext context, AppLanguage language, List<String> availableIds) {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -129,8 +190,14 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text('Jump to section',
-                    style: Theme.of(sheetContext).textTheme.headlineSmall),
+                Text(
+                  language.tr(
+                    en: 'Jump to section',
+                    ha: 'Tsallaka zuwa sashe',
+                    fr: 'Aller a la section',
+                  ),
+                  style: Theme.of(sheetContext).textTheme.headlineSmall,
+                ),
                 const SizedBox(height: 8),
                 Flexible(
                   child: ListView(
@@ -138,7 +205,7 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
                     children: availableIds
                         .map(
                           (String id) => ListTile(
-                            title: Text(_sectionTitles[id]!),
+                            title: Text(_localizedSectionTitle(language, id)),
                             onTap: () {
                               Navigator.of(sheetContext).pop();
                               _scrollToSection(id);
@@ -174,6 +241,7 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final String farmId = widget.farmId;
+    final AppLanguage language = ref.watch(appLanguageProvider);
     final currentUser = ref.watch(firebaseServiceProvider).currentUser;
     final UserProfile? profile = ref.watch(userProfileProvider).valueOrNull;
     final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
@@ -279,9 +347,14 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.list_alt_rounded),
-            tooltip: 'Jump to section',
+            tooltip: language.tr(
+              en: 'Jump to section',
+              ha: 'Tsallaka zuwa sashe',
+              fr: 'Aller a la section',
+            ),
             onPressed: () => _openSectionMenu(
               context,
+              language,
               greenhousePlan == null
                   ? _collapsibleSectionIds
                       .where((String id) => id != 'greenhousePlanner')
@@ -338,7 +411,12 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           ],
           _buildWeatherSummarySection(context, farm),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Operating focus'),
+          SoftSectionTitle(
+            title: language.tr(
+                en: 'Operating focus',
+                ha: 'Manufar aiki',
+                fr: 'Objectif operationnel'),
+          ),
           AppCard(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
             child: Padding(
@@ -403,14 +481,23 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
             ),
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Quick stats'),
+          SoftSectionTitle(
+            title: language.tr(
+                en: 'Quick stats',
+                ha: 'Takaitaccen bayani',
+                fr: 'Statistiques rapides'),
+          ),
           Row(
             children: <Widget>[
               Expanded(
                 child: _FarmMetricCard(
-                  title: 'Crops',
+                  title: language.tr(
+                      en: 'Crops', ha: 'Amfanin gona', fr: 'Cultures'),
                   value: '${crops.length}',
-                  note: 'Linked records',
+                  note: language.tr(
+                      en: 'Linked records',
+                      ha: 'Bayanan da suka hade',
+                      fr: 'Fiches liees'),
                   icon: Icons.spa_rounded,
                   tint: const Color(0xFFE5F5D8),
                 ),
@@ -418,9 +505,11 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: _FarmMetricCard(
-                  title: 'Animals',
+                  title:
+                      language.tr(en: 'Animals', ha: 'Dabbobi', fr: 'Animaux'),
                   value: '$animalCount',
-                  note: '${livestock.length} groups',
+                  note:
+                      '${livestock.length} ${language.tr(en: 'groups', ha: 'kungiyoyi', fr: 'groupes')}',
                   icon: Icons.pets_rounded,
                   tint: const Color(0xFFDFF1FF),
                 ),
@@ -428,9 +517,13 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: _FarmMetricCard(
-                  title: 'Balance',
+                  title:
+                      language.tr(en: 'Balance', ha: 'Ma\'auni', fr: 'Solde'),
                   value: CurrencyUtils.formatCompactCurrency(income - expenses),
-                  note: 'Income vs spend',
+                  note: language.tr(
+                      en: 'Income vs spend',
+                      ha: 'Kudin shiga da kashewa',
+                      fr: 'Revenus vs depenses'),
                   icon: Icons.account_balance_wallet_rounded,
                   tint: const Color(0xFFFFEBD0),
                 ),
@@ -438,14 +531,25 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
             ],
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Capacity use'),
+          SoftSectionTitle(
+            title: language.tr(
+                en: 'Capacity use',
+                ha: 'Amfani da karfin gona',
+                fr: 'Utilisation de la capacite'),
+          ),
           Row(
             children: <Widget>[
               Expanded(
                 child: _FarmMetricCard(
-                  title: 'Planted area',
+                  title: language.tr(
+                      en: 'Planted area',
+                      ha: 'Filin da aka shuka',
+                      fr: 'Superficie plantee'),
                   value: '${plantedAreaHa.toStringAsFixed(2)} ha',
-                  note: 'Of crop capacity',
+                  note: language.tr(
+                      en: 'Of crop capacity',
+                      ha: 'Na karfin amfanin gona',
+                      fr: 'De la capacite culturale'),
                   icon: Icons.grid_view_rounded,
                   tint: const Color(0xFFE5F5D8),
                   progress: cropUtilization,
@@ -454,11 +558,18 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: _FarmMetricCard(
-                  title: 'Stocking',
+                  title: language.tr(
+                      en: 'Stocking', ha: 'Adana dabbobi', fr: 'Cheptel'),
                   value: '$animalCount',
                   note: farm.livestockCapacity > 0
-                      ? 'Of animal capacity'
-                      : 'Capacity not set',
+                      ? language.tr(
+                          en: 'Of animal capacity',
+                          ha: 'Na karfin dabbobi',
+                          fr: 'De la capacite animale')
+                      : language.tr(
+                          en: 'Capacity not set',
+                          ha: 'Ba a saita karfi ba',
+                          fr: 'Capacite non definie'),
                   icon: Icons.speed_rounded,
                   tint: const Color(0xFFDFF1FF),
                   progress:
@@ -470,7 +581,7 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           const SizedBox(height: 18),
           _CollapsibleSection(
             sectionKey: _sectionKeys['operationProfile']!,
-            title: 'Operation profile',
+            title: _localizedSectionTitle(language, 'operationProfile'),
             expanded: _expanded['operationProfile']!,
             onToggle: (bool value) =>
                 setState(() => _expanded['operationProfile'] = value),
@@ -508,7 +619,7 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           const SizedBox(height: 18),
           _CollapsibleSection(
             sectionKey: _sectionKeys['workspaceBoard']!,
-            title: 'Workspace board',
+            title: _localizedSectionTitle(language, 'workspaceBoard'),
             expanded: _expanded['workspaceBoard']!,
             onToggle: (bool value) =>
                 setState(() => _expanded['workspaceBoard'] = value),
@@ -545,7 +656,7 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
             const SizedBox(height: 18),
             _CollapsibleSection(
               sectionKey: _sectionKeys['greenhousePlanner']!,
-              title: 'Greenhouse planner',
+              title: _localizedSectionTitle(language, 'greenhousePlanner'),
               expanded: _expanded['greenhousePlanner']!,
               onToggle: (bool value) =>
                   setState(() => _expanded['greenhousePlanner'] = value),
@@ -752,7 +863,7 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           const SizedBox(height: 18),
           _CollapsibleSection(
             sectionKey: _sectionKeys['workspaceMembers']!,
-            title: 'Workspace members',
+            title: _localizedSectionTitle(language, 'workspaceMembers'),
             expanded: _expanded['workspaceMembers']!,
             onToggle: (bool value) =>
                 setState(() => _expanded['workspaceMembers'] = value),
@@ -775,7 +886,7 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           const SizedBox(height: 18),
           _CollapsibleSection(
             sectionKey: _sectionKeys['taskCalendar']!,
-            title: 'Task calendar',
+            title: _localizedSectionTitle(language, 'taskCalendar'),
             expanded: _expanded['taskCalendar']!,
             onToggle: (bool value) =>
                 setState(() => _expanded['taskCalendar'] = value),
@@ -796,7 +907,7 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           const SizedBox(height: 18),
           _CollapsibleSection(
             sectionKey: _sectionKeys['activityLog']!,
-            title: 'Activity log',
+            title: _localizedSectionTitle(language, 'activityLog'),
             expanded: _expanded['activityLog']!,
             onToggle: (bool value) =>
                 setState(() => _expanded['activityLog'] = value),
@@ -819,7 +930,7 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           const SizedBox(height: 18),
           _CollapsibleSection(
             sectionKey: _sectionKeys['farmNotes']!,
-            title: 'Farm notes',
+            title: _localizedSectionTitle(language, 'farmNotes'),
             expanded: _expanded['farmNotes']!,
             onToggle: (bool value) =>
                 setState(() => _expanded['farmNotes'] = value),
@@ -855,7 +966,7 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           const SizedBox(height: 18),
           _CollapsibleSection(
             sectionKey: _sectionKeys['documentStorage']!,
-            title: 'Document storage',
+            title: _localizedSectionTitle(language, 'documentStorage'),
             expanded: _expanded['documentStorage']!,
             onToggle: (bool value) =>
                 setState(() => _expanded['documentStorage'] = value),
@@ -977,7 +1088,7 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           const SizedBox(height: 18),
           _CollapsibleSection(
             sectionKey: _sectionKeys['linkedPerformance']!,
-            title: 'Linked performance',
+            title: _localizedSectionTitle(language, 'linkedPerformance'),
             expanded: _expanded['linkedPerformance']!,
             onToggle: (bool value) =>
                 setState(() => _expanded['linkedPerformance'] = value),
@@ -1005,7 +1116,7 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           const SizedBox(height: 18),
           _CollapsibleSection(
             sectionKey: _sectionKeys['cycleTracking']!,
-            title: 'Cycle tracking',
+            title: _localizedSectionTitle(language, 'cycleTracking'),
             expanded: _expanded['cycleTracking']!,
             onToggle: (bool value) =>
                 setState(() => _expanded['cycleTracking'] = value),
@@ -1054,7 +1165,7 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           const SizedBox(height: 18),
           _CollapsibleSection(
             sectionKey: _sectionKeys['linkedCrops']!,
-            title: 'Linked crops',
+            title: _localizedSectionTitle(language, 'linkedCrops'),
             expanded: _expanded['linkedCrops']!,
             onToggle: (bool value) =>
                 setState(() => _expanded['linkedCrops'] = value),
@@ -1090,7 +1201,7 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           const SizedBox(height: 18),
           _CollapsibleSection(
             sectionKey: _sectionKeys['linkedLivestock']!,
-            title: 'Linked livestock',
+            title: _localizedSectionTitle(language, 'linkedLivestock'),
             expanded: _expanded['linkedLivestock']!,
             onToggle: (bool value) =>
                 setState(() => _expanded['linkedLivestock'] = value),
@@ -1123,7 +1234,12 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
                   ),
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Farm suggestions'),
+          SoftSectionTitle(
+            title: language.tr(
+                en: 'Farm suggestions',
+                ha: 'Shawarwarin gona',
+                fr: 'Suggestions pour la ferme'),
+          ),
           _SuggestionCard(
             icon: Icons.water_drop_rounded,
             title: farm.soilMoisturePercent < 40

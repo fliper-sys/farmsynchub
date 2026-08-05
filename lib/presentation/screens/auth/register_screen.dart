@@ -1,13 +1,18 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/validators.dart';
 import '../../../providers/auth_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_text_field.dart';
+import '../../common/widgets/google_signin_button.dart';
 import 'auth_shared.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
@@ -22,10 +27,34 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   String _selectedCountryCode = '+234'; // Nigeria
+  StreamSubscription<GoogleSignInAccount?>? _googleAccountSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    if (kIsWeb) {
+      // The GIS button doesn't go through signIn() — it pushes the signed-in
+      // account through this stream once the user completes the flow.
+      _googleAccountSubscription = ref
+          .read(firebaseServiceProvider)
+          .googleSignIn
+          .onCurrentUserChanged
+          .listen((GoogleSignInAccount? account) {
+        if (account == null || !mounted) {
+          return;
+        }
+        if (ref.read(authControllerProvider).isLoading) {
+          return;
+        }
+        ref.read(authControllerProvider.notifier).completeGoogleSignIn(account);
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -34,6 +63,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _googleAccountSubscription?.cancel();
     super.dispose();
   }
 
@@ -44,7 +74,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         data: (_) {
           if (previous is AsyncLoading && mounted) {
             final User? user = FirebaseAuth.instance.currentUser;
-            if (user != null && user.email?.isNotEmpty == true && !user.emailVerified) {
+            if (user != null &&
+                user.email?.isNotEmpty == true &&
+                !user.emailVerified) {
               context.go('/verify-email');
             } else {
               context.go('/post-auth');
@@ -62,9 +94,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     return AuthScaffold(
       title: 'Create account',
-      subtitle: 'Open your FarmSync Hub account and start organizing farm operations with a clean setup.',
+      subtitle:
+          'Open your FarmSync Hub account and start organizing farm operations with a clean setup.',
       footer: const AuthPageFooter(
-        text: 'By creating an account, you prepare your dashboard, farm records, and notifications for secure sync.',
+        text:
+            'By creating an account, you prepare your dashboard, farm records, and notifications for secure sync.',
       ),
       child: Column(
         children: <Widget>[
@@ -85,7 +119,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           Row(
             children: <Widget>[
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.surface,
                   border: Border.all(color: theme.colorScheme.outlineVariant),
@@ -126,8 +161,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             hint: 'Choose a strong password',
             obscureText: _obscurePassword,
             suffix: IconButton(
-              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-              icon: Icon(_obscurePassword ? Icons.visibility_off_rounded : Icons.visibility_rounded),
+              onPressed: () =>
+                  setState(() => _obscurePassword = !_obscurePassword),
+              icon: Icon(_obscurePassword
+                  ? Icons.visibility_off_rounded
+                  : Icons.visibility_rounded),
             ),
           ),
           const SizedBox(height: 14),
@@ -137,28 +175,37 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             hint: 'Repeat your password',
             obscureText: _obscureConfirmPassword,
             suffix: IconButton(
-              onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
-              icon: Icon(_obscureConfirmPassword ? Icons.visibility_off_rounded : Icons.visibility_rounded),
+              onPressed: () => setState(
+                  () => _obscureConfirmPassword = !_obscureConfirmPassword),
+              icon: Icon(_obscureConfirmPassword
+                  ? Icons.visibility_off_rounded
+                  : Icons.visibility_rounded),
             ),
           ),
           const SizedBox(height: 18),
           const AuthInfoBanner(
             icon: Icons.mail_outline_rounded,
-            message: 'After signup, we will send a verification email before full access is granted.',
+            message:
+                'After signup, we will send a verification email before full access is granted.',
             color: Color(0xFFE7F7DE),
           ),
           const SizedBox(height: 14),
-          AppButton.secondary(
-            onPressed: isLoading
-                ? null
-                : () async {
-                    await ref.read(authControllerProvider.notifier).signInWithGoogle();
-                  },
-            child: const _AuthActionLabel(
-              label: 'Use Google instead',
-              icon: _GoogleBadge(),
+          if (kIsWeb)
+            buildGoogleSignInButton()
+          else
+            AppButton.secondary(
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      await ref
+                          .read(authControllerProvider.notifier)
+                          .signInWithGoogle();
+                    },
+              child: const _AuthActionLabel(
+                label: 'Use Google instead',
+                icon: _GoogleBadge(),
+              ),
             ),
-          ),
           const SizedBox(height: 12),
           AppButton.secondary(
             onPressed: () => context.go('/phone-auth'),
@@ -194,7 +241,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final String? nameError = Validators.combine(
       <String? Function(String?)>[
         (String? value) => Validators.required(value, fieldName: 'Full name'),
-        (String? value) => Validators.minLength(value, 2, fieldName: 'Full name'),
+        (String? value) =>
+            Validators.minLength(value, 2, fieldName: 'Full name'),
       ],
       name,
     );
@@ -207,15 +255,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     );
     final String? phoneError = Validators.combine(
       <String? Function(String?)>[
-        (String? value) => Validators.required(value, fieldName: 'Phone number'),
-        (String? value) => Validators.minLength(value, 10, fieldName: 'Phone number'),
+        (String? value) =>
+            Validators.required(value, fieldName: 'Phone number'),
+        (String? value) =>
+            Validators.minLength(value, 10, fieldName: 'Phone number'),
       ],
       phone,
     );
     final String? passwordError = Validators.combine(
       <String? Function(String?)>[
         (String? value) => Validators.required(value, fieldName: 'Password'),
-        (String? value) => Validators.minLength(value, 6, fieldName: 'Password'),
+        (String? value) =>
+            Validators.minLength(value, 6, fieldName: 'Password'),
       ],
       password,
     );
@@ -276,7 +327,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         case 'configuration-not-found':
           return 'Firebase Auth email action settings are incomplete. In Firebase Console, enable Email/Password sign-in and check Authentication email templates/authorized domains.';
         case 'google-sign-in-failed':
-          return error.message ?? 'Google sign-in failed. Please check Firebase configuration.';
+          return error.message ??
+              'Google sign-in failed. Please check Firebase configuration.';
       }
       // Fallback to the error message from Firebase if code is not handled
       return error.message ?? 'Registration failed. Please try again.';
@@ -288,27 +340,27 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   List<String> get _countryCodeList => <String>[
-    '+234', // Nigeria
-    '+1', // USA
-    '+44', // UK
-    '+91', // India
-    '+27', // South Africa
-    '+254', // Kenya
-    '+256', // Uganda
-    '+255', // Tanzania
-    '+233', // Ghana
-    '+237', // Cameroon
-    '+212', // Morocco
-    '+20', // Egypt
-    '+880', // Bangladesh
-    '+86', // China
-    '+81', // Japan
-    '+33', // France
-    '+49', // Germany
-    '+39', // Italy
-    '+34', // Spain
-    '+31', // Netherlands
-  ];
+        '+234', // Nigeria
+        '+1', // USA
+        '+44', // UK
+        '+91', // India
+        '+27', // South Africa
+        '+254', // Kenya
+        '+256', // Uganda
+        '+255', // Tanzania
+        '+233', // Ghana
+        '+237', // Cameroon
+        '+212', // Morocco
+        '+20', // Egypt
+        '+880', // Bangladesh
+        '+86', // China
+        '+81', // Japan
+        '+33', // France
+        '+49', // Germany
+        '+39', // Italy
+        '+34', // Spain
+        '+31', // Netherlands
+      ];
 }
 
 class _AuthActionLabel extends StatelessWidget {

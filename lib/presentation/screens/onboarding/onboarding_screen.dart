@@ -23,28 +23,34 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final List<OnboardingPageData> _pages = const <OnboardingPageData>[
     OnboardingPageData(
       title: 'Manage every farm from one workspace',
-      subtitle: 'Create farms, track fields, store documents, and keep environmental readings close to the work.',
+      subtitle:
+          'Create farms, track fields, store documents, and keep environmental readings close to the work.',
       animationAsset: AppAssets.onboardingWelcomeAnimation,
       accentColor: Color(0xFF5F9D58),
       chips: <OnboardingChipData>[
-        OnboardingChipData(label: 'Farm profiles', assetPath: AppAssets.uiGallery05),
-        OnboardingChipData(label: 'Field records', assetPath: AppAssets.uiGallery06),
+        OnboardingChipData(
+            label: 'Farm profiles', assetPath: AppAssets.uiGallery05),
+        OnboardingChipData(
+            label: 'Field records', assetPath: AppAssets.uiGallery06),
       ],
     ),
     OnboardingPageData(
       title: 'Connect crops, animals, inventory, and sales',
-      subtitle: 'Follow produce from planning to buyer receipt, with livestock and procurement records in the same flow.',
+      subtitle:
+          'Follow produce from planning to buyer receipt, with livestock and procurement records in the same flow.',
       animationAsset: AppAssets.onboardingSyncAnimation,
       accentColor: Color(0xFFCE9B3A),
       chips: <OnboardingChipData>[
         OnboardingChipData(label: 'Produce', assetPath: AppAssets.uiGallery07),
         OnboardingChipData(label: 'Market', assetPath: AppAssets.uiGallery08),
-        OnboardingChipData(label: 'Logistics', assetPath: AppAssets.uiGallery09),
+        OnboardingChipData(
+            label: 'Logistics', assetPath: AppAssets.uiGallery09),
       ],
     ),
     OnboardingPageData(
       title: 'Learn, ask AI, and act with confidence',
-      subtitle: 'Use lessons, field prompts, weather guidance, and notifications to keep farm decisions moving.',
+      subtitle:
+          'Use lessons, field prompts, weather guidance, and notifications to keep farm decisions moving.',
       animationAsset: AppAssets.onboardingSuccessAnimation,
       accentColor: Color(0xFF3D6FA8),
       chips: <OnboardingChipData>[
@@ -74,10 +80,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: isDark
-                ? <Color>[
-                    const Color(0xFF07120C),
-                    const Color(0xFF102219),
-                    scheme.surface,
+                ? const <Color>[
+                    AppColors.darkPrimaryBackground,
+                    Color(0xFF0E1A15),
+                    AppColors.darkPrimaryBackground,
                   ]
                 : const <Color>[
                     Color(0xFFFFFBF2),
@@ -98,9 +104,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       height: 42,
                       padding: const EdgeInsets.all(7),
                       decoration: BoxDecoration(
-                        color: scheme.surface.withOpacity(isDark ? 0.18 : 0.88),
+                        color: isDark
+                            ? AppColors.darkElevatedCard
+                            : scheme.surface.withOpacity(0.88),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: scheme.outlineVariant),
+                        border: Border.all(
+                            color: isDark
+                                ? AppColors.darkBorder
+                                : scheme.outlineVariant),
+                        boxShadow: isDark
+                            ? <BoxShadow>[
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.35),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ]
+                            : null,
                       ),
                       child: Image.asset(AppAssets.appIcon),
                     ),
@@ -125,7 +145,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: PageView.builder(
                   controller: _pageController,
                   itemCount: _pages.length,
-                  onPageChanged: (int page) => setState(() => _currentPage = page),
+                  onPageChanged: (int page) =>
+                      setState(() => _currentPage = page),
                   itemBuilder: (BuildContext context, int index) {
                     return _OnboardingPage(data: _pages[index]);
                   },
@@ -136,7 +157,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 pageCount: _pages.length,
                 isCompleting: _isCompleting,
                 onBack: _currentPage == 0 ? _completeOnboarding : _previousPage,
-                onNext: _currentPage == _pages.length - 1 ? _completeOnboarding : _nextPage,
+                onNext: _currentPage == _pages.length - 1
+                    ? _completeOnboarding
+                    : _nextPage,
               ),
             ],
           ),
@@ -191,6 +214,7 @@ class _BottomControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
     final bool isLastPage = currentPage == pageCount - 1;
 
     return Padding(
@@ -198,9 +222,25 @@ class _BottomControls extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? const <Color>[AppColors.darkCard, AppColors.darkElevatedCard]
+                : <Color>[
+                    theme.colorScheme.surfaceContainerHighest,
+                    theme.colorScheme.surfaceContainer,
+                  ],
+          ),
           borderRadius: BorderRadius.circular(28),
           border: Border.all(color: theme.colorScheme.outlineVariant),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: theme.colorScheme.shadow.withOpacity(isDark ? 0.42 : 0.10),
+              blurRadius: 22,
+              offset: const Offset(0, 12),
+            ),
+          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -209,8 +249,11 @@ class _BottomControls extends StatelessWidget {
               children: <Widget>[
                 Expanded(
                   child: Text(
-                    isLastPage ? 'Ready to begin' : 'Step ${currentPage + 1} of $pageCount',
-                    style: theme.textTheme.labelLarge?.copyWith(color: AppColors.primary),
+                    isLastPage
+                        ? 'Ready to begin'
+                        : 'Step ${currentPage + 1} of $pageCount',
+                    style: theme.textTheme.labelLarge
+                        ?.copyWith(color: AppColors.primary),
                   ),
                 ),
                 Row(
@@ -305,28 +348,57 @@ class _OnboardingPage extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: isDark
+                      ? const <Color>[
+                          AppColors.darkCard,
+                          AppColors.darkElevatedCard
+                        ]
+                      : <Color>[
+                          theme.colorScheme.surfaceContainerHighest,
+                          theme.colorScheme.surfaceContainer,
+                        ],
+                ),
                 borderRadius: BorderRadius.circular(32),
                 border: Border.all(color: theme.colorScheme.outlineVariant),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: theme.colorScheme.shadow
+                        .withOpacity(isDark ? 0.45 : 0.10),
+                    blurRadius: 28,
+                    offset: const Offset(0, 16),
+                  ),
+                  BoxShadow(
+                    color: data.accentColor.withOpacity(isDark ? 0.12 : 0.07),
+                    blurRadius: 32,
+                    offset: const Offset(0, -8),
+                  ),
+                ],
               ),
               child: Column(
                 children: <Widget>[
                   Row(
                     children: <Widget>[
                       _FeaturePill(
-                        icon: data.isLastPage ? Icons.check_circle_rounded : Icons.auto_awesome_rounded,
+                        icon: data.isLastPage
+                            ? Icons.check_circle_rounded
+                            : Icons.auto_awesome_rounded,
                         label: data.isLastPage ? 'Ready' : 'Farm workflow',
                         tint: data.accentColor,
                       ),
                       const Spacer(),
-                      Icon(Icons.swipe_rounded, color: theme.colorScheme.onSurfaceVariant),
+                      Icon(Icons.swipe_rounded,
+                          color: theme.colorScheme.onSurfaceVariant),
                     ],
                   ),
                   const SizedBox(height: 18),
                   Expanded(
                     child: Container(
                       decoration: BoxDecoration(
-                        color: data.accentColor.withOpacity(isDark ? 0.16 : 0.11),
+                        color:
+                            data.accentColor.withOpacity(isDark ? 0.16 : 0.11),
                         borderRadius: BorderRadius.circular(28),
                       ),
                       child: Padding(
@@ -372,7 +444,8 @@ class _OnboardingPage extends StatelessWidget {
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyLarge?.copyWith(
               height: 1.55,
-              color: isDark ? Colors.white70 : theme.colorScheme.onSurfaceVariant,
+              color:
+                  isDark ? Colors.white70 : theme.colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -395,19 +468,28 @@ class _FeaturePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
-        color: tint.withOpacity(0.14),
+        color: tint.withOpacity(isDark ? 0.22 : 0.14),
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: tint.withOpacity(isDark ? 0.4 : 0.2)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(icon, size: 17, color: theme.colorScheme.primary),
+          Icon(icon,
+              size: 17, color: isDark ? tint : theme.colorScheme.primary),
           const SizedBox(width: 8),
-          Text(label, style: theme.textTheme.labelMedium),
+          Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: isDark ? Colors.white : null,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -426,14 +508,20 @@ class _AssetChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
 
     return Container(
       constraints: const BoxConstraints(minWidth: 112),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+        // A tier *lighter* than the parent card (not `colorScheme.surface`,
+        // which is darker in dark mode and reads as a hole cut into the card).
+        color: isDark ? AppColors.darkElevatedCard : theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
+        border: Border.all(
+            color: isDark
+                ? AppColors.darkBorder
+                : theme.colorScheme.outlineVariant),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -443,7 +531,7 @@ class _AssetChip extends StatelessWidget {
             height: 28,
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: tint.withOpacity(0.14),
+              color: tint.withOpacity(isDark ? 0.24 : 0.14),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Image.asset(chip.assetPath, fit: BoxFit.contain),

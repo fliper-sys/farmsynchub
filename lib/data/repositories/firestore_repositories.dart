@@ -45,7 +45,11 @@ class FirestoreFarmRepository implements FarmRepository {
     final List<Farm> syncedLocalFarms = await _syncPendingLocalFarms(localFarms);
 
     try {
-      final List<Map<String, dynamic>> records = await _remoteStore.getFromFirestore('farms');
+      final List<Map<String, dynamic>> records = await _remoteStore.getFromFirestore(
+        'farms',
+        ownerUidField: 'ownerUid',
+        memberArrayField: 'memberUids',
+      );
       final List<Farm> remoteFarms = records
           .map(Farm.fromJson)
           .where((Farm farm) => farm.id.isNotEmpty)
@@ -187,7 +191,7 @@ class FirestoreCropRepository implements CropRepository {
     final List<Crop> syncedLocalCrops = await _syncPendingLocalCrops(localCrops);
 
     try {
-      final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('crops');
+      final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('crops', scopeByFarmIds: true);
       final List<Crop> remoteCrops = records
           .map(_tryParseCrop)
           .whereType<Crop>()
@@ -317,7 +321,7 @@ class FirestoreLivestockRepository implements LivestockRepository {
     final List<Livestock> syncedLocalLivestock = await _syncPendingLocalLivestock(localLivestock);
 
     try {
-      final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('livestock');
+      final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('livestock', scopeByFarmIds: true);
       final List<Livestock> remoteLivestock = records
           .map(_tryParseLivestock)
           .whereType<Livestock>()
@@ -457,7 +461,7 @@ class FirestoreFinanceRepository implements FinanceRepository {
     if (_firebaseService.currentUser == null) {
       return <Transaction>[];
     }
-    final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('transactions');
+    final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('transactions', scopeByFarmIds: true);
     final List<Transaction> items = records
         .map(_tryParseTransaction)
         .whereType<Transaction>()

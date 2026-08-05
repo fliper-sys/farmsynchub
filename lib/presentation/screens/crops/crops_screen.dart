@@ -13,6 +13,7 @@ import '../../../domain/models/farm_activity.dart';
 import '../../../domain/models/notification.dart' as farm_notification;
 import '../../../domain/models/transaction.dart';
 import '../../../domain/models/user_profile.dart';
+import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/crop_provider.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/finance_provider.dart';
@@ -31,6 +32,7 @@ class CropsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
+    final AppLanguage language = ref.watch(appLanguageProvider);
     final AsyncValue<List<Crop>> cropsAsync = ref.watch(cropsProvider);
     final AsyncValue<List<Farm>> farmsAsync = ref.watch(farmsProvider);
     final List<Crop> crops = cropsAsync.maybeWhen(
@@ -41,47 +43,74 @@ class CropsScreen extends ConsumerWidget {
       data: (List<Farm> items) => items,
       orElse: () => <Farm>[],
     );
-    final Map<String, CropAdviceSummary> adviceByCrop = <String, CropAdviceSummary>{};
+    final Map<String, CropAdviceSummary> adviceByCrop =
+        <String, CropAdviceSummary>{};
     final Map<String, Farm> farmById = <String, Farm>{
       for (final Farm farm in farms) farm.id: farm,
     };
-    final List<Farm> eligibleFarms = farms.where((Farm farm) => farm.supportsCrops).toList(growable: false);
+    final List<Farm> eligibleFarms =
+        farms.where((Farm farm) => farm.supportsCrops).toList(growable: false);
 
-    final int seedingCount = crops.where((Crop crop) => crop.currentStage == CropStage.seeding).length;
+    final int seedingCount = crops
+        .where((Crop crop) => crop.currentStage == CropStage.seeding)
+        .length;
     final int growingCount = crops
         .where((Crop crop) => <CropStage>[
               CropStage.germination,
               CropStage.vegetative,
             ].contains(crop.currentStage))
         .length;
-    final int floweringCount = crops.where((Crop crop) => crop.currentStage == CropStage.flowering).length;
-    final int readyCount = crops.where((Crop crop) => crop.status == CropStatus.ready).length;
-    final int openTaskCount = crops.fold<int>(0, (int sum, Crop crop) => sum + crop.openTaskCount);
-    final double inputSpend = crops.fold<double>(0, (double sum, Crop crop) => sum + crop.syncedInputCost);
+    final int floweringCount = crops
+        .where((Crop crop) => crop.currentStage == CropStage.flowering)
+        .length;
+    final int readyCount =
+        crops.where((Crop crop) => crop.status == CropStatus.ready).length;
+    final int openTaskCount =
+        crops.fold<int>(0, (int sum, Crop crop) => sum + crop.openTaskCount);
+    final double inputSpend = crops.fold<double>(
+        0, (double sum, Crop crop) => sum + crop.syncedInputCost);
     for (final Crop crop in crops) {
       adviceByCrop[crop.id] = CropAdviceCatalog.summarize(crop);
     }
 
     return SoftScreenScaffold(
-      heroTitle: 'Crop records',
-      heroSubtitle: 'Link every crop to the right farm, track its stage, and keep planting plans tied to actual field records.',
+      heroTitle: language.tr(
+          en: 'Crop records',
+          ha: 'Bayanan amfanin gona',
+          fr: 'Fiches de cultures'),
+      heroSubtitle: language.tr(
+        en: 'Link every crop to the right farm, track its stage, and keep planting plans tied to actual field records.',
+        ha: 'Hada kowanne amfanin gona da gonar da ta dace, bin diddigin matakinsa, kuma ka rike shirye-shiryen shuka a hade da ainihin bayanan gona.',
+        fr: 'Reliez chaque culture a la bonne ferme, suivez son stade et gardez les plans de plantation lies aux releves reels du champ.',
+      ),
       heroIcon: Icons.grass_rounded,
       heroVariant: FarmArtworkVariant.crops,
       heroBadge: '${crops.length} crop records',
       trailing: _HeroActionButton(
-        onTap: eligibleFarms.isEmpty ? null : () => _openCropSheet(context, ref, farms: eligibleFarms),
+        onTap: eligibleFarms.isEmpty
+            ? null
+            : () => _openCropSheet(context, ref, farms: eligibleFarms),
         icon: Icons.add_circle_outline_rounded,
       ),
       sections: <Widget>[
         if (eligibleFarms.isEmpty) ...<Widget>[
-          const _InlineNotice(
+          _InlineNotice(
             icon: Icons.agriculture_rounded,
-            color: Color(0xFFFFEBD0),
-            message: 'Create a farm first before adding crops so each record can be linked to a real field.',
+            color: const Color(0xFFFFEBD0),
+            message: language.tr(
+              en: 'Create a farm first before adding crops so each record can be linked to a real field.',
+              ha: 'Kirkiri gona tukun kafin kara amfanin gona domin kowanne bayani ya hade da ainihin fili.',
+              fr: 'Creez d\'abord une ferme avant d\'ajouter des cultures afin que chaque fiche soit liee a un champ reel.',
+            ),
           ),
           const SizedBox(height: 18),
         ],
-        const SoftSectionTitle(title: 'Growth board'),
+        SoftSectionTitle(
+          title: language.tr(
+              en: 'Growth board',
+              ha: 'Allon girma',
+              fr: 'Tableau de croissance'),
+        ),
         GridView.count(
           crossAxisCount: 2,
           shrinkWrap: true,
@@ -90,33 +119,89 @@ class CropsScreen extends ConsumerWidget {
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
           children: <Widget>[
-            _StageCard(label: 'Seeding', value: '$seedingCount crops', color: const Color(0xFFE8F4D8)),
-            _StageCard(label: 'Growing', value: '$growingCount crops', color: const Color(0xFFDDF0E4)),
-            _StageCard(label: 'Flowering', value: '$floweringCount crops', color: const Color(0xFFFFEBD0)),
-            _StageCard(label: 'Ready', value: '$readyCount crops', color: const Color(0xFFDCEEFF)),
-            _StageCard(label: 'Open tasks', value: '$openTaskCount todos', color: const Color(0xFFEDE8FF)),
-            _StageCard(label: 'Inputs synced', value: CurrencyUtils.formatCurrency(inputSpend), color: const Color(0xFFFFF2C7)),
+            _StageCard(
+                label: language.tr(en: 'Seeding', ha: 'Shuki', fr: 'Semis'),
+                value: '$seedingCount crops',
+                color: const Color(0xFFE8F4D8)),
+            _StageCard(
+                label:
+                    language.tr(en: 'Growing', ha: 'Girma', fr: 'Croissance'),
+                value: '$growingCount crops',
+                color: const Color(0xFFDDF0E4)),
+            _StageCard(
+                label: language.tr(
+                    en: 'Flowering', ha: 'Furanni', fr: 'Floraison'),
+                value: '$floweringCount crops',
+                color: const Color(0xFFFFEBD0)),
+            _StageCard(
+                label: language.tr(en: 'Ready', ha: 'A shirye', fr: 'Pret'),
+                value: '$readyCount crops',
+                color: const Color(0xFFDCEEFF)),
+            _StageCard(
+                label: language.tr(
+                    en: 'Open tasks',
+                    ha: 'Ayyukan da suka rage',
+                    fr: 'Taches ouvertes'),
+                value: '$openTaskCount todos',
+                color: const Color(0xFFEDE8FF)),
+            _StageCard(
+                label: language.tr(
+                    en: 'Inputs synced',
+                    ha: 'Kayan da aka sync',
+                    fr: 'Intrants synchronises'),
+                value: CurrencyUtils.formatCurrency(inputSpend),
+                color: const Color(0xFFFFF2C7)),
           ],
         ),
         const SizedBox(height: 18),
         SoftSectionTitle(
-          title: 'Current crops',
+          title: language.tr(
+              en: 'Current crops',
+              ha: 'Amfanin gona na yanzu',
+              fr: 'Cultures actuelles'),
           action: TextButton.icon(
-            onPressed: eligibleFarms.isEmpty ? null : () => _openCropSheet(context, ref, farms: eligibleFarms),
+            onPressed: eligibleFarms.isEmpty
+                ? null
+                : () => _openCropSheet(context, ref, farms: eligibleFarms),
             icon: const Icon(Icons.add_rounded),
-            label: const Text('Add crop'),
+            label: Text(language.tr(
+                en: 'Add crop',
+                ha: 'Kara amfanin gona',
+                fr: 'Ajouter une culture')),
           ),
         ),
         if (cropsAsync.isLoading && crops.isEmpty)
-          const _LoadingCard(message: 'Loading crop records...')
+          _LoadingCard(
+            message: language.tr(
+              en: 'Loading crop records...',
+              ha: 'Ana loda bayanan amfanin gona...',
+              fr: 'Chargement des fiches de cultures...',
+            ),
+          )
         else if (crops.isEmpty)
           _EmptyState(
-            title: 'No crops linked yet',
+            title: language.tr(
+                en: 'No crops linked yet',
+                ha: 'Babu amfanin gona da aka hada har yanzu',
+                fr: 'Aucune culture liee pour le moment'),
             message: eligibleFarms.isEmpty
-                ? 'Create a crop, greenhouse, or combined farm first, then come back to add crop records.'
-                : 'Add your first crop and assign it to a farm to begin tracking field progress.',
-            buttonLabel: 'Add first crop',
-            onPressed: eligibleFarms.isEmpty ? null : () => _openCropSheet(context, ref, farms: eligibleFarms),
+                ? language.tr(
+                    en: 'Create a crop, greenhouse, or combined farm first, then come back to add crop records.',
+                    ha: 'Kirkiri gonar amfanin gona, gidan kore, ko gonar hade tukun, sannan ka koma domin kara bayanan amfanin gona.',
+                    fr: 'Creez d\'abord une ferme de cultures, une serre ou une ferme mixte, puis revenez ajouter des fiches de cultures.',
+                  )
+                : language.tr(
+                    en: 'Add your first crop and assign it to a farm to begin tracking field progress.',
+                    ha: 'Kara amfanin gonarka na farko kuma ka ba da shi ga wata gona domin fara bin diddigin ci gaban fili.',
+                    fr: 'Ajoutez votre premiere culture et assignez-la a une ferme pour commencer a suivre l\'avancement du champ.',
+                  ),
+            buttonLabel: language.tr(
+                en: 'Add first crop',
+                ha: 'Kara amfanin gona na farko',
+                fr: 'Ajouter la premiere culture'),
+            onPressed: eligibleFarms.isEmpty
+                ? null
+                : () => _openCropSheet(context, ref, farms: eligibleFarms),
           )
         else
           ...crops.map(
@@ -131,11 +216,13 @@ class CropsScreen extends ConsumerWidget {
                     builder: (_) => CropDetailScreen(cropId: crop.id),
                   ),
                 ),
-                onEdit: () => _openCropSheet(context, ref, farms: farms, crop: crop),
+                onEdit: () =>
+                    _openCropSheet(context, ref, farms: farms, crop: crop),
                 onDelete: () => _confirmDelete(context, ref, crop),
                 onAddTask: () => _openCropTaskSheet(context, ref, crop),
                 onAddInput: () => _openCropInputSheet(context, ref, crop),
-                onToggleTask: (FarmTodoItem task) => _toggleCropTask(context, ref, crop, task),
+                onToggleTask: (FarmTodoItem task) =>
+                    _toggleCropTask(context, ref, crop, task),
               ),
             ),
           ),
@@ -156,7 +243,10 @@ class CropsScreen extends ConsumerWidget {
                 const SizedBox(width: 14),
                 Expanded(
                   child: AppButton.secondary(
-                    onPressed: eligibleFarms.isEmpty ? null : () => _openCropSheet(context, ref, farms: eligibleFarms),
+                    onPressed: eligibleFarms.isEmpty
+                        ? null
+                        : () =>
+                            _openCropSheet(context, ref, farms: eligibleFarms),
                     child: const Text('Open planner'),
                   ),
                 ),
@@ -212,7 +302,9 @@ class CropsScreen extends ConsumerWidget {
       protectedEnvironment: draft.protectedEnvironment,
       todoItems: crop?.todoItems ?? const <FarmTodoItem>[],
       inputRecords: crop?.inputRecords ?? const <FarmInputRecord>[],
-      intelligenceNotes: _cropIntelligenceSummary(draft.name, draft.currentStage, draft.expectedHarvestDate, landSizeText: draft.landSizeLabel),
+      intelligenceNotes: _cropIntelligenceSummary(
+          draft.name, draft.currentStage, draft.expectedHarvestDate,
+          landSizeText: draft.landSizeLabel),
       lastIntelligenceSyncAt: now,
     );
 
@@ -229,7 +321,8 @@ class CropsScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _openCropTaskSheet(BuildContext context, WidgetRef ref, Crop crop) async {
+  Future<void> _openCropTaskSheet(
+      BuildContext context, WidgetRef ref, Crop crop) async {
     final FarmTodoItem? task = await showModalBottomSheet<FarmTodoItem>(
       context: context,
       isScrollControlled: true,
@@ -245,7 +338,9 @@ class CropsScreen extends ConsumerWidget {
             todoItems: <FarmTodoItem>[task, ...crop.todoItems],
             updatedAt: DateTime.now(),
             isSynced: false,
-            intelligenceNotes: _cropIntelligenceSummary(crop.name, crop.currentStage, crop.expectedHarvestDate, landSizeText: crop.landSizeLabel),
+            intelligenceNotes: _cropIntelligenceSummary(
+                crop.name, crop.currentStage, crop.expectedHarvestDate,
+                landSizeText: crop.landSizeLabel),
             lastIntelligenceSyncAt: DateTime.now(),
           ),
         );
@@ -271,16 +366,17 @@ class CropsScreen extends ConsumerWidget {
     }
     if (task.pushNotificationEnabled) {
       ref.read(notificationsProvider.notifier).addNotification(
-            title: 'Crop reminder: ${task.title}',
-            message: '${crop.name} reminder due ${_dateLabel(task.dueDate)}.${task.dailyReminder ? ' Repeats daily.' : ''}',
-            type: farm_notification.NotificationType.info,
-            actionUrl: '/crops',
-            metadata: <String, dynamic>{
-              'entityType': 'crop',
-              'entityId': crop.id,
-              'priority': task.priority.name,
-            },
-          );
+        title: 'Crop reminder: ${task.title}',
+        message:
+            '${crop.name} reminder due ${_dateLabel(task.dueDate)}.${task.dailyReminder ? ' Repeats daily.' : ''}',
+        type: farm_notification.NotificationType.info,
+        actionUrl: '/crops',
+        metadata: <String, dynamic>{
+          'entityType': 'crop',
+          'entityId': crop.id,
+          'priority': task.priority.name,
+        },
+      );
     }
     if (context.mounted) {
       context.showSnackBar(task.pushNotificationEnabled
@@ -289,7 +385,8 @@ class CropsScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _openCropInputSheet(BuildContext context, WidgetRef ref, Crop crop) async {
+  Future<void> _openCropInputSheet(
+      BuildContext context, WidgetRef ref, Crop crop) async {
     final FarmInputRecord? input = await showModalBottomSheet<FarmInputRecord>(
       context: context,
       isScrollControlled: true,
@@ -350,7 +447,9 @@ class CropsScreen extends ConsumerWidget {
             inputRecords: <FarmInputRecord>[syncedInput, ...crop.inputRecords],
             updatedAt: DateTime.now(),
             isSynced: false,
-            intelligenceNotes: _cropIntelligenceSummary(crop.name, crop.currentStage, crop.expectedHarvestDate, landSizeText: crop.landSizeLabel),
+            intelligenceNotes: _cropIntelligenceSummary(
+                crop.name, crop.currentStage, crop.expectedHarvestDate,
+                landSizeText: crop.landSizeLabel),
             lastIntelligenceSyncAt: DateTime.now(),
           ),
         );
@@ -362,11 +461,14 @@ class CropsScreen extends ConsumerWidget {
       audience: FarmActivityAudience.workspace,
     );
     if (context.mounted) {
-      context.showSnackBar(input.totalCost > 0 ? 'Input saved and synced to finance.' : 'Input stock record saved.');
+      context.showSnackBar(input.totalCost > 0
+          ? 'Input saved and synced to finance.'
+          : 'Input stock record saved.');
     }
   }
 
-  Future<void> _toggleCropTask(BuildContext context, WidgetRef ref, Crop crop, FarmTodoItem task) async {
+  Future<void> _toggleCropTask(
+      BuildContext context, WidgetRef ref, Crop crop, FarmTodoItem task) async {
     final DateTime now = DateTime.now();
     final bool nowCompleted = !task.isCompleted;
     final List<FarmTodoItem> tasks = crop.todoItems
@@ -400,7 +502,8 @@ class CropsScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _confirmDelete(BuildContext context, WidgetRef ref, Crop crop) async {
+  Future<void> _confirmDelete(
+      BuildContext context, WidgetRef ref, Crop crop) async {
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) => AlertDialog(
@@ -523,19 +626,26 @@ class _CropFormSheetState extends State<_CropFormSheet> {
     _landSizeController = TextEditingController(
       text: crop == null
           ? ''
-          : (_landSizeUnit == LandSizeUnit.plots ? crop.landSizeValue : crop.areaHa)
+          : (_landSizeUnit == LandSizeUnit.plots
+                  ? crop.landSizeValue
+                  : crop.areaHa)
               .toStringAsFixed(_landSizeUnit == LandSizeUnit.plots ? 1 : 2),
     );
-    _costController = TextEditingController(text: crop == null ? '' : crop.totalInputCost.toStringAsFixed(0));
-    _cycleController = TextEditingController(text: crop?.cycleLengthDays.toString() ?? '90');
-    _targetYieldController = TextEditingController(text: crop == null ? '' : crop.targetYieldKg.toStringAsFixed(0));
+    _costController = TextEditingController(
+        text: crop == null ? '' : crop.totalInputCost.toStringAsFixed(0));
+    _cycleController =
+        TextEditingController(text: crop?.cycleLengthDays.toString() ?? '90');
+    _targetYieldController = TextEditingController(
+        text: crop == null ? '' : crop.targetYieldKg.toStringAsFixed(0));
     _notesController = TextEditingController(text: crop?.notes ?? '');
     _farmId = crop?.farmId ?? widget.farms.first.id;
     _stage = crop?.currentStage ?? CropStage.seeding;
     _status = crop?.status ?? CropStatus.planted;
     _plantingDate = crop?.plantingDate ?? DateTime.now();
-    _expectedHarvestDate = crop?.expectedHarvestDate ?? DateTime.now().add(const Duration(days: 90));
-    _protectedEnvironment = crop?.protectedEnvironment ?? widget.farms.first.supportsGreenhouse;
+    _expectedHarvestDate = crop?.expectedHarvestDate ??
+        DateTime.now().add(const Duration(days: 90));
+    _protectedEnvironment =
+        crop?.protectedEnvironment ?? widget.farms.first.supportsGreenhouse;
     _formListener = () {
       if (mounted) {
         setState(() {});
@@ -570,7 +680,8 @@ class _CropFormSheetState extends State<_CropFormSheet> {
     final bool isEditing = widget.initialCrop != null;
 
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
@@ -602,14 +713,19 @@ class _CropFormSheetState extends State<_CropFormSheet> {
                 const SizedBox(height: 8),
                 Text(
                   'Link this crop to a specific farm so its records show up in the right field workspace.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(height: 1.5),
                 ),
                 const SizedBox(height: 18),
                 _DropdownField<String>(
                   label: 'Farm',
                   value: _farmId,
                   items: widget.farms.map((Farm farm) => farm.id).toList(),
-                  itemLabel: (String farmId) => widget.farms.firstWhere((Farm farm) => farm.id == farmId).name,
+                  itemLabel: (String farmId) => widget.farms
+                      .firstWhere((Farm farm) => farm.id == farmId)
+                      .name,
                   onChanged: (String? value) {
                     if (value != null) {
                       setState(() => _farmId = value);
@@ -633,7 +749,8 @@ class _CropFormSheetState extends State<_CropFormSheet> {
                   controller: _landSizeController,
                   label: 'Land size',
                   hint: _landSizeUnit == LandSizeUnit.plots ? '4.0' : '0.3',
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                 ),
                 const SizedBox(height: 12),
                 _DropdownField<LandSizeUnit>(
@@ -644,11 +761,18 @@ class _CropFormSheetState extends State<_CropFormSheet> {
                   onChanged: (LandSizeUnit? value) {
                     if (value == null) return;
                     setState(() {
-                      final double entered = double.tryParse(_landSizeController.text.trim()) ?? 0;
-                      if (_landSizeUnit == LandSizeUnit.hectares && value == LandSizeUnit.plots) {
-                        _landSizeController.text = (entered / CropAdviceCatalog.plotToHa).toStringAsFixed(1);
-                      } else if (_landSizeUnit == LandSizeUnit.plots && value == LandSizeUnit.hectares) {
-                        _landSizeController.text = (entered * CropAdviceCatalog.plotToHa).toStringAsFixed(2);
+                      final double entered =
+                          double.tryParse(_landSizeController.text.trim()) ?? 0;
+                      if (_landSizeUnit == LandSizeUnit.hectares &&
+                          value == LandSizeUnit.plots) {
+                        _landSizeController.text =
+                            (entered / CropAdviceCatalog.plotToHa)
+                                .toStringAsFixed(1);
+                      } else if (_landSizeUnit == LandSizeUnit.plots &&
+                          value == LandSizeUnit.hectares) {
+                        _landSizeController.text =
+                            (entered * CropAdviceCatalog.plotToHa)
+                                .toStringAsFixed(2);
                       }
                       _landSizeUnit = value;
                     });
@@ -659,7 +783,8 @@ class _CropFormSheetState extends State<_CropFormSheet> {
                   controller: _costController,
                   label: 'Total input cost',
                   hint: '78000',
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                 ),
                 const SizedBox(height: 14),
                 Row(
@@ -678,7 +803,8 @@ class _CropFormSheetState extends State<_CropFormSheet> {
                         controller: _targetYieldController,
                         label: 'Target yield (kg)',
                         hint: '3500',
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
                       ),
                     ),
                   ],
@@ -747,11 +873,14 @@ class _CropFormSheetState extends State<_CropFormSheet> {
                 const SizedBox(height: 14),
                 SwitchListTile(
                   value: _protectedEnvironment,
-                  onChanged: (bool value) => setState(() => _protectedEnvironment = value),
+                  onChanged: (bool value) =>
+                      setState(() => _protectedEnvironment = value),
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Protected environment'),
                   subtitle: Text(
-                    widget.farms.firstWhere((Farm farm) => farm.id == _farmId).supportsGreenhouse
+                    widget.farms
+                            .firstWhere((Farm farm) => farm.id == _farmId)
+                            .supportsGreenhouse
                         ? 'This farm supports greenhouse work. Keep this on for enclosed production.'
                         : 'Use this when the crop is being managed in protected conditions.',
                   ),
@@ -790,29 +919,43 @@ class _CropFormSheetState extends State<_CropFormSheet> {
   }
 
   _CropPlanningSummary _cropPlanningSummary() {
-    final double enteredLand = double.tryParse(_landSizeController.text.trim()) ?? 0;
+    final double enteredLand =
+        double.tryParse(_landSizeController.text.trim()) ?? 0;
     final double areaHa = _landSizeUnit == LandSizeUnit.plots
         ? enteredLand * CropAdviceCatalog.plotToHa
         : enteredLand;
-    final CropAdviceProfile? profile = CropAdviceCatalog.detect(_nameController.text);
-    final int suggestedCycleDays = _suggestedCycleDays(profile, _stage, _protectedEnvironment);
+    final CropAdviceProfile? profile =
+        CropAdviceCatalog.detect(_nameController.text);
+    final int suggestedCycleDays =
+        _suggestedCycleDays(profile, _stage, _protectedEnvironment);
     final int stageOffset = _stageOffsetDays(_stage);
     final int remainingDays = (suggestedCycleDays - stageOffset).clamp(0, 3650);
-    final DateTime suggestedHarvestDate = _plantingDate.add(Duration(days: suggestedCycleDays));
-    final double suggestedYield = _suggestedYieldKg(profile, areaHa, _stage, _protectedEnvironment);
+    final DateTime suggestedHarvestDate =
+        _plantingDate.add(Duration(days: suggestedCycleDays));
+    final double suggestedYield =
+        _suggestedYieldKg(profile, areaHa, _stage, _protectedEnvironment);
     final String stageNote = switch (_stage) {
-      CropStage.seeding => 'Cycle is at the start; keep moisture steady and confirm stand establishment.',
-      CropStage.germination => 'Stand establishment is underway, so the app shortens the remaining window slightly.',
-      CropStage.vegetative => 'Vegetative growth is active; nutrition and weed control protect the cycle now.',
-      CropStage.flowering => 'Flowering means the crop is entering a yield-critical window and harvest prep should start earlier.',
-      CropStage.fruiting => 'Fruiting suggests the crop is close to harvest, so the remaining window is short.',
+      CropStage.seeding =>
+        'Cycle is at the start; keep moisture steady and confirm stand establishment.',
+      CropStage.germination =>
+        'Stand establishment is underway, so the app shortens the remaining window slightly.',
+      CropStage.vegetative =>
+        'Vegetative growth is active; nutrition and weed control protect the cycle now.',
+      CropStage.flowering =>
+        'Flowering means the crop is entering a yield-critical window and harvest prep should start earlier.',
+      CropStage.fruiting =>
+        'Fruiting suggests the crop is close to harvest, so the remaining window is short.',
     };
 
     final Crop tempCrop = Crop(
       id: widget.initialCrop?.id ?? 'preview',
       farmId: _farmId,
-      name: _nameController.text.trim().isEmpty ? 'Crop' : _nameController.text.trim(),
-      variety: _varietyController.text.trim().isEmpty ? 'Variety' : _varietyController.text.trim(),
+      name: _nameController.text.trim().isEmpty
+          ? 'Crop'
+          : _nameController.text.trim(),
+      variety: _varietyController.text.trim().isEmpty
+          ? 'Variety'
+          : _varietyController.text.trim(),
       areaHa: areaHa,
       plantingDate: _plantingDate,
       expectedHarvestDate: suggestedHarvestDate,
@@ -943,8 +1086,10 @@ class _CropFormSheetState extends State<_CropFormSheet> {
   }
 
   void _submit() {
-    final String? nameError = Validators.required(_nameController.text, fieldName: 'Crop name');
-    final String? varietyError = Validators.required(_varietyController.text, fieldName: 'Variety');
+    final String? nameError =
+        Validators.required(_nameController.text, fieldName: 'Crop name');
+    final String? varietyError =
+        Validators.required(_varietyController.text, fieldName: 'Variety');
     final String? areaError = Validators.combine(
       <String? Function(String?)>[
         (String? value) => Validators.required(value, fieldName: 'Land size'),
@@ -954,12 +1099,14 @@ class _CropFormSheetState extends State<_CropFormSheet> {
     );
     final String? costError = Validators.combine(
       <String? Function(String?)>[
-        (String? value) => Validators.required(value, fieldName: 'Total input cost'),
+        (String? value) =>
+            Validators.required(value, fieldName: 'Total input cost'),
         Validators.amount,
       ],
       _costController.text,
     );
-    final String? cycleError = Validators.required(_cycleController.text, fieldName: 'Cycle length');
+    final String? cycleError =
+        Validators.required(_cycleController.text, fieldName: 'Cycle length');
 
     if (nameError != null) {
       context.showSnackBar(nameError, isError: true);
@@ -982,12 +1129,14 @@ class _CropFormSheetState extends State<_CropFormSheet> {
       return;
     }
     if (_expectedHarvestDate.isBefore(_plantingDate)) {
-      context.showSnackBar('Expected harvest date must be after planting date', isError: true);
+      context.showSnackBar('Expected harvest date must be after planting date',
+          isError: true);
       return;
     }
     final int? cycleLengthDays = int.tryParse(_cycleController.text.trim());
     if (cycleLengthDays == null || cycleLengthDays <= 0) {
-      context.showSnackBar('Cycle length must be a valid number of days', isError: true);
+      context.showSnackBar('Cycle length must be a valid number of days',
+          isError: true);
       return;
     }
 
@@ -997,7 +1146,8 @@ class _CropFormSheetState extends State<_CropFormSheet> {
         name: _nameController.text.trim(),
         variety: _varietyController.text.trim(),
         areaHa: _landSizeUnit == LandSizeUnit.plots
-            ? double.parse(_landSizeController.text.trim()) * CropAdviceCatalog.plotToHa
+            ? double.parse(_landSizeController.text.trim()) *
+                CropAdviceCatalog.plotToHa
             : double.parse(_landSizeController.text.trim()),
         landSizeValue: double.parse(_landSizeController.text.trim()),
         landSizeUnit: _landSizeUnit,
@@ -1058,8 +1208,11 @@ class _StageCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color iconBackground = isDark ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface) : color;
-    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
+    final Color iconBackground = isDark
+        ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface)
+        : color;
+    final Color iconForeground =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
     return AppCard(
       color: theme.colorScheme.surfaceContainerHighest,
@@ -1074,7 +1227,9 @@ class _StageCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: iconBackground,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: isDark ? color.withOpacity(0.42) : Colors.transparent),
+                border: Border.all(
+                    color:
+                        isDark ? color.withOpacity(0.42) : Colors.transparent),
               ),
               child: Icon(Icons.spa_rounded, color: iconForeground),
             ),
@@ -1115,7 +1270,8 @@ class _CropCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final int daysToHarvest = crop.expectedHarvestDate.difference(DateTime.now()).inDays;
+    final int daysToHarvest =
+        crop.expectedHarvestDate.difference(DateTime.now()).inDays;
 
     return AppCard(
       onTap: onOpen,
@@ -1140,7 +1296,9 @@ class _CropCard extends StatelessWidget {
                   Row(
                     children: <Widget>[
                       Expanded(
-                        child: Text(crop.name, style: theme.textTheme.titleLarge?.copyWith(fontSize: 24)),
+                        child: Text(crop.name,
+                            style: theme.textTheme.titleLarge
+                                ?.copyWith(fontSize: 24)),
                       ),
                       PopupMenuButton<String>(
                         onSelected: (String value) {
@@ -1158,11 +1316,17 @@ class _CropCard extends StatelessWidget {
                           }
                           onDelete();
                         },
-                        itemBuilder: (BuildContext context) => const <PopupMenuEntry<String>>[
-                          PopupMenuItem<String>(value: 'edit', child: Text('Edit crop')),
-                          PopupMenuItem<String>(value: 'task', child: Text('Add todo/reminder')),
-                          PopupMenuItem<String>(value: 'input', child: Text('Record input stock')),
-                          PopupMenuItem<String>(value: 'delete', child: Text('Delete crop')),
+                        itemBuilder: (BuildContext context) =>
+                            const <PopupMenuEntry<String>>[
+                          PopupMenuItem<String>(
+                              value: 'edit', child: Text('Edit crop')),
+                          PopupMenuItem<String>(
+                              value: 'task', child: Text('Add todo/reminder')),
+                          PopupMenuItem<String>(
+                              value: 'input',
+                              child: Text('Record input stock')),
+                          PopupMenuItem<String>(
+                              value: 'delete', child: Text('Delete crop')),
                         ],
                       ),
                     ],
@@ -1177,8 +1341,12 @@ class _CropCard extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: <Widget>[
-                      _MiniTag(text: _stageTag(crop.currentStage), color: const Color(0xFFE8F4D8)),
-                      _MiniTag(text: crop.landSizeLabel, color: const Color(0xFFDFF1FF)),
+                      _MiniTag(
+                          text: _stageTag(crop.currentStage),
+                          color: const Color(0xFFE8F4D8)),
+                      _MiniTag(
+                          text: crop.landSizeLabel,
+                          color: const Color(0xFFDFF1FF)),
                       _MiniTag(
                         text: '${(crop.growthProgress * 100).round()}% cycle',
                         color: const Color(0xFFDCEEFF),
@@ -1188,16 +1356,25 @@ class _CropCard extends StatelessWidget {
                         color: const Color(0xFFFFEBD0),
                       ),
                       _MiniTag(text: farmName, color: const Color(0xFFEDE8FF)),
-                      _MiniTag(text: '${crop.openTaskCount} open tasks', color: const Color(0xFFFFF2C7)),
-                      _MiniTag(text: '${crop.inputRecords.length} input records', color: const Color(0xFFDDF0E4)),
+                      _MiniTag(
+                          text: '${crop.openTaskCount} open tasks',
+                          color: const Color(0xFFFFF2C7)),
+                      _MiniTag(
+                          text: '${crop.inputRecords.length} input records',
+                          color: const Color(0xFFDDF0E4)),
                       if (crop.targetYieldKg > 0)
-                        _MiniTag(text: '${crop.targetYieldKg.toStringAsFixed(0)} kg target', color: const Color(0xFFFFF2C7)),
+                        _MiniTag(
+                            text:
+                                '${crop.targetYieldKg.toStringAsFixed(0)} kg target',
+                            color: const Color(0xFFFFF2C7)),
                     ],
                   ),
                   const SizedBox(height: 12),
                   _SmartRecordStrip(
                     title: crop.intelligenceNotes.isEmpty
-                        ? _cropIntelligenceSummary(crop.name, crop.currentStage, crop.expectedHarvestDate, landSizeText: crop.landSizeLabel)
+                        ? _cropIntelligenceSummary(crop.name, crop.currentStage,
+                            crop.expectedHarvestDate,
+                            landSizeText: crop.landSizeLabel)
                         : crop.intelligenceNotes,
                     tasks: crop.todoItems,
                     inputs: crop.inputRecords,
@@ -1252,7 +1429,8 @@ class _SmartRecordStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Iterable<FarmTodoItem> openTasks = tasks.where((FarmTodoItem item) => !item.isCompleted).take(2);
+    final Iterable<FarmTodoItem> openTasks =
+        tasks.where((FarmTodoItem item) => !item.isCompleted).take(2);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1262,17 +1440,24 @@ class _SmartRecordStrip extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(title, style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.45)),
+          Text(title,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(height: 1.45)),
           if (advice != null) ...<Widget>[
             const SizedBox(height: 8),
             Text(
               'Seed need: ${advice!.seedRequirementLabel} | ${advice!.fertiliserSummary}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.45),
+              style:
+                  Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.45),
             ),
           ],
           const SizedBox(height: 10),
           if (openTasks.isEmpty)
-            Text('No open crop reminders. Add irrigation, scouting, harvest, or input tasks.', style: Theme.of(context).textTheme.bodySmall)
+            Text(
+                'No open crop reminders. Add irrigation, scouting, harvest, or input tasks.',
+                style: Theme.of(context).textTheme.bodySmall)
           else
             ...openTasks.map(
               (FarmTodoItem task) => CheckboxListTile(
@@ -1281,7 +1466,9 @@ class _SmartRecordStrip extends StatelessWidget {
                 contentPadding: EdgeInsets.zero,
                 dense: true,
                 title: Text(task.title),
-                subtitle: Text(task.dailyReminder ? 'Daily reminder enabled' : _dateLabel(task.dueDate)),
+                subtitle: Text(task.dailyReminder
+                    ? 'Daily reminder enabled'
+                    : _dateLabel(task.dueDate)),
               ),
             ),
           const SizedBox(height: 8),
@@ -1290,7 +1477,8 @@ class _SmartRecordStrip extends StatelessWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: onAddTask,
-                  icon: const Icon(Icons.notifications_active_outlined, size: 18),
+                  icon:
+                      const Icon(Icons.notifications_active_outlined, size: 18),
                   label: const Text('Todo'),
                 ),
               ),
@@ -1299,7 +1487,8 @@ class _SmartRecordStrip extends StatelessWidget {
                 child: OutlinedButton.icon(
                   onPressed: onAddInput,
                   icon: const Icon(Icons.inventory_2_outlined, size: 18),
-                  label: Text(inputs.isEmpty ? 'Input' : '${inputs.length} inputs'),
+                  label: Text(
+                      inputs.isEmpty ? 'Input' : '${inputs.length} inputs'),
                 ),
               ),
             ],
@@ -1334,11 +1523,13 @@ class _DropdownField<T> extends StatelessWidget {
         fillColor: Theme.of(context).colorScheme.surface,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+          borderSide:
+              BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+          borderSide:
+              BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
       ),
@@ -1384,11 +1575,13 @@ class _DateTile extends StatelessWidget {
           fillColor: Theme.of(context).colorScheme.surface,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(20),
-            borderSide: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+            borderSide:
+                BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(20),
-            borderSide: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+            borderSide:
+                BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
           ),
         ),
         child: Row(
@@ -1448,8 +1641,11 @@ class _CropPlanningCard extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     const Color tint = Color(0xFFE8F4D8);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color iconBackground = isDark ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface) : tint;
-    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
+    final Color iconBackground = isDark
+        ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface)
+        : tint;
+    final Color iconForeground =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
     return AppCard(
       color: theme.colorScheme.surfaceContainerHighest,
@@ -1466,7 +1662,10 @@ class _CropPlanningCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: iconBackground,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: isDark ? tint.withOpacity(0.42) : Colors.transparent),
+                    border: Border.all(
+                        color: isDark
+                            ? tint.withOpacity(0.42)
+                            : Colors.transparent),
                   ),
                   child: Icon(Icons.insights_rounded, color: iconForeground),
                 ),
@@ -1477,7 +1676,8 @@ class _CropPlanningCard extends StatelessWidget {
                     children: <Widget>[
                       Text(
                         'Planning estimate',
-                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -1498,10 +1698,18 @@ class _CropPlanningCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: <Widget>[
-                _MiniTag(text: '${summary.cycleDays} day cycle', color: const Color(0xFFE8F4D8)),
-                _MiniTag(text: '${summary.remainingDays} days left', color: const Color(0xFFDFF1FF)),
-                _MiniTag(text: '${summary.suggestedYieldKg.toStringAsFixed(0)} kg target', color: const Color(0xFFFFEBD0)),
-                _MiniTag(text: summary.areaLabel, color: const Color(0xFFEDE8FF)),
+                _MiniTag(
+                    text: '${summary.cycleDays} day cycle',
+                    color: const Color(0xFFE8F4D8)),
+                _MiniTag(
+                    text: '${summary.remainingDays} days left',
+                    color: const Color(0xFFDFF1FF)),
+                _MiniTag(
+                    text:
+                        '${summary.suggestedYieldKg.toStringAsFixed(0)} kg target',
+                    color: const Color(0xFFFFEBD0)),
+                _MiniTag(
+                    text: summary.areaLabel, color: const Color(0xFFEDE8FF)),
               ],
             ),
             const SizedBox(height: 12),
@@ -1512,7 +1720,8 @@ class _CropPlanningCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'Suggested harvest date: ${MaterialLocalizations.of(context).formatFullDate(summary.suggestedHarvestDate)}',
-              style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
             Text(
@@ -1582,8 +1791,11 @@ class _InlineNotice extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color iconBackground = isDark ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface) : color;
-    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
+    final Color iconBackground = isDark
+        ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface)
+        : color;
+    final Color iconForeground =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
     return AppCard(
       color: theme.colorScheme.surfaceContainerHighest,
@@ -1597,7 +1809,9 @@ class _InlineNotice extends StatelessWidget {
               decoration: BoxDecoration(
                 color: iconBackground,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: isDark ? color.withOpacity(0.42) : Colors.transparent),
+                border: Border.all(
+                    color:
+                        isDark ? color.withOpacity(0.42) : Colors.transparent),
               ),
               child: Icon(icon, color: iconForeground),
             ),
@@ -1668,7 +1882,8 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               message,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+              style:
+                  Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
@@ -1696,15 +1911,19 @@ class _MiniTag extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color background = isDark ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface) : color;
-    final Color foreground = isDark ? theme.colorScheme.onSurface : const Color(0xFF284231);
+    final Color background = isDark
+        ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface)
+        : color;
+    final Color foreground =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFF284231);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: isDark ? color.withOpacity(0.44) : color.withOpacity(0.85)),
+        border: Border.all(
+            color: isDark ? color.withOpacity(0.44) : color.withOpacity(0.85)),
       ),
       child: Text(
         text,
@@ -1737,7 +1956,8 @@ class _TodoFormSheetState extends State<_TodoFormSheet> {
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController(text: 'Check ${widget.entityName}');
+    _titleController =
+        TextEditingController(text: 'Check ${widget.entityName}');
     _notesController = TextEditingController();
   }
 
@@ -1752,9 +1972,13 @@ class _TodoFormSheetState extends State<_TodoFormSheet> {
   Widget build(BuildContext context) {
     return _SheetShell(
       title: 'Todo and reminder',
-      subtitle: 'Create a daily action that can be used by sync and notification planning.',
+      subtitle:
+          'Create a daily action that can be used by sync and notification planning.',
       children: <Widget>[
-        AppTextField(controller: _titleController, label: 'Task title', hint: 'Scout for pests'),
+        AppTextField(
+            controller: _titleController,
+            label: 'Task title',
+            hint: 'Scout for pests'),
         const SizedBox(height: 12),
         _DropdownField<FarmTodoPriority>(
           label: 'Priority',
@@ -1788,7 +2012,8 @@ class _TodoFormSheetState extends State<_TodoFormSheet> {
           onChanged: (bool value) => setState(() => _dailyReminder = value),
           contentPadding: EdgeInsets.zero,
           title: const Text('Daily reminder'),
-          subtitle: const Text('Shows this action as a repeating farm reminder.'),
+          subtitle:
+              const Text('Shows this action as a repeating farm reminder.'),
         ),
         SwitchListTile(
           value: _pushEnabled,
@@ -1797,9 +2022,14 @@ class _TodoFormSheetState extends State<_TodoFormSheet> {
           title: const Text('Push notification ready'),
           subtitle: const Text('Marks this task for notification scheduling.'),
         ),
-        AppTextField(controller: _notesController, label: 'Notes', hint: 'What should be checked?', maxLines: 3),
+        AppTextField(
+            controller: _notesController,
+            label: 'Notes',
+            hint: 'What should be checked?',
+            maxLines: 3),
         const SizedBox(height: 18),
-        AppButton.primary(onPressed: _submit, child: const Text('Save reminder')),
+        AppButton.primary(
+            onPressed: _submit, child: const Text('Save reminder')),
       ],
     );
   }
@@ -1854,7 +2084,8 @@ class _InputFormSheetState extends State<_InputFormSheet> {
     _unitController = TextEditingController(text: 'bag');
     _unitCostController = TextEditingController(text: '0');
     _supplierController = TextEditingController();
-    _notesController = TextEditingController(text: 'Used for ${widget.entityName}');
+    _notesController =
+        TextEditingController(text: 'Used for ${widget.entityName}');
   }
 
   @override
@@ -1872,9 +2103,13 @@ class _InputFormSheetState extends State<_InputFormSheet> {
   Widget build(BuildContext context) {
     return _SheetShell(
       title: 'Input stock record',
-      subtitle: 'Track seeds, fertiliser, labour, or supplies and sync the cost to finance.',
+      subtitle:
+          'Track seeds, fertiliser, labour, or supplies and sync the cost to finance.',
       children: <Widget>[
-        AppTextField(controller: _nameController, label: 'Input name', hint: 'NPK fertiliser'),
+        AppTextField(
+            controller: _nameController,
+            label: 'Input name',
+            hint: 'NPK fertiliser'),
         const SizedBox(height: 12),
         _DropdownField<FarmInputCategory>(
           label: 'Category',
@@ -1890,15 +2125,28 @@ class _InputFormSheetState extends State<_InputFormSheet> {
         const SizedBox(height: 12),
         Row(
           children: <Widget>[
-            Expanded(child: AppTextField(controller: _quantityController, label: 'Quantity', keyboardType: const TextInputType.numberWithOptions(decimal: true))),
+            Expanded(
+                child: AppTextField(
+                    controller: _quantityController,
+                    label: 'Quantity',
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true))),
             const SizedBox(width: 10),
-            Expanded(child: AppTextField(controller: _unitController, label: 'Unit', hint: 'bag')),
+            Expanded(
+                child: AppTextField(
+                    controller: _unitController, label: 'Unit', hint: 'bag')),
           ],
         ),
         const SizedBox(height: 12),
-        AppTextField(controller: _unitCostController, label: 'Unit cost', keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+        AppTextField(
+            controller: _unitCostController,
+            label: 'Unit cost',
+            keyboardType: const TextInputType.numberWithOptions(decimal: true)),
         const SizedBox(height: 12),
-        AppTextField(controller: _supplierController, label: 'Supplier/provider', hint: 'Agro dealer'),
+        AppTextField(
+            controller: _supplierController,
+            label: 'Supplier/provider',
+            hint: 'Agro dealer'),
         const SizedBox(height: 12),
         _DateTile(
           label: 'Record date',
@@ -1918,17 +2166,21 @@ class _InputFormSheetState extends State<_InputFormSheet> {
         const SizedBox(height: 12),
         AppTextField(controller: _notesController, label: 'Notes', maxLines: 3),
         const SizedBox(height: 18),
-        AppButton.primary(onPressed: _submit, child: const Text('Save and sync finance')),
+        AppButton.primary(
+            onPressed: _submit, child: const Text('Save and sync finance')),
       ],
     );
   }
 
   void _submit() {
     final String name = _nameController.text.trim();
-    final double quantity = double.tryParse(_quantityController.text.trim()) ?? 0;
-    final double unitCost = double.tryParse(_unitCostController.text.trim()) ?? 0;
+    final double quantity =
+        double.tryParse(_quantityController.text.trim()) ?? 0;
+    final double unitCost =
+        double.tryParse(_unitCostController.text.trim()) ?? 0;
     if (name.isEmpty || quantity <= 0 || _unitController.text.trim().isEmpty) {
-      context.showSnackBar('Input name, quantity, and unit are required', isError: true);
+      context.showSnackBar('Input name, quantity, and unit are required',
+          isError: true);
       return;
     }
     final DateTime now = DateTime.now();
@@ -1964,7 +2216,8 @@ class _SheetShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
@@ -1991,7 +2244,11 @@ class _SheetShell extends StatelessWidget {
                 const SizedBox(height: 18),
                 Text(title, style: Theme.of(context).textTheme.headlineSmall),
                 const SizedBox(height: 8),
-                Text(subtitle, style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5)),
+                Text(subtitle,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(height: 1.5)),
                 const SizedBox(height: 18),
                 ...children,
               ],
@@ -2017,7 +2274,8 @@ String _cropIntelligenceSummary(
     CropStage.flowering => 'avoid moisture stress during flowering',
     CropStage.fruiting => 'watch harvest quality, pests, and market timing',
   };
-  final String areaSnippet = landSizeText.isEmpty ? '' : ' Current land size is $landSizeText.';
+  final String areaSnippet =
+      landSizeText.isEmpty ? '' : ' Current land size is $landSizeText.';
   return '$name intelligence: $stageLabel.$areaSnippet ${days >= 0 ? 'Harvest window in $days days.' : 'Harvest is due; update sale or storage records.'}';
 }
 
@@ -2070,7 +2328,8 @@ TransactionCategory _transactionCategoryForInput(FarmInputCategory category) {
   }
 }
 
-String _dateLabel(DateTime value) => '${value.day}/${value.month}/${value.year}';
+String _dateLabel(DateTime value) =>
+    '${value.day}/${value.month}/${value.year}';
 
 class CropDraft {
   const CropDraft({

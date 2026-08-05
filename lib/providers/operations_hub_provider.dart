@@ -4,7 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/remote/operations_hub_remote_store.dart';
+import '../data/repositories/firestore_inventory_repository.dart';
+import '../data/repositories/inventory_repository.dart';
+import '../domain/models/inventory_item.dart';
 import 'auth_provider.dart';
+
+export '../domain/models/inventory_item.dart';
 
 enum BusinessPartnerType {
   customer,
@@ -47,93 +52,8 @@ class BusinessPartner {
         (BusinessPartnerType value) => value.name == json['type'],
         orElse: () => BusinessPartnerType.customer,
       ),
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
-    );
-  }
-}
-
-class InventoryItem {
-  const InventoryItem({
-    required this.id,
-    required this.farmId,
-    required this.name,
-    required this.category,
-    required this.unit,
-    required this.availableQuantity,
-    required this.unitPrice,
-    required this.createdAt,
-    required this.updatedAt,
-    this.costPrice = 0,
-    this.emoji = '🌾',
-  });
-
-  final String id;
-  final String farmId;
-  final String name;
-  final String category;
-  final String unit;
-  final double availableQuantity;
-  final double unitPrice;
-  final DateTime createdAt;
-  final DateTime updatedAt;
-  final double costPrice;
-  final String emoji;
-
-  InventoryItem copyWith({
-    String? id,
-    String? farmId,
-    String? name,
-    String? category,
-    String? unit,
-    double? availableQuantity,
-    double? unitPrice,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-    double? costPrice,
-    String? emoji,
-  }) {
-    return InventoryItem(
-      id: id ?? this.id,
-      farmId: farmId ?? this.farmId,
-      name: name ?? this.name,
-      category: category ?? this.category,
-      unit: unit ?? this.unit,
-      availableQuantity: availableQuantity ?? this.availableQuantity,
-      unitPrice: unitPrice ?? this.unitPrice,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-      costPrice: costPrice ?? this.costPrice,
-      emoji: emoji ?? this.emoji,
-    );
-  }
-
-  Map<String, dynamic> toJson() => <String, dynamic>{
-        'id': id,
-        'farmId': farmId,
-        'name': name,
-        'category': category,
-        'unit': unit,
-        'availableQuantity': availableQuantity,
-        'unitPrice': unitPrice,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-        'costPrice': costPrice,
-        'emoji': emoji,
-      };
-
-  factory InventoryItem.fromJson(Map<String, dynamic> json) {
-    return InventoryItem(
-      id: json['id'] as String,
-      farmId: json['farmId'] as String? ?? '',
-      name: json['name'] as String? ?? '',
-      category: json['category'] as String? ?? '',
-      unit: json['unit'] as String? ?? 'unit',
-      availableQuantity: (json['availableQuantity'] as num?)?.toDouble() ?? 0,
-      unitPrice: (json['unitPrice'] as num?)?.toDouble() ?? 0,
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
-      updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
-      costPrice: (json['costPrice'] as num?)?.toDouble() ?? 0,
-      emoji: json['emoji'] as String? ?? '🌾',
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now(),
     );
   }
 }
@@ -158,69 +78,105 @@ class OperationsHubState {
   }
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'inventory': inventory.map((InventoryItem item) => item.toJson()).toList(),
-        'partners': partners.map((BusinessPartner partner) => partner.toJson()).toList(),
+        'inventory':
+            inventory.map((InventoryItem item) => item.toJson()).toList(),
+        'partners': partners
+            .map((BusinessPartner partner) => partner.toJson())
+            .toList(),
       };
 
   factory OperationsHubState.fromJson(Map<String, dynamic> json) {
     return OperationsHubState(
       inventory: ((json['inventory'] as List<dynamic>?) ?? <dynamic>[])
           .whereType<Map>()
-          .map((Map item) => InventoryItem.fromJson(Map<String, dynamic>.from(item)))
+          .map((Map item) =>
+              InventoryItem.fromJson(Map<String, dynamic>.from(item)))
           .toList(growable: false),
       partners: ((json['partners'] as List<dynamic>?) ?? <dynamic>[])
           .whereType<Map>()
-          .map((Map item) => BusinessPartner.fromJson(Map<String, dynamic>.from(item)))
+          .map((Map item) =>
+              BusinessPartner.fromJson(Map<String, dynamic>.from(item)))
           .toList(growable: false),
     );
   }
 }
 
+final inventoryRepositoryProvider = Provider<InventoryRepository>((ref) {
+  return FirestoreInventoryRepository(ref.watch(firebaseServiceProvider));
+});
+
 final operationsHubProvider =
     StateNotifierProvider<OperationsHubNotifier, OperationsHubState>((ref) {
-  return OperationsHubNotifier(ref.watch(firebaseServiceProvider));
+  return OperationsHubNotifier(
+    ref.watch(firebaseServiceProvider),
+    ref.watch(inventoryRepositoryProvider),
+  );
 });
 
 class OperationsHubNotifier extends StateNotifier<OperationsHubState> {
-  OperationsHubNotifier(this._remoteStore) : super(const OperationsHubState()) {
+  OperationsHubNotifier(this._remoteStore, this._inventoryRepository)
+      : super(const OperationsHubState()) {
     _load();
   }
 
   final OperationsHubRemoteStore _remoteStore;
+  final InventoryRepository _inventoryRepository;
+
+  /// Legacy combined-blob storage key. Partners still live here; inventory
+  /// used to as well, and is migrated out on first load after upgrade (see
+  /// [_load]) into its own per-item synced collection via
+  /// [InventoryRepository].
   static const String _storageKey = 'operations_hub_state';
 
   Future<void> _load() async {
+    OperationsHubState legacy = const OperationsHubState();
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final String? raw = prefs.getString(_storageKey);
     if (raw != null && raw.isNotEmpty) {
-      state = OperationsHubState.fromJson(
-        jsonDecode(raw) as Map<String, dynamic>,
-      );
+      legacy =
+          OperationsHubState.fromJson(jsonDecode(raw) as Map<String, dynamic>);
     }
 
-    if (!_remoteStore.hasActiveUser) {
+    if (_remoteStore.hasActiveUser) {
+      try {
+        final List<Map<String, dynamic>> remoteDocs =
+            await _remoteStore.getFromFirestore(_storageKey);
+        for (final Map<String, dynamic> doc in remoteDocs) {
+          final dynamic payload = doc['payload'];
+          if (payload is Map<String, dynamic>) {
+            legacy = OperationsHubState.fromJson(payload);
+            break;
+          }
+          if (payload is Map) {
+            legacy =
+                OperationsHubState.fromJson(Map<String, dynamic>.from(payload));
+            break;
+          }
+        }
+      } catch (_) {
+        // Fall back to the locally cached legacy blob if remote loading is unavailable.
+      }
+    }
+
+    List<InventoryItem> inventory = await _inventoryRepository.getAll();
+    if (inventory.isEmpty && legacy.inventory.isNotEmpty) {
+      // One-time migration from the old combined blob into the new
+      // per-item synced collection.
+      for (final InventoryItem item in legacy.inventory) {
+        await _inventoryRepository.insert(item);
+      }
+      inventory = legacy.inventory;
+    }
+
+    if (!mounted) {
       return;
     }
-
-    try {
-      final List<Map<String, dynamic>> remoteDocs = await _remoteStore.getFromFirestore(_storageKey);
-      for (final Map<String, dynamic> doc in remoteDocs) {
-        final dynamic payload = doc['payload'];
-        if (payload is Map<String, dynamic>) {
-          state = OperationsHubState.fromJson(payload);
-          break;
-        }
-        if (payload is Map) {
-          state = OperationsHubState.fromJson(Map<String, dynamic>.from(payload));
-          break;
-        }
-      }
-    } catch (_) {
-      // Fall back to the locally cached state if remote loading is unavailable.
-    }
+    state = OperationsHubState(inventory: inventory, partners: legacy.partners);
   }
 
-  Future<void> _save() async {
+  /// Partners remain on the legacy combined-blob sync — only inventory was
+  /// asked to become properly per-item synced.
+  Future<void> _savePartners() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final Map<String, dynamic> payload = state.toJson();
     await prefs.setString(_storageKey, jsonEncode(payload));
@@ -240,19 +196,20 @@ class OperationsHubNotifier extends StateNotifier<OperationsHubState> {
     state = state.copyWith(
       partners: <BusinessPartner>[partner, ...state.partners],
     );
-    await _save();
+    await _savePartners();
   }
 
   Future<void> addInventoryItem(InventoryItem item) async {
     final List<InventoryItem> next = <InventoryItem>[...state.inventory];
-    final int index = next.indexWhere((InventoryItem current) => current.id == item.id);
+    final int index =
+        next.indexWhere((InventoryItem current) => current.id == item.id);
     if (index >= 0) {
       next[index] = item;
     } else {
       next.insert(0, item);
     }
     state = state.copyWith(inventory: next);
-    await _save();
+    await _inventoryRepository.insert(item);
   }
 
   Future<void> updateInventoryItem(InventoryItem item) async {
@@ -260,7 +217,7 @@ class OperationsHubNotifier extends StateNotifier<OperationsHubState> {
         .map((InventoryItem current) => current.id == item.id ? item : current)
         .toList(growable: false);
     state = state.copyWith(inventory: next);
-    await _save();
+    await _inventoryRepository.update(item);
   }
 
   Future<void> deleteInventoryItem(String itemId) async {
@@ -268,7 +225,7 @@ class OperationsHubNotifier extends StateNotifier<OperationsHubState> {
         .where((InventoryItem item) => item.id != itemId)
         .toList(growable: false);
     state = state.copyWith(inventory: next);
-    await _save();
+    await _inventoryRepository.delete(itemId);
   }
 
   Future<void> adjustInventoryQuantity({
@@ -310,7 +267,8 @@ class OperationsHubNotifier extends StateNotifier<OperationsHubState> {
     }
 
     final InventoryItem current = state.inventory[index];
-    final double nextQuantity = (current.availableQuantity + deltaQuantity).clamp(0, 999999).toDouble();
+    final double nextQuantity =
+        (current.availableQuantity + deltaQuantity).clamp(0, 999999).toDouble();
     await updateInventoryItem(
       current.copyWith(
         availableQuantity: nextQuantity,
@@ -330,8 +288,12 @@ class OperationsHubNotifier extends StateNotifier<OperationsHubState> {
     if (lower.contains('fish')) return '🐟';
     if (lower.contains('feed')) return '🌽';
     if (lower.contains('fertil')) return '🧪';
-    if (lower.contains('veg') || lower.contains('leaf') || lower.contains('lettuce')) return '🥬';
-    if (lower.contains('tomato') || lower.contains('pepper') || lower.contains('pepper')) return '🍅';
+    if (lower.contains('veg') ||
+        lower.contains('leaf') ||
+        lower.contains('lettuce')) return '🥬';
+    if (lower.contains('tomato') ||
+        lower.contains('pepper') ||
+        lower.contains('pepper')) return '🍅';
     return '🌾';
   }
 }

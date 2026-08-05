@@ -90,7 +90,8 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
     final bool isEditingProfile = profileAsync.valueOrNull?.isComplete == true;
 
     return SoftScreenScaffold(
-      heroTitle: isEditingProfile ? 'Edit your profile' : 'Complete your account',
+      heroTitle:
+          isEditingProfile ? 'Edit your profile' : 'Complete your account',
       heroSubtitle: isEditingProfile
           ? 'Update your farmer identity, contact details, photo, and production focus.'
           : 'Set up the farmer identity, location, and main production focus that the rest of FarmSync will build around.',
@@ -112,7 +113,10 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
                 const SizedBox(height: 8),
                 Text(
                   'These details improve your navigation, recommendations, and the way your workspace is labeled across the app.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(height: 1.5),
                 ),
                 const SizedBox(height: 18),
                 _ProfileImagePicker(
@@ -137,10 +141,12 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
                 Row(
                   children: <Widget>[
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
                         color: theme.colorScheme.surface,
-                        border: Border.all(color: theme.colorScheme.outlineVariant),
+                        border:
+                            Border.all(color: theme.colorScheme.outlineVariant),
                         borderRadius: BorderRadius.circular(18),
                       ),
                       child: DropdownButton<String>(
@@ -189,7 +195,8 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
                 AppTextField(
                   controller: _bioController,
                   label: 'Short bio',
-                  hint: 'Smallholder farmer focused on tomatoes, peppers, and broilers.',
+                  hint:
+                      'Smallholder farmer focused on tomatoes, peppers, and broilers.',
                   maxLines: 3,
                   textCapitalization: TextCapitalization.sentences,
                 ),
@@ -201,13 +208,16 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
                     fillColor: theme.colorScheme.surface,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(18),
-                      borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+                      borderSide:
+                          BorderSide(color: theme.colorScheme.outlineVariant),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(18),
-                      borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+                      borderSide:
+                          BorderSide(color: theme.colorScheme.outlineVariant),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<UserAccountRole>(
@@ -215,7 +225,8 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
                       isExpanded: true,
                       items: UserAccountRole.values
                           .map(
-                            (UserAccountRole role) => DropdownMenuItem<UserAccountRole>(
+                            (UserAccountRole role) =>
+                                DropdownMenuItem<UserAccountRole>(
                               value: role,
                               child: Text(_accountRoleLabel(role)),
                             ),
@@ -238,7 +249,10 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
           children: <Widget>[
             Expanded(
               child: AppButton.secondary(
-                onPressed: _isSaving ? null : () => context.go(isEditingProfile ? '/profile' : '/dashboard'),
+                onPressed: _isSaving
+                    ? null
+                    : () => context
+                        .go(isEditingProfile ? '/profile' : '/dashboard'),
                 child: Text(isEditingProfile ? 'Cancel' : 'Skip for now'),
               ),
             ),
@@ -255,7 +269,9 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
                           color: Colors.white,
                         ),
                       )
-                    : Text(isEditingProfile ? 'Save profile' : 'Save and continue'),
+                    : Text(isEditingProfile
+                        ? 'Save profile'
+                        : 'Save and continue'),
               ),
             ),
           ],
@@ -275,7 +291,8 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
     final String? nameError = Validators.combine(
       <String? Function(String?)>[
         (String? value) => Validators.required(value, fieldName: 'Full name'),
-        (String? value) => Validators.minLength(value, 2, fieldName: 'Full name'),
+        (String? value) =>
+            Validators.minLength(value, 2, fieldName: 'Full name'),
       ],
       _nameController.text.trim(),
     );
@@ -284,7 +301,8 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
       fieldName: 'Ward or community',
     );
     final String emailValue = _emailController.text.trim();
-    final String? emailError = emailValue.isEmpty ? null : Validators.email(emailValue);
+    final String? emailError =
+        emailValue.isEmpty ? null : Validators.email(emailValue);
     final String? focusError = Validators.required(
       _focusController.text.trim(),
       fieldName: 'Primary focus',
@@ -306,32 +324,31 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
       context.showSnackBar(focusError, isError: true);
       return;
     }
-    if (_profileImageBase64.trim().isEmpty) {
-      context.showSnackBar('Please upload a profile image to complete your profile.', isError: true);
-      return;
-    }
 
     final DateTime now = DateTime.now();
-    final UserProfile currentProfile = ref.read(userProfileProvider).valueOrNull ??
-        UserProfile(
-          uid: currentUser.uid,
-          fullName: '',
-          email: currentUser.email ?? '',
-          phoneNumber: '',
-          accountRole: UserAccountRole.owner,
-          ward: '',
-          primaryFocus: '',
-          bio: '',
-          profileImageBase64: '',
-          createdAt: now,
-          updatedAt: now,
-        );
+    final UserProfile currentProfile =
+        ref.read(userProfileProvider).valueOrNull ??
+            UserProfile(
+              uid: currentUser.uid,
+              fullName: '',
+              email: currentUser.email ?? '',
+              phoneNumber: '',
+              accountRole: UserAccountRole.owner,
+              ward: '',
+              primaryFocus: '',
+              bio: '',
+              profileImageBase64: '',
+              createdAt: now,
+              updatedAt: now,
+            );
     final bool wasAlreadyComplete = currentProfile.isComplete;
 
     final UserProfile nextProfile = currentProfile.copyWith(
       uid: currentUser.uid,
       fullName: _nameController.text.trim(),
-      email: emailValue.isNotEmpty ? emailValue : (currentUser.email ?? currentProfile.email),
+      email: emailValue.isNotEmpty
+          ? emailValue
+          : (currentUser.email ?? currentProfile.email),
       phoneNumber: '$_selectedCountryCode${_phoneController.text.trim()}',
       accountRole: _accountRole,
       ward: _wardController.text.trim(),
@@ -375,7 +392,9 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
     final Uint8List bytes = await file.readAsBytes();
     if (bytes.lengthInBytes > 500000) {
       if (mounted) {
-        context.showSnackBar('That image is too large. Please choose a smaller profile photo.', isError: true);
+        context.showSnackBar(
+            'That image is too large. Please choose a smaller profile photo.',
+            isError: true);
       }
       return;
     }
@@ -385,31 +404,32 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
   }
 
   List<String> get _countryCodeList => <String>[
-    '+234',
-    '+1',
-    '+44',
-    '+91',
-    '+27',
-    '+254',
-    '+256',
-    '+255',
-    '+233',
-    '+237',
-    '+212',
-    '+20',
-    '+880',
-    '+86',
-    '+81',
-    '+33',
-    '+49',
-    '+39',
-    '+34',
-    '+31',
-  ];
+        '+234',
+        '+1',
+        '+44',
+        '+91',
+        '+27',
+        '+254',
+        '+256',
+        '+255',
+        '+233',
+        '+237',
+        '+212',
+        '+20',
+        '+880',
+        '+86',
+        '+81',
+        '+33',
+        '+49',
+        '+39',
+        '+34',
+        '+31',
+      ];
 
   String _saveErrorMessage(Object error) {
     if (error is FirebaseAuthException) {
-      return error.message ?? 'Authentication failed while saving your profile.';
+      return error.message ??
+          'Authentication failed while saving your profile.';
     }
     if (error is FirebaseException) {
       switch (error.code) {
@@ -463,14 +483,17 @@ class _ProfileImagePicker extends StatelessWidget {
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+          border:
+              Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         child: Row(
           children: <Widget>[
             CircleAvatar(
               radius: 34,
-              backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.10),
-              backgroundImage: imageBytes == null ? null : MemoryImage(imageBytes),
+              backgroundColor:
+                  Theme.of(context).colorScheme.primary.withOpacity(0.10),
+              backgroundImage:
+                  imageBytes == null ? null : MemoryImage(imageBytes),
               child: imageBytes == null
                   ? Icon(
                       Icons.person_rounded,
@@ -486,14 +509,20 @@ class _ProfileImagePicker extends StatelessWidget {
                 children: <Widget>[
                   Text(
                     'Upload profile image',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     imageBytes == null
                         ? 'Choose a photo that will be beautifully displayed across your profile.'
                         : 'Tap to replace your current photo.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.5),
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(height: 1.5),
                   ),
                 ],
               ),

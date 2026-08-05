@@ -572,6 +572,15 @@ class Farm {
           item.financeAccess != FarmFinanceAccess.none)
       .length;
 
+  /// Denormalized workspace-member uids, kept in sync with [workspaceMembers]
+  /// on every serialize. Lets Firestore query "farms I can access" with a
+  /// single array-contains clause instead of downloading every farm in the
+  /// collection and filtering client-side.
+  List<String> get memberUids => workspaceMembers
+      .map((FarmWorkspaceMember member) => member.id.trim())
+      .where((String id) => id.isNotEmpty)
+      .toList(growable: false);
+
   Farm copyWith({
     String? id,
     String? name,
@@ -672,6 +681,7 @@ class Farm {
         'workspaceMembers': workspaceMembers
             .map((FarmWorkspaceMember item) => item.toJson())
             .toList(),
+        'memberUids': memberUids,
         'workspaceTasks': workspaceTasks
             .map((FarmWorkspaceTask item) => item.toJson())
             .toList(),

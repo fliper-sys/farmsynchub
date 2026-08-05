@@ -45,6 +45,20 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
   static const String _googleWebClientId =
       '190353139949-8vjnn71ku91tvp75kpl2q5ete9hcpnd1.apps.googleusercontent.com';
 
+  /// A true (lazily-initialized) singleton: `FirebaseService()` is
+  /// constructed ad hoc in many places across the app (not only through the
+  /// Riverpod provider), so a per-instance field here would re-run GIS's
+  /// `initWithParams` on every one of those constructions and crash with
+  /// "Future already completed" on web.
+  static final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: <String>['email'],
+    clientId: kIsWeb ? _googleWebClientId : null,
+  );
+
+  /// Shared instance so the web renderButton flow and the native imperative
+  /// flow observe the same client and `onCurrentUserChanged` stream.
+  GoogleSignIn get googleSignIn => _googleSignIn;
+
   /// Get current user
   User? get currentUser {
     try {
@@ -98,13 +112,14 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
     );
   }
 
-  /// Sign in with Google.
+  /// Sign in with Google using the native imperative popup flow.
+  ///
+  /// On web, `google_sign_in_web`'s `signIn()` is deprecated (unreliable
+  /// `idToken`, and Google's FedCM changes cause `popup_closed` failures) —
+  /// web callers should instead render the GIS button via
+  /// [buildGoogleSignInButton] and complete the flow through
+  /// [completeGoogleSignIn] once `googleSignIn.onCurrentUserChanged` fires.
   Future<UserCredential> signInWithGoogle() async {
-    final GoogleSignIn googleSignIn = GoogleSignIn(
-      scopes: <String>['email'],
-      clientId: kIsWeb ? _googleWebClientId : null,
-    );
-
     final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
     if (googleUser == null) {
       throw FirebaseAuthException(
@@ -112,7 +127,15 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
         message: 'Google sign-in was cancelled.',
       );
     }
+    return completeGoogleSignIn(googleUser);
+  }
 
+  /// Exchanges an already-authenticated [GoogleSignInAccount] (from either
+  /// the native `signIn()` popup or the web GIS button) for a Firebase
+  /// [UserCredential].
+  Future<UserCredential> completeGoogleSignIn(
+    GoogleSignInAccount googleUser,
+  ) async {
     try {
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
@@ -184,8 +207,22 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
     final DocumentReference<Map<String, dynamic>> docRef =
         _firestore.collection('users').doc(userId);
 
-    // Prefer the on-device cache first so a previously-signed-in user isn't
-    // stuck waiting on a network round trip that may never resolve offline.
+    // Prefer a live server fetch so profile changes made elsewhere (e.g. a
+    // profile photo uploaded on another device) are reflected immediately.
+    // The on-device cache is only a fallback for genuinely offline sessions —
+    // it must never be allowed to permanently mask a fresher server copy.
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> snapshot = await docRef
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 8));
+      final Map<String, dynamic>? data = snapshot.data();
+      if (data != null) {
+        return UserProfile.fromJson(data);
+      }
+    } catch (_) {
+      // Offline or server unreachable; fall through to the cached copy below.
+    }
+
     try {
       final DocumentSnapshot<Map<String, dynamic>> cached =
           await docRef.get(const GetOptions(source: Source.cache));
@@ -194,16 +231,10 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
         return UserProfile.fromJson(cachedData);
       }
     } catch (_) {
-      // No cached document yet; fall through to a server fetch.
+      // No cached document either; nothing more we can do offline.
     }
 
-    final DocumentSnapshot<Map<String, dynamic>> snapshot =
-        await docRef.get().timeout(const Duration(seconds: 8));
-    final Map<String, dynamic>? data = snapshot.data();
-    if (data == null) {
-      return null;
-    }
-    return UserProfile.fromJson(data);
+    return null;
   }
 
   Future<UserProfile?> getUserProfileById(String userId) async {
@@ -501,9 +532,56 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
     }
   }
 
+  /// Farm ids the current user owns or has workspace-member access to,
+  /// resolved the same way the `farms` collection itself is scoped. Used to
+  /// scope other farm-linked collections (crops, livestock, transactions,
+  /// inventory, procurement, expenses) so their global fallback query never
+  /// downloads records belonging to other users' farms.
+  Future<List<String>> _accessibleFarmIds(String userId) async {
+    try {
+      final List<Map<String, dynamic>> farmRecords = await getFromFirestore(
+        'farms',
+        ownerUidField: 'ownerUid',
+        memberArrayField: 'memberUids',
+      );
+      return farmRecords
+          .map((Map<String, dynamic> record) => record['id'] as String?)
+          .whereType<String>()
+          .where((String id) => id.isNotEmpty)
+          .toSet()
+          .toList(growable: false);
+    } catch (_) {
+      return const <String>[];
+    }
+  }
+
+  Iterable<List<String>> _chunked(List<String> items, int size) sync* {
+    for (int i = 0; i < items.length; i += size) {
+      yield items.sublist(i, i + size > items.length ? items.length : i + size);
+    }
+  }
+
   /// Get data from Firestore
+  ///
+  /// [ownerUidField] and [memberArrayField] scope the legacy global
+  /// collection fallback to documents this user actually owns or has
+  /// workspace-member access to (matched via an array-contains clause),
+  /// instead of downloading every user's documents and filtering client
+  /// side. Pass both to allow either match; pass neither to keep the old
+  /// unscoped behavior for collections with no ownership concept.
+  ///
+  /// [scopeByFarmIds] is for collections keyed by a `farmId` field rather
+  /// than a direct owner (crops, livestock, transactions, inventory_items,
+  /// procurement_orders, expense_entries) — it resolves the farms this user
+  /// can access first, then scopes the global query to `farmId in (...)`
+  /// instead of downloading every farm's records.
   @override
-  Future<List<Map<String, dynamic>>> getFromFirestore(String collection) async {
+  Future<List<Map<String, dynamic>>> getFromFirestore(
+    String collection, {
+    String? ownerUidField,
+    String? memberArrayField,
+    bool scopeByFarmIds = false,
+  }) async {
     final userId = currentUser?.uid;
     if (userId == null) throw Exception('User not authenticated');
 
@@ -524,14 +602,43 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
     }
 
     try {
-      final globalSnapshot = await _firestore
-          .collection(collection)
-          .get()
-          .timeout(const Duration(seconds: 8));
+      if (scopeByFarmIds) {
+        final List<String> farmIds = await _accessibleFarmIds(userId);
+        for (final List<String> chunk in _chunked(farmIds, 30)) {
+          final chunkSnapshot = await _firestore
+              .collection(collection)
+              .where('farmId', whereIn: chunk)
+              .get()
+              .timeout(const Duration(seconds: 8));
+          globalScoped.addAll(chunkSnapshot.docs
+              .map((doc) => doc.data())
+              .toList(growable: false));
+        }
+        return mergeFirestoreRecords(userScoped, globalScoped);
+      }
+
+      Query<Map<String, dynamic>> globalQuery =
+          _firestore.collection(collection);
+      if (ownerUidField != null && memberArrayField != null) {
+        globalQuery = globalQuery.where(
+          Filter.or(
+            Filter(ownerUidField, isEqualTo: userId),
+            Filter(memberArrayField, arrayContains: userId),
+          ),
+        );
+      } else if (ownerUidField != null) {
+        globalQuery = globalQuery.where(ownerUidField, isEqualTo: userId);
+      } else if (memberArrayField != null) {
+        globalQuery =
+            globalQuery.where(memberArrayField, arrayContains: userId);
+      }
+      final globalSnapshot =
+          await globalQuery.get().timeout(const Duration(seconds: 8));
       globalScoped.addAll(
           globalSnapshot.docs.map((doc) => doc.data()).toList(growable: false));
     } catch (_) {
-      // Ignore global read failures if the collection is unavailable.
+      // Ignore global read failures if the collection is unavailable (e.g. a
+      // required composite index has not been created yet).
     }
 
     return mergeFirestoreRecords(userScoped, globalScoped);

@@ -6,7 +6,11 @@ abstract class FarmRemoteStore {
 
   Future<void> syncToFirestore(String collection, Map<String, dynamic> data);
 
-  Future<List<Map<String, dynamic>>> getFromFirestore(String collection);
+  Future<List<Map<String, dynamic>>> getFromFirestore(
+    String collection, {
+    String? ownerUidField,
+    String? memberArrayField,
+  });
 
   Future<void> deleteFromFirestore(String collection, String id);
 }

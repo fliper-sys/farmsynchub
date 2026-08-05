@@ -10,6 +10,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../domain/models/ai_topic.dart';
 import '../../../domain/models/chat_message.dart';
 import '../../../providers/ai_chat_provider.dart';
+import '../../../providers/app_preferences_provider.dart';
 
 class AiAdvisorScreen extends ConsumerStatefulWidget {
   const AiAdvisorScreen({super.key});
@@ -39,6 +40,7 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
   @override
   Widget build(BuildContext context) {
     final AiProvider ai = ref.watch(aiChatProvider);
+    final AppLanguage language = ref.watch(appLanguageProvider);
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
 
@@ -69,6 +71,7 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           _TopBar(
+                            language: language,
                             onBack: () => Navigator.of(context).canPop()
                                 ? Navigator.of(context).pop()
                                 : context.go('/dashboard'),
@@ -83,56 +86,92 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
                           ),
                           const SizedBox(height: 18),
                           _HeroCard(
+                            language: language,
                             ai: ai,
                             onPremiumTap: () => _showPremiumSnack(context),
-                            onQuickPrompt: (String prompt) => _sendQuickPrompt(ai, prompt),
+                            onQuickPrompt: (String prompt) =>
+                                _sendQuickPrompt(ai, prompt),
                           ),
                           const SizedBox(height: 14),
                           _SearchBar(
+                            language: language,
                             controller: _searchController,
-                            onSubmitted: (String text) => _runSearchPrompt(ai, text),
+                            onSubmitted: (String text) =>
+                                _runSearchPrompt(ai, text),
                           ),
                           const SizedBox(height: 18),
-                          _StatusRow(ai: ai),
+                          _StatusRow(language: language, ai: ai),
                           const SizedBox(height: 18),
                           _SectionHeader(
-                            title: 'Studio tools',
-                            subtitle: 'One-tap prompts for the most common farm tasks.',
+                            title: language.tr(
+                                en: 'Studio tools',
+                                ha: 'Kayan Aikin Studio',
+                                fr: 'Outils du studio'),
+                            subtitle: language.tr(
+                                en: 'One-tap prompts for the most common farm tasks.',
+                                ha: 'Shawarwari cikin dannawa daya domin ayyukan gona da suka fi kowa yawa.',
+                                fr: 'Invites en un clic pour les taches agricoles les plus courantes.'),
                             trailing: Text(
                               ai.modelName,
-                              style: theme.textTheme.labelLarge?.copyWith(color: _aiMuted(context)),
+                              style: theme.textTheme.labelLarge
+                                  ?.copyWith(color: _aiMuted(context)),
                             ),
                           ),
                           const SizedBox(height: 12),
                           _StudioGrid(
-                            onTapAction: (AiStudioAction action) => _runStudioAction(ai, action),
+                            language: language,
+                            onTapAction: (AiStudioAction action) =>
+                                _runStudioAction(ai, action),
                           ),
                           const SizedBox(height: 20),
                           _SectionHeader(
-                            title: 'For you',
-                            subtitle: 'Jump back into a topic thread or start fresh from a saved context.',
+                            title: language.tr(
+                                en: 'For you',
+                                ha: 'A gare ka',
+                                fr: 'Pour vous'),
+                            subtitle: language.tr(
+                                en: 'Jump back into a topic thread or start fresh from a saved context.',
+                                ha: 'Koma cikin batun tattaunawa ko fara sabo daga bayanan da aka ajiye.',
+                                fr: 'Reprenez un fil de discussion ou recommencez a partir d\'un contexte enregistre.'),
                             trailing: TextButton(
-                              style: TextButton.styleFrom(foregroundColor: _aiText(context)),
+                              style: TextButton.styleFrom(
+                                  foregroundColor: _aiText(context)),
                               onPressed: () => ai.setTopic(AiTopic.general),
-                              child: const Text('General'),
+                              child: Text(language.tr(
+                                  en: 'General',
+                                  ha: 'Gama gari',
+                                  fr: 'General')),
                             ),
                           ),
                           const SizedBox(height: 12),
                           _HistoryRail(
+                            language: language,
                             ai: ai,
-                            onTopicSelected: (AiTopic topic) => ai.setTopic(topic),
+                            onTopicSelected: (AiTopic topic) =>
+                                ai.setTopic(topic),
                           ),
                           const SizedBox(height: 20),
                           _SectionHeader(
-                            title: 'Live chat',
-                            subtitle: 'Ask a question, attach a photo, and keep the conversation focused on one topic.',
+                            title: language.tr(
+                                en: 'Live chat',
+                                ha: 'Tattaunawa Kai Tsaye',
+                                fr: 'Discussion en direct'),
+                            subtitle: language.tr(
+                                en: 'Ask a question, attach a photo, and keep the conversation focused on one topic.',
+                                ha: 'Yi tambaya, haɗa hoto, kuma ka ci gaba da tattaunawa akan batu daya.',
+                                fr: 'Posez une question, joignez une photo et gardez la conversation centree sur un sujet.'),
                             trailing: Text(
-                              '${ai.activeMessageCount} messages',
-                              style: theme.textTheme.labelLarge?.copyWith(color: AppColors.primary),
+                              language.tr(
+                                  en: '${ai.activeMessageCount} messages',
+                                  ha: '${ai.activeMessageCount} sakonni',
+                                  fr: '${ai.activeMessageCount} messages'),
+                              style: theme.textTheme.labelLarge
+                                  ?.copyWith(color: AppColors.primary),
                             ),
                           ),
                           const SizedBox(height: 12),
                           _ChatSurface(
+                            language: language,
                             topic: ai.activeTopic,
                             messages: ai.activeMessages,
                             controller: _chatScrollController,
@@ -143,8 +182,11 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
                             _NoticeCard(
                               icon: Icons.timer_outlined,
                               tint: const Color(0xFFFFE1B8),
-                              message:
-                                  'Please wait ${ai.cooldownRemainingFor(ai.activeTopic).inSeconds + 1} seconds before sending another request.',
+                              message: language.tr(
+                                en: 'Please wait ${ai.cooldownRemainingFor(ai.activeTopic).inSeconds + 1} seconds before sending another request.',
+                                ha: 'Da fatan za a jira dakiku ${ai.cooldownRemainingFor(ai.activeTopic).inSeconds + 1} kafin aika wata bukata.',
+                                fr: 'Veuillez patienter ${ai.cooldownRemainingFor(ai.activeTopic).inSeconds + 1} secondes avant d\'envoyer une autre demande.',
+                              ),
                             ),
                           ],
                         ],
@@ -153,6 +195,7 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
                   ),
                   const SizedBox(height: 14),
                   _ComposerCard(
+                    language: language,
                     controller: _messageController,
                     isLoading: ai.isActiveLoading || ai.isActiveCoolingDown,
                     selectedImageBytes: _selectedImageBytes,
@@ -265,25 +308,37 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
   }
 
   void _showPremiumSnack(BuildContext context) {
+    final AppLanguage language = ref.read(appLanguageProvider);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Premium AI tools can be added here later.')),
+      SnackBar(
+          content: Text(language.tr(
+              en: 'Premium AI tools can be added here later.',
+              ha: 'Ana iya kara kayan aikin AI na premium a nan daga baya.',
+              fr: 'Des outils IA premium pourront etre ajoutes ici plus tard.'))),
     );
   }
 
   void _showVoiceComingSoon(BuildContext context) {
+    final AppLanguage language = ref.read(appLanguageProvider);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Voice input is coming soon.')),
+      SnackBar(
+          content: Text(language.tr(
+              en: 'Voice input is coming soon.',
+              ha: 'Shigar da murya na zuwa nan gaba kadan.',
+              fr: 'La saisie vocale arrive bientot.'))),
     );
   }
 }
 
 class _TopBar extends StatelessWidget {
   const _TopBar({
+    required this.language,
     required this.onBack,
     required this.onPremiumTap,
     required this.onMenuAction,
   });
 
+  final AppLanguage language;
   final VoidCallback onBack;
   final VoidCallback onPremiumTap;
   final ValueChanged<String> onMenuAction;
@@ -312,12 +367,17 @@ class _TopBar extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF17171C) : Theme.of(context).colorScheme.primaryContainer,
+              color: isDark
+                  ? const Color(0xFF17171C)
+                  : Theme.of(context).colorScheme.primaryContainer,
               borderRadius: BorderRadius.circular(999),
               border: Border.all(color: _aiBorder(context)),
             ),
             child: Text(
-              'Try premium',
+              language.tr(
+                  en: 'Try premium',
+                  ha: 'Gwada Premium',
+                  fr: 'Essayer premium'),
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
                     color: _aiText(context),
                     fontWeight: FontWeight.w700,
@@ -330,9 +390,19 @@ class _TopBar extends StatelessWidget {
           color: _aiSurface(context),
           icon: Icon(Icons.more_vert_rounded, color: _aiText(context)),
           onSelected: onMenuAction,
-          itemBuilder: (BuildContext context) => const <PopupMenuEntry<String>>[
-            PopupMenuItem<String>(value: 'clear-topic', child: Text('Clear this topic')),
-            PopupMenuItem<String>(value: 'clear-all', child: Text('Clear all chats')),
+          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+            PopupMenuItem<String>(
+                value: 'clear-topic',
+                child: Text(language.tr(
+                    en: 'Clear this topic',
+                    ha: 'Share wannan batu',
+                    fr: 'Effacer ce sujet'))),
+            PopupMenuItem<String>(
+                value: 'clear-all',
+                child: Text(language.tr(
+                    en: 'Clear all chats',
+                    ha: 'Share dukkan tattaunawa',
+                    fr: 'Effacer toutes les discussions'))),
           ],
         ),
       ],
@@ -342,11 +412,13 @@ class _TopBar extends StatelessWidget {
 
 class _HeroCard extends StatelessWidget {
   const _HeroCard({
+    required this.language,
     required this.ai,
     required this.onPremiumTap,
     required this.onQuickPrompt,
   });
 
+  final AppLanguage language;
   final AiProvider ai;
   final VoidCallback onPremiumTap;
   final ValueChanged<String> onQuickPrompt;
@@ -357,12 +429,16 @@ class _HeroCard extends StatelessWidget {
     final bool isDark = _aiIsDark(context);
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF121216) : theme.colorScheme.surfaceContainerHighest,
+        color: isDark
+            ? const Color(0xFF121216)
+            : theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(34),
         border: Border.all(color: _aiBorder(context)),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: isDark ? Colors.black.withOpacity(0.35) : Colors.black.withOpacity(0.08),
+            color: isDark
+                ? Colors.black.withOpacity(0.35)
+                : Colors.black.withOpacity(0.08),
             blurRadius: 32,
             offset: const Offset(0, 18),
           ),
@@ -400,30 +476,44 @@ class _HeroCard extends StatelessWidget {
                 Row(
                   children: <Widget>[
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF1A1A20) : Theme.of(context).colorScheme.surfaceContainerHighest,
+                        color: isDark
+                            ? const Color(0xFF1A1A20)
+                            : Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(999),
                         border: Border.all(color: _aiBorder(context)),
                       ),
                       child: Text(
-                        'Farm AI workspace',
-                        style: theme.textTheme.labelMedium?.copyWith(color: _aiMuted(context)),
+                        language.tr(
+                            en: 'Farm AI workspace',
+                            ha: 'Wurin Aikin AI na Gona',
+                            fr: 'Espace IA agricole'),
+                        style: theme.textTheme.labelMedium
+                            ?.copyWith(color: _aiMuted(context)),
                       ),
                     ),
                     const Spacer(),
                     GestureDetector(
                       onTap: onPremiumTap,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(999),
                           gradient: const LinearGradient(
-                            colors: <Color>[Color(0xFFFF4FD8), Color(0xFF7C3AED)],
+                            colors: <Color>[
+                              Color(0xFFFF4FD8),
+                              Color(0xFF7C3AED)
+                            ],
                           ),
                         ),
                         child: Text(
-                          'Premium',
+                          language.tr(
+                              en: 'Premium', ha: 'Premium', fr: 'Premium'),
                           style: theme.textTheme.labelLarge?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,
@@ -435,7 +525,10 @@ class _HeroCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 18),
                 Text(
-                  'Create, explore,\nbe inspired',
+                  language.tr(
+                      en: 'Create, explore,\nbe inspired',
+                      ha: 'Kirkira, bincika,\nsami kwarin gwiwa',
+                      fr: 'Creez, explorez,\nsoyez inspire'),
                   style: theme.textTheme.displaySmall?.copyWith(
                     fontFamily: 'DM Serif Display',
                     height: 0.96,
@@ -444,7 +537,11 @@ class _HeroCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Ask for field plans, diagnose with images, review market ideas, and keep crop, livestock, and finance advice in one beautiful workspace.',
+                  language.tr(
+                    en: 'Ask for field plans, diagnose with images, review market ideas, and keep crop, livestock, and finance advice in one beautiful workspace.',
+                    ha: 'Nemi shirye-shiryen gona, gano matsala ta hoto, bincika ra\'ayoyin kasuwa, kuma ka rike shawarwarin amfanin gona, dabbobi, da kudi a wuri daya mai kyau.',
+                    fr: 'Demandez des plans de terrain, diagnostiquez avec des images, examinez les idees de marche et gardez les conseils sur les cultures, l\'elevage et les finances dans un seul bel espace.',
+                  ),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: _aiMuted(context),
                     height: 1.55,
@@ -457,23 +554,39 @@ class _HeroCard extends StatelessWidget {
                   children: <Widget>[
                     _QuickBadge(
                       icon: Icons.spa_rounded,
-                      label: 'Crop plans',
-                      onTap: () => onQuickPrompt('Create a simple crop management plan for my farm this week.'),
+                      label: language.tr(
+                          en: 'Crop plans',
+                          ha: 'Shirye-shiryen Amfanin Gona',
+                          fr: 'Plans de cultures'),
+                      onTap: () => onQuickPrompt(
+                          'Create a simple crop management plan for my farm this week.'),
                     ),
                     _QuickBadge(
                       icon: Icons.pets_rounded,
-                      label: 'Animal care',
-                      onTap: () => onQuickPrompt('Review my livestock care routine and suggest improvements.'),
+                      label: language.tr(
+                          en: 'Animal care',
+                          ha: 'Kulawa da Dabbobi',
+                          fr: 'Soins aux animaux'),
+                      onTap: () => onQuickPrompt(
+                          'Review my livestock care routine and suggest improvements.'),
                     ),
                     _QuickBadge(
                       icon: Icons.camera_alt_rounded,
-                      label: 'Image check',
-                      onTap: () => onQuickPrompt('Look at this image and help me diagnose the issue.'),
+                      label: language.tr(
+                          en: 'Image check',
+                          ha: 'Duba Hoto',
+                          fr: 'Verification d\'image'),
+                      onTap: () => onQuickPrompt(
+                          'Look at this image and help me diagnose the issue.'),
                     ),
                     _QuickBadge(
                       icon: Icons.storefront_rounded,
-                      label: 'Market help',
-                      onTap: () => onQuickPrompt('Help me plan a practical market and pricing strategy.'),
+                      label: language.tr(
+                          en: 'Market help',
+                          ha: 'Taimakon Kasuwa',
+                          fr: 'Aide au marche'),
+                      onTap: () => onQuickPrompt(
+                          'Help me plan a practical market and pricing strategy.'),
                     ),
                   ],
                 ),
@@ -481,22 +594,25 @@ class _HeroCard extends StatelessWidget {
                 Row(
                   children: <Widget>[
                     Expanded(
-                  child: _HeroStat(
-                        label: 'Topic',
+                      child: _HeroStat(
+                        label:
+                            language.tr(en: 'Topic', ha: 'Batu', fr: 'Sujet'),
                         value: ai.activeTopic.label,
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: _HeroStat(
-                        label: 'Language',
+                        label: language.tr(
+                            en: 'Language', ha: 'Harshe', fr: 'Langue'),
                         value: ai.language,
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: _HeroStat(
-                        label: 'Model',
+                        label: language.tr(
+                            en: 'Model', ha: 'Samfuri', fr: 'Modele'),
                         value: ai.modelName,
                       ),
                     ),
@@ -513,10 +629,12 @@ class _HeroCard extends StatelessWidget {
 
 class _SearchBar extends StatelessWidget {
   const _SearchBar({
+    required this.language,
     required this.controller,
     required this.onSubmitted,
   });
 
+  final AppLanguage language;
   final TextEditingController controller;
   final ValueChanged<String> onSubmitted;
 
@@ -526,7 +644,9 @@ class _SearchBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF141418) : Theme.of(context).colorScheme.surface,
+        color: isDark
+            ? const Color(0xFF141418)
+            : Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(26),
         border: Border.all(color: _aiBorder(context)),
       ),
@@ -539,7 +659,10 @@ class _SearchBar extends StatelessWidget {
               controller: controller,
               style: TextStyle(color: _aiText(context)),
               decoration: InputDecoration(
-                hintText: 'Search or ask something farming-related...',
+                hintText: language.tr(
+                    en: 'Search or ask something farming-related...',
+                    ha: 'Nemi ko yi tambaya game da noma...',
+                    fr: 'Rechercher ou poser une question liee a l\'agriculture...'),
                 hintStyle: TextStyle(color: _aiMuted(context)),
                 border: InputBorder.none,
               ),
@@ -554,8 +677,9 @@ class _SearchBar extends StatelessWidget {
 }
 
 class _StatusRow extends StatelessWidget {
-  const _StatusRow({required this.ai});
+  const _StatusRow({required this.language, required this.ai});
 
+  final AppLanguage language;
   final AiProvider ai;
 
   @override
@@ -565,7 +689,7 @@ class _StatusRow extends StatelessWidget {
         Expanded(
           child: _StatusPill(
             icon: Icons.track_changes_rounded,
-            label: 'Topic',
+            label: language.tr(en: 'Topic', ha: 'Batu', fr: 'Sujet'),
             value: ai.activeTopic.label,
           ),
         ),
@@ -573,7 +697,7 @@ class _StatusRow extends StatelessWidget {
         Expanded(
           child: _StatusPill(
             icon: Icons.translate_rounded,
-            label: 'Language',
+            label: language.tr(en: 'Language', ha: 'Harshe', fr: 'Langue'),
             value: ai.language,
           ),
         ),
@@ -581,7 +705,7 @@ class _StatusRow extends StatelessWidget {
         Expanded(
           child: _StatusPill(
             icon: Icons.memory_rounded,
-            label: 'Model',
+            label: language.tr(en: 'Model', ha: 'Samfuri', fr: 'Modele'),
             value: ai.modelName,
           ),
         ),
@@ -607,7 +731,9 @@ class _StatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF121216) : Theme.of(context).colorScheme.surface,
+        color: isDark
+            ? const Color(0xFF121216)
+            : Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: _aiBorder(context)),
       ),
@@ -617,9 +743,9 @@ class _StatusPill extends StatelessWidget {
             width: 34,
             height: 34,
             decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.18),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+              color: AppColors.primary.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Icon(icon, size: 18, color: _aiText(context)),
           ),
           const SizedBox(width: 10),
@@ -627,7 +753,11 @@ class _StatusPill extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(label, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: _aiMuted(context))),
+                Text(label,
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelSmall
+                        ?.copyWith(color: _aiMuted(context))),
                 const SizedBox(height: 2),
                 Text(
                   value,
@@ -697,16 +827,18 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _StudioGrid extends StatelessWidget {
-  const _StudioGrid({required this.onTapAction});
+  const _StudioGrid({required this.language, required this.onTapAction});
 
+  final AppLanguage language;
   final ValueChanged<AiStudioAction> onTapAction;
 
   @override
   Widget build(BuildContext context) {
+    final List<AiStudioAction> studioActions = _studioActionsFor(language);
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: _studioActions.length,
+      itemCount: studioActions.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         crossAxisSpacing: 12,
@@ -714,7 +846,7 @@ class _StudioGrid extends StatelessWidget {
         childAspectRatio: 1.08,
       ),
       itemBuilder: (BuildContext context, int index) {
-        final AiStudioAction action = _studioActions[index];
+        final AiStudioAction action = studioActions[index];
         return _StudioCard(
           action: action,
           onTap: () => onTapAction(action),
@@ -737,7 +869,9 @@ class _StudioCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool isDark = _aiIsDark(context);
     return Material(
-      color: isDark ? const Color(0xFF121216) : Theme.of(context).colorScheme.surface,
+      color: isDark
+          ? const Color(0xFF121216)
+          : Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(28),
       child: InkWell(
         onTap: onTap,
@@ -794,7 +928,8 @@ class _StudioCard extends StatelessWidget {
                     ),
                     Align(
                       alignment: Alignment.bottomRight,
-                      child: Icon(Icons.arrow_outward_rounded, color: _aiMuted(context)),
+                      child: Icon(Icons.arrow_outward_rounded,
+                          color: _aiMuted(context)),
                     ),
                   ],
                 ),
@@ -809,10 +944,12 @@ class _StudioCard extends StatelessWidget {
 
 class _HistoryRail extends StatelessWidget {
   const _HistoryRail({
+    required this.language,
     required this.ai,
     required this.onTopicSelected,
   });
 
+  final AppLanguage language;
   final AiProvider ai;
   final ValueChanged<AiTopic> onTopicSelected;
 
@@ -826,12 +963,21 @@ class _HistoryRail extends StatelessWidget {
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (BuildContext context, int index) {
           final AiTopic topic = AiTopic.values[index];
-          final List<ChatMessage> messages = ai.messagesFor(topic).where((ChatMessage item) => !item.isLoading).toList(growable: false);
-          final ChatMessage? lastMessage = messages.isEmpty ? null : messages.last;
+          final List<ChatMessage> messages = ai
+              .messagesFor(topic)
+              .where((ChatMessage item) => !item.isLoading)
+              .toList(growable: false);
+          final ChatMessage? lastMessage =
+              messages.isEmpty ? null : messages.last;
           return _HistoryCard(
+            language: language,
             topic: topic,
             messageCount: messages.length,
-            preview: lastMessage?.text ?? 'No messages yet',
+            preview: lastMessage?.text ??
+                language.tr(
+                    en: 'No messages yet',
+                    ha: 'Babu sakonni tukuna',
+                    fr: 'Aucun message pour le moment'),
             onTap: () => onTopicSelected(topic),
           );
         },
@@ -842,12 +988,14 @@ class _HistoryRail extends StatelessWidget {
 
 class _HistoryCard extends StatelessWidget {
   const _HistoryCard({
+    required this.language,
     required this.topic,
     required this.messageCount,
     required this.preview,
     required this.onTap,
   });
 
+  final AppLanguage language;
   final AiTopic topic;
   final int messageCount;
   final String preview;
@@ -859,7 +1007,9 @@ class _HistoryCard extends StatelessWidget {
     return SizedBox(
       width: 220,
       child: Material(
-        color: isDark ? const Color(0xFF121216) : Theme.of(context).colorScheme.surface,
+        color: isDark
+            ? const Color(0xFF121216)
+            : Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(26),
         child: InkWell(
           onTap: onTap,
@@ -880,10 +1030,11 @@ class _HistoryCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         topic.label,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: _aiText(context),
-                              fontWeight: FontWeight.w700,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  color: _aiText(context),
+                                  fontWeight: FontWeight.w700,
+                                ),
                       ),
                     ),
                   ],
@@ -892,7 +1043,10 @@ class _HistoryCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     topic.description,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: _aiMuted(context), height: 1.4),
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: _aiMuted(context), height: 1.4),
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -900,14 +1054,20 @@ class _HistoryCard extends StatelessWidget {
                 const SizedBox(height: 10),
                 Text(
                   '$messageCount messages',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(color: AppColors.primary),
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelLarge
+                      ?.copyWith(color: AppColors.primary),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   preview,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: _aiMuted(context)),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: _aiMuted(context)),
                 ),
               ],
             ),
@@ -920,12 +1080,14 @@ class _HistoryCard extends StatelessWidget {
 
 class _ChatSurface extends StatelessWidget {
   const _ChatSurface({
+    required this.language,
     required this.topic,
     required this.messages,
     required this.controller,
     required this.onClearTopic,
   });
 
+  final AppLanguage language;
   final AiTopic topic;
   final List<ChatMessage> messages;
   final ScrollController controller;
@@ -936,7 +1098,9 @@ class _ChatSurface extends StatelessWidget {
     final bool isDark = _aiIsDark(context);
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF101014) : Theme.of(context).colorScheme.surface,
+        color: isDark
+            ? const Color(0xFF101014)
+            : Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(30),
         border: Border.all(color: _aiBorder(context)),
       ),
@@ -954,7 +1118,8 @@ class _ChatSurface extends StatelessWidget {
                     borderRadius: BorderRadius.circular(14),
                   ),
                   alignment: Alignment.center,
-                  child: Text(topic.emoji, style: const TextStyle(fontSize: 20)),
+                  child:
+                      Text(topic.emoji, style: const TextStyle(fontSize: 20)),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -963,15 +1128,22 @@ class _ChatSurface extends StatelessWidget {
                     children: <Widget>[
                       Text(
                         topic.label,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: _aiText(context),
-                              fontWeight: FontWeight.w700,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  color: _aiText(context),
+                                  fontWeight: FontWeight.w700,
+                                ),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Chat history for this topic stays here.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: _aiMuted(context)),
+                        language.tr(
+                            en: 'Chat history for this topic stays here.',
+                            ha: 'Tarihin tattaunawa na wannan batu yana nan.',
+                            fr: 'L\'historique de discussion pour ce sujet reste ici.'),
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: _aiMuted(context)),
                       ),
                     ],
                   ),
@@ -980,7 +1152,7 @@ class _ChatSurface extends StatelessWidget {
                   style: TextButton.styleFrom(foregroundColor: Colors.white),
                   onPressed: messages.isEmpty ? null : onClearTopic,
                   child: Text(
-                    'Clear',
+                    language.tr(en: 'Clear', ha: 'Share', fr: 'Effacer'),
                     style: TextStyle(
                       color: messages.isEmpty ? Colors.white38 : Colors.white,
                     ),
@@ -993,7 +1165,7 @@ class _ChatSurface extends StatelessWidget {
           SizedBox(
             height: 420,
             child: messages.isEmpty
-                ? _EmptyConversation(topic: topic)
+                ? _EmptyConversation(language: language, topic: topic)
                 : ListView.separated(
                     controller: controller,
                     padding: const EdgeInsets.all(16),
@@ -1007,7 +1179,7 @@ class _ChatSurface extends StatelessWidget {
                           child: _TypingBubble(),
                         );
                       }
-                      return _ChatBubble(message: message);
+                      return _ChatBubble(language: language, message: message);
                     },
                   ),
           ),
@@ -1019,6 +1191,7 @@ class _ChatSurface extends StatelessWidget {
 
 class _ComposerCard extends StatelessWidget {
   const _ComposerCard({
+    required this.language,
     required this.controller,
     required this.isLoading,
     required this.selectedImageBytes,
@@ -1030,6 +1203,7 @@ class _ComposerCard extends StatelessWidget {
     required this.onRemoveImage,
   });
 
+  final AppLanguage language;
   final TextEditingController controller;
   final bool isLoading;
   final Uint8List? selectedImageBytes;
@@ -1046,7 +1220,9 @@ class _ComposerCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF121216) : Theme.of(context).colorScheme.surface,
+        color: isDark
+            ? const Color(0xFF121216)
+            : Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(30),
         border: Border.all(color: _aiBorder(context)),
       ),
@@ -1056,7 +1232,11 @@ class _ComposerCard extends StatelessWidget {
           if (selectedImageBytes != null) ...<Widget>[
             _AttachmentPreview(
               bytes: selectedImageBytes!,
-              label: selectedImageLabel ?? 'Attached image',
+              label: selectedImageLabel ??
+                  language.tr(
+                      en: 'Attached image',
+                      ha: 'Hoton da aka haɗa',
+                      fr: 'Image jointe'),
               onRemove: onRemoveImage,
             ),
             const SizedBox(height: 12),
@@ -1064,7 +1244,9 @@ class _ComposerCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF17171C) : Theme.of(context).colorScheme.surfaceContainerHighest,
+              color: isDark
+                  ? const Color(0xFF17171C)
+                  : Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: _aiBorder(context)),
             ),
@@ -1075,7 +1257,10 @@ class _ComposerCard extends StatelessWidget {
               textInputAction: TextInputAction.send,
               style: TextStyle(color: _aiText(context), height: 1.5),
               decoration: InputDecoration(
-                hintText: 'Send a message, ask for a plan, or describe what you see...',
+                hintText: language.tr(
+                    en: 'Send a message, ask for a plan, or describe what you see...',
+                    ha: 'Aika sako, nemi shiri, ko kwatanta abin da kake gani...',
+                    fr: 'Envoyez un message, demandez un plan, ou decrivez ce que vous voyez...'),
                 hintStyle: TextStyle(color: _aiMuted(context)),
                 border: InputBorder.none,
               ),
@@ -1094,17 +1279,18 @@ class _ComposerCard extends StatelessWidget {
             children: <Widget>[
               _RoundActionButton(
                 icon: Icons.camera_alt_rounded,
-                label: 'Photo',
+                label: language.tr(en: 'Photo', ha: 'Hoto', fr: 'Photo'),
                 onTap: isLoading ? null : onTakePhoto,
               ),
               _RoundActionButton(
                 icon: Icons.image_outlined,
-                label: 'Gallery',
+                label: language.tr(
+                    en: 'Gallery', ha: 'Zauren Hoto', fr: 'Galerie'),
                 onTap: isLoading ? null : onUploadImage,
               ),
               _RoundActionButton(
                 icon: Icons.mic_none_rounded,
-                label: 'Voice',
+                label: language.tr(en: 'Voice', ha: 'Murya', fr: 'Voix'),
                 onTap: isLoading ? null : onVoiceTap,
               ),
               _SendButton(
@@ -1151,7 +1337,8 @@ class _SendButton extends StatelessWidget {
         child: isLoading
             ? const Padding(
                 padding: EdgeInsets.all(16),
-                child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+                child: CircularProgressIndicator(
+                    strokeWidth: 2.2, color: Colors.white),
               )
             : const Icon(Icons.send_rounded, color: Colors.white, size: 22),
       ),
@@ -1179,7 +1366,9 @@ class _RoundActionButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF17171C) : Theme.of(context).colorScheme.surfaceContainerHighest,
+          color: isDark
+              ? const Color(0xFF17171C)
+              : Theme.of(context).colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(999),
           border: Border.all(color: _aiBorder(context)),
         ),
@@ -1220,7 +1409,9 @@ class _AttachmentPreview extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF17171C) : Theme.of(context).colorScheme.surfaceContainerHighest,
+        color: isDark
+            ? const Color(0xFF17171C)
+            : Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: _aiBorder(context)),
       ),
@@ -1228,18 +1419,26 @@ class _AttachmentPreview extends StatelessWidget {
         children: <Widget>[
           ClipRRect(
             borderRadius: BorderRadius.circular(16),
-            child: Image.memory(bytes, width: 68, height: 68, fit: BoxFit.cover),
+            child:
+                Image.memory(bytes, width: 68, height: 68, fit: BoxFit.cover),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(label, style: Theme.of(context).textTheme.titleSmall?.copyWith(color: _aiText(context))),
+                Text(label,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(color: _aiText(context))),
                 const SizedBox(height: 4),
                 Text(
                   'This will be sent with the next AI request.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: _aiMuted(context)),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: _aiMuted(context)),
                 ),
               ],
             ),
@@ -1255,8 +1454,9 @@ class _AttachmentPreview extends StatelessWidget {
 }
 
 class _ChatBubble extends StatelessWidget {
-  const _ChatBubble({required this.message});
+  const _ChatBubble({required this.language, required this.message});
 
+  final AppLanguage language;
   final ChatMessage message;
 
   @override
@@ -1264,7 +1464,9 @@ class _ChatBubble extends StatelessWidget {
     final bool fromUser = message.isFromUser;
     final ThemeData theme = Theme.of(context);
     final bool isDark = _aiIsDark(context);
-    final Color bubbleSurface = isDark ? const Color(0xFF17171C) : theme.colorScheme.surfaceContainerHighest;
+    final Color bubbleSurface = isDark
+        ? const Color(0xFF17171C)
+        : theme.colorScheme.surfaceContainerHighest;
 
     return Align(
       alignment: fromUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -1301,18 +1503,27 @@ class _ChatBubble extends StatelessWidget {
                     width: 28,
                     height: 28,
                     decoration: BoxDecoration(
-                      color: fromUser ? Colors.white.withOpacity(0.15) : AppColors.primary.withOpacity(0.18),
+                      color: fromUser
+                          ? Colors.white.withOpacity(0.15)
+                          : AppColors.primary.withOpacity(0.18),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
-                      fromUser ? Icons.person_rounded : Icons.auto_awesome_rounded,
+                      fromUser
+                          ? Icons.person_rounded
+                          : Icons.auto_awesome_rounded,
                       size: 16,
                       color: Colors.white,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    fromUser ? 'You' : 'Advisor',
+                    fromUser
+                        ? language.tr(en: 'You', ha: 'Kai', fr: 'Vous')
+                        : language.tr(
+                            en: 'Advisor',
+                            ha: 'Mai Ba da Shawara',
+                            fr: 'Conseiller'),
                     style: theme.textTheme.labelLarge?.copyWith(
                       color: fromUser ? Colors.white : _aiText(context),
                       fontWeight: FontWeight.w700,
@@ -1321,14 +1532,16 @@ class _ChatBubble extends StatelessWidget {
                   const Spacer(),
                   if (message.hasImage)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.14),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        'Image',
-                        style: theme.textTheme.labelSmall?.copyWith(color: fromUser ? Colors.white : _aiText(context)),
+                        language.tr(en: 'Image', ha: 'Hoto', fr: 'Image'),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                            color: fromUser ? Colors.white : _aiText(context)),
                       ),
                     ),
                 ],
@@ -1359,7 +1572,9 @@ class _TypingBubble extends StatelessWidget {
       width: 92,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF17171C) : Theme.of(context).colorScheme.surfaceContainerHighest,
+        color: isDark
+            ? const Color(0xFF17171C)
+            : Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: _aiBorder(context)),
       ),
@@ -1413,7 +1628,8 @@ class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
         width: 8,
         height: 8,
         decoration: BoxDecoration(
-          color: isDark ? Colors.white70 : Theme.of(context).colorScheme.primary,
+          color:
+              isDark ? Colors.white70 : Theme.of(context).colorScheme.primary,
           shape: BoxShape.circle,
         ),
       ),
@@ -1422,8 +1638,9 @@ class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
 }
 
 class _EmptyConversation extends StatelessWidget {
-  const _EmptyConversation({required this.topic});
+  const _EmptyConversation({required this.language, required this.topic});
 
+  final AppLanguage language;
   final AiTopic topic;
 
   @override
@@ -1446,7 +1663,11 @@ class _EmptyConversation extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             Text(
-              'Start a ${topic.label.toLowerCase()} conversation',
+              language.tr(
+                en: 'Start a ${topic.label.toLowerCase()} conversation',
+                ha: 'Fara tattaunawar ${topic.label.toLowerCase()}',
+                fr: 'Demarrer une conversation ${topic.label.toLowerCase()}',
+              ),
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: _aiText(context),
                     fontWeight: FontWeight.w700,
@@ -1455,7 +1676,11 @@ class _EmptyConversation extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Ask for a plan, attach a photo, or give a crop and livestock context. The assistant keeps the thread organized by topic.',
+              language.tr(
+                en: 'Ask for a plan, attach a photo, or give a crop and livestock context. The assistant keeps the thread organized by topic.',
+                ha: 'Nemi shiri, haɗa hoto, ko bayar da bayanan amfanin gona da dabbobi. Mataimaki yana rike da tattaunawa cikin tsari bisa batu.',
+                fr: 'Demandez un plan, joignez une photo ou donnez un contexte sur les cultures et l\'elevage. L\'assistant garde le fil organise par sujet.',
+              ),
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: _aiMuted(context),
                     height: 1.6,
@@ -1486,7 +1711,9 @@ class _NoticeCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF121216) : Theme.of(context).colorScheme.surface,
+        color: isDark
+            ? const Color(0xFF121216)
+            : Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: _aiBorder(context)),
       ),
@@ -1540,7 +1767,8 @@ class _StudioBackdrop extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: <Widget>[
-        Container(color: isDark ? const Color(0xFF0A0A0E) : const Color(0xFFF7F5EF)),
+        Container(
+            color: isDark ? const Color(0xFF0A0A0E) : const Color(0xFFF7F5EF)),
         Positioned(
           top: -80,
           right: -50,
@@ -1590,14 +1818,17 @@ class _GlowOrb extends StatelessWidget {
   }
 }
 
-bool _aiIsDark(BuildContext context) => Theme.of(context).brightness == Brightness.dark;
+bool _aiIsDark(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark;
 
 Color _aiBackground(BuildContext context) {
   return _aiIsDark(context) ? const Color(0xFF0A0A0E) : const Color(0xFFF7F5EF);
 }
 
 Color _aiSurface(BuildContext context) {
-  return _aiIsDark(context) ? const Color(0xFF121216) : Theme.of(context).colorScheme.surface;
+  return _aiIsDark(context)
+      ? const Color(0xFF121216)
+      : Theme.of(context).colorScheme.surface;
 }
 
 Color _aiSurfaceAlt(BuildContext context) {
@@ -1613,11 +1844,15 @@ Color _aiBorder(BuildContext context) {
 }
 
 Color _aiText(BuildContext context) {
-  return _aiIsDark(context) ? Colors.white : Theme.of(context).colorScheme.onSurface;
+  return _aiIsDark(context)
+      ? Colors.white
+      : Theme.of(context).colorScheme.onSurface;
 }
 
 Color _aiMuted(BuildContext context) {
-  return _aiIsDark(context) ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
+  return _aiIsDark(context)
+      ? Colors.white70
+      : Theme.of(context).colorScheme.onSurfaceVariant;
 }
 
 class _GlassButton extends StatelessWidget {
@@ -1639,7 +1874,9 @@ class _GlassButton extends StatelessWidget {
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1D1D24) : Theme.of(context).colorScheme.surfaceContainerHighest,
+          color: isDark
+              ? const Color(0xFF1D1D24)
+              : Theme.of(context).colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: _aiBorder(context)),
         ),
@@ -1669,7 +1906,9 @@ class _QuickBadge extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1A1A20) : Theme.of(context).colorScheme.surfaceContainerHighest,
+          color: isDark
+              ? const Color(0xFF1A1A20)
+              : Theme.of(context).colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(999),
           border: Border.all(color: _aiBorder(context)),
         ),
@@ -1707,14 +1946,20 @@ class _HeroStat extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF17171C) : Theme.of(context).colorScheme.surfaceContainerHighest,
+        color: isDark
+            ? const Color(0xFF17171C)
+            : Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: _aiBorder(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(label, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: _aiMuted(context))),
+          Text(label,
+              style: Theme.of(context)
+                  .textTheme
+                  .labelSmall
+                  ?.copyWith(color: _aiMuted(context))),
           const SizedBox(height: 4),
           Text(
             value,
@@ -1749,53 +1994,88 @@ class AiStudioAction {
   final String prompt;
 }
 
-const List<AiStudioAction> _studioActions = <AiStudioAction>[
-  AiStudioAction(
-    title: 'Text writer',
-    subtitle: 'Turn a farm idea into a clear update.',
-    icon: Icons.edit_note_rounded,
-    tint: Color(0xFFFF4FD8),
-    topic: AiTopic.general,
-    prompt: 'Help me write a clear farm update for farmers about what I am doing this week.',
-  ),
-  AiStudioAction(
-    title: 'Image doctor',
-    subtitle: 'Inspect a crop, leaf, or animal photo.',
-    icon: Icons.camera_alt_rounded,
-    tint: Color(0xFF37D7FF),
-    topic: AiTopic.diseaseAndPest,
-    prompt: 'Inspect this image and help me diagnose the likely problem and next action.',
-  ),
-  AiStudioAction(
-    title: 'Crop planner',
-    subtitle: 'Build planting and feeding schedules.',
-    icon: Icons.spa_rounded,
-    tint: Color(0xFF7C3AED),
-    topic: AiTopic.cropManagement,
-    prompt: 'Create a practical crop management plan with tasks I should do this week.',
-  ),
-  AiStudioAction(
-    title: 'Animal coach',
-    subtitle: 'Ask about feeding, hygiene, and health.',
-    icon: Icons.pets_rounded,
-    tint: Color(0xFFFFC271),
-    topic: AiTopic.animalHealth,
-    prompt: 'Review my livestock care routine and give me practical advice for today.',
-  ),
-  AiStudioAction(
-    title: 'Weather plan',
-    subtitle: 'Plan work around weather patterns.',
-    icon: Icons.wb_cloudy_rounded,
-    tint: Color(0xFF1ED6A8),
-    topic: AiTopic.weatherAndClimate,
-    prompt: 'Give me a weather-aware work plan for today and the next few days.',
-  ),
-  AiStudioAction(
-    title: 'Market notes',
-    subtitle: 'Pricing, sales, and profitability help.',
-    icon: Icons.storefront_rounded,
-    tint: Color(0xFFFFA24C),
-    topic: AiTopic.marketAndFinance,
-    prompt: 'Help me think through pricing, sales timing, and profitability for my farm.',
-  ),
-];
+List<AiStudioAction> _studioActionsFor(AppLanguage language) =>
+    <AiStudioAction>[
+      AiStudioAction(
+        title: language.tr(
+            en: 'Text writer',
+            ha: 'Marubucin Rubutu',
+            fr: 'Redacteur de texte'),
+        subtitle: language.tr(
+            en: 'Turn a farm idea into a clear update.',
+            ha: 'Mayar da tunanin gona zuwa sabuntawa mai fayyace.',
+            fr: 'Transformez une idee agricole en une mise a jour claire.'),
+        icon: Icons.edit_note_rounded,
+        tint: const Color(0xFFFF4FD8),
+        topic: AiTopic.general,
+        prompt:
+            'Help me write a clear farm update for farmers about what I am doing this week.',
+      ),
+      AiStudioAction(
+        title: language.tr(
+            en: 'Image doctor', ha: 'Likitan Hoto', fr: 'Docteur image'),
+        subtitle: language.tr(
+            en: 'Inspect a crop, leaf, or animal photo.',
+            ha: 'Duba hoton amfanin gona, ganye, ko dabba.',
+            fr: 'Inspectez une photo de culture, de feuille ou d\'animal.'),
+        icon: Icons.camera_alt_rounded,
+        tint: const Color(0xFF37D7FF),
+        topic: AiTopic.diseaseAndPest,
+        prompt:
+            'Inspect this image and help me diagnose the likely problem and next action.',
+      ),
+      AiStudioAction(
+        title: language.tr(
+            en: 'Crop planner',
+            ha: 'Mai Tsara Amfanin Gona',
+            fr: 'Planificateur de cultures'),
+        subtitle: language.tr(
+            en: 'Build planting and feeding schedules.',
+            ha: 'Gina jadawalin shuka da ciyarwa.',
+            fr: 'Etablissez des calendriers de plantation et d\'alimentation.'),
+        icon: Icons.spa_rounded,
+        tint: const Color(0xFF7C3AED),
+        topic: AiTopic.cropManagement,
+        prompt:
+            'Create a practical crop management plan with tasks I should do this week.',
+      ),
+      AiStudioAction(
+        title: language.tr(
+            en: 'Animal coach', ha: 'Kocin Dabbobi', fr: 'Coach animalier'),
+        subtitle: language.tr(
+            en: 'Ask about feeding, hygiene, and health.',
+            ha: 'Yi tambaya kan ciyarwa, tsafta, da lafiya.',
+            fr: 'Posez des questions sur l\'alimentation, l\'hygiene et la sante.'),
+        icon: Icons.pets_rounded,
+        tint: const Color(0xFFFFC271),
+        topic: AiTopic.animalHealth,
+        prompt:
+            'Review my livestock care routine and give me practical advice for today.',
+      ),
+      AiStudioAction(
+        title: language.tr(
+            en: 'Weather plan', ha: 'Shirin Yanayi', fr: 'Plan meteo'),
+        subtitle: language.tr(
+            en: 'Plan work around weather patterns.',
+            ha: 'Tsara aiki bisa yanayin sararin samaniya.',
+            fr: 'Planifiez le travail selon les conditions meteorologiques.'),
+        icon: Icons.wb_cloudy_rounded,
+        tint: const Color(0xFF1ED6A8),
+        topic: AiTopic.weatherAndClimate,
+        prompt:
+            'Give me a weather-aware work plan for today and the next few days.',
+      ),
+      AiStudioAction(
+        title: language.tr(
+            en: 'Market notes', ha: 'Bayanan Kasuwa', fr: 'Notes de marche'),
+        subtitle: language.tr(
+            en: 'Pricing, sales, and profitability help.',
+            ha: 'Taimako kan farashi, tallace-tallace, da riba.',
+            fr: 'Aide sur les prix, les ventes et la rentabilite.'),
+        icon: Icons.storefront_rounded,
+        tint: const Color(0xFFFFA24C),
+        topic: AiTopic.marketAndFinance,
+        prompt:
+            'Help me think through pricing, sales timing, and profitability for my farm.',
+      ),
+    ];

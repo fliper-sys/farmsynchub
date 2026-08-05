@@ -7,15 +7,21 @@ import '../../../data/services/crop_advice_catalog.dart';
 import '../../../domain/models/crop.dart';
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/farm_activity.dart';
+import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/crop_provider.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/operations_hub_provider.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_button.dart';
+import '../../common/widgets/crop_calendar_schedule_widget.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
+import '../../common/widgets/growth_timeline_widget.dart';
+import '../../common/widgets/photo_journal_widget.dart';
+import '../../common/widgets/ai_recommendations_widget.dart';
+import '../../common/widgets/section_scroll_menu.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
 
-class CropDetailScreen extends ConsumerWidget {
+class CropDetailScreen extends ConsumerStatefulWidget {
   const CropDetailScreen({
     super.key,
     required this.cropId,
@@ -24,13 +30,116 @@ class CropDetailScreen extends ConsumerWidget {
   final String cropId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CropDetailScreen> createState() => _CropDetailScreenState();
+}
+
+class _CropDetailScreenState extends ConsumerState<CropDetailScreen> {
+  final ScrollController _scrollController = ScrollController();
+
+  // GlobalKeys for each major section
+  final GlobalKey _growthCycleKey = GlobalKey();
+  final GlobalKey _cropIntelligenceKey = GlobalKey();
+  final GlobalKey _workFocusKey = GlobalKey();
+  final GlobalKey _productionProfileKey = GlobalKey();
+  final GlobalKey _performanceRatiosKey = GlobalKey();
+  final GlobalKey _growthTimelineKey = GlobalKey();
+  final GlobalKey _calendarScheduleKey = GlobalKey();
+  final GlobalKey _photoJournalKey = GlobalKey();
+  final GlobalKey _fieldTasksKey = GlobalKey();
+  final GlobalKey _recentInputsKey = GlobalKey();
+  final GlobalKey _aiRecommendationsKey = GlobalKey();
+
+  List<SectionEntry> _mappedSections(AppLanguage language) => <SectionEntry>[
+        SectionEntry(
+            title: language.tr(
+                en: 'Growth cycle',
+                ha: 'Zagayen girma',
+                fr: 'Cycle de croissance'),
+            sectionKey: _growthCycleKey,
+            icon: Icons.autorenew_rounded),
+        SectionEntry(
+            title: language.tr(
+                en: 'Crop intelligence',
+                ha: 'Basirar amfanin gona',
+                fr: 'Intelligence culturale'),
+            sectionKey: _cropIntelligenceKey,
+            icon: Icons.lightbulb_outline_rounded),
+        SectionEntry(
+            title: language.tr(
+                en: 'Work focus',
+                ha: 'Manufar aiki',
+                fr: 'Priorites de travail'),
+            sectionKey: _workFocusKey,
+            icon: Icons.task_alt_rounded),
+        SectionEntry(
+            title: language.tr(
+                en: 'Production profile',
+                ha: 'Bayanin samarwa',
+                fr: 'Profil de production'),
+            sectionKey: _productionProfileKey,
+            icon: Icons.analytics_outlined),
+        SectionEntry(
+            title: language.tr(
+                en: 'Performance ratios',
+                ha: 'Ma\'aunin aiki',
+                fr: 'Ratios de performance'),
+            sectionKey: _performanceRatiosKey,
+            icon: Icons.bar_chart_rounded),
+        SectionEntry(
+            title: language.tr(
+                en: 'Growth Timeline',
+                ha: 'Layin lokacin girma',
+                fr: 'Chronologie de croissance'),
+            sectionKey: _growthTimelineKey,
+            icon: Icons.timeline_rounded),
+        SectionEntry(
+            title: language.tr(
+                en: 'Calendar Schedule',
+                ha: 'Jadawalin Kalanda',
+                fr: 'Calendrier'),
+            sectionKey: _calendarScheduleKey,
+            icon: Icons.calendar_month_rounded),
+        SectionEntry(
+            title: language.tr(
+                en: 'Photo Journal', ha: 'Littafin Hoto', fr: 'Journal photo'),
+            sectionKey: _photoJournalKey,
+            icon: Icons.photo_library_rounded),
+        SectionEntry(
+            title: language.tr(
+                en: 'Field tasks', ha: 'Ayyukan gona', fr: 'Taches de terrain'),
+            sectionKey: _fieldTasksKey,
+            icon: Icons.checklist_rounded),
+        SectionEntry(
+            title: language.tr(
+                en: 'Recent inputs',
+                ha: 'Kayan da aka yi amfani da su kwanan nan',
+                fr: 'Intrants recents'),
+            sectionKey: _recentInputsKey,
+            icon: Icons.inventory_2_rounded),
+        SectionEntry(
+            title: language.tr(
+                en: 'AI Recommendations',
+                ha: 'Shawarwarin AI',
+                fr: 'Recommandations IA'),
+            sectionKey: _aiRecommendationsKey,
+            icon: Icons.psychology_rounded),
+      ];
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final AppLanguage language = ref.watch(appLanguageProvider);
     final List<Crop> crops = ref.watch(cropsProvider).valueOrNull ?? <Crop>[];
     final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
 
     Crop? crop;
     for (final Crop item in crops) {
-      if (item.id == cropId) {
+      if (item.id == widget.cropId) {
         crop = item;
         break;
       }
@@ -54,16 +163,24 @@ class CropDetailScreen extends ConsumerWidget {
     final ThemeData theme = Theme.of(context);
     final double progress = crop.growthProgress;
     final List<_CyclePoint> cycle = _buildCropCycle(crop.currentStage);
-    final Iterable<FarmTodoItem> openTasks = crop.todoItems.where((FarmTodoItem item) => !item.isCompleted);
+    final Iterable<FarmTodoItem> openTasks =
+        crop.todoItems.where((FarmTodoItem item) => !item.isCompleted);
     final CropAdviceSummary advice = CropAdviceCatalog.summarize(crop);
     final List<FarmTodoItem> openTaskList = openTasks.toList(growable: false);
-    final int overdueTasks = openTaskList.where((FarmTodoItem item) => item.dueDate.isBefore(DateTime.now())).length;
-    final int priorityTasks = openTaskList
-        .where((FarmTodoItem item) => item.priority == FarmTodoPriority.high || item.priority == FarmTodoPriority.urgent)
+    final int overdueTasks = openTaskList
+        .where((FarmTodoItem item) => item.dueDate.isBefore(DateTime.now()))
         .length;
-    final double costPerHa = crop.areaHa <= 0 ? 0 : crop.totalInputCost / crop.areaHa;
-    final double targetYieldPerHa = crop.areaHa <= 0 ? 0 : crop.targetYieldKg / crop.areaHa;
-    final double inputCostPerTargetKg = crop.targetYieldKg <= 0 ? 0 : crop.totalInputCost / crop.targetYieldKg;
+    final int priorityTasks = openTaskList
+        .where((FarmTodoItem item) =>
+            item.priority == FarmTodoPriority.high ||
+            item.priority == FarmTodoPriority.urgent)
+        .length;
+    final double costPerHa =
+        crop.areaHa <= 0 ? 0 : crop.totalInputCost / crop.areaHa;
+    final double targetYieldPerHa =
+        crop.areaHa <= 0 ? 0 : crop.targetYieldKg / crop.areaHa;
+    final double inputCostPerTargetKg =
+        crop.targetYieldKg <= 0 ? 0 : crop.totalInputCost / crop.targetYieldKg;
     final String cropWorkStatus = _cropWorkStatus(
       crop: crop,
       overdueTasks: overdueTasks,
@@ -77,262 +194,431 @@ class CropDetailScreen extends ConsumerWidget {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(crop.name),
+        actions: <Widget>[
+          SectionScrollMenu(
+            sections: _mappedSections(language),
+            scrollController: _scrollController,
+          ),
+        ],
       ),
       body: SoftScreenScaffold(
+        scrollController: _scrollController,
         heroTitle: crop.name,
         heroSubtitle: '${crop.variety} on ${farm?.name ?? 'Unknown farm'}',
         heroIcon: Icons.spa_rounded,
         heroVariant: FarmArtworkVariant.crops,
         heroBadge: '${(progress * 100).round()}% through cycle',
         sections: <Widget>[
-          AppCard(
-            color: theme.colorScheme.surfaceContainerHighest,
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          'Growth cycle',
-                          style: theme.textTheme.titleLarge,
+          Container(
+            key: _growthCycleKey,
+            child: AppCard(
+              color: theme.colorScheme.surfaceContainerHighest,
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            language.tr(
+                                en: 'Growth cycle',
+                                ha: 'Zagayen girma',
+                                fr: 'Cycle de croissance'),
+                            style: theme.textTheme.titleLarge,
+                          ),
+                        ),
+                        _Pill(
+                            text: _stageLabel(crop.currentStage),
+                            color: const Color(0xFFE8F4D8)),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 10,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Day ${crop.daysSincePlanting.clamp(0, crop.cycleLengthDays)} of ${crop.cycleLengthDays} planned days. ${crop.daysToHarvest >= 0 ? '${crop.daysToHarvest} days to harvest.' : 'Harvest window is open.'}',
+                      style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+                    ),
+                    const SizedBox(height: 16),
+                    ...cycle.map(
+                      (_CyclePoint point) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _CycleListTile(
+                          title: point.title,
+                          subtitle: point.subtitle,
+                          isActive: point.isActive,
                         ),
                       ),
-                      _Pill(text: _stageLabel(crop.currentStage), color: const Color(0xFFE8F4D8)),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            key: _cropIntelligenceKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                SoftSectionTitle(
+                    title: language.tr(
+                        en: 'Crop intelligence',
+                        ha: 'Basirar amfanin gona',
+                        fr: 'Intelligence culturale')),
+                AppCard(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text('${advice.profile.name} guidance',
+                            style: theme.textTheme.titleLarge),
+                        const SizedBox(height: 8),
+                        Text('Detected land size: ${advice.areaLabel}',
+                            style: theme.textTheme.bodyMedium),
+                        const SizedBox(height: 8),
+                        Text('Seed requirement: ${advice.seedRequirementLabel}',
+                            style: theme.textTheme.bodyMedium),
+                        const SizedBox(height: 8),
+                        Text('Fertiliser: ${advice.fertiliserSummary}',
+                            style: theme.textTheme.bodyMedium
+                                ?.copyWith(height: 1.5)),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: advice.otherInputs
+                              .map((String item) => _Pill(
+                                  text: item, color: const Color(0xFFE8F4D8)))
+                              .toList(growable: false),
+                        ),
+                        const SizedBox(height: 12),
+                        AppButton.secondary(
+                          onPressed: () =>
+                              _openPreviousRecommendations(context, crop!),
+                          child: Text(language.tr(
+                              en: 'Previous recommendations',
+                              ha: 'Shawarwarin da suka gabata',
+                              fr: 'Recommandations precedentes')),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 10),
-                  LinearProgressIndicator(
-                    value: progress,
-                    minHeight: 10,
-                    borderRadius: BorderRadius.circular(999),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            key: _workFocusKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                SoftSectionTitle(
+                    title: language.tr(
+                        en: 'Work focus',
+                        ha: 'Manufar aiki',
+                        fr: 'Priorites de travail')),
+                AppCard(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text('Status: $cropWorkStatus',
+                            style: theme.textTheme.titleLarge),
+                        const SizedBox(height: 8),
+                        Text(
+                          _cropWorkNarrative(
+                            crop: crop,
+                            overdueTasks: overdueTasks,
+                            priorityTasks: priorityTasks,
+                          ),
+                          style:
+                              theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+                        ),
+                        const SizedBox(height: 14),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: <Widget>[
+                            _Pill(
+                                text: '$overdueTasks overdue',
+                                color: const Color(0xFFFFEBD0)),
+                            _Pill(
+                                text: '$priorityTasks high priority',
+                                color: const Color(0xFFEDE8FF)),
+                            _Pill(
+                                text: '${crop.openTaskCount} open reminders',
+                                color: const Color(0xFFE8F4D8)),
+                            _Pill(
+                                text: _harvestWindowLabel(crop),
+                                color: const Color(0xFFDFF1FF)),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Day ${crop.daysSincePlanting.clamp(0, crop.cycleLengthDays)} of ${crop.cycleLengthDays} planned days. ${crop.daysToHarvest >= 0 ? '${crop.daysToHarvest} days to harvest.' : 'Harvest window is open.'}',
-                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
-                  ),
-                  const SizedBox(height: 16),
-                  ...cycle.map(
-                    (_CyclePoint point) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _CycleListTile(
-                        title: point.title,
-                        subtitle: point.subtitle,
-                        isActive: point.isActive,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            key: _productionProfileKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                SoftSectionTitle(
+                    title: language.tr(
+                        en: 'Production profile',
+                        ha: 'Bayanin samarwa',
+                        fr: 'Profil de production')),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: _MetricCard(
+                        title: 'Area',
+                        value: '${crop.areaHa.toStringAsFixed(2)} ha',
+                        note: crop.protectedEnvironment
+                            ? 'Protected crop'
+                            : 'Open-field crop',
+                        tint: const Color(0xFFDFF1FF),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Crop intelligence'),
-          AppCard(
-            color: theme.colorScheme.surfaceContainerHighest,
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text('${advice.profile.name} guidance', style: theme.textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  Text('Detected land size: ${advice.areaLabel}', style: theme.textTheme.bodyMedium),
-                  const SizedBox(height: 8),
-                  Text('Seed requirement: ${advice.seedRequirementLabel}', style: theme.textTheme.bodyMedium),
-                  const SizedBox(height: 8),
-                  Text('Fertiliser: ${advice.fertiliserSummary}', style: theme.textTheme.bodyMedium?.copyWith(height: 1.5)),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: advice.otherInputs.map((String item) => _Pill(text: item, color: const Color(0xFFE8F4D8))).toList(growable: false),
-                  ),
-                  const SizedBox(height: 12),
-                  AppButton.secondary(
-                    onPressed: () => _openPreviousRecommendations(context, crop!),
-                    child: const Text('Previous recommendations'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Work focus'),
-          AppCard(
-            color: theme.colorScheme.surfaceContainerHighest,
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text('Status: $cropWorkStatus', style: theme.textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  Text(
-                    _cropWorkNarrative(
-                      crop: crop,
-                      overdueTasks: overdueTasks,
-                      priorityTasks: priorityTasks,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _MetricCard(
+                        title: 'Target yield',
+                        value: crop.targetYieldKg > 0
+                            ? '${crop.targetYieldKg.toStringAsFixed(0)} kg'
+                            : 'Not set',
+                        note: 'Cycle target',
+                        tint: const Color(0xFFFFEBD0),
+                      ),
                     ),
-                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
-                  ),
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: <Widget>[
-                      _Pill(text: '$overdueTasks overdue', color: const Color(0xFFFFEBD0)),
-                      _Pill(text: '$priorityTasks high priority', color: const Color(0xFFEDE8FF)),
-                      _Pill(text: '${crop.openTaskCount} open reminders', color: const Color(0xFFE8F4D8)),
-                      _Pill(text: _harvestWindowLabel(crop), color: const Color(0xFFDFF1FF)),
-                    ],
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: _MetricCard(
+                        title: 'Input spend',
+                        value:
+                            CurrencyUtils.formatCurrency(crop.totalInputCost),
+                        note: '${crop.inputRecords.length} records',
+                        tint: const Color(0xFFEDE8FF),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _MetricCard(
+                        title: 'Open tasks',
+                        value: '${crop.openTaskCount}',
+                        note: '${crop.todoItems.length} total reminders',
+                        tint: const Color(0xFFE8F4D8),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            key: _performanceRatiosKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                SoftSectionTitle(
+                    title: language.tr(
+                        en: 'Performance ratios',
+                        ha: 'Ma\'aunin aiki',
+                        fr: 'Ratios de performance')),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: _MetricCard(
+                        title: 'Cost / ha',
+                        value: crop.areaHa <= 0
+                            ? 'Not ready'
+                            : CurrencyUtils.formatCurrency(costPerHa),
+                        note: '${crop.inputRecords.length} input records',
+                        tint: const Color(0xFFEDE8FF),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _MetricCard(
+                        title: 'Yield / ha',
+                        value: crop.targetYieldKg <= 0 || crop.areaHa <= 0
+                            ? 'Not set'
+                            : '${targetYieldPerHa.toStringAsFixed(0)} kg',
+                        note: 'Target density',
+                        tint: const Color(0xFFE8F4D8),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: _MetricCard(
+                        title: 'Input / kg',
+                        value: inputCostPerTargetKg <= 0
+                            ? 'Not ready'
+                            : CurrencyUtils.formatCurrency(
+                                inputCostPerTargetKg),
+                        note: 'Against target yield',
+                        tint: const Color(0xFFFFEBD0),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _MetricCard(
+                        title: 'Records',
+                        value:
+                            '${crop.inputRecords.length + crop.todoItems.length}',
+                        note: 'Inputs plus reminders',
+                        tint: const Color(0xFFDFF1FF),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            key: _growthTimelineKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                SoftSectionTitle(
+                    title: language.tr(
+                        en: 'Growth Timeline',
+                        ha: 'Layin lokacin girma',
+                        fr: 'Chronologie de croissance')),
+                GrowthTimelineWidget(crop: crop),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            key: _calendarScheduleKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                SoftSectionTitle(
+                    title: language.tr(
+                        en: 'Calendar Schedule',
+                        ha: 'Jadawalin Kalanda',
+                        fr: 'Calendrier')),
+                CropCalendarScheduleWidget(crop: crop),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            key: _photoJournalKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                SoftSectionTitle(
+                    title: language.tr(
+                        en: 'Photo Journal',
+                        ha: 'Littafin Hoto',
+                        fr: 'Journal photo')),
+                PhotoJournalWidget(crop: crop),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            key: _fieldTasksKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                SoftSectionTitle(
+                    title: language.tr(
+                        en: 'Field tasks',
+                        ha: 'Ayyukan gona',
+                        fr: 'Taches de terrain')),
+                if (openTasks.isEmpty)
+                  const _InfoCard(
+                      message:
+                          'No open crop reminders yet. Add scouting, irrigation, feeding, or harvest reminders from the crop records screen.')
+                else
+                  ...openTasks.take(4).map(
+                        (FarmTodoItem task) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _TaskCard(task: task),
+                        ),
+                      ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            key: _recentInputsKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                SoftSectionTitle(
+                    title: language.tr(
+                        en: 'Recent inputs',
+                        ha: 'Kayan da aka yi amfani da su kwanan nan',
+                        fr: 'Intrants recents')),
+                if (crop.inputRecords.isEmpty)
+                  const _InfoCard(
+                      message:
+                          'No input records yet. Add seed, fertiliser, labour, or equipment records from crop management.')
+                else
+                  ...crop.inputRecords.take(4).map(
+                        (FarmInputRecord item) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _InputCard(item: item),
+                        ),
+                      ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            key: _aiRecommendationsKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                SoftSectionTitle(
+                    title: language.tr(
+                        en: 'AI Recommendations',
+                        ha: 'Shawarwarin AI',
+                        fr: 'Recommandations IA')),
+                AiRecommendationsWidget(crop: crop),
+                if ((farm?.supportsGreenhouse ?? false) ||
+                    crop.protectedEnvironment) ...<Widget>[
+                  const SizedBox(height: 12),
+                  const _SuggestionCard(
+                    title: 'Greenhouse routine',
+                    detail:
+                        'Check heat build-up, ventilation, humidity, and disease spread in enclosed spaces before watering again.',
+                    tint: Color(0xFFFFEBD0),
                   ),
                 ],
-              ),
+              ],
             ),
           ),
-          const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Production profile'),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: _MetricCard(
-                  title: 'Area',
-                  value: '${crop.areaHa.toStringAsFixed(2)} ha',
-                  note: crop.protectedEnvironment ? 'Protected crop' : 'Open-field crop',
-                  tint: const Color(0xFFDFF1FF),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _MetricCard(
-                  title: 'Target yield',
-                  value: crop.targetYieldKg > 0 ? '${crop.targetYieldKg.toStringAsFixed(0)} kg' : 'Not set',
-                  note: 'Cycle target',
-                  tint: const Color(0xFFFFEBD0),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: _MetricCard(
-                  title: 'Input spend',
-                  value: CurrencyUtils.formatCurrency(crop.totalInputCost),
-                  note: '${crop.inputRecords.length} records',
-                  tint: const Color(0xFFEDE8FF),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _MetricCard(
-                  title: 'Open tasks',
-                  value: '${crop.openTaskCount}',
-                  note: '${crop.todoItems.length} total reminders',
-                  tint: const Color(0xFFE8F4D8),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Performance ratios'),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: _MetricCard(
-                  title: 'Cost / ha',
-                  value: crop.areaHa <= 0 ? 'Not ready' : CurrencyUtils.formatCurrency(costPerHa),
-                  note: '${crop.inputRecords.length} input records',
-                  tint: const Color(0xFFEDE8FF),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _MetricCard(
-                  title: 'Yield / ha',
-                  value: crop.targetYieldKg <= 0 || crop.areaHa <= 0 ? 'Not set' : '${targetYieldPerHa.toStringAsFixed(0)} kg',
-                  note: 'Target density',
-                  tint: const Color(0xFFE8F4D8),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: _MetricCard(
-                  title: 'Input / kg',
-                  value: inputCostPerTargetKg <= 0 ? 'Not ready' : CurrencyUtils.formatCurrency(inputCostPerTargetKg),
-                  note: 'Against target yield',
-                  tint: const Color(0xFFFFEBD0),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _MetricCard(
-                  title: 'Records',
-                  value: '${crop.inputRecords.length + crop.todoItems.length}',
-                  note: 'Inputs plus reminders',
-                  tint: const Color(0xFFDFF1FF),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Field tasks'),
-          if (openTasks.isEmpty)
-            const _InfoCard(message: 'No open crop reminders yet. Add scouting, irrigation, feeding, or harvest reminders from the crop records screen.')
-          else
-            ...openTasks.take(4).map(
-              (FarmTodoItem task) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _TaskCard(task: task),
-              ),
-            ),
-          const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Recent inputs'),
-          if (crop.inputRecords.isEmpty)
-            const _InfoCard(message: 'No input records yet. Add seed, fertiliser, labour, or equipment records from crop management.')
-          else
-            ...crop.inputRecords.take(4).map(
-              (FarmInputRecord item) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _InputCard(item: item),
-              ),
-            ),
-          const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'App suggestions'),
-          _SuggestionCard(
-            title: crop.currentStage == CropStage.flowering || crop.currentStage == CropStage.fruiting
-                ? 'Protect yield-critical stage'
-                : 'Push early stand quality',
-            detail: crop.currentStage == CropStage.flowering || crop.currentStage == CropStage.fruiting
-                ? 'Keep moisture steady, reduce stress, and check pest pressure every 1-2 days so flowering and fruit fill are not interrupted.'
-                : 'Inspect gaps, weed pressure, and leaf colour now. Early corrections usually protect the rest of the cycle.',
-            tint: const Color(0xFFE8F4D8),
-          ),
-          const SizedBox(height: 12),
-          _SuggestionCard(
-            title: crop.daysToHarvest <= 7 ? 'Prepare harvest logistics' : 'Keep cycle records current',
-            detail: crop.daysToHarvest <= 7
-                ? 'Line up labour, crates, buyers, and transport. Capture harvest dates and early sales so finance stays accurate.'
-                : 'Update stage, tasks, and input records this week so the app can keep cycle timing and reminders useful.',
-            tint: const Color(0xFFDFF1FF),
-          ),
-          if ((farm?.supportsGreenhouse ?? false) || crop.protectedEnvironment) ...<Widget>[
-            const SizedBox(height: 12),
-            const _SuggestionCard(
-              title: 'Greenhouse routine',
-              detail: 'Check heat build-up, ventilation, humidity, and disease spread in enclosed spaces before watering again.',
-              tint: Color(0xFFFFEBD0),
-            ),
-          ],
           const SizedBox(height: 18),
           Row(
             children: <Widget>[
@@ -351,12 +637,13 @@ class CropDetailScreen extends ConsumerWidget {
               ),
             ],
           ),
-        ],
-      ),
-    );
+        ], // end of sections list
+      ), // end of SoftScreenScaffold
+    ); // end of Scaffold
   }
 
-  Future<void> _openPreviousRecommendations(BuildContext context, Crop crop) async {
+  Future<void> _openPreviousRecommendations(
+      BuildContext context, Crop crop) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => PreviousCropRecommendationsScreen(cropName: crop.name),
@@ -364,7 +651,8 @@ class CropDetailScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _openHarvestSheet(BuildContext context, WidgetRef ref, Crop crop) async {
+  Future<void> _openHarvestSheet(
+      BuildContext context, WidgetRef ref, Crop crop) async {
     final _HarvestDraft? draft = await showModalBottomSheet<_HarvestDraft>(
       context: context,
       isScrollControlled: true,
@@ -391,7 +679,8 @@ class CropDetailScreen extends ConsumerWidget {
             currentStage: CropStage.fruiting,
             updatedAt: now,
             isSynced: false,
-            intelligenceNotes: '${crop.name} harvested in ${draft.quantityLabel}.',
+            intelligenceNotes:
+                '${crop.name} harvested in ${draft.quantityLabel}.',
             lastIntelligenceSyncAt: now,
           ),
         );
@@ -430,7 +719,8 @@ class CropDetailScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _renewCrop(BuildContext context, WidgetRef ref, Crop crop) async {
+  Future<void> _renewCrop(
+      BuildContext context, WidgetRef ref, Crop crop) async {
     final DateTime now = DateTime.now();
     final Crop nextCrop = Crop(
       id: const Uuid().v4(),
@@ -463,7 +753,8 @@ class CropDetailScreen extends ConsumerWidget {
         );
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('New crop cycle created from this profile.')),
+        const SnackBar(
+            content: Text('New crop cycle created from this profile.')),
       );
     }
   }
@@ -544,7 +835,8 @@ String _cropWorkStatus({
   if (crop.daysToHarvest <= 7) {
     return crop.daysToHarvest < 0 ? 'Harvest due' : 'Harvest window';
   }
-  if (crop.currentStage == CropStage.flowering || crop.currentStage == CropStage.fruiting) {
+  if (crop.currentStage == CropStage.flowering ||
+      crop.currentStage == CropStage.fruiting) {
     return 'Yield protection';
   }
   return 'Cycle on track';
@@ -566,7 +858,8 @@ String _cropWorkNarrative({
         ? 'Harvest is due. Confirm quality, crates, labour, buyers, transport, and stock entry before produce leaves the field.'
         : 'Harvest is close. Prepare labour, crates, post-harvest handling, buyer commitments, and finance records now.';
   }
-  if (crop.currentStage == CropStage.flowering || crop.currentStage == CropStage.fruiting) {
+  if (crop.currentStage == CropStage.flowering ||
+      crop.currentStage == CropStage.fruiting) {
     return 'This is a yield-sensitive stage. Keep moisture steady, avoid missed feeding, scout pests often, and reduce handling stress.';
   }
   return 'Use this window to keep records tight: update stage, inspect stand quality, confirm input stock, and schedule the next field operation.';
@@ -592,6 +885,7 @@ class PreviousCropRecommendationsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final AppLanguage language = ref.watch(appLanguageProvider);
     final List<Crop> crops = ref.watch(cropsProvider).valueOrNull ?? <Crop>[];
     final String normalized = cropName.trim().toLowerCase();
     final List<Crop> previous = crops
@@ -600,27 +894,51 @@ class PreviousCropRecommendationsScreen extends ConsumerWidget {
       ..sort((Crop a, Crop b) => b.updatedAt.compareTo(a.updatedAt));
 
     return Scaffold(
-      appBar: AppBar(title: Text('$cropName history')),
+      appBar: AppBar(
+        title: Text(
+          language.tr(
+              en: '$cropName history',
+              ha: 'Tarihin $cropName',
+              fr: 'Historique de $cropName'),
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: <Widget>[
-          const SoftSectionTitle(title: 'Previous recommendations'),
+          SoftSectionTitle(
+              title: language.tr(
+                  en: 'Previous recommendations',
+                  ha: 'Shawarwarin da suka gabata',
+                  fr: 'Recommandations precedentes')),
           AppCard(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                'This page collects earlier $cropName cycles so you can reuse what worked, adjust fertilizer plans, and avoid repeating problems.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+                language.tr(
+                  en: 'This page collects earlier $cropName cycles so you can reuse what worked, adjust fertilizer plans, and avoid repeating problems.',
+                  ha: 'Wannan shafi yana tattara zagayowar $cropName na baya domin ka sake amfani da abin da ya yi aiki, ka gyara shirin taki, kuma ka guji sake maimaita matsaloli.',
+                  fr: 'Cette page rassemble les cycles precedents de $cropName afin de reutiliser ce qui a fonctionne, ajuster les plans d\'engrais et eviter de repeter les problemes.',
+                ),
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(height: 1.5),
               ),
             ),
           ),
           const SizedBox(height: 16),
           if (previous.isEmpty)
-            const AppCard(
+            AppCard(
               child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('No previous crop profiles found yet. Once you complete a cycle, its notes and recommendations will appear here.'),
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  language.tr(
+                    en: 'No previous crop profiles found yet. Once you complete a cycle, its notes and recommendations will appear here.',
+                    ha: 'Ba a sami bayanan amfanin gona na baya ba tukuna. Da zarar ka kammala zagaye, bayanansa da shawarwari za su bayyana anan.',
+                    fr: 'Aucun profil de culture precedent trouve pour le moment. Une fois un cycle termine, ses notes et recommandations apparaitront ici.',
+                  ),
+                ),
               ),
             )
           else
@@ -634,11 +952,15 @@ class PreviousCropRecommendationsScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text(crop.variety, style: Theme.of(context).textTheme.titleMedium),
+                        Text(crop.variety,
+                            style: Theme.of(context).textTheme.titleMedium),
                         const SizedBox(height: 8),
-                        Text('Land: ${crop.landSizeLabel} | Stage: ${_stageLabel(crop.currentStage)}'),
+                        Text(
+                            'Land: ${crop.landSizeLabel} | Stage: ${_stageLabel(crop.currentStage)}'),
                         const SizedBox(height: 6),
-                        Text(crop.intelligenceNotes.isEmpty ? 'No stored notes for this cycle.' : crop.intelligenceNotes),
+                        Text(crop.intelligenceNotes.isEmpty
+                            ? 'No stored notes for this cycle.'
+                            : crop.intelligenceNotes),
                       ],
                     ),
                   ),
@@ -661,7 +983,8 @@ class _HarvestSheet extends StatefulWidget {
 }
 
 class _HarvestSheetState extends State<_HarvestSheet> {
-  final TextEditingController _quantityController = TextEditingController(text: '1');
+  final TextEditingController _quantityController =
+      TextEditingController(text: '1');
   String _unit = 'kg';
 
   @override
@@ -673,7 +996,8 @@ class _HarvestSheetState extends State<_HarvestSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
@@ -683,18 +1007,21 @@ class _HarvestSheetState extends State<_HarvestSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Text('Record harvest', style: Theme.of(context).textTheme.headlineSmall),
+            Text('Record harvest',
+                style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 12),
             TextField(
               controller: _quantityController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(labelText: 'Quantity'),
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               value: _unit,
               items: const <String>['kg', 'ton', 'bags']
-                  .map((String value) => DropdownMenuItem<String>(value: value, child: Text(value)))
+                  .map((String value) => DropdownMenuItem<String>(
+                      value: value, child: Text(value)))
                   .toList(growable: false),
               onChanged: (String? value) {
                 if (value != null) setState(() => _unit = value);
@@ -704,7 +1031,8 @@ class _HarvestSheetState extends State<_HarvestSheet> {
             const SizedBox(height: 18),
             AppButton.primary(
               onPressed: () {
-                final double quantity = double.tryParse(_quantityController.text.trim()) ?? 0;
+                final double quantity =
+                    double.tryParse(_quantityController.text.trim()) ?? 0;
                 Navigator.of(context).pop(
                   _HarvestDraft(
                     quantity: quantity,
@@ -730,7 +1058,8 @@ class _HarvestDraft {
   final double quantity;
   final String unit;
 
-  String get quantityLabel => '${quantity.toStringAsFixed(quantity >= 10 ? 0 : 1)} $unit';
+  String get quantityLabel =>
+      '${quantity.toStringAsFixed(quantity >= 10 ? 0 : 1)} $unit';
 }
 
 class _MetricCard extends StatelessWidget {
@@ -750,7 +1079,9 @@ class _MetricCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color markerColor = isDark ? Color.alphaBlend(tint.withOpacity(0.24), theme.colorScheme.surface) : tint;
+    final Color markerColor = isDark
+        ? Color.alphaBlend(tint.withOpacity(0.24), theme.colorScheme.surface)
+        : tint;
 
     return AppCard(
       color: theme.colorScheme.surfaceContainerHighest,
@@ -765,7 +1096,9 @@ class _MetricCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: markerColor,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: isDark ? tint.withOpacity(0.44) : Colors.transparent),
+                border: Border.all(
+                    color:
+                        isDark ? tint.withOpacity(0.44) : Colors.transparent),
               ),
             ),
             const SizedBox(height: 12),
@@ -791,15 +1124,19 @@ class _Pill extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color background = isDark ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface) : color;
-    final Color foreground = isDark ? theme.colorScheme.onSurface : const Color(0xFF284231);
+    final Color background = isDark
+        ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface)
+        : color;
+    final Color foreground =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFF284231);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: isDark ? color.withOpacity(0.44) : color.withOpacity(0.85)),
+        border: Border.all(
+            color: isDark ? color.withOpacity(0.44) : color.withOpacity(0.85)),
       ),
       child: Text(
         text,
@@ -833,7 +1170,9 @@ class _CycleListTile extends StatelessWidget {
           height: 18,
           margin: const EdgeInsets.only(top: 2),
           decoration: BoxDecoration(
-            color: isActive ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outlineVariant,
+            color: isActive
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.outlineVariant,
             shape: BoxShape.circle,
           ),
         ),
@@ -844,7 +1183,11 @@ class _CycleListTile extends StatelessWidget {
             children: <Widget>[
               Text(title, style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: 4),
-              Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.4)),
+              Text(subtitle,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(height: 1.4)),
             ],
           ),
         ),
@@ -864,7 +1207,9 @@ class _InfoCard extends StatelessWidget {
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Text(message, style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5)),
+        child: Text(message,
+            style:
+                Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5)),
       ),
     );
   }
@@ -882,7 +1227,9 @@ class _TaskCard extends StatelessWidget {
       child: ListTile(
         leading: const Icon(Icons.event_note_rounded),
         title: Text(task.title),
-        subtitle: Text(task.notes.isEmpty ? 'Due ${task.dueDate.day}/${task.dueDate.month}/${task.dueDate.year}' : task.notes),
+        subtitle: Text(task.notes.isEmpty
+            ? 'Due ${task.dueDate.day}/${task.dueDate.month}/${task.dueDate.year}'
+            : task.notes),
       ),
     );
   }
@@ -922,8 +1269,11 @@ class _SuggestionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color iconBackground = isDark ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface) : tint;
-    final Color iconForeground = isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
+    final Color iconBackground = isDark
+        ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface)
+        : tint;
+    final Color iconForeground =
+        isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
 
     return AppCard(
       color: theme.colorScheme.surfaceContainerHighest,
@@ -938,9 +1288,12 @@ class _SuggestionCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: iconBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: isDark ? tint.withOpacity(0.42) : Colors.transparent),
+                border: Border.all(
+                    color:
+                        isDark ? tint.withOpacity(0.42) : Colors.transparent),
               ),
-              child: Icon(Icons.lightbulb_outline_rounded, color: iconForeground),
+              child:
+                  Icon(Icons.lightbulb_outline_rounded, color: iconForeground),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -949,7 +1302,8 @@ class _SuggestionCard extends StatelessWidget {
                 children: <Widget>[
                   Text(title, style: theme.textTheme.titleSmall),
                   const SizedBox(height: 4),
-                  Text(detail, style: theme.textTheme.bodySmall?.copyWith(height: 1.5)),
+                  Text(detail,
+                      style: theme.textTheme.bodySmall?.copyWith(height: 1.5)),
                 ],
               ),
             ),

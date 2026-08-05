@@ -65,7 +65,12 @@ List<Farm> visibleFarmsFor(
                   member.email == currentUser.email ||
                   member.id == currentUser.uid ||
                   member.allowedFarmIds.contains(farm.id),
-            ),
+            ) ||
+            // Legacy farms synced before ownership tracking existed have no
+            // recorded owner at all. A blank owner can never belong to a
+            // specific other account, so hiding these only ever causes data
+            // loss for the farmer who created them — keep them visible.
+            (farm.ownerUid.isEmpty && farm.ownerEmail.isEmpty),
       )
       .toList(growable: false);
 

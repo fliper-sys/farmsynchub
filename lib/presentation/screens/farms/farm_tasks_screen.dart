@@ -6,6 +6,7 @@ import '../../../core/services/farm_notification_service.dart';
 import '../../../core/services/farm_task_calendar_service.dart';
 import '../../../core/utils/date_utils.dart' as app_date;
 import '../../../domain/models/farm.dart';
+import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/farm_provider.dart';
 import '../../common/widgets/app_card.dart';
@@ -30,6 +31,7 @@ class _FarmTasksScreenState extends ConsumerState<FarmTasksScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final AppLanguage language = ref.watch(appLanguageProvider);
     final List<FarmTaskEntry> allEntries =
         ref.watch(allFarmTaskEntriesProvider);
     final String? currentUid =
@@ -87,17 +89,24 @@ class _FarmTasksScreenState extends ConsumerState<FarmTasksScreen> {
               ? Navigator.of(context).pop()
               : context.go('/farms'),
         ),
-        title: const Text('Task center'),
+        title: Text(
+          language.tr(
+              en: 'Task center', ha: 'Cibiyar ayyuka', fr: 'Centre des taches'),
+        ),
       ),
       body: SoftScreenScaffold(
-        heroTitle: 'Task center',
-        heroSubtitle:
-            'Every task across your farms, in one place — assign, schedule, and track completion.',
+        heroTitle: language.tr(
+            en: 'Task center', ha: 'Cibiyar ayyuka', fr: 'Centre des taches'),
+        heroSubtitle: language.tr(
+          en: 'Every task across your farms, in one place — assign, schedule, and track completion.',
+          ha: 'Kowanne aiki a gonakinku, a wuri daya — ba da aiki, tsara lokaci, da bin diddigin kammalawa.',
+          fr: 'Chaque tache sur toutes vos fermes, en un seul endroit — assignez, planifiez et suivez l\'avancement.',
+        ),
         heroIcon: Icons.checklist_rounded,
         heroVariant: FarmArtworkVariant.field,
         heroBadge: '${stats.total - stats.completed} open tasks',
         trailing: _AddTaskButton(
-          onTap: () => _openFarmPicker(context, allFarms),
+          onTap: () => _openFarmPicker(context, language, allFarms),
         ),
         sections: <Widget>[
           Wrap(
@@ -105,7 +114,8 @@ class _FarmTasksScreenState extends ConsumerState<FarmTasksScreen> {
             runSpacing: 8,
             children: <Widget>[
               _FilterChip(
-                label: 'All farms',
+                label: language.tr(
+                    en: 'All farms', ha: 'Duk gonaki', fr: 'Toutes les fermes'),
                 selected: _selectedFarmId == null,
                 onTap: () => setState(() => _selectedFarmId = null),
               ),
@@ -123,25 +133,29 @@ class _FarmTasksScreenState extends ConsumerState<FarmTasksScreen> {
             runSpacing: 8,
             children: <Widget>[
               _FilterChip(
-                label: 'All',
+                label: language.tr(en: 'All', ha: 'Duka', fr: 'Tout'),
                 selected: _statusFilter == _TaskStatusFilter.all,
                 onTap: () =>
                     setState(() => _statusFilter = _TaskStatusFilter.all),
               ),
               _FilterChip(
-                label: 'Open',
+                label: language.tr(en: 'Open', ha: 'Bude', fr: 'Ouvert'),
                 selected: _statusFilter == _TaskStatusFilter.open,
                 onTap: () =>
                     setState(() => _statusFilter = _TaskStatusFilter.open),
               ),
               _FilterChip(
-                label: 'Completed',
+                label: language.tr(
+                    en: 'Completed', ha: 'An Kammala', fr: 'Termine'),
                 selected: _statusFilter == _TaskStatusFilter.completed,
                 onTap: () =>
                     setState(() => _statusFilter = _TaskStatusFilter.completed),
               ),
               _FilterChip(
-                label: 'Assigned to me',
+                label: language.tr(
+                    en: 'Assigned to me',
+                    ha: 'An ba ni',
+                    fr: 'Qui me sont assignees'),
                 selected: _assignedToMeOnly,
                 onTap: () =>
                     setState(() => _assignedToMeOnly = !_assignedToMeOnly),
@@ -156,7 +170,9 @@ class _FarmTasksScreenState extends ConsumerState<FarmTasksScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text('Completion',
+                  Text(
+                      language.tr(
+                          en: 'Completion', ha: 'Kammalawa', fr: 'Achevement'),
                       style: Theme.of(context)
                           .textTheme
                           .titleMedium
@@ -167,7 +183,11 @@ class _FarmTasksScreenState extends ConsumerState<FarmTasksScreen> {
                       tint: const Color(0xFFE5F5D8)),
                   const SizedBox(height: 10),
                   Text(
-                    '${stats.completed} of ${stats.total} tasks completed (${(stats.completionRate * 100).round()}%)',
+                    language.tr(
+                      en: '${stats.completed} of ${stats.total} tasks completed (${(stats.completionRate * 100).round()}%)',
+                      ha: '${stats.completed} daga cikin ${stats.total} ayyuka an kammala (${(stats.completionRate * 100).round()}%)',
+                      fr: '${stats.completed} sur ${stats.total} taches terminees (${(stats.completionRate * 100).round()}%)',
+                    ),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
@@ -181,7 +201,11 @@ class _FarmTasksScreenState extends ConsumerState<FarmTasksScreen> {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        '${stats.overdueCount} overdue',
+                        language.tr(
+                          en: '${stats.overdueCount} overdue',
+                          ha: '${stats.overdueCount} sun wuce lokaci',
+                          fr: '${stats.overdueCount} en retard',
+                        ),
                         style: Theme.of(context)
                             .textTheme
                             .labelMedium
@@ -199,13 +223,25 @@ class _FarmTasksScreenState extends ConsumerState<FarmTasksScreen> {
           if (nothingToShow)
             AppCard(
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: const Padding(
-                padding: EdgeInsets.all(24),
-                child: Text('No tasks match these filters yet.'),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  language.tr(
+                    en: 'No tasks match these filters yet.',
+                    ha: 'Babu wani aiki da ya dace da wadannan tace-tace har yanzu.',
+                    fr: 'Aucune tache ne correspond a ces filtres pour le moment.',
+                  ),
+                ),
               ),
             ),
           if (showOpenLists && overdue.isNotEmpty) ...<Widget>[
-            SoftSectionTitle(title: 'Overdue (${overdue.length})'),
+            SoftSectionTitle(
+              title: language.tr(
+                en: 'Overdue (${overdue.length})',
+                ha: 'Sun wuce lokaci (${overdue.length})',
+                fr: 'En retard (${overdue.length})',
+              ),
+            ),
             ...overdue.map(
               (FarmTaskEntry entry) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
@@ -236,13 +272,22 @@ class _FarmTasksScreenState extends ConsumerState<FarmTasksScreen> {
               const SizedBox(height: 8),
             ],
           if (showCompletedList) ...<Widget>[
-            const SoftSectionTitle(title: 'Completed'),
+            SoftSectionTitle(
+              title:
+                  language.tr(en: 'Completed', ha: 'An Kammala', fr: 'Termine'),
+            ),
             if (completedEntries.isEmpty)
               AppCard(
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                child: const Padding(
-                  padding: EdgeInsets.all(18),
-                  child: Text('No completed tasks yet.'),
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Text(
+                    language.tr(
+                      en: 'No completed tasks yet.',
+                      ha: 'Babu wani aikin da aka kammala har yanzu.',
+                      fr: 'Aucune tache terminee pour le moment.',
+                    ),
+                  ),
                 ),
               )
             else
@@ -297,7 +342,8 @@ class _FarmTasksScreenState extends ConsumerState<FarmTasksScreen> {
     );
   }
 
-  void _openFarmPicker(BuildContext context, List<Farm> farms) {
+  void _openFarmPicker(
+      BuildContext context, AppLanguage language, List<Farm> farms) {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -314,7 +360,12 @@ class _FarmTasksScreenState extends ConsumerState<FarmTasksScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text('Which farm is this task for?',
+                Text(
+                    language.tr(
+                      en: 'Which farm is this task for?',
+                      ha: 'Wace gona ne wannan aiki na?',
+                      fr: 'Pour quelle ferme est cette tache ?',
+                    ),
                     style: Theme.of(sheetContext).textTheme.headlineSmall),
                 const SizedBox(height: 8),
                 Flexible(

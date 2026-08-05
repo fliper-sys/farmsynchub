@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/services/farm_task_calendar_service.dart';
+import '../../../core/services/harvest_readiness_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../domain/models/crop.dart';
@@ -21,6 +22,8 @@ import '../../../providers/notification_provider.dart';
 import '../../../providers/sync_provider.dart';
 import '../../../providers/theme_provider.dart';
 import '../../../providers/user_profile_provider.dart';
+import '../crops/crop_detail_screen.dart';
+import '../livestock/livestock_detail_screen.dart';
 import 'widgets/activity_feed.dart';
 import 'widgets/weather_pill.dart';
 
@@ -164,6 +167,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                       tasks: activeFarm?.workspaceTasks ??
                           const <FarmWorkspaceTask>[],
                       onViewAll: () => context.go('/farm-tasks'),
+                    ),
+                    const SizedBox(height: 18),
+                    _HarvestReadinessCard(
+                      items: HarvestReadinessService.all(
+                          crops: crops, livestock: livestock),
                     ),
                     const SizedBox(height: 18),
                     _HeroSummaryCard(
@@ -380,6 +388,121 @@ class _TodayTasksCard extends StatelessWidget {
     if (diff == 1) return 'Tomorrow';
     if (diff < 7) return 'In $diff days';
     return '${value.day}/${value.month}/${value.year}';
+  }
+}
+
+class _HarvestReadinessCard extends StatelessWidget {
+  const _HarvestReadinessCard({required this.items});
+
+  final List<HarvestReadinessItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final ThemeData theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[Color(0xFFFFE3B3), Color(0xFFFFC98B)],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              const Icon(Icons.agriculture_rounded, color: Color(0xFF7A4A00)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Ready for the market',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF7A4A00),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...items.take(3).map(
+                (HarvestReadinessItem item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => _openItem(context, item),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.55),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Icon(
+                            item.kind == HarvestReadinessKind.crop
+                                ? Icons.eco_rounded
+                                : Icons.pets_rounded,
+                            size: 20,
+                            color: const Color(0xFF7A4A00),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  item.title,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.3,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  item.detail,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: const Color(0xFF7A4A00),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right_rounded,
+                              color: Color(0xFF7A4A00)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+        ],
+      ),
+    );
+  }
+
+  void _openItem(BuildContext context, HarvestReadinessItem item) {
+    if (item.kind == HarvestReadinessKind.crop) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => CropDetailScreen(cropId: item.id),
+        ),
+      );
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => LivestockDetailScreen(livestockId: item.id),
+        ),
+      );
+    }
   }
 }
 
@@ -690,24 +813,33 @@ class _MetricCardState extends State<_MetricCard> {
             children: <Widget>[
               Row(
                 children: <Widget>[
-                  _GlowIcon(icon: widget.icon),
+                  _GlowIcon(icon: widget.icon, size: 40),
                   const Spacer(),
                   Icon(Icons.chevron_right_rounded,
                       color: theme.colorScheme.onSurfaceVariant),
                 ],
               ),
               const SizedBox(height: 20),
-              Text(widget.value,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                      color: AppColors.premiumGreen,
-                      fontWeight: FontWeight.w900)),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(widget.value,
+                    maxLines: 1,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                        color: AppColors.premiumGreen,
+                        fontWeight: FontWeight.w900)),
+              ),
               const SizedBox(height: 8),
               Text(widget.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.titleSmall?.copyWith(
                       color: theme.colorScheme.onSurface,
                       fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
               Text(widget.subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
             ],
@@ -769,14 +901,16 @@ class _ManagementTile extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: <Widget>[
-            _GlowIcon(icon: action.icon),
-            const SizedBox(width: 14),
+            _GlowIcon(icon: action.icon, size: 40),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(action.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           color: Theme.of(context).colorScheme.onSurface,
                           fontWeight: FontWeight.w800)),
@@ -878,15 +1012,16 @@ class _PremiumPanel extends StatelessWidget {
 }
 
 class _GlowIcon extends StatelessWidget {
-  const _GlowIcon({required this.icon});
+  const _GlowIcon({required this.icon, this.size = 58});
 
   final IconData icon;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 58,
-      height: 58,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
@@ -896,14 +1031,14 @@ class _GlowIcon extends StatelessWidget {
             Color(0xFF123D33),
           ],
         ),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(size * 0.31),
         boxShadow: <BoxShadow>[
           BoxShadow(
               color: AppColors.premiumGreen.withOpacity(0.26), blurRadius: 22),
         ],
       ),
-      child:
-          Icon(icon, color: Theme.of(context).colorScheme.onPrimary, size: 28),
+      child: Icon(icon,
+          color: Theme.of(context).colorScheme.onPrimary, size: size * 0.48),
     );
   }
 }

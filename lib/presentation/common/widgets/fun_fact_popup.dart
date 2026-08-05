@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -30,6 +31,11 @@ class _FunFactPopupState extends State<FunFactPopup> {
   final ReportFileSaver _fileSaver = createReportFileSaver();
   bool _isSharing = false;
 
+  // Picked once per popup instance so it doesn't change on rebuild (e.g.
+  // when _isSharing toggles).
+  late final FarmArtworkVariant _artVariant = FarmArtworkVariant
+      .values[Random().nextInt(FarmArtworkVariant.values.length)];
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -46,7 +52,8 @@ class _FunFactPopupState extends State<FunFactPopup> {
                 children: <Widget>[
                   RepaintBoundary(
                     key: _cardKey,
-                    child: _FunFactCard(fact: widget.fact),
+                    child: _FunFactCard(
+                        fact: widget.fact, artVariant: _artVariant),
                   ),
                   Positioned(
                     top: 10,
@@ -136,9 +143,10 @@ class _FunFactPopupState extends State<FunFactPopup> {
 }
 
 class _FunFactCard extends StatelessWidget {
-  const _FunFactCard({required this.fact});
+  const _FunFactCard({required this.fact, required this.artVariant});
 
   final FunFact fact;
+  final FarmArtworkVariant artVariant;
 
   @override
   Widget build(BuildContext context) {
@@ -150,9 +158,9 @@ class _FunFactCard extends StatelessWidget {
         width: double.infinity,
         child: Stack(
           children: <Widget>[
-            const FarmSceneArtwork(
+            FarmSceneArtwork(
               height: 460,
-              variant: FarmArtworkVariant.welcome,
+              variant: artVariant,
               borderRadius: BorderRadius.zero,
             ),
             Positioned.fill(
