@@ -473,67 +473,23 @@ class LearnLessonDetailScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(18),
-                        gradient: LinearGradient(
-                          colors: <Color>[
-                            lesson.tint.withOpacity(0.96),
-                            Color.alphaBlend(lesson.tint.withOpacity(0.58),
-                                theme.colorScheme.surface),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
+                    _VideoThumbnailPreview(
+                      videoId: lesson.youtubeVideoId!,
+                      tint: lesson.tint,
+                      onTap: () async {
+                        await _launchExternalUrl(
+                          'https://www.youtube.com/watch?v=${lesson.youtubeVideoId}',
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      language.tr(
+                        en: 'Watch a short demonstration to reinforce the field steps.',
+                        ha: 'Kalli takaitaccen nunin aiki don karfafa matakan gona.',
+                        fr: 'Regardez une courte demonstration pour renforcer les etapes de terrain.',
                       ),
-                      child: Row(
-                        children: <Widget>[
-                          Container(
-                            width: 52,
-                            height: 52,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.24),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: const Icon(
-                              Icons.play_circle_fill_rounded,
-                              size: 30,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Text(
-                                  language.tr(
-                                      en: 'Video lesson',
-                                      ha: 'Darasin Bidiyo',
-                                      fr: 'Lecon video'),
-                                  style: theme.textTheme.labelLarge?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  language.tr(
-                                    en: 'Watch a short demonstration to reinforce the field steps.',
-                                    ha: 'Kalli takaitaccen nunin aiki don karfafa matakan gona.',
-                                    fr: 'Regardez une courte demonstration pour renforcer les etapes de terrain.',
-                                  ),
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: Colors.white.withOpacity(0.92),
-                                    height: 1.4,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                      style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
                     ),
                     const SizedBox(height: 12),
                     AppButton.primary(
@@ -1433,6 +1389,100 @@ class _ToolRow extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(child: Text(text)),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shows the real YouTube thumbnail for a lesson's video so learners can see
+/// what they're about to watch, instead of a generic placeholder card.
+class _VideoThumbnailPreview extends StatelessWidget {
+  const _VideoThumbnailPreview({
+    required this.videoId,
+    required this.tint,
+    required this.onTap,
+  });
+
+  final String videoId;
+  final Color tint;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: AspectRatio(
+        aspectRatio: 16 / 9,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              Image.network(
+                'https://i.ytimg.com/vi/$videoId/hqdefault.jpg',
+                fit: BoxFit.cover,
+                loadingBuilder: (BuildContext context, Widget child,
+                    ImageChunkEvent? progress) {
+                  if (progress == null) return child;
+                  return Container(
+                    color: tint.withOpacity(0.4),
+                    alignment: Alignment.center,
+                    child: const SizedBox(
+                      width: 26,
+                      height: 26,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    ),
+                  );
+                },
+                errorBuilder: (BuildContext context, Object error,
+                        StackTrace? stackTrace) =>
+                    Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: <Color>[
+                        tint.withOpacity(0.96),
+                        Color.alphaBlend(
+                            tint.withOpacity(0.58),
+                            Theme.of(context).colorScheme.surface),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                ),
+              ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: <Color>[
+                      Colors.black.withOpacity(0.05),
+                      Colors.black.withOpacity(0.32),
+                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
+              ),
+              Center(
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.45),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white.withOpacity(0.8)),
+                  ),
+                  child: const Icon(
+                    Icons.play_arrow_rounded,
+                    size: 32,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -4664,7 +4714,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
       ),
     ],
     tools: <String>['Calculator, notes'],
-    youtubeVideoId: 'cFLC1j9ebfA',
+    youtubeVideoId: 'KeVCI3CBQGg',
     websiteUrl: 'https://www.fao.org/3/i3661e/i3661e.pdf',
   ),
   const LearningLesson(
@@ -4724,7 +4774,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
       ),
     ],
     tools: <String>['Seeds, water source'],
-    youtubeVideoId: '2BJ-CyVtbNQ',
+    youtubeVideoId: 'kG7U_EL1ABU',
     websiteUrl: 'https://www.pollinator.org/guides/creating-habitat',
   ),
   const LearningLesson(
@@ -4785,7 +4835,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
       ),
     ],
     tools: <String>['Shade, tape'],
-    youtubeVideoId: 'X5gSDVrZ0-Q',
+    youtubeVideoId: 'njjoAu2Laj8',
     websiteUrl: 'https://www.gardenmyths.com/grafting-guide/',
   ),
   const LearningLesson(
@@ -4846,7 +4896,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
       ),
     ],
     tools: <String>['Bucket, aerator'],
-    youtubeVideoId: 'Ov-ZCDS2p8g',
+    youtubeVideoId: 'bu9aYT7h5Gs',
     websiteUrl: 'https://www.gardenmyths.com/compost-tea/',
   ),
   const LearningLesson(
@@ -4892,7 +4942,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: '5-10 cm protects and allows water flow.'),
     ],
     tools: <String>['Residue, seed'],
-    youtubeVideoId: 'sJ9LpL7X4Ys',
+    youtubeVideoId: 'bu9aYT7h5Gs',
     websiteUrl: 'https://www.agronomy.org/cover-crops',
   ),
   const LearningLesson(
@@ -4942,7 +4992,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Profit = price minus costs.'),
     ],
     tools: <String>['Phone, notes'],
-    youtubeVideoId: 'gKw7KE5fBi4',
+    youtubeVideoId: 'CVuc5w59CkQ',
     websiteUrl: 'https://www.fao.org/3/i3088e/i3088e.pdf',
   ),
   const LearningLesson(
@@ -4988,7 +5038,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Stress from sudden sun.'),
     ],
     tools: <String>['Shade cloth'],
-    youtubeVideoId: 'qsH9JwFxDjE',
+    youtubeVideoId: 'PsSHhdc-7Zc',
     websiteUrl: 'https://www.almanac.com/gardening/hardening-off',
   ),
   const LearningLesson(
@@ -5033,7 +5083,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Shows persistent issues.'),
     ],
     tools: <String>['Flags, notebook'],
-    youtubeVideoId: '7zGnP_s5pzw',
+    youtubeVideoId: 'QOALTFgOoxM',
     websiteUrl: 'https://www.cropwatch.unl.edu/weeds',
   ),
   const LearningLesson(
@@ -5083,7 +5133,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Regular catches issues.'),
     ],
     tools: <String>['Notebook, pen'],
-    youtubeVideoId: 'fLVcXD_IXPg',
+    youtubeVideoId: 'iHKqsjp6LZo',
     websiteUrl: 'https://www.sare.org/learning/record-keeping/',
   ),
   const LearningLesson(
@@ -5130,7 +5180,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Fast species work within years.'),
     ],
     tools: <String>['Shovel, stakes'],
-    youtubeVideoId: '5RdxY5jSh0w',
+    youtubeVideoId: 'EW7dD07w3P8',
     websiteUrl: 'https://www.agroforestry.org/tree-selection/',
   ),
   const LearningLesson(
@@ -5181,7 +5231,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Organic and roots create pores.'),
     ],
     tools: <String>['Fork, aerator'],
-    youtubeVideoId: 'ql0kI62sKvQ',
+    youtubeVideoId: 'bu9aYT7h5Gs',
     websiteUrl: 'https://www.soilhealth.org/improving-compaction/',
   ),
   const LearningLesson(
@@ -5236,7 +5286,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Quick prevents losses.'),
     ],
     tools: <String>['Wire, pliers'],
-    youtubeVideoId: 'pVJwz8KqSrE',
+    youtubeVideoId: 'xVcjds5jSpY',
     websiteUrl: 'https://www.ext.vt.edu/fencing',
   ),
   const LearningLesson(
@@ -5291,7 +5341,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Dry is shelf-stable.'),
     ],
     tools: <String>['Racks, tarpaulin'],
-    youtubeVideoId: 'WvSrLMtqKiA',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.fao.org/3/i3972e/i3972e.pdf',
   ),
   const LearningLesson(
@@ -5342,7 +5392,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Dry prevents rust.'),
     ],
     tools: <String>['File, oil'],
-    youtubeVideoId: 'RpxvJY8u8RI',
+    youtubeVideoId: 'HM7eevbQd3Q',
     websiteUrl: 'https://www.gardenmyths.com/tool-maintenance/',
   ),
   const LearningLesson(
@@ -5397,7 +5447,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Remains legible.'),
     ],
     tools: <String>['Stakes, marker'],
-    youtubeVideoId: 'KG7d1iBFZ0A',
+    youtubeVideoId: 'PsSHhdc-7Zc',
     websiteUrl: 'https://www.almanac.com/gardening/starting-seeds',
   ),
   const LearningLesson(
@@ -5448,7 +5498,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Records reveal timing.'),
     ],
     tools: <String>['Simple traps'],
-    youtubeVideoId: 'dJGZnX-ZpQY',
+    youtubeVideoId: 'QOALTFgOoxM',
     websiteUrl: 'https://www.ipm.ucdavis.edu/monitoring',
   ),
   const LearningLesson(
@@ -5498,7 +5548,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Need protection.'),
     ],
     tools: <String>['Netting, posts'],
-    youtubeVideoId: 'sY_qCu-KLTo',
+    youtubeVideoId: 'xVcjds5jSpY',
     websiteUrl: 'https://www.extension.org/poultry-fencing',
   ),
   const LearningLesson(
@@ -5545,7 +5595,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Concise gets read.'),
     ],
     tools: <String>['Phone, email'],
-    youtubeVideoId: 'n0Eg8xD2lbM',
+    youtubeVideoId: 'CVuc5w59CkQ',
     websiteUrl: 'https://www.fao.org/3/i3161e/i3161e.pdf',
   ),
   const LearningLesson(
@@ -5592,7 +5642,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Shows anaerobic.'),
     ],
     tools: <String>['Thermometer'],
-    youtubeVideoId: 'VF1mALvgD-8',
+    youtubeVideoId: 'bu9aYT7h5Gs',
     websiteUrl: 'https://www.gardenmyths.com/compost-management/',
   ),
   const LearningLesson(
@@ -5647,7 +5697,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Ensures correct care.'),
     ],
     tools: <String>['Tags, marker'],
-    youtubeVideoId: 'GrJBLnCbSIQ',
+    youtubeVideoId: 'KeVCI3CBQGg',
     websiteUrl: 'https://www.extension.org/animal-grouping',
   ),
   const LearningLesson(
@@ -5702,7 +5752,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Fresh sales prevent storage losses.'),
     ],
     tools: <String>['Moisture tester, scale'],
-    youtubeVideoId: 'EcL3W5zEPCg',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.fao.org/3/i3956e/i3956e.pdf',
   ),
   const LearningLesson(
@@ -5753,7 +5803,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Heat stress requires more protection.'),
     ],
     tools: <String>['Shade cloth, clips'],
-    youtubeVideoId: 'Z8tNDQvLEMo',
+    youtubeVideoId: 'EW7dD07w3P8',
     websiteUrl: 'https://www.gardenmyths.com/shade-cloth/',
   ),
   const LearningLesson(
@@ -5808,7 +5858,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Underripe produces longer market life.'),
     ],
     tools: <String>['Knife, scale'],
-    youtubeVideoId: 'A9m3YC_sKOU',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.almanac.com/gardening/harvest-guide',
   ),
   const LearningLesson(
@@ -5863,7 +5913,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Regular cleaning maintains conditions.'),
     ],
     tools: <String>['Broom, disinfectant'],
-    youtubeVideoId: 'qL5yLqZnBJQ',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.fao.org/3/i3097e/i3097e.pdf',
   ),
   const LearningLesson(
@@ -5918,7 +5968,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Clean water prevents algae and disease.'),
     ],
     tools: <String>['Tank, gutter'],
-    youtubeVideoId: 'M0gkI9aXMfU',
+    youtubeVideoId: 'nitJ_7imTnk',
     websiteUrl: 'https://www.fao.org/3/i5773e/i5773e.pdf',
   ),
   const LearningLesson(
@@ -5973,7 +6023,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Signs of infection require vet care.'),
     ],
     tools: <String>['Water, antiseptic, bandage'],
-    youtubeVideoId: 'zLSMDQHbAaA',
+    youtubeVideoId: '6mT66F3jv1c',
     websiteUrl: 'https://www.sare.org/animal-first-aid/',
   ),
   const LearningLesson(
@@ -6024,7 +6074,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Watering reduces transplant shock.'),
     ],
     tools: <String>['Shears, water'],
-    youtubeVideoId: 'Qz3KY5pXDWE',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.almanac.com/gardening/thinning',
   ),
   const LearningLesson(
@@ -6075,7 +6125,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Mixing creates good rooting zone.'),
     ],
     tools: <String>['Fork, compost'],
-    youtubeVideoId: 'G5vLQVKE--8',
+    youtubeVideoId: 'bu9aYT7h5Gs',
     websiteUrl: 'https://www.soilhealth.org/amendments/',
   ),
   const LearningLesson(
@@ -6126,7 +6176,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Same depth prevents crown rot.'),
     ],
     tools: <String>['Water, shade cloth'],
-    youtubeVideoId: 'TIGbXhxPd1I',
+    youtubeVideoId: 'PsSHhdc-7Zc',
     websiteUrl: 'https://www.almanac.com/gardening/transplanting',
   ),
   const LearningLesson(
@@ -6181,7 +6231,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Young and producing animals need more.'),
     ],
     tools: <String>['Scale, bucket'],
-    youtubeVideoId: 'b2J7iiMj3q4',
+    youtubeVideoId: 'KeVCI3CBQGg',
     websiteUrl: 'https://www.sare.org/animal-nutrition/',
   ),
   const LearningLesson(
@@ -6236,7 +6286,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Walking away shows you have options.'),
     ],
     tools: <String>['Calculator, phone'],
-    youtubeVideoId: 'D5MwI1cFJYg',
+    youtubeVideoId: 'CVuc5w59CkQ',
     websiteUrl: 'https://www.fao.org/3/ca5162en/ca5162en.pdf',
   ),
   const LearningLesson(
@@ -6291,7 +6341,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Erosion degrades productive topsoil.'),
     ],
     tools: <String>['Seed, seeder'],
-    youtubeVideoId: 'F9PnVCQfHxE',
+    youtubeVideoId: 'bu9aYT7h5Gs',
     websiteUrl: 'https://www.sare.org/cover-crops/',
   ),
   const LearningLesson(
@@ -6346,7 +6396,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Advance prep avoids last-minute stress.'),
     ],
     tools: <String>['Checklist, phone'],
-    youtubeVideoId: 'X8dQu4TyDe8',
+    youtubeVideoId: 'CVuc5w59CkQ',
     websiteUrl: 'https://www.fao.org/3/i5415e/i5415e.pdf',
   ),
   const LearningLesson(
@@ -6401,7 +6451,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Forecasting saves water and money.'),
     ],
     tools: <String>['Moisture meter, calendar'],
-    youtubeVideoId: 'Ln_yKvE2-zI',
+    youtubeVideoId: 'nitJ_7imTnk',
     websiteUrl: 'https://www.gardenmyths.com/irrigation/',
   ),
   const LearningLesson(
@@ -6456,7 +6506,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Quality improves with thinning.'),
     ],
     tools: <String>['Shears'],
-    youtubeVideoId: 'bW6qRNxRbqE',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.almanac.com/gardening/thinning',
   ),
   const LearningLesson(
@@ -6511,7 +6561,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Proper storage prevents mold.'),
     ],
     tools: <String>['Scoop, light'],
-    youtubeVideoId: 'qEYn-BzPy1g',
+    youtubeVideoId: 'KeVCI3CBQGg',
     websiteUrl: 'https://www.sare.org/feed-quality/',
   ),
   const LearningLesson(
@@ -6566,7 +6616,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Data guides efficient control.'),
     ],
     tools: <String>['Marker flags, notebook'],
-    youtubeVideoId: 'rJ5iEQKX_-I',
+    youtubeVideoId: 'QOALTFgOoxM',
     websiteUrl: 'https://www.fao.org/3/i3956e/i3956e.pdf',
   ),
   const LearningLesson(
@@ -6621,7 +6671,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Records resolve disagreements fairly.'),
     ],
     tools: <String>['Receipt book, phone'],
-    youtubeVideoId: 'X8dQu4TyDe8',
+    youtubeVideoId: 'CVuc5w59CkQ',
     websiteUrl: 'https://www.fao.org/3/i3956e/i3956e.pdf',
   ),
   const LearningLesson(
@@ -6676,7 +6726,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Protection improves farm health.'),
     ],
     tools: <String>['Notebook'],
-    youtubeVideoId: 'E5Z0G9W8pRo',
+    youtubeVideoId: 'bu9aYT7h5Gs',
     websiteUrl: 'https://www.soilhealth.org/cover-soil/',
   ),
   const LearningLesson(
@@ -6731,7 +6781,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Leaks waste water and money.'),
     ],
     tools: <String>['Spare emitters, pliers'],
-    youtubeVideoId: 'Ln_yKvE2-zI',
+    youtubeVideoId: 'nitJ_7imTnk',
     websiteUrl: 'https://www.fao.org/3/i3956e/i3956e.pdf',
   ),
   const LearningLesson(
@@ -6786,7 +6836,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Animals thrive on routine.'),
     ],
     tools: <String>['Buckets, scale'],
-    youtubeVideoId: 'L3bQ5OU6DsQ',
+    youtubeVideoId: 'KeVCI3CBQGg',
     websiteUrl: 'https://www.sare.org/feeding-animals/',
   ),
   const LearningLesson(
@@ -6841,7 +6891,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Quality commands price premium.'),
     ],
     tools: <String>['Crates, labels'],
-    youtubeVideoId: 'VKz6dNXzlFA',
+    youtubeVideoId: 'CVuc5w59CkQ',
     websiteUrl: 'https://www.fao.org/3/i5415e/i5415e.pdf',
   ),
   const LearningLesson(
@@ -6896,7 +6946,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Deterrents discourage attacks.'),
     ],
     tools: <String>['Locks, lights'],
-    youtubeVideoId: 'bC_6sLvWaVQ',
+    youtubeVideoId: '6mT66F3jv1c',
     websiteUrl: 'https://www.sare.org/predator-protection/',
   ),
   const LearningLesson(
@@ -6947,7 +6997,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Turning ensures uniformity.'),
     ],
     tools: <String>['Wood, mesh'],
-    youtubeVideoId: 'qL5yLqZnBJQ',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.fao.org/3/i3956e/i3956e.pdf',
   ),
   const LearningLesson(
@@ -7002,7 +7052,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Balanced layers decompose faster.'),
     ],
     tools: <String>['Pitchfork'],
-    youtubeVideoId: 'G5vLQVKE--8',
+    youtubeVideoId: 'bu9aYT7h5Gs',
     websiteUrl: 'https://www.soilhealth.org/composting/',
   ),
   const LearningLesson(
@@ -7057,7 +7107,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Competition stresses plants.'),
     ],
     tools: <String>['Measuring stick'],
-    youtubeVideoId: 'Qz3KY5pXDWE',
+    youtubeVideoId: 'PsSHhdc-7Zc',
     websiteUrl: 'https://www.almanac.com/gardening/spacing',
   ),
   const LearningLesson(
@@ -7108,7 +7158,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Contaminated water causes harm.'),
     ],
     tools: <String>['Container, test kit'],
-    youtubeVideoId: 'M0gkI9aXMfU',
+    youtubeVideoId: 'nitJ_7imTnk',
     websiteUrl: 'https://www.fao.org/3/i5773e/i5773e.pdf',
   ),
   const LearningLesson(
@@ -7163,7 +7213,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Fullness prevents movement.'),
     ],
     tools: <String>['Padding, crates'],
-    youtubeVideoId: 'X8dQu4TyDe8',
+    youtubeVideoId: 'CVuc5w59CkQ',
     websiteUrl: 'https://www.fao.org/3/i5415e/i5415e.pdf',
   ),
   const LearningLesson(
@@ -7218,7 +7268,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Height indicates ready-to-eat stage.'),
     ],
     tools: <String>['Stick measure'],
-    youtubeVideoId: 'L3bQ5OU6DsQ',
+    youtubeVideoId: 'KeVCI3CBQGg',
     websiteUrl: 'https://www.sare.org/pasture-management/',
   ),
   const LearningLesson(
@@ -7269,7 +7319,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Cool storage prevents sprouting.'),
     ],
     tools: <String>['Bins, shade'],
-    youtubeVideoId: 'qL5yLqZnBJQ',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.fao.org/3/i3097e/i3097e.pdf',
   ),
   const LearningLesson(
@@ -7320,7 +7370,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Wet soil needs no irrigation.'),
     ],
     tools: <String>['Hands'],
-    youtubeVideoId: 'xY7ZQR3PpKE',
+    youtubeVideoId: 'bu9aYT7h5Gs',
     websiteUrl: 'https://www.soilhealth.org/moisture-test/',
   ),
   const LearningLesson(
@@ -7375,7 +7425,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Securing prevents loss.'),
     ],
     tools: <String>['Pump, straps'],
-    youtubeVideoId: 'L3bQ5OU6DsQ',
+    youtubeVideoId: 'yvX-NtmqP1U',
     websiteUrl: 'https://www.fao.org/3/i5415e/i5415e.pdf',
   ),
   const LearningLesson(
@@ -7430,7 +7480,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Rates are scientifically determined.'),
     ],
     tools: <String>['PPE, sprayer'],
-    youtubeVideoId: 'Aa8T1wGvPmM',
+    youtubeVideoId: 'yvX-NtmqP1U',
     websiteUrl: 'https://www.fao.org/3/i3956e/i3956e.pdf',
   ),
   const LearningLesson(
@@ -7485,7 +7535,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Poor seed needs adjustment.'),
     ],
     tools: <String>['Paper, water'],
-    youtubeVideoId: 'bC_6sLvWaVQ',
+    youtubeVideoId: 'PsSHhdc-7Zc',
     websiteUrl: 'https://www.fao.org/3/i5773e/i5773e.pdf',
   ),
   const LearningLesson(
@@ -7540,7 +7590,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Updates ensure accuracy.'),
     ],
     tools: <String>['Phone, notebook'],
-    youtubeVideoId: 'D5MwI1cFJYg',
+    youtubeVideoId: 'CVuc5w59CkQ',
     websiteUrl: 'https://www.fao.org/3/ca5162en/ca5162en.pdf',
   ),
   const LearningLesson(
@@ -7595,7 +7645,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Environment affects shelf life.'),
     ],
     tools: <String>['Containers, pallets'],
-    youtubeVideoId: 'qEYn-BzPy1g',
+    youtubeVideoId: 'KeVCI3CBQGg',
     websiteUrl: 'https://www.sare.org/feed-storage/',
   ),
   const LearningLesson(
@@ -7650,7 +7700,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Action prevents crop loss.'),
     ],
     tools: <String>['Notebook'],
-    youtubeVideoId: 'rJ5iEQKX_-I',
+    youtubeVideoId: 'QOALTFgOoxM',
     websiteUrl: 'https://www.fao.org/3/i3956e/i3956e.pdf',
   ),
   const LearningLesson(
@@ -7705,7 +7755,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Planning enables efficiency.'),
     ],
     tools: <String>['Calendar, pruner'],
-    youtubeVideoId: 'bW6qRNxRbqE',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.almanac.com/gardening/pruning',
   ),
   const LearningLesson(
@@ -7760,7 +7810,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Records prove transactions.'),
     ],
     tools: <String>['Invoice book, phone'],
-    youtubeVideoId: 'X8dQu4TyDe8',
+    youtubeVideoId: 'CVuc5w59CkQ',
     websiteUrl: 'https://www.fao.org/3/i5415e/i5415e.pdf',
   ),
   const LearningLesson(
@@ -7810,7 +7860,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Quality barriers persist.'),
     ],
     tools: <String>['Fabric, pegs'],
-    youtubeVideoId: 'E5Z0G9W8pRo',
+    youtubeVideoId: 'QOALTFgOoxM',
     websiteUrl: 'https://www.gardenmyths.com/landscape-fabric/',
   ),
   const LearningLesson(
@@ -7865,7 +7915,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'History informs planning.'),
     ],
     tools: <String>['Phone, notebook'],
-    youtubeVideoId: 'rJ5iEQKX_-I',
+    youtubeVideoId: 'QOALTFgOoxM',
     websiteUrl: 'https://www.fao.org/3/i3956e/i3956e.pdf',
   ),
   const LearningLesson(
@@ -7920,7 +7970,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Quality samples justify premiums.'),
     ],
     tools: <String>['Tray, cloth'],
-    youtubeVideoId: 'VKz6dNXzlFA',
+    youtubeVideoId: 'CVuc5w59CkQ',
     websiteUrl: 'https://www.fao.org/3/i5415e/i5415e.pdf',
   ),
   const LearningLesson(
@@ -7975,7 +8025,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Regular checks catch infestations.'),
     ],
     tools: <String>['Tick remover, treatment'],
-    youtubeVideoId: 'bC_6sLvWaVQ',
+    youtubeVideoId: '6mT66F3jv1c',
     websiteUrl: 'https://www.sare.org/parasite-management/',
   ),
   const LearningLesson(
@@ -8030,7 +8080,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Low areas retain moisture.'),
     ],
     tools: <String>['Flags, map'],
-    youtubeVideoId: 'Ln_yKvE2-zI',
+    youtubeVideoId: 'nitJ_7imTnk',
     websiteUrl: 'https://www.fao.org/3/i5773e/i5773e.pdf',
   ),
   const LearningLesson(
@@ -8085,7 +8135,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Adjustments fine-tune rate.'),
     ],
     tools: <String>['Container, measure tape'],
-    youtubeVideoId: 'bW6qRNxRbqE',
+    youtubeVideoId: 'PsSHhdc-7Zc',
     websiteUrl: 'https://www.almanac.com/gardening/seeding',
   ),
   const LearningLesson(
@@ -8135,7 +8185,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Secure tie-downs prevent loss.'),
     ],
     tools: <String>['Straps, tarpaulin'],
-    youtubeVideoId: 'X8dQu4TyDe8',
+    youtubeVideoId: 'yvX-NtmqP1U',
     websiteUrl: 'https://www.fao.org/3/i5415e/i5415e.pdf',
   ),
   const LearningLesson(
@@ -8186,7 +8236,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Goggles guard eyes.'),
     ],
     tools: <String>['Gloves, goggles'],
-    youtubeVideoId: 'Aa8T1wGvPmM',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.fao.org/3/i3956e/i3956e.pdf',
   ),
   const LearningLesson(
@@ -8241,7 +8291,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Preparation ensures efficiency.'),
     ],
     tools: <String>['Moisture tester, tools'],
-    youtubeVideoId: 'A9m3YC_sKOU',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.almanac.com/gardening/harvest-guide',
   ),
   const LearningLesson(
@@ -8296,7 +8346,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Prompt response prevents complications.'),
     ],
     tools: <String>['PPE, lockable cabinet'],
-    youtubeVideoId: 'Aa8T1wGvPmM',
+    youtubeVideoId: 'yvX-NtmqP1U',
     websiteUrl: 'https://www.fao.org/3/i3956e/i3956e.pdf',
   ),
   const LearningLesson(
@@ -8351,7 +8401,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Actions drive improvement.'),
     ],
     tools: <String>['Notebook, pen'],
-    youtubeVideoId: 'D5MwI1cFJYg',
+    youtubeVideoId: 'iHKqsjp6LZo',
     websiteUrl: 'https://www.fao.org/3/ca5162en/ca5162en.pdf',
   ),
 ];

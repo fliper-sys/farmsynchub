@@ -908,7 +908,7 @@ class _QuickActionStrip extends StatelessWidget {
         icon: Icons.auto_awesome_rounded,
         label: language.tr(en: 'AI Recap', ha: 'Takaitawar AI', fr: 'Recap IA'),
         color: const Color(0xFF14B8A6),
-        onTap: () => context.go(FinanceAiRecapScreen.routeName),
+        onTap: () => context.push(FinanceAiRecapScreen.routeName),
       ),
       _QuickActionItem(
         icon: Icons.show_chart_rounded,

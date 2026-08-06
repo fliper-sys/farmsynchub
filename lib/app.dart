@@ -56,6 +56,7 @@ import 'presentation/screens/finance/sales_information_screen.dart';
 import 'presentation/screens/sales/sales_desk_screen.dart';
 import 'presentation/screens/procurement/procurement_screen.dart';
 import 'presentation/screens/news/news_screen.dart';
+import 'presentation/screens/schedule/schedule_screen.dart';
 import 'presentation/screens/profile/profile_screen.dart';
 import 'presentation/screens/profile/account_setup_screen.dart';
 import 'presentation/screens/settings/settings_screen.dart';
@@ -204,6 +205,33 @@ class _StartupResumePromptState extends ConsumerState<StartupResumePrompt> {
   bool _shownThisLaunch = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Route navigation alone doesn't always trigger a rebuild of this
+    // wrapper (it sits above the router's Navigator), so listen directly
+    // for the moment the user actually lands on the home dashboard.
+    _router.routerDelegate.addListener(_recheckOnRouteChange);
+  }
+
+  @override
+  void dispose() {
+    _router.routerDelegate.removeListener(_recheckOnRouteChange);
+    super.dispose();
+  }
+
+  void _recheckOnRouteChange() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _maybeShowPrompt(
+        notifications: ref.read(notificationsProvider),
+        farms: ref.read(farmsProvider).valueOrNull ?? <Farm>[],
+        crops: ref.read(cropsProvider).valueOrNull ?? <Crop>[],
+        livestock: ref.read(livestockProvider).valueOrNull ?? <Livestock>[],
+      );
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final List<domain.Notification> notifications =
         ref.watch(notificationsProvider);
@@ -231,6 +259,14 @@ class _StartupResumePromptState extends ConsumerState<StartupResumePrompt> {
     required List<Livestock> livestock,
   }) async {
     if (_shownThisLaunch || !mounted) {
+      return;
+    }
+    // Wait until the user has actually reached the home dashboard. Showing
+    // the resume prompt or daily fun fact over the splash screen or the
+    // auth flow gives them no time to read it before it's navigated away.
+    final String location =
+        _router.routerDelegate.currentConfiguration.uri.path;
+    if (!location.startsWith('/dashboard')) {
       return;
     }
     final User? user = FirebaseService().currentUser;
@@ -261,7 +297,12 @@ class _StartupResumePromptState extends ConsumerState<StartupResumePrompt> {
         return;
       }
       if (route != null && route.isNotEmpty) {
-        context.go(route);
+        // Use navigatorContext, not this State's own context: this widget
+        // wraps the router's builder from the outside, so it sits above
+        // GoRouter's Router in the tree and context.go() here would throw
+        // "No GoRouter found in context". navigatorContext comes from
+        // _rootNavigatorKey, which IS inside GoRouter's navigator.
+        navigatorContext.go(route);
       }
     }
 
@@ -872,6 +913,11 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/farm-tasks',
       builder: (context, state) => const FarmTasksScreen(),
+      redirect: _authRedirect,
+    ),
+    GoRoute(
+      path: '/schedule',
+      builder: (context, state) => const ScheduleScreen(),
       redirect: _authRedirect,
     ),
     GoRoute(

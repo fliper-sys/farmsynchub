@@ -23,6 +23,10 @@ abstract final class AppTheme {
     outlineVariant: AppColors.borderLight,
     error: AppColors.syncError,
     shadow: AppColors.primary.withOpacity(0.10),
+    // Material 3 tints elevated surfaces with the seed color by default;
+    // this app's design system controls elevation via explicit surface
+    // tokens instead, so the automatic tint is disabled everywhere.
+    surfaceTint: Colors.transparent,
   );
 
   /// Dark color scheme derived from the FarmSync green brand seed.
@@ -35,9 +39,13 @@ abstract final class AppTheme {
     tertiary: AppColors.premiumWarning,
     surface: AppColors.darkPrimaryBackground,
     surfaceContainer: AppColors.darkSecondaryBackground,
+    // AppCard and most screens use surfaceContainerHighest as their "card"
+    // tier, so it stays at elevation level 1. surfaceContainerHigh is level
+    // 2, for widgets that explicitly want a sheet/dialog/nav level of lift.
     surfaceContainerHighest: AppColors.darkCard,
-    primaryContainer: const Color(0xFF073A28),
-    secondaryContainer: const Color(0xFF073A36),
+    surfaceContainerHigh: AppColors.darkElevatedCard,
+    primaryContainer: const Color(0xFF14312A),
+    secondaryContainer: const Color(0xFF0F2E2C),
     onPrimary: AppColors.darkPrimaryBackground,
     onSecondary: Colors.white,
     onTertiary: AppColors.darkPrimaryBackground,
@@ -47,6 +55,7 @@ abstract final class AppTheme {
     outlineVariant: AppColors.borderDark,
     error: AppColors.premiumDanger,
     shadow: Colors.black.withOpacity(0.38),
+    surfaceTint: Colors.transparent,
   );
 
   /// Light theme definition for the application.
@@ -155,6 +164,7 @@ abstract final class AppTheme {
         color: brightness == Brightness.light ? Colors.white : AppColors.darkCard,
         elevation: 0,
         shadowColor: colorScheme.shadow,
+        surfaceTintColor: Colors.transparent,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(28),
@@ -165,6 +175,7 @@ abstract final class AppTheme {
         centerTitle: false,
         elevation: 0,
         scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         backgroundColor: brightness == Brightness.light
             ? AppColors.surfaceLight
             : AppColors.darkPrimaryBackground,
@@ -175,7 +186,32 @@ abstract final class AppTheme {
           fontWeight: FontWeight.w800,
         ),
       ),
+      // Any sheet using default styling (i.e. not one of the ones that
+      // hardcoded a white Container background) now correctly sits on the
+      // level-2 elevated surface instead of Material's default white/grey.
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: brightness == Brightness.light
+            ? Colors.white
+            : AppColors.darkElevatedCard,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        modalElevation: 0,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: brightness == Brightness.light
+            ? Colors.white
+            : AppColors.darkElevatedCard,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(28),
+        ),
+      ),
       navigationBarTheme: NavigationBarThemeData(
+        surfaceTintColor: Colors.transparent,
         backgroundColor: brightness == Brightness.light
             ? Colors.white
             : AppColors.darkBottomNavigation,

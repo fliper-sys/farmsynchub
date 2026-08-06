@@ -1,5 +1,14 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.14)
+
+# Some bundled plugin dependencies (notably the Firebase C++ SDK) declare an
+# old cmake_minimum_required() that newer CMake releases (>=4.0) refuse to
+# configure. This restores the removed compatibility for this build only,
+# without needing to downgrade the locally installed CMake.
+if(NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
+  set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+endif()
+
 project(farmsynchub LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
@@ -31,6 +40,14 @@ set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 
 # Use Unicode for all projects.
 add_definitions(-DUNICODE -D_UNICODE)
+
+# Some bundled plugins (notably flutter_local_notifications_windows) still
+# use the deprecated <experimental/coroutine> header. Newer MSVC toolchains
+# (Insiders/preview builds in particular) hard-error on that with C2338
+# instead of just warning. This is the compiler-suggested opt-out; it only
+# silences the deprecation guard so the header still compiles, it does not
+# change behavior.
+add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
 
 # Compilation settings that should be applied to most targets.
 #

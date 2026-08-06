@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/services/crop_schedule_service.dart';
+import '../../../core/services/farm_notification_service.dart';
 import '../../../domain/models/crop.dart';
 import '../../../domain/models/farm_activity.dart';
 import '../../../providers/crop_provider.dart';
@@ -182,6 +183,22 @@ class _CropCalendarScheduleWidgetState
             ),
           );
 
+      for (final FarmTodoItem todo in todoItems) {
+        if (!todo.pushNotificationEnabled) continue;
+        final DateTime scheduledAt = todo.dueDate.isBefore(DateTime.now())
+            ? DateTime.now().add(const Duration(minutes: 1))
+            : todo.dueDate;
+        await FarmNotificationService.instance.scheduleAt(
+          id: todo.id.hashCode,
+          title: 'Crop reminder: ${todo.title}',
+          body: todo.notes.isEmpty
+              ? '${widget.crop.name} task is due.'
+              : todo.notes,
+          scheduledAt: scheduledAt,
+          payload: '/crops',
+        );
+      }
+
       if (!mounted) return;
       setState(() {
         _scheduledIndices
@@ -225,6 +242,21 @@ class _CropCalendarScheduleWidgetState
               isSynced: false,
             ),
           );
+
+      if (todo.pushNotificationEnabled) {
+        final DateTime scheduledAt = todo.dueDate.isBefore(DateTime.now())
+            ? DateTime.now().add(const Duration(minutes: 1))
+            : todo.dueDate;
+        await FarmNotificationService.instance.scheduleAt(
+          id: todo.id.hashCode,
+          title: 'Crop reminder: ${todo.title}',
+          body: todo.notes.isEmpty
+              ? '${widget.crop.name} task is due.'
+              : todo.notes,
+          scheduledAt: scheduledAt,
+          payload: '/crops',
+        );
+      }
 
       if (!mounted) return;
       setState(() => _scheduledIndices.add(index));

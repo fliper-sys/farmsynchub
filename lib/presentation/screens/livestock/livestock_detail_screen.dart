@@ -35,8 +35,10 @@ class LivestockDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final AppLanguage language = ref.watch(appLanguageProvider);
+    final AsyncValue<List<Livestock>> livestockAsync =
+        ref.watch(livestockProvider);
     final List<Livestock> livestockItems =
-        ref.watch(livestockProvider).valueOrNull ?? <Livestock>[];
+        livestockAsync.valueOrNull ?? <Livestock>[];
     final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
 
     Livestock? livestock;
@@ -48,6 +50,14 @@ class LivestockDetailScreen extends ConsumerWidget {
     }
 
     if (livestock == null) {
+      // Distinguish "records haven't loaded yet" from "genuinely missing" -
+      // otherwise this briefly flashes "not found" on every load instead of
+      // a loading state, until the provider resolves.
+      if (livestockAsync.isLoading && !livestockAsync.hasValue) {
+        return const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        );
+      }
       return Scaffold(
         appBar: AppBar(),
         body: const Center(child: Text('Livestock group not found.')),
@@ -89,19 +99,32 @@ class LivestockDetailScreen extends ConsumerWidget {
       priorityTasks: priorityTasks,
     );
 
-    // Section keys for scroll-to navigation
-    final GlobalKey _workFocusKey = GlobalKey();
-    final GlobalKey _growthCycleKey = GlobalKey();
-    final GlobalKey _groupProfileKey = GlobalKey();
-    final GlobalKey _operatingRatiosKey = GlobalKey();
-    final GlobalKey _feedingPlanKey = GlobalKey();
-    final GlobalKey _vaccinationKey = GlobalKey();
-    final GlobalKey _productionLogKey = GlobalKey();
-    final GlobalKey _weightGainKey = GlobalKey();
-    final GlobalKey _photoJournalKey = GlobalKey();
-    final GlobalKey _careTasksKey = GlobalKey();
-    final GlobalKey _recentInputsKey = GlobalKey();
-    final GlobalKey _aiRecommendationsKey = GlobalKey();
+    // Section keys for scroll-to navigation. GlobalObjectKey uses value
+    // equality, so these stay stable across rebuilds even though this is a
+    // stateless ConsumerWidget (a plain GlobalKey() here would be recreated
+    // on every rebuild and would never match the mounted section widgets).
+    final GlobalKey _workFocusKey = GlobalObjectKey('workFocus_$livestockId');
+    final GlobalKey _growthCycleKey =
+        GlobalObjectKey('growthCycle_$livestockId');
+    final GlobalKey _groupProfileKey =
+        GlobalObjectKey('groupProfile_$livestockId');
+    final GlobalKey _operatingRatiosKey =
+        GlobalObjectKey('operatingRatios_$livestockId');
+    final GlobalKey _feedingPlanKey =
+        GlobalObjectKey('feedingPlan_$livestockId');
+    final GlobalKey _vaccinationKey =
+        GlobalObjectKey('vaccination_$livestockId');
+    final GlobalKey _productionLogKey =
+        GlobalObjectKey('productionLog_$livestockId');
+    final GlobalKey _weightGainKey =
+        GlobalObjectKey('weightGain_$livestockId');
+    final GlobalKey _photoJournalKey =
+        GlobalObjectKey('photoJournal_$livestockId');
+    final GlobalKey _careTasksKey = GlobalObjectKey('careTasks_$livestockId');
+    final GlobalKey _recentInputsKey =
+        GlobalObjectKey('recentInputs_$livestockId');
+    final GlobalKey _aiRecommendationsKey =
+        GlobalObjectKey('aiRecommendations_$livestockId');
 
     final List<SectionEntry> sections = <SectionEntry>[
       SectionEntry(
@@ -283,82 +306,91 @@ class LivestockDetailScreen extends ConsumerWidget {
                   en: 'Work focus',
                   ha: 'Manufar aiki',
                   fr: 'Priorites de travail')),
-          AppCard(
-            color: theme.colorScheme.surfaceContainerHighest,
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text('Status: $livestockWorkStatus',
-                      style: theme.textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  Text(
-                    _livestockWorkNarrative(
-                      livestock: livestock,
-                      overdueTasks: overdueTasks,
-                      priorityTasks: priorityTasks,
+          Container(
+            key: _workFocusKey,
+            child: AppCard(
+              color: theme.colorScheme.surfaceContainerHighest,
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text('Status: $livestockWorkStatus',
+                        style: theme.textTheme.titleLarge),
+                    const SizedBox(height: 8),
+                    Text(
+                      _livestockWorkNarrative(
+                        livestock: livestock,
+                        overdueTasks: overdueTasks,
+                        priorityTasks: priorityTasks,
+                      ),
+                      style:
+                          theme.textTheme.bodyMedium?.copyWith(height: 1.5),
                     ),
-                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
-                  ),
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: <Widget>[
-                      _MetaChip(text: '$overdueTasks overdue'),
-                      _MetaChip(text: '$priorityTasks high priority'),
-                      _MetaChip(
-                          text: '${livestock.openTaskCount} open reminders'),
-                      _MetaChip(
-                          text: logs.isEmpty
-                              ? 'No production logs'
-                              : '${logs.length} production logs'),
-                    ],
-                  ),
-                ],
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: <Widget>[
+                        _MetaChip(text: '$overdueTasks overdue'),
+                        _MetaChip(text: '$priorityTasks high priority'),
+                        _MetaChip(
+                            text:
+                                '${livestock.openTaskCount} open reminders'),
+                        _MetaChip(
+                            text: logs.isEmpty
+                                ? 'No production logs'
+                                : '${logs.length} production logs'),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
           const SizedBox(height: 18),
-          AppCard(
-            color: theme.colorScheme.surfaceContainerHighest,
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                      language.tr(
-                          en: 'Animal growth cycle',
-                          ha: 'Zagayen girman dabba',
-                          fr: 'Cycle de croissance animale'),
-                      style: theme.textTheme.titleLarge),
-                  const SizedBox(height: 10),
-                  LinearProgressIndicator(
-                    value: progress,
-                    minHeight: 10,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    '${livestock.averageAgeMonths} of ${livestock.targetMaturityMonths} target months. Current stage: ${_growthStageLabel(livestock.growthStage).toLowerCase()}.',
-                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
-                  ),
-                  const SizedBox(height: 16),
-                  ...AnimalGrowthStage.values.map(
-                    (AnimalGrowthStage stage) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _CycleRow(
-                        title: _growthStageLabel(stage),
-                        subtitle: _growthAdvice(stage),
-                        isActive: AnimalGrowthStage.values.indexOf(stage) <=
-                            AnimalGrowthStage.values
-                                .indexOf(livestock!.growthStage),
+          Container(
+            key: _growthCycleKey,
+            child: AppCard(
+              color: theme.colorScheme.surfaceContainerHighest,
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                        language.tr(
+                            en: 'Animal growth cycle',
+                            ha: 'Zagayen girman dabba',
+                            fr: 'Cycle de croissance animale'),
+                        style: theme.textTheme.titleLarge),
+                    const SizedBox(height: 10),
+                    LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 10,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      '${livestock.averageAgeMonths} of ${livestock.targetMaturityMonths} target months. Current stage: ${_growthStageLabel(livestock.growthStage).toLowerCase()}.',
+                      style:
+                          theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+                    ),
+                    const SizedBox(height: 16),
+                    ...AnimalGrowthStage.values.map(
+                      (AnimalGrowthStage stage) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _CycleRow(
+                          title: _growthStageLabel(stage),
+                          subtitle: _growthAdvice(stage),
+                          isActive: AnimalGrowthStage.values.indexOf(stage) <=
+                              AnimalGrowthStage.values
+                                  .indexOf(livestock!.growthStage),
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -368,7 +400,9 @@ class LivestockDetailScreen extends ConsumerWidget {
                   en: 'Group profile',
                   ha: 'Bayanin kungiya',
                   fr: 'Profil du groupe')),
-          Row(
+          Container(
+            key: _groupProfileKey,
+            child: Row(
             children: <Widget>[
               Expanded(
                 child: _MetricCard(
@@ -391,6 +425,7 @@ class LivestockDetailScreen extends ConsumerWidget {
                 ),
               ),
             ],
+            ),
           ),
           const SizedBox(height: 12),
           Row(
@@ -420,7 +455,9 @@ class LivestockDetailScreen extends ConsumerWidget {
                   en: 'Operating ratios',
                   ha: 'Ma\'aunin aiki',
                   fr: 'Ratios operationnels')),
-          Row(
+          Container(
+            key: _operatingRatiosKey,
+            child: Row(
             children: <Widget>[
               Expanded(
                 child: _MetricCard(
@@ -446,6 +483,7 @@ class LivestockDetailScreen extends ConsumerWidget {
                 ),
               ),
             ],
+            ),
           ),
           const SizedBox(height: 12),
           Row(
@@ -490,20 +528,21 @@ class LivestockDetailScreen extends ConsumerWidget {
                   en: 'Feeding Plan',
                   ha: 'Tsarin Ciyarwa',
                   fr: 'Plan d\'alimentation')),
-          FeedingPlanWidget(livestock: livestock),
+          Container(key: _feedingPlanKey, child: FeedingPlanWidget(livestock: livestock)),
           const SizedBox(height: 18),
           SoftSectionTitle(
               title: language.tr(
                   en: 'Vaccination & Health',
                   ha: 'Alurar Riga Kafi & Lafiya',
                   fr: 'Vaccination et sante')),
-          VaccinationCalendarWidget(livestock: livestock),
+          Container(key: _vaccinationKey, child: VaccinationCalendarWidget(livestock: livestock)),
           const SizedBox(height: 18),
           SoftSectionTitle(
               title: language.tr(
                   en: 'Production log',
                   ha: 'Tarihin samarwa',
                   fr: 'Journal de production')),
+          Container(key: _productionLogKey, height: 0),
           if (logs.isEmpty)
             _InfoCard(
               message: language.tr(
@@ -538,20 +577,25 @@ class LivestockDetailScreen extends ConsumerWidget {
                   en: 'Weight Gain Chart',
                   ha: 'Ginshikin Kara Nauyi',
                   fr: 'Graphique de prise de poids')),
-          WeightGainChartWidget(livestock: livestock),
+          Container(
+              key: _weightGainKey,
+              child: WeightGainChartWidget(livestock: livestock)),
           const SizedBox(height: 18),
           SoftSectionTitle(
               title: language.tr(
                   en: 'Photo Journal',
                   ha: 'Littafin Hoto',
                   fr: 'Journal photo')),
-          PhotoJournalWidget(livestock: livestock),
+          Container(
+              key: _photoJournalKey,
+              child: PhotoJournalWidget(livestock: livestock)),
           const SizedBox(height: 18),
           SoftSectionTitle(
               title: language.tr(
                   en: 'Care tasks',
                   ha: 'Ayyukan kulawa',
                   fr: 'Taches de soins')),
+          Container(key: _careTasksKey, height: 0),
           if (openTasks.isEmpty)
             _InfoCard(
               message: language.tr(
@@ -573,6 +617,7 @@ class LivestockDetailScreen extends ConsumerWidget {
                   en: 'Recent inputs',
                   ha: 'Kayan da aka yi amfani da su kwanan nan',
                   fr: 'Intrants recents')),
+          Container(key: _recentInputsKey, height: 0),
           if (livestock.inputRecords.isEmpty)
             _InfoCard(
               message: language.tr(
@@ -594,7 +639,9 @@ class LivestockDetailScreen extends ConsumerWidget {
                   en: 'AI Recommendations',
                   ha: 'Shawarwarin AI',
                   fr: 'Recommandations IA')),
-          AiRecommendationsWidget(livestock: livestock),
+          Container(
+              key: _aiRecommendationsKey,
+              child: AiRecommendationsWidget(livestock: livestock)),
         ],
       ),
     );

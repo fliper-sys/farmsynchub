@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../domain/models/crop.dart';
 import '../../../domain/models/livestock.dart';
+import '../../../domain/models/photo_journal_entry.dart';
 import '../../../providers/crop_provider.dart';
 import '../../../providers/livestock_provider.dart';
 import 'app_button.dart';
@@ -34,59 +35,21 @@ class _PhotoJournalWidgetState extends ConsumerState<PhotoJournalWidget> {
   final ImagePicker _imagePicker = ImagePicker();
   bool _isAddingPhoto = false;
 
-  /// Collect all photo entries from the crop or livestock records.
-  List<_PhotoEntry> _collectPhotos() {
-    final List<_PhotoEntry> entries = <_PhotoEntry>[];
-
-    if (widget.crop != null) {
-      // From crop profile image
-      if (widget.crop!.profileImageBase64.isNotEmpty) {
-        entries.add(_PhotoEntry(
-          id: '${widget.crop!.id}_profile',
-          base64: widget.crop!.profileImageBase64,
-          date: widget.crop!.updatedAt,
-          caption: '${widget.crop!.name} profile',
-        ));
-      }
-
-      // From crop input records (if there are any associated photos)
-      // From crop intelligence notes - check if it contains photo references
-      // For MVP, we treat recent entries in intelligence notes as photo references
-    }
-
-    if (widget.livestock != null) {
-      // From livestock profile/cover images
-      if (widget.livestock!.profileImageBase64.isNotEmpty) {
-        entries.add(_PhotoEntry(
-          id: '${widget.livestock!.id}_profile',
-          base64: widget.livestock!.profileImageBase64,
-          date: widget.livestock!.updatedAt,
-          caption:
-              '${_livestockLabel(widget.livestock!.species)} profile photo',
-        ));
-      }
-      if (widget.livestock!.coverImageBase64.isNotEmpty &&
-          widget.livestock!.coverImageBase64 !=
-              widget.livestock!.profileImageBase64) {
-        entries.add(_PhotoEntry(
-          id: '${widget.livestock!.id}_cover',
-          base64: widget.livestock!.coverImageBase64,
-          date: widget.livestock!.updatedAt,
-          caption:
-              '${_livestockLabel(widget.livestock!.species)} cover image',
-        ));
-      }
-    }
-
-    // Sort by date descending (newest first)
-    entries.sort((_PhotoEntry a, _PhotoEntry b) => b.date.compareTo(a.date));
+  /// Collect all photo entries from the crop or livestock journal, newest first.
+  List<PhotoJournalEntry> _collectPhotos() {
+    final List<PhotoJournalEntry> entries = <PhotoJournalEntry>[
+      ...?widget.crop?.photoJournal,
+      ...?widget.livestock?.photoJournal,
+    ];
+    entries.sort(
+        (PhotoJournalEntry a, PhotoJournalEntry b) => b.date.compareTo(a.date));
     return entries;
   }
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final List<_PhotoEntry> photos = _collectPhotos();
+    final List<PhotoJournalEntry> photos = _collectPhotos();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -167,7 +130,7 @@ class _PhotoJournalWidgetState extends ConsumerState<PhotoJournalWidget> {
             ),
             itemCount: photos.length,
             itemBuilder: (BuildContext context, int index) {
-              final _PhotoEntry entry = photos[index];
+              final PhotoJournalEntry entry = photos[index];
               return _PhotoTile(
                 entry: entry,
                 onTap: () => _viewPhoto(context, entry),
@@ -194,30 +157,35 @@ class _PhotoJournalWidgetState extends ConsumerState<PhotoJournalWidget> {
 
       final Uint8List bytes = await file.readAsBytes();
       final String base64 = base64Encode(bytes);
+      final DateTime now = DateTime.now();
+      final PhotoJournalEntry entry = PhotoJournalEntry(
+        id: const Uuid().v4(),
+        base64: base64,
+        date: now,
+        caption: widget.crop != null
+            ? '${widget.crop!.name} photo update'
+            : '${_livestockLabel(widget.livestock!.species)} photo update',
+      );
 
       if (widget.crop != null) {
-        // Save photo as a note in crop intelligence
         await ref.read(cropsProvider.notifier).updateCrop(
               widget.crop!.copyWith(
-                profileImageBase64: widget.crop!.profileImageBase64.isEmpty
-                    ? base64
-                    : widget.crop!.profileImageBase64,
-                intelligenceNotes:
-                    '[${DateTime.now().day}/${DateTime.now().month}] 📸 Photo added\n${widget.crop!.intelligenceNotes}',
-                updatedAt: DateTime.now(),
+                photoJournal: <PhotoJournalEntry>[
+                  entry,
+                  ...widget.crop!.photoJournal,
+                ],
+                updatedAt: now,
                 isSynced: false,
               ),
             );
       } else if (widget.livestock != null) {
-        // Save photo to livestock profile or cover
         await ref.read(livestockProvider.notifier).updateLivestock(
               widget.livestock!.copyWith(
-                coverImageBase64: widget.livestock!.coverImageBase64.isEmpty
-                    ? base64
-                    : widget.livestock!.coverImageBase64,
-                stockNotes:
-                    '[${DateTime.now().day}/${DateTime.now().month}] 📸 Photo added\n${widget.livestock!.stockNotes}',
-                updatedAt: DateTime.now(),
+                photoJournal: <PhotoJournalEntry>[
+                  entry,
+                  ...widget.livestock!.photoJournal,
+                ],
+                updatedAt: now,
                 isSynced: false,
               ),
             );
@@ -235,7 +203,7 @@ class _PhotoJournalWidgetState extends ConsumerState<PhotoJournalWidget> {
     }
   }
 
-  void _viewPhoto(BuildContext context, _PhotoEntry entry) {
+  void _viewPhoto(BuildContext context, PhotoJournalEntry entry) {
     showDialog(
       context: context,
       builder: (BuildContext context) => Dialog(
@@ -307,27 +275,13 @@ class _PhotoJournalWidgetState extends ConsumerState<PhotoJournalWidget> {
   }
 }
 
-class _PhotoEntry {
-  const _PhotoEntry({
-    required this.id,
-    required this.base64,
-    required this.date,
-    required this.caption,
-  });
-
-  final String id;
-  final String base64;
-  final DateTime date;
-  final String caption;
-}
-
 class _PhotoTile extends StatelessWidget {
   const _PhotoTile({
     required this.entry,
     required this.onTap,
   });
 
-  final _PhotoEntry entry;
+  final PhotoJournalEntry entry;
   final VoidCallback onTap;
 
   @override

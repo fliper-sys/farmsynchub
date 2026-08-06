@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/extensions/context_extensions.dart';
+import '../../../core/services/farm_notification_service.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/validators.dart';
 import '../../../domain/models/farm.dart';
@@ -23,8 +24,10 @@ import '../../../providers/notification_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
+import '../../common/widgets/entity_card_pieces.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
+import '../schedule/schedule_screen.dart';
 import 'livestock_detail_screen.dart';
 
 class LivestockScreen extends ConsumerWidget {
@@ -81,11 +84,25 @@ class LivestockScreen extends ConsumerWidget {
       heroIcon: Icons.pets_rounded,
       heroVariant: FarmArtworkVariant.field,
       heroBadge: '${livestock.length} linked groups',
-      trailing: IconButton(
-        onPressed: eligibleFarms.isEmpty
-            ? null
-            : () => _openLivestockSheet(context, ref, farms: eligibleFarms),
-        icon: const Icon(Icons.add_circle_outline_rounded),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          IconButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const ScheduleScreen(),
+              ),
+            ),
+            icon: const Icon(Icons.calendar_month_rounded),
+          ),
+          IconButton(
+            onPressed: eligibleFarms.isEmpty
+                ? null
+                : () =>
+                    _openLivestockSheet(context, ref, farms: eligibleFarms),
+            icon: const Icon(Icons.add_circle_outline_rounded),
+          ),
+        ],
       ),
       sections: <Widget>[
         if (eligibleFarms.isEmpty) ...<Widget>[
@@ -356,6 +373,17 @@ class LivestockScreen extends ConsumerWidget {
           ),
         );
     if (task.pushNotificationEnabled) {
+      final DateTime scheduledAt = task.dueDate.isBefore(DateTime.now())
+          ? DateTime.now().add(const Duration(minutes: 1))
+          : task.dueDate;
+      await FarmNotificationService.instance.scheduleAt(
+        id: task.id.hashCode,
+        title: 'Animal reminder: ${task.title}',
+        body:
+            '${_speciesLabel(livestock.species)} reminder due ${_dateLabel(task.dueDate)}.',
+        scheduledAt: scheduledAt,
+        payload: '/livestock',
+      );
       ref.read(notificationsProvider.notifier).addNotification(
         title: 'Animal reminder: ${task.title}',
         message:
@@ -513,6 +541,9 @@ class LivestockScreen extends ConsumerWidget {
     await ref.read(livestockProvider.notifier).updateLivestock(
           livestock.copyWith(todoItems: tasks, updatedAt: now, isSynced: false),
         );
+    if (!task.isCompleted) {
+      await FarmNotificationService.instance.cancel(task.id.hashCode);
+    }
     if (context.mounted) {
       context.showSnackBar('Animal task updated.');
     }
@@ -1546,152 +1577,139 @@ class _AnimalGroupCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final Color accent = _accentForSpecies(livestock.species);
 
     return AppCard(
       onTap: onOpen,
       color: theme.colorScheme.surfaceContainerHighest,
       child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Row(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Container(
-              width: 62,
-              height: 62,
-              decoration: BoxDecoration(
-                color: accent,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: livestock.coverImageBase64.isNotEmpty ||
-                      livestock.profileImageBase64.isNotEmpty
-                  ? Image.memory(
-                      base64Decode(
-                        livestock.coverImageBase64.isNotEmpty
-                            ? livestock.coverImageBase64
-                            : livestock.profileImageBase64,
-                      ),
-                      fit: BoxFit.cover,
-                    )
-                  : Center(
-                      child: Text(
-                        livestock.emoji,
-                        style: const TextStyle(fontSize: 28),
-                      ),
-                    ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                EntityThumbnail(
+                  heroTag: 'livestock-thumb-${livestock.id}',
+                  size: 56,
+                  artworkVariant: FarmArtworkVariant.field,
+                  emoji: livestock.emoji,
+                  photoBase64: livestock.coverImageBase64.isNotEmpty
+                      ? livestock.coverImageBase64
+                      : livestock.profileImageBase64.isNotEmpty
+                          ? livestock.profileImageBase64
+                          : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          _speciesLabel(livestock.species),
-                          style: theme.textTheme.titleLarge
-                              ?.copyWith(fontSize: 24),
-                        ),
-                      ),
-                      PopupMenuButton<String>(
-                        onSelected: (String value) {
-                          if (value == 'edit') {
-                            onEdit();
-                            return;
-                          }
-                          if (value == 'task') {
-                            onAddTask();
-                            return;
-                          }
-                          if (value == 'input') {
-                            onAddInput();
-                            return;
-                          }
-                          if (value == 'stock') {
-                            onAdjustStock();
-                            return;
-                          }
-                          if (value == 'eggs') {
-                            onRecordEggCollection?.call();
-                            return;
-                          }
-                          if (value == 'ready') {
-                            onRecordReadyForSale?.call();
-                            return;
-                          }
-                          onDelete();
-                        },
-                        itemBuilder: (BuildContext context) =>
-                            <PopupMenuEntry<String>>[
-                          const PopupMenuItem<String>(
-                              value: 'edit', child: Text('Edit group')),
-                          const PopupMenuItem<String>(
-                              value: 'task', child: Text('Add todo/reminder')),
-                          const PopupMenuItem<String>(
-                              value: 'input',
-                              child: Text('Record input stock')),
-                          const PopupMenuItem<String>(
-                              value: 'stock',
-                              child: Text('Adjust stock count')),
-                          const PopupMenuItem<String>(
-                              value: 'eggs',
-                              child: Text('Record egg collection')),
-                          if (onRecordReadyForSale != null)
-                            const PopupMenuItem<String>(
-                                value: 'ready',
-                                child: Text('Record ready for sale')),
-                          const PopupMenuItem<String>(
-                              value: 'delete', child: Text('Delete group')),
+                      Row(
+                        children: <Widget>[
+                          Flexible(
+                            child: Text(
+                              _speciesLabel(livestock.species),
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          EntityStageBadge(
+                            label: _growthStageLabel(livestock.growthStage),
+                            tint: const Color(0xFFEDE8FF),
+                          ),
                         ],
                       ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${livestock.count} heads · $farmName',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall,
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${livestock.count} heads linked to $farmName.',
-                    style: theme.textTheme.labelLarge,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '${livestock.breed} for ${_purposeLabel(livestock.purpose).toLowerCase()} in ${_housingLabel(livestock.housingLocation).toLowerCase()}.',
-                    style: theme.textTheme.bodySmall?.copyWith(height: 1.5),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Avg weight ${livestock.averageWeightKg.toStringAsFixed(1)} kg · Feed ${livestock.dailyFeedKg.toStringAsFixed(1)} kg/day · Water ${livestock.dailyWaterLitres.toStringAsFixed(1)} L/day',
-                    style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: <Widget>[
-                      _MiniTag(text: farmName, color: const Color(0xFFDFF1FF)),
-                      _MiniTag(
-                          text: '${livestock.vaccinationStatus}% vaccinated',
-                          color: const Color(0xFFE9F4DB)),
-                      _MiniTag(
-                          text: CurrencyUtils.formatCurrency(
-                              livestock.estimatedValue),
-                          color: const Color(0xFFFFE9D0)),
-                      _MiniTag(
-                          text:
-                              '${(livestock.growthProgress * 100).round()}% maturity',
-                          color: const Color(0xFFEDE8FF)),
-                      _MiniTag(
-                          text: '${livestock.openTaskCount} open tasks',
-                          color: const Color(0xFFFFF2C7)),
-                      _MiniTag(
-                          text: '${livestock.inputRecords.length} inputs',
-                          color: const Color(0xFFEDE8FF)),
-                      _MiniTag(
-                          text: '${livestock.productionLogs.length} records',
-                          color: const Color(0xFFDDF2C9)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _SmartAnimalStrip(
+                ),
+                PopupMenuButton<String>(
+                  padding: EdgeInsets.zero,
+                  onSelected: (String value) {
+                    if (value == 'edit') {
+                      onEdit();
+                      return;
+                    }
+                    if (value == 'task') {
+                      onAddTask();
+                      return;
+                    }
+                    if (value == 'input') {
+                      onAddInput();
+                      return;
+                    }
+                    if (value == 'stock') {
+                      onAdjustStock();
+                      return;
+                    }
+                    if (value == 'eggs') {
+                      onRecordEggCollection?.call();
+                      return;
+                    }
+                    if (value == 'ready') {
+                      onRecordReadyForSale?.call();
+                      return;
+                    }
+                    onDelete();
+                  },
+                  itemBuilder: (BuildContext context) =>
+                      <PopupMenuEntry<String>>[
+                    const PopupMenuItem<String>(
+                        value: 'edit', child: Text('Edit group')),
+                    const PopupMenuItem<String>(
+                        value: 'task', child: Text('Add todo/reminder')),
+                    const PopupMenuItem<String>(
+                        value: 'input', child: Text('Record input stock')),
+                    const PopupMenuItem<String>(
+                        value: 'stock', child: Text('Adjust stock count')),
+                    const PopupMenuItem<String>(
+                        value: 'eggs', child: Text('Record egg collection')),
+                    if (onRecordReadyForSale != null)
+                      const PopupMenuItem<String>(
+                          value: 'ready',
+                          child: Text('Record ready for sale')),
+                    const PopupMenuItem<String>(
+                        value: 'delete', child: Text('Delete group')),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: livestock.growthProgress,
+                minHeight: 4,
+              ),
+            ),
+            const SizedBox(height: 10),
+            EntityMetricChipRow(
+              maxVisible: 3,
+              metrics: <EntityMetric>[
+                EntityMetric(
+                    label: '${livestock.vaccinationStatus}% vaccinated'),
+                EntityMetric(
+                    label: '${livestock.openTaskCount} open tasks'),
+                EntityMetric(
+                    label: CurrencyUtils.formatCurrency(
+                        livestock.estimatedValue)),
+                EntityMetric(
+                    label: '${livestock.inputRecords.length} inputs'),
+                EntityMetric(
+                    label: '${livestock.productionLogs.length} records'),
+              ],
+            ),
+            const SizedBox(height: 10),
+            _SmartAnimalStrip(
                     title: livestock.intelligenceNotes.isEmpty
                         ? _livestockIntelligenceSummary(
                             livestock.species,
@@ -1715,9 +1733,6 @@ class _AnimalGroupCard extends StatelessWidget {
                     onRecordReadyForSale: onRecordReadyForSale,
                     onToggleTask: onToggleTask,
                   ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
@@ -2943,22 +2958,22 @@ class _StockCountDraft {
   final String notes;
 }
 
-Color _accentForSpecies(LivestockSpecies species) {
-  switch (species) {
-    case LivestockSpecies.goat:
-      return const Color(0xFFE9F4DB);
-    case LivestockSpecies.chicken:
-      return const Color(0xFFDFF1FF);
-    case LivestockSpecies.pig:
-      return const Color(0xFFFFE9D0);
-    case LivestockSpecies.cattle:
-      return const Color(0xFFEDE8FF);
-    case LivestockSpecies.sheep:
-      return const Color(0xFFE8F4D8);
+String _speciesLabel(LivestockSpecies species) => _labelForSpecies(species);
+
+String _growthStageLabel(AnimalGrowthStage stage) {
+  switch (stage) {
+    case AnimalGrowthStage.starter:
+      return 'Starter';
+    case AnimalGrowthStage.grower:
+      return 'Grower';
+    case AnimalGrowthStage.mature:
+      return 'Mature';
+    case AnimalGrowthStage.breeding:
+      return 'Breeding';
+    case AnimalGrowthStage.finishing:
+      return 'Finishing';
   }
 }
-
-String _speciesLabel(LivestockSpecies species) => _labelForSpecies(species);
 
 String _labelForSpecies(LivestockSpecies species) {
   switch (species) {
@@ -2987,32 +3002,6 @@ String _emojiForSpecies(LivestockSpecies species) {
       return '🐄';
     case LivestockSpecies.sheep:
       return '🐑';
-  }
-}
-
-String _purposeLabel(LivestockPurpose purpose) {
-  switch (purpose) {
-    case LivestockPurpose.meat:
-      return 'Meat';
-    case LivestockPurpose.milk:
-      return 'Milk';
-    case LivestockPurpose.eggs:
-      return 'Eggs';
-    case LivestockPurpose.breeding:
-      return 'Breeding';
-  }
-}
-
-String _housingLabel(HousingType housingType) {
-  switch (housingType) {
-    case HousingType.freeRange:
-      return 'Free range';
-    case HousingType.barn:
-      return 'Barn';
-    case HousingType.shed:
-      return 'Shed';
-    case HousingType.coop:
-      return 'Coop';
   }
 }
 

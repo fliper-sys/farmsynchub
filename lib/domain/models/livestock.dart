@@ -1,4 +1,5 @@
 import 'farm_activity.dart';
+import 'photo_journal_entry.dart';
 
 /// Livestock species enumeration.
 enum LivestockSpecies {
@@ -157,6 +158,7 @@ class Livestock {
     this.stockNotes = '',
     this.intelligenceNotes = '',
     this.lastIntelligenceSyncAt,
+    this.photoJournal = const <PhotoJournalEntry>[],
   });
 
   final String id;
@@ -191,6 +193,7 @@ class Livestock {
   final String stockNotes;
   final String intelligenceNotes;
   final DateTime? lastIntelligenceSyncAt;
+  final List<PhotoJournalEntry> photoJournal;
 
   int get openTaskCount => todoItems.where((FarmTodoItem item) => !item.isCompleted).length;
   double get syncedInputCost => inputRecords.fold<double>(0, (double sum, FarmInputRecord item) => sum + item.totalCost);
@@ -235,6 +238,8 @@ class Livestock {
         'stockNotes': stockNotes,
         'intelligenceNotes': intelligenceNotes,
         'lastIntelligenceSyncAt': lastIntelligenceSyncAt?.toIso8601String(),
+        'photoJournal':
+            photoJournal.map((PhotoJournalEntry item) => item.toJson()).toList(),
       };
 
   factory Livestock.fromJson(Map<String, dynamic> json) => Livestock(
@@ -288,6 +293,9 @@ class Livestock {
         stockNotes: json['stockNotes'] as String? ?? '',
         intelligenceNotes: json['intelligenceNotes'] as String? ?? '',
         lastIntelligenceSyncAt: DateTime.tryParse(json['lastIntelligenceSyncAt'] as String? ?? ''),
+        photoJournal: _jsonObjectList(json['photoJournal'])
+            .map(PhotoJournalEntry.fromJson)
+            .toList(),
       );
 
   Livestock copyWith({
@@ -321,6 +329,7 @@ class Livestock {
     String? stockNotes,
     String? intelligenceNotes,
     DateTime? lastIntelligenceSyncAt,
+    List<PhotoJournalEntry>? photoJournal,
   }) =>
       Livestock(
         id: id,
@@ -355,6 +364,7 @@ class Livestock {
         stockNotes: stockNotes ?? this.stockNotes,
         intelligenceNotes: intelligenceNotes ?? this.intelligenceNotes,
         lastIntelligenceSyncAt: lastIntelligenceSyncAt ?? this.lastIntelligenceSyncAt,
+        photoJournal: photoJournal ?? this.photoJournal,
       );
 }
 

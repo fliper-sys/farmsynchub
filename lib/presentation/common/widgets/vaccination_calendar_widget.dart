@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/services/farm_notification_service.dart';
 import '../../../core/services/vaccination_schedule_service.dart';
 import '../../../domain/models/farm_activity.dart';
 import '../../../domain/models/livestock.dart';
@@ -192,6 +193,22 @@ class _VaccinationCalendarWidgetState
             ),
           );
 
+      for (final FarmTodoItem todo in todos) {
+        if (!todo.pushNotificationEnabled) continue;
+        final DateTime scheduledAt = todo.dueDate.isBefore(DateTime.now())
+            ? DateTime.now().add(const Duration(minutes: 1))
+            : todo.dueDate;
+        await FarmNotificationService.instance.scheduleAt(
+          id: todo.id.hashCode,
+          title: 'Health reminder: ${todo.title}',
+          body: todo.notes.isEmpty
+              ? '${_speciesLabel(widget.livestock.species)} health task is due.'
+              : todo.notes,
+          scheduledAt: scheduledAt,
+          payload: '/livestock',
+        );
+      }
+
       if (!mounted) return;
       setState(() {
         _scheduledIndices
@@ -233,6 +250,21 @@ class _VaccinationCalendarWidgetState
               isSynced: false,
             ),
           );
+
+      if (todo.pushNotificationEnabled) {
+        final DateTime scheduledAt = todo.dueDate.isBefore(DateTime.now())
+            ? DateTime.now().add(const Duration(minutes: 1))
+            : todo.dueDate;
+        await FarmNotificationService.instance.scheduleAt(
+          id: todo.id.hashCode,
+          title: 'Health reminder: ${todo.title}',
+          body: todo.notes.isEmpty
+              ? '${_speciesLabel(widget.livestock.species)} health task is due.'
+              : todo.notes,
+          scheduledAt: scheduledAt,
+          payload: '/livestock',
+        );
+      }
 
       if (!mounted) return;
       setState(() => _scheduledIndices.add(index));

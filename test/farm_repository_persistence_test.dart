@@ -60,7 +60,11 @@ class FakeRemoteStore implements FarmRemoteStore {
   Future<void> deleteFromFirestore(String collection, String id) async {}
 
   @override
-  Future<List<Map<String, dynamic>>> getFromFirestore(String collection) async {
+  Future<List<Map<String, dynamic>>> getFromFirestore(
+    String collection, {
+    String? ownerUidField,
+    String? memberArrayField,
+  }) async {
     return <Map<String, dynamic>>[];
   }
 

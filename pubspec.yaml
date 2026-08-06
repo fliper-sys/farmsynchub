@@ -1,7 +1,7 @@
 name: farmsynchub
 description: "FarmSync Hub - Farm Management Information System for smallholder farmers in Jos South LGA, Plateau State, Nigeria."
 publish_to: 'none'
-version: 1.0.9+9
+version: 1.0.10+10
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -65,6 +65,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.1
+  image: ^4.8.0
 
 flutter:
   uses-material-design: true

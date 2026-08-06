@@ -28,6 +28,7 @@ import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
+import '../schedule/schedule_screen.dart';
 import 'farm_detail_screen.dart';
 
 class FarmsScreen extends ConsumerWidget {
@@ -110,6 +111,15 @@ class FarmsScreen extends ConsumerWidget {
           _HeroActionButton(
             icon: Icons.checklist_rounded,
             onTap: () => context.go('/farm-tasks'),
+          ),
+          const SizedBox(width: 10),
+          _HeroActionButton(
+            icon: Icons.calendar_month_rounded,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const ScheduleScreen(),
+              ),
+            ),
           ),
           const SizedBox(width: 10),
           _HeroActionButton(

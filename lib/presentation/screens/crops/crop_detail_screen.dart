@@ -134,7 +134,8 @@ class _CropDetailScreenState extends ConsumerState<CropDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final AppLanguage language = ref.watch(appLanguageProvider);
-    final List<Crop> crops = ref.watch(cropsProvider).valueOrNull ?? <Crop>[];
+    final AsyncValue<List<Crop>> cropsAsync = ref.watch(cropsProvider);
+    final List<Crop> crops = cropsAsync.valueOrNull ?? <Crop>[];
     final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
 
     Crop? crop;
@@ -146,6 +147,14 @@ class _CropDetailScreenState extends ConsumerState<CropDetailScreen> {
     }
 
     if (crop == null) {
+      // Distinguish "records haven't loaded yet" from "genuinely missing" -
+      // otherwise this briefly flashes "not found" on every load instead of
+      // a loading state, until the provider resolves.
+      if (cropsAsync.isLoading && !cropsAsync.hasValue) {
+        return const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        );
+      }
       return Scaffold(
         appBar: AppBar(),
         body: const Center(child: Text('Crop not found.')),

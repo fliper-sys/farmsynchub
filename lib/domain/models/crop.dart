@@ -1,4 +1,5 @@
 import 'farm_activity.dart';
+import 'photo_journal_entry.dart';
 
 enum LandSizeUnit {
   hectares,
@@ -70,6 +71,7 @@ class Crop {
     this.inputRecords = const <FarmInputRecord>[],
     this.intelligenceNotes = '',
     this.lastIntelligenceSyncAt,
+    this.photoJournal = const <PhotoJournalEntry>[],
   });
 
   final String id;
@@ -96,6 +98,7 @@ class Crop {
   final List<FarmInputRecord> inputRecords;
   final String intelligenceNotes;
   final DateTime? lastIntelligenceSyncAt;
+  final List<PhotoJournalEntry> photoJournal;
 
   int get openTaskCount => todoItems.where((FarmTodoItem item) => !item.isCompleted).length;
   double get syncedInputCost => inputRecords.fold<double>(0, (double sum, FarmInputRecord item) => sum + item.totalCost);
@@ -138,6 +141,8 @@ class Crop {
         'inputRecords': inputRecords.map((FarmInputRecord item) => item.toJson()).toList(),
         'intelligenceNotes': intelligenceNotes,
         'lastIntelligenceSyncAt': lastIntelligenceSyncAt?.toIso8601String(),
+        'photoJournal':
+            photoJournal.map((PhotoJournalEntry item) => item.toJson()).toList(),
       };
 
   factory Crop.fromJson(Map<String, dynamic> json) => Crop(
@@ -182,6 +187,9 @@ class Crop {
             .toList(),
         intelligenceNotes: json['intelligenceNotes'] as String? ?? '',
         lastIntelligenceSyncAt: DateTime.tryParse(json['lastIntelligenceSyncAt'] as String? ?? ''),
+        photoJournal: _jsonObjectList(json['photoJournal'])
+            .map(PhotoJournalEntry.fromJson)
+            .toList(),
       );
 
   Crop copyWith({
@@ -207,6 +215,7 @@ class Crop {
     List<FarmInputRecord>? inputRecords,
     String? intelligenceNotes,
     DateTime? lastIntelligenceSyncAt,
+    List<PhotoJournalEntry>? photoJournal,
   }) =>
       Crop(
         id: id,
@@ -233,6 +242,7 @@ class Crop {
         inputRecords: inputRecords ?? this.inputRecords,
         intelligenceNotes: intelligenceNotes ?? this.intelligenceNotes,
         lastIntelligenceSyncAt: lastIntelligenceSyncAt ?? this.lastIntelligenceSyncAt,
+        photoJournal: photoJournal ?? this.photoJournal,
       );
 }
 

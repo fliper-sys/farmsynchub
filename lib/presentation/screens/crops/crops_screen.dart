@@ -22,8 +22,10 @@ import '../../../providers/user_profile_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
+import '../../common/widgets/entity_card_pieces.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
+import '../schedule/schedule_screen.dart';
 import 'crop_detail_screen.dart';
 
 class CropsScreen extends ConsumerWidget {
@@ -111,47 +113,123 @@ class CropsScreen extends ConsumerWidget {
               ha: 'Allon girma',
               fr: 'Tableau de croissance'),
         ),
-        GridView.count(
-          crossAxisCount: 2,
+        GridView.builder(
           shrinkWrap: true,
-          childAspectRatio: 1.05,
           physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          children: <Widget>[
-            _StageCard(
-                label: language.tr(en: 'Seeding', ha: 'Shuki', fr: 'Semis'),
-                value: '$seedingCount crops',
-                color: const Color(0xFFE8F4D8)),
-            _StageCard(
-                label:
-                    language.tr(en: 'Growing', ha: 'Girma', fr: 'Croissance'),
-                value: '$growingCount crops',
-                color: const Color(0xFFDDF0E4)),
-            _StageCard(
-                label: language.tr(
-                    en: 'Flowering', ha: 'Furanni', fr: 'Floraison'),
-                value: '$floweringCount crops',
-                color: const Color(0xFFFFEBD0)),
-            _StageCard(
-                label: language.tr(en: 'Ready', ha: 'A shirye', fr: 'Pret'),
-                value: '$readyCount crops',
-                color: const Color(0xFFDCEEFF)),
-            _StageCard(
-                label: language.tr(
-                    en: 'Open tasks',
-                    ha: 'Ayyukan da suka rage',
-                    fr: 'Taches ouvertes'),
-                value: '$openTaskCount todos',
-                color: const Color(0xFFEDE8FF)),
-            _StageCard(
-                label: language.tr(
-                    en: 'Inputs synced',
-                    ha: 'Kayan da aka sync',
-                    fr: 'Intrants synchronises'),
-                value: CurrencyUtils.formatCurrency(inputSpend),
-                color: const Color(0xFFFFF2C7)),
-          ],
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            mainAxisExtent: 128,
+          ),
+          itemCount: 6,
+          itemBuilder: (BuildContext context, int index) {
+            switch (index) {
+              case 0:
+                return _StageCard(
+                  label: language.tr(en: 'Seeding', ha: 'Shuki', fr: 'Semis'),
+                  value: '$seedingCount crops',
+                  color: const Color(0xFFE8F4D8),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _StageCropListScreen(
+                        title: language.tr(
+                            en: 'Seeding', ha: 'Shuki', fr: 'Semis'),
+                        crops: crops
+                            .where((Crop crop) =>
+                                crop.currentStage == CropStage.seeding)
+                            .toList(growable: false),
+                        farmById: farmById,
+                      ),
+                    ),
+                  ),
+                );
+              case 1:
+                return _StageCard(
+                  label: language.tr(
+                      en: 'Growing', ha: 'Girma', fr: 'Croissance'),
+                  value: '$growingCount crops',
+                  color: const Color(0xFFDDF0E4),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _StageCropListScreen(
+                        title: language.tr(
+                            en: 'Growing', ha: 'Girma', fr: 'Croissance'),
+                        crops: crops
+                            .where((Crop crop) => <CropStage>[
+                                  CropStage.germination,
+                                  CropStage.vegetative,
+                                ].contains(crop.currentStage))
+                            .toList(growable: false),
+                        farmById: farmById,
+                      ),
+                    ),
+                  ),
+                );
+              case 2:
+                return _StageCard(
+                  label: language.tr(
+                      en: 'Flowering', ha: 'Furanni', fr: 'Floraison'),
+                  value: '$floweringCount crops',
+                  color: const Color(0xFFFFEBD0),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _StageCropListScreen(
+                        title: language.tr(
+                            en: 'Flowering', ha: 'Furanni', fr: 'Floraison'),
+                        crops: crops
+                            .where((Crop crop) =>
+                                crop.currentStage == CropStage.flowering)
+                            .toList(growable: false),
+                        farmById: farmById,
+                      ),
+                    ),
+                  ),
+                );
+              case 3:
+                return _StageCard(
+                  label: language.tr(en: 'Ready', ha: 'A shirye', fr: 'Pret'),
+                  value: '$readyCount crops',
+                  color: const Color(0xFFDCEEFF),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _StageCropListScreen(
+                        title:
+                            language.tr(en: 'Ready', ha: 'A shirye', fr: 'Pret'),
+                        crops: crops
+                            .where((Crop crop) =>
+                                crop.status == CropStatus.ready)
+                            .toList(growable: false),
+                        farmById: farmById,
+                      ),
+                    ),
+                  ),
+                );
+              case 4:
+                return _StageCard(
+                  label: language.tr(
+                      en: 'Open tasks',
+                      ha: 'Ayyukan da suka rage',
+                      fr: 'Taches ouvertes'),
+                  value: '$openTaskCount todos',
+                  color: const Color(0xFFEDE8FF),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const ScheduleScreen(),
+                    ),
+                  ),
+                );
+              default:
+                return _StageCard(
+                  label: language.tr(
+                      en: 'Inputs synced',
+                      ha: 'Kayan da aka sync',
+                      fr: 'Intrants synchronises'),
+                  value: CurrencyUtils.formatCurrency(inputSpend),
+                  color: const Color(0xFFFFF2C7),
+                );
+            }
+          },
         ),
         const SizedBox(height: 18),
         SoftSectionTitle(
@@ -1198,11 +1276,13 @@ class _StageCard extends StatelessWidget {
     required this.label,
     required this.value,
     required this.color,
+    this.onTap,
   });
 
   final String label;
   final String value;
   final Color color;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1216,22 +1296,33 @@ class _StageCard extends StatelessWidget {
 
     return AppCard(
       color: theme.colorScheme.surfaceContainerHighest,
+      onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: iconBackground,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                    color:
-                        isDark ? color.withOpacity(0.42) : Colors.transparent),
-              ),
-              child: Icon(Icons.spa_rounded, color: iconForeground),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: iconBackground,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                        color: isDark
+                            ? color.withOpacity(0.42)
+                            : Colors.transparent),
+                  ),
+                  child: Icon(Icons.spa_rounded,
+                      color: iconForeground, size: 20),
+                ),
+                if (onTap != null)
+                  Icon(Icons.chevron_right_rounded,
+                      color: theme.colorScheme.onSurfaceVariant, size: 20),
+              ],
             ),
             const Spacer(),
             Text(value, style: theme.textTheme.titleLarge),
@@ -1240,6 +1331,75 @@ class _StageCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// A simple filtered list of crops for a single growth-stage stat card,
+/// reached by tapping the stat card on the Growth board.
+class _StageCropListScreen extends StatelessWidget {
+  const _StageCropListScreen({
+    required this.title,
+    required this.crops,
+    required this.farmById,
+  });
+
+  final String title;
+  final List<Crop> crops;
+  final Map<String, Farm> farmById;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: crops.isEmpty
+          ? Center(
+              child: Text(
+                'No crops in this group right now.',
+                style: theme.textTheme.bodyMedium,
+              ),
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: crops.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (BuildContext context, int index) {
+                final Crop crop = crops[index];
+                final Farm? farm = farmById[crop.farmId];
+                return AppCard(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => CropDetailScreen(cropId: crop.id),
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(crop.name,
+                                  style: theme.textTheme.titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.w700)),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${crop.variety} on ${farm?.name ?? 'Unknown farm'}',
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right_rounded),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }
@@ -1270,121 +1430,124 @@ class _CropCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final int daysToHarvest =
-        crop.expectedHarvestDate.difference(DateTime.now()).inDays;
 
     return AppCard(
       onTap: onOpen,
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Row(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            const SizedBox(
-              width: 92,
-              child: FarmSceneArtwork(
-                height: 92,
-                variant: FarmArtworkVariant.crops,
-                borderRadius: BorderRadius.all(Radius.circular(22)),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                EntityThumbnail(
+                  heroTag: 'crop-thumb-${crop.id}',
+                  size: 56,
+                  artworkVariant: FarmArtworkVariant.crops,
+                  photoBase64: crop.photoJournal.isNotEmpty
+                      ? crop.photoJournal.first.base64
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Expanded(
-                        child: Text(crop.name,
-                            style: theme.textTheme.titleLarge
-                                ?.copyWith(fontSize: 24)),
-                      ),
-                      PopupMenuButton<String>(
-                        onSelected: (String value) {
-                          if (value == 'edit') {
-                            onEdit();
-                            return;
-                          }
-                          if (value == 'task') {
-                            onAddTask();
-                            return;
-                          }
-                          if (value == 'input') {
-                            onAddInput();
-                            return;
-                          }
-                          onDelete();
-                        },
-                        itemBuilder: (BuildContext context) =>
-                            const <PopupMenuEntry<String>>[
-                          PopupMenuItem<String>(
-                              value: 'edit', child: Text('Edit crop')),
-                          PopupMenuItem<String>(
-                              value: 'task', child: Text('Add todo/reminder')),
-                          PopupMenuItem<String>(
-                              value: 'input',
-                              child: Text('Record input stock')),
-                          PopupMenuItem<String>(
-                              value: 'delete', child: Text('Delete crop')),
+                      Row(
+                        children: <Widget>[
+                          Flexible(
+                            child: Text(crop.name,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w800)),
+                          ),
+                          const SizedBox(width: 6),
+                          EntityStageBadge(
+                            label: _stageTag(crop.currentStage),
+                            tint: const Color(0xFFE8F4D8),
+                          ),
                         ],
                       ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${crop.variety} · $farmName',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall,
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${crop.variety} variety linked to $farmName.',
-                    style: theme.textTheme.bodySmall?.copyWith(height: 1.5),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: <Widget>[
-                      _MiniTag(
-                          text: _stageTag(crop.currentStage),
-                          color: const Color(0xFFE8F4D8)),
-                      _MiniTag(
-                          text: crop.landSizeLabel,
-                          color: const Color(0xFFDFF1FF)),
-                      _MiniTag(
-                        text: '${(crop.growthProgress * 100).round()}% cycle',
-                        color: const Color(0xFFDCEEFF),
-                      ),
-                      _MiniTag(
-                        text: CurrencyUtils.formatCurrency(crop.totalInputCost),
-                        color: const Color(0xFFFFEBD0),
-                      ),
-                      _MiniTag(text: farmName, color: const Color(0xFFEDE8FF)),
-                      _MiniTag(
-                          text: '${crop.openTaskCount} open tasks',
-                          color: const Color(0xFFFFF2C7)),
-                      _MiniTag(
-                          text: '${crop.inputRecords.length} input records',
-                          color: const Color(0xFFDDF0E4)),
-                      if (crop.targetYieldKg > 0)
-                        _MiniTag(
-                            text:
-                                '${crop.targetYieldKg.toStringAsFixed(0)} kg target',
-                            color: const Color(0xFFFFF2C7)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _SmartRecordStrip(
-                    title: crop.intelligenceNotes.isEmpty
-                        ? _cropIntelligenceSummary(crop.name, crop.currentStage,
-                            crop.expectedHarvestDate,
-                            landSizeText: crop.landSizeLabel)
-                        : crop.intelligenceNotes,
-                    tasks: crop.todoItems,
-                    inputs: crop.inputRecords,
-                    advice: advice,
-                    onAddTask: onAddTask,
-                    onAddInput: onAddInput,
-                    onToggleTask: onToggleTask,
-                  ),
-                ],
+                ),
+                PopupMenuButton<String>(
+                  padding: EdgeInsets.zero,
+                  onSelected: (String value) {
+                    if (value == 'edit') {
+                      onEdit();
+                      return;
+                    }
+                    if (value == 'task') {
+                      onAddTask();
+                      return;
+                    }
+                    if (value == 'input') {
+                      onAddInput();
+                      return;
+                    }
+                    onDelete();
+                  },
+                  itemBuilder: (BuildContext context) =>
+                      const <PopupMenuEntry<String>>[
+                    PopupMenuItem<String>(
+                        value: 'edit', child: Text('Edit crop')),
+                    PopupMenuItem<String>(
+                        value: 'task', child: Text('Add todo/reminder')),
+                    PopupMenuItem<String>(
+                        value: 'input', child: Text('Record input stock')),
+                    PopupMenuItem<String>(
+                        value: 'delete', child: Text('Delete crop')),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: crop.growthProgress,
+                minHeight: 4,
               ),
+            ),
+            const SizedBox(height: 10),
+            EntityMetricChipRow(
+              maxVisible: 3,
+              metrics: <EntityMetric>[
+                EntityMetric(label: crop.landSizeLabel),
+                EntityMetric(label: '${crop.openTaskCount} open tasks'),
+                if (crop.targetYieldKg > 0)
+                  EntityMetric(
+                      label:
+                          '${crop.targetYieldKg.toStringAsFixed(0)} kg target'),
+                EntityMetric(
+                    label: CurrencyUtils.formatCurrency(crop.totalInputCost)),
+                EntityMetric(
+                    label: '${crop.inputRecords.length} input records'),
+              ],
+            ),
+            const SizedBox(height: 10),
+            _SmartRecordStrip(
+              title: crop.intelligenceNotes.isEmpty
+                  ? _cropIntelligenceSummary(crop.name, crop.currentStage,
+                      crop.expectedHarvestDate,
+                      landSizeText: crop.landSizeLabel)
+                  : crop.intelligenceNotes,
+              tasks: crop.todoItems,
+              inputs: crop.inputRecords,
+              advice: advice,
+              onAddTask: onAddTask,
+              onAddInput: onAddInput,
+              onToggleTask: onToggleTask,
             ),
           ],
         ),

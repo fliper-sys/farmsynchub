@@ -106,7 +106,12 @@ class FakeFirebaseService extends FirebaseService {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> getFromFirestore(String collection) async {
+  Future<List<Map<String, dynamic>>> getFromFirestore(
+    String collection, {
+    String? ownerUidField,
+    String? memberArrayField,
+    bool scopeByFarmIds = false,
+  }) async {
     return <Map<String, dynamic>>[];
   }
 

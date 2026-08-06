@@ -109,150 +109,117 @@ class _NewsScreenState extends ConsumerState<NewsScreen>
         icon: const Icon(Icons.edit_square),
         label: Text(language.tr(en: 'Post', ha: 'Aika', fr: 'Publier')),
       ),
-      body: Column(
-        children: <Widget>[
-          Flexible(
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  AnimatedSize(
-                    duration: const Duration(milliseconds: 260),
-                    curve: Curves.easeOutCubic,
-                    child: _showHeader
-                        ? _NewsHeader(
-                            language: language,
-                            followedCount: feed?.followedAuthorIds.length ?? 0,
-                            postCount: feed?.posts.length ?? 0,
-                            onCompose: () => _openComposeSheet(context, ref,
-                                profile: profile),
-                            onCollapse: () =>
-                                setState(() => _showHeader = false),
-                          )
-                        : _CollapsedNewsHeader(
-                            language: language,
-                            onExpand: () => setState(() => _showHeader = true),
-                          ),
-                  ),
-                  if (feed != null)
-                    AnimatedSize(
-                      duration: const Duration(milliseconds: 260),
-                      curve: Curves.easeOutCubic,
-                      child: _showDiscoverySection
-                          ? _PeopleDiscoverySection(
-                              language: language,
-                              queryController: _peopleSearchController,
-                              people: people,
-                              followedAuthorIds: followedAuthorIds,
-                              isCollapsed: _discoveryCollapsed,
-                              onToggleCollapsed: () => setState(() =>
-                                  _discoveryCollapsed = !_discoveryCollapsed),
-                              onClose: () => setState(() {
-                                _showDiscoverySection = false;
-                                _discoveryCollapsed = false;
-                              }),
-                              onFollowToggle: (String authorId) => ref
-                                  .read(newsFeedProvider.notifier)
-                                  .toggleFollow(authorId),
-                              onSearchChanged: () => setState(() {}),
-                            )
-                          : const SizedBox.shrink(),
+      // A single NestedScrollView drives the header, the people-discovery
+      // strip, and the feed as one continuous scroll gesture instead of two
+      // independently-scrolling regions stacked on top of each other.
+      body: NestedScrollView(
+        headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled) =>
+            <Widget>[
+          SliverToBoxAdapter(
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              child: _showHeader
+                  ? _NewsHeader(
+                      language: language,
+                      followedCount: feed?.followedAuthorIds.length ?? 0,
+                      postCount: feed?.posts.length ?? 0,
+                      onCompose: () =>
+                          _openComposeSheet(context, ref, profile: profile),
+                      onCollapse: () => setState(() => _showHeader = false),
+                    )
+                  : _CollapsedNewsHeader(
+                      language: language,
+                      onExpand: () => setState(() => _showHeader = true),
                     ),
-                ],
-              ),
             ),
           ),
-          Expanded(
-            child: feedError != null
-                ? _NewsFeedError(
-                    language: language,
-                    error: feedError,
-                    onRetry: () =>
-                        ref.read(newsFeedProvider.notifier).refresh(),
-                  )
-                : NotificationListener<ScrollNotification>(
-                    onNotification: _handleFeedScroll,
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: <Widget>[
-                        _NewsFeedList(
-                          language: language,
-                          emptyMessage: language.tr(
-                            en: 'No followed updates yet. Follow farmers and admin posts to build your feed.',
-                            ha: 'Babu sabuntawar da ake bi tukuna. Bi manoma da sakonnin admin domin gina bayaninka.',
-                            fr: 'Aucune mise a jour suivie pour le moment. Suivez des agriculteurs et des publications admin pour construire votre fil.',
-                          ),
-                          posts: forYou,
-                          ref: ref,
-                          followedAuthorIds: followedAuthorIds,
-                          mineOnly: false,
-                        ),
-                        _NewsFeedList(
-                          language: language,
-                          emptyMessage: language.tr(
-                            en: 'No general posts yet. Start a conversation by sharing an update.',
-                            ha: 'Babu sako gama gari tukuna. Fara tattaunawa ta hanyar raba sabuntawa.',
-                            fr: 'Aucune publication generale pour le moment. Demarrez une conversation en partageant une mise a jour.',
-                          ),
-                          posts: general,
-                          ref: ref,
-                          followedAuthorIds: followedAuthorIds,
-                          mineOnly: false,
-                        ),
-                        _NewsFeedList(
-                          language: language,
-                          emptyMessage: language.tr(
-                              en: 'You are not following anyone yet.',
-                              ha: 'Ba ka bin kowa tukuna ba.',
-                              fr: 'Vous ne suivez personne pour le moment.'),
-                          posts: following,
-                          ref: ref,
-                          followedAuthorIds: followedAuthorIds,
-                          mineOnly: false,
-                        ),
-                        _NewsFeedList(
-                          language: language,
-                          emptyMessage: language.tr(
-                              en: 'You have not posted any updates yet.',
-                              ha: 'Ba ka aika wata sabuntawa tukuna ba.',
-                              fr: 'Vous n\'avez publie aucune mise a jour pour le moment.'),
-                          posts: mine,
-                          ref: ref,
-                          followedAuthorIds: followedAuthorIds,
-                          mineOnly: true,
-                        ),
-                      ],
-                    ),
-                  ),
-          ),
+          if (feed != null)
+            SliverToBoxAdapter(
+              child: AnimatedSize(
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeOutCubic,
+                child: _showDiscoverySection
+                    ? _PeopleDiscoverySection(
+                        language: language,
+                        queryController: _peopleSearchController,
+                        people: people,
+                        followedAuthorIds: followedAuthorIds,
+                        isCollapsed: _discoveryCollapsed,
+                        onToggleCollapsed: () => setState(() =>
+                            _discoveryCollapsed = !_discoveryCollapsed),
+                        onClose: () => setState(() {
+                          _showDiscoverySection = false;
+                          _discoveryCollapsed = false;
+                        }),
+                        onFollowToggle: (String authorId) => ref
+                            .read(newsFeedProvider.notifier)
+                            .toggleFollow(authorId),
+                        onSearchChanged: () => setState(() {}),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ),
         ],
+        body: feedError != null
+            ? _NewsFeedError(
+                language: language,
+                error: feedError,
+                onRetry: () => ref.read(newsFeedProvider.notifier).refresh(),
+              )
+            : TabBarView(
+                controller: _tabController,
+                children: <Widget>[
+                  _NewsFeedList(
+                    language: language,
+                    emptyMessage: language.tr(
+                      en: 'No followed updates yet. Follow farmers and admin posts to build your feed.',
+                      ha: 'Babu sabuntawar da ake bi tukuna. Bi manoma da sakonnin admin domin gina bayaninka.',
+                      fr: 'Aucune mise a jour suivie pour le moment. Suivez des agriculteurs et des publications admin pour construire votre fil.',
+                    ),
+                    posts: forYou,
+                    ref: ref,
+                    followedAuthorIds: followedAuthorIds,
+                    mineOnly: false,
+                  ),
+                  _NewsFeedList(
+                    language: language,
+                    emptyMessage: language.tr(
+                      en: 'No general posts yet. Start a conversation by sharing an update.',
+                      ha: 'Babu sako gama gari tukuna. Fara tattaunawa ta hanyar raba sabuntawa.',
+                      fr: 'Aucune publication generale pour le moment. Demarrez une conversation en partageant une mise a jour.',
+                    ),
+                    posts: general,
+                    ref: ref,
+                    followedAuthorIds: followedAuthorIds,
+                    mineOnly: false,
+                  ),
+                  _NewsFeedList(
+                    language: language,
+                    emptyMessage: language.tr(
+                        en: 'You are not following anyone yet.',
+                        ha: 'Ba ka bin kowa tukuna ba.',
+                        fr: 'Vous ne suivez personne pour le moment.'),
+                    posts: following,
+                    ref: ref,
+                    followedAuthorIds: followedAuthorIds,
+                    mineOnly: false,
+                  ),
+                  _NewsFeedList(
+                    language: language,
+                    emptyMessage: language.tr(
+                        en: 'You have not posted any updates yet.',
+                        ha: 'Ba ka aika wata sabuntawa tukuna ba.',
+                        fr: 'Vous n\'avez publie aucune mise a jour pour le moment.'),
+                    posts: mine,
+                    ref: ref,
+                    followedAuthorIds: followedAuthorIds,
+                    mineOnly: true,
+                  ),
+                ],
+              ),
       ),
     );
-  }
-
-  bool _handleFeedScroll(ScrollNotification notification) {
-    if (notification.metrics.axis != Axis.vertical) {
-      return false;
-    }
-    final double offset = notification.metrics.pixels;
-    if (offset > 36) {
-      if (_showHeader || _showDiscoverySection) {
-        setState(() {
-          _showHeader = false;
-          _showDiscoverySection = false;
-          _discoveryCollapsed = false;
-        });
-      }
-    } else if (offset <= 4) {
-      if (!_showHeader || !_showDiscoverySection) {
-        setState(() {
-          _showHeader = true;
-          _showDiscoverySection = true;
-          _discoveryCollapsed = false;
-        });
-      }
-    }
-    return false;
   }
 
   Future<void> _openComposeSheet(

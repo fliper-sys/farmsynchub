@@ -244,7 +244,8 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
     final AppLanguage language = ref.watch(appLanguageProvider);
     final currentUser = ref.watch(firebaseServiceProvider).currentUser;
     final UserProfile? profile = ref.watch(userProfileProvider).valueOrNull;
-    final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
+    final AsyncValue<List<Farm>> farmsAsync = ref.watch(farmsProvider);
+    final List<Farm> farms = farmsAsync.valueOrNull ?? <Farm>[];
     Farm? farm;
     for (final Farm item in farms) {
       if (item.id == farmId) {
@@ -253,6 +254,14 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
       }
     }
     if (farm == null) {
+      // Distinguish "records haven't loaded yet" from "genuinely missing" -
+      // otherwise this briefly flashes "not found" on every load instead of
+      // a loading state, until the provider resolves.
+      if (farmsAsync.isLoading && !farmsAsync.hasValue) {
+        return const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        );
+      }
       return Scaffold(
         appBar: AppBar(),
         body: const Center(child: Text('Farm not found.')),

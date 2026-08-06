@@ -1798,9 +1798,9 @@ class _CartLineEditorSheetState extends State<_CartLineEditorSheet> {
           top: 18,
           bottom: MediaQuery.of(context).viewInsets.bottom + 18,
         ),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1912,9 +1912,9 @@ class _ProductSheetState extends State<_ProductSheet> {
           top: 18,
           bottom: MediaQuery.of(context).viewInsets.bottom + 18,
         ),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         ),
         child: SingleChildScrollView(
           child: Column(
@@ -2057,9 +2057,9 @@ class _PartnerSheetState extends State<_PartnerSheet> {
           top: 18,
           bottom: MediaQuery.of(context).viewInsets.bottom + 18,
         ),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         ),
         child: SingleChildScrollView(
           child: Column(
