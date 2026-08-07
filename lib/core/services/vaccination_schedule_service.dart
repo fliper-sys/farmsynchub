@@ -193,6 +193,65 @@ class VaccinationScheduleService {
           priority: FarmTodoPriority.urgent,
         ));
         break;
+
+      case LivestockSpecies.rabbit:
+        items.add(VaccinationScheduleItem(
+          title: 'RVHD vaccine (Rabbit Viral Haemorrhagic Disease)',
+          detail:
+              'Essential RVHD vaccination for all rabbits, especially in commercial hutches. Repeat annually.',
+          suggestedDate: now,
+          vaccineType: VaccineType.core,
+          ageMonths: ageMonths,
+          priority: FarmTodoPriority.urgent,
+        ));
+        break;
+
+      case LivestockSpecies.duck:
+        items.add(VaccinationScheduleItem(
+          title: 'Duck Viral Hepatitis vaccine',
+          detail:
+              'Protects young ducklings from viral hepatitis, given in the first week of life.',
+          suggestedDate: now,
+          vaccineType: VaccineType.core,
+          ageMonths: ageMonths,
+          priority: FarmTodoPriority.high,
+        ));
+        items.add(VaccinationScheduleItem(
+          title: 'Duck Plague (Viral Enteritis) vaccine',
+          detail:
+              'Annual duck plague vaccination, important where ducks share water with wild birds.',
+          suggestedDate: now.add(const Duration(days: 14)),
+          vaccineType: VaccineType.core,
+          ageMonths: ageMonths,
+          priority: FarmTodoPriority.normal,
+        ));
+        break;
+
+      case LivestockSpecies.fish:
+        items.add(VaccinationScheduleItem(
+          title: 'Water quality and disease check',
+          detail:
+              'Test pond/tank water quality (pH, ammonia, oxygen) and inspect for parasites or fungal signs. '
+              'Fish are not routinely vaccinated in smallholder ponds - water quality is the main defence.',
+          suggestedDate: now,
+          vaccineType: VaccineType.healthCheck,
+          ageMonths: ageMonths,
+          priority: FarmTodoPriority.high,
+        ));
+        break;
+
+      case LivestockSpecies.snail:
+        items.add(VaccinationScheduleItem(
+          title: 'Shell and pest health check',
+          detail:
+              'Check shell condition and calcium supply, and inspect the pen for ants, rodents, and mould. '
+              'Snails are not vaccinated - housing hygiene and calcium feed are the main defence.',
+          suggestedDate: now,
+          vaccineType: VaccineType.healthCheck,
+          ageMonths: ageMonths,
+          priority: FarmTodoPriority.high,
+        ));
+        break;
     }
 
     return items;
@@ -209,6 +268,10 @@ class VaccinationScheduleService {
       LivestockSpecies.sheep => 6,
       LivestockSpecies.pig => 8,
       LivestockSpecies.cattle => 8,
+      LivestockSpecies.rabbit => 8,
+      LivestockSpecies.duck => 8,
+      LivestockSpecies.fish => 12,
+      LivestockSpecies.snail => 12,
     };
 
     final String animalLabel = _speciesLabel(species).toLowerCase();
@@ -359,6 +422,14 @@ class VaccinationScheduleService {
         return 'Cattle';
       case LivestockSpecies.sheep:
         return 'Sheep';
+      case LivestockSpecies.rabbit:
+        return 'Rabbits';
+      case LivestockSpecies.duck:
+        return 'Ducks';
+      case LivestockSpecies.fish:
+        return 'Fish';
+      case LivestockSpecies.snail:
+        return 'Snails';
     }
   }
 }

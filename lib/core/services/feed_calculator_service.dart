@@ -41,6 +41,30 @@ class FeedCalculatorService {
           LivestockPurpose.breeding => 18,
           LivestockPurpose.eggs => 12,
         },
+      LivestockSpecies.rabbit => switch (purpose) {
+          LivestockPurpose.meat => 5,
+          LivestockPurpose.breeding => 7,
+          LivestockPurpose.milk => 5,
+          LivestockPurpose.eggs => 5,
+        },
+      LivestockSpecies.duck => switch (purpose) {
+          LivestockPurpose.eggs => 5,
+          LivestockPurpose.meat => 3,
+          LivestockPurpose.breeding => 6,
+          LivestockPurpose.milk => 3,
+        },
+      LivestockSpecies.fish => switch (purpose) {
+          LivestockPurpose.meat => 6,
+          LivestockPurpose.breeding => 8,
+          LivestockPurpose.milk => 6,
+          LivestockPurpose.eggs => 6,
+        },
+      LivestockSpecies.snail => switch (purpose) {
+          LivestockPurpose.meat => 10,
+          LivestockPurpose.breeding => 12,
+          LivestockPurpose.milk => 10,
+          LivestockPurpose.eggs => 10,
+        },
     };
     final int stageAdjustment = switch (stage) {
       AnimalGrowthStage.starter => -1,
@@ -53,15 +77,22 @@ class FeedCalculatorService {
     return (base + stageAdjustment + ageAdjustment).clamp(1, 120);
   }
 
-  /// Calculates daily feed per animal (kg) based on species, stage, age, and purpose.
+  /// Calculates daily feed per animal (kg) based on species, stage, age, and
+  /// purpose. When [actualWeightKg] is supplied (the group's recorded
+  /// average weight), the estimate is nudged up or down to reflect animals
+  /// that are heavier or lighter than typical for their stage, instead of
+  /// always returning the same flat number regardless of measured growth.
   static double feedPerAnimalKg(
     LivestockSpecies species,
     AnimalGrowthStage stage,
     int ageMonths,
-    LivestockPurpose purpose,
-  ) {
+    LivestockPurpose purpose, {
+    double? actualWeightKg,
+  }) {
     final double ageFactor = ageMonths < 4 ? 0.85 : ageMonths < 12 ? 1.0 : 1.15;
     final double purposeFactor = purpose == LivestockPurpose.breeding ? 1.05 : 1.0;
+    final double conditionFactor =
+        _conditionFactor(species, stage, actualWeightKg);
     final double base = switch (species) {
       LivestockSpecies.chicken => switch (stage) {
           AnimalGrowthStage.starter => 0.05,
@@ -98,17 +129,48 @@ class FeedCalculatorService {
           AnimalGrowthStage.breeding => 1.1,
           AnimalGrowthStage.finishing => 0.9,
         },
+      LivestockSpecies.rabbit => switch (stage) {
+          AnimalGrowthStage.starter => 0.05,
+          AnimalGrowthStage.grower => 0.09,
+          AnimalGrowthStage.mature => 0.13,
+          AnimalGrowthStage.breeding => 0.15,
+          AnimalGrowthStage.finishing => 0.12,
+        },
+      LivestockSpecies.duck => switch (stage) {
+          AnimalGrowthStage.starter => 0.06,
+          AnimalGrowthStage.grower => 0.12,
+          AnimalGrowthStage.mature => 0.16,
+          AnimalGrowthStage.breeding => 0.18,
+          AnimalGrowthStage.finishing => 0.14,
+        },
+      LivestockSpecies.fish => switch (stage) {
+          AnimalGrowthStage.starter => 0.01,
+          AnimalGrowthStage.grower => 0.03,
+          AnimalGrowthStage.mature => 0.05,
+          AnimalGrowthStage.breeding => 0.05,
+          AnimalGrowthStage.finishing => 0.04,
+        },
+      LivestockSpecies.snail => switch (stage) {
+          AnimalGrowthStage.starter => 0.01,
+          AnimalGrowthStage.grower => 0.02,
+          AnimalGrowthStage.mature => 0.03,
+          AnimalGrowthStage.breeding => 0.035,
+          AnimalGrowthStage.finishing => 0.03,
+        },
     };
-    return base * ageFactor * purposeFactor;
+    return base * ageFactor * purposeFactor * conditionFactor;
   }
 
-  /// Calculates daily water per animal (litres) based on species, stage, age, and purpose.
+  /// Calculates daily water per animal (litres) based on species, stage,
+  /// age, and purpose. [actualWeightKg] applies the same condition-based
+  /// nudge used in [feedPerAnimalKg] since heavier animals also drink more.
   static double waterPerAnimalLitres(
     LivestockSpecies species,
     AnimalGrowthStage stage,
     int ageMonths,
-    LivestockPurpose purpose,
-  ) {
+    LivestockPurpose purpose, {
+    double? actualWeightKg,
+  }) {
     final double ageFactor = ageMonths < 4 ? 0.9 : ageMonths < 12 ? 1.0 : 1.1;
     final double stageFactor = switch (stage) {
       AnimalGrowthStage.starter => 0.9,
@@ -118,14 +180,80 @@ class FeedCalculatorService {
       AnimalGrowthStage.finishing => 1.0,
     };
     final double purposeFactor = purpose == LivestockPurpose.milk ? 1.1 : 1.0;
+    final double conditionFactor =
+        _conditionFactor(species, stage, actualWeightKg);
     final double base = switch (species) {
       LivestockSpecies.chicken => 0.25,
       LivestockSpecies.goat => 4.0,
       LivestockSpecies.pig => 6.0,
       LivestockSpecies.cattle => 25.0,
       LivestockSpecies.sheep => 2.5,
+      LivestockSpecies.rabbit => 0.4,
+      LivestockSpecies.duck => 0.8,
+      LivestockSpecies.fish => 0.0,
+      LivestockSpecies.snail => 0.05,
     };
-    return base * ageFactor * stageFactor * purposeFactor;
+    return base * ageFactor * stageFactor * purposeFactor * conditionFactor;
+  }
+
+  /// Reference mature (adult) weight per species, used as the basis for
+  /// [_conditionFactor]'s expected-weight-at-stage calculation.
+  static double _matureWeightKg(LivestockSpecies species) {
+    switch (species) {
+      case LivestockSpecies.goat:
+        return 25;
+      case LivestockSpecies.chicken:
+        return 1.5;
+      case LivestockSpecies.pig:
+        return 50;
+      case LivestockSpecies.cattle:
+        return 200;
+      case LivestockSpecies.sheep:
+        return 30;
+      case LivestockSpecies.rabbit:
+        return 2.5;
+      case LivestockSpecies.duck:
+        return 3;
+      case LivestockSpecies.fish:
+        return 1;
+      case LivestockSpecies.snail:
+        return 0.15;
+    }
+  }
+
+  static double _stageWeightMultiplier(AnimalGrowthStage stage) {
+    switch (stage) {
+      case AnimalGrowthStage.starter:
+        return 0.3;
+      case AnimalGrowthStage.grower:
+        return 0.6;
+      case AnimalGrowthStage.mature:
+        return 0.9;
+      case AnimalGrowthStage.breeding:
+        return 1.0;
+      case AnimalGrowthStage.finishing:
+        return 1.1;
+    }
+  }
+
+  /// Compares a recorded average weight against the expected weight for
+  /// the species/stage and returns a multiplier (clamped to +/-30%) so
+  /// under- or over-weight groups get an adjusted ration instead of the
+  /// flat stage default.
+  static double _conditionFactor(
+    LivestockSpecies species,
+    AnimalGrowthStage stage,
+    double? actualWeightKg,
+  ) {
+    if (actualWeightKg == null || actualWeightKg <= 0) {
+      return 1.0;
+    }
+    final double expectedWeightKg =
+        _matureWeightKg(species) * _stageWeightMultiplier(stage);
+    if (expectedWeightKg <= 0) {
+      return 1.0;
+    }
+    return (actualWeightKg / expectedWeightKg).clamp(0.7, 1.3);
   }
 
   /// Returns a feeding advice string based on livestock parameters.
@@ -180,6 +308,14 @@ class FeedCalculatorService {
         return 'Cattle';
       case LivestockSpecies.sheep:
         return 'Sheep';
+      case LivestockSpecies.rabbit:
+        return 'Rabbits';
+      case LivestockSpecies.duck:
+        return 'Ducks';
+      case LivestockSpecies.fish:
+        return 'Fish';
+      case LivestockSpecies.snail:
+        return 'Snails';
     }
   }
 }

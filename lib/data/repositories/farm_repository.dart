@@ -20,6 +20,12 @@ abstract class FarmRepository {
   /// Get all farms.
   Future<List<Farm>> getAll();
 
+  /// Get all farms from the local cache only, without waiting on a network
+  /// round-trip. Used so the UI can show what's already on the device
+  /// instantly on startup, while [getAll] refreshes from the cloud in the
+  /// background.
+  Future<List<Farm>> getCachedOnly();
+
   /// Get farm by ID.
   Future<Farm?> getById(String id);
 

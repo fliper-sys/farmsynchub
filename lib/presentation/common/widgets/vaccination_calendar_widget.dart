@@ -313,6 +313,14 @@ class _VaccinationCalendarWidgetState
         return 'Cattle';
       case LivestockSpecies.sheep:
         return 'Sheep';
+      case LivestockSpecies.rabbit:
+        return 'Rabbits';
+      case LivestockSpecies.duck:
+        return 'Ducks';
+      case LivestockSpecies.fish:
+        return 'Fish';
+      case LivestockSpecies.snail:
+        return 'Snails';
     }
   }
 }

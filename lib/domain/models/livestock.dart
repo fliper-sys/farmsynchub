@@ -8,6 +8,10 @@ enum LivestockSpecies {
   pig,
   cattle,
   sheep,
+  rabbit,
+  duck,
+  fish,
+  snail,
 }
 
 /// Livestock purpose enumeration.

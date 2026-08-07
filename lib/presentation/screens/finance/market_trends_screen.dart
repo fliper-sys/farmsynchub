@@ -710,8 +710,19 @@ class _TrendSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color background = AppColors.chipBackgroundFor(
+      color,
+      isDark: isDark,
+      surface: theme.colorScheme.surfaceContainerHighest,
+    );
+    final Color foreground = AppColors.chipForegroundFor(
+      isDark: isDark,
+      onSurface: theme.colorScheme.onSurface,
+    );
     return AppCard(
-      color: color,
+      color: background,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -719,9 +730,12 @@ class _TrendSummaryCard extends StatelessWidget {
           children: <Widget>[
             Icon(icon, color: AppColors.primary),
             const SizedBox(height: 10),
-            Text(label, style: Theme.of(context).textTheme.bodySmall),
+            Text(label,
+                style: theme.textTheme.bodySmall?.copyWith(color: foreground)),
             const SizedBox(height: 4),
-            Text(value, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+            Text(value,
+                style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800, color: foreground)),
           ],
         ),
       ),

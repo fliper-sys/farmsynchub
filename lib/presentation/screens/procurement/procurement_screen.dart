@@ -722,7 +722,7 @@ class _AddOrderSheetState extends State<_AddOrderSheet> {
           bottom: MediaQuery.of(context).viewInsets.bottom + 18,
         ),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
+          color: Theme.of(context).colorScheme.surfaceContainerHigh,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         ),
         child: SingleChildScrollView(

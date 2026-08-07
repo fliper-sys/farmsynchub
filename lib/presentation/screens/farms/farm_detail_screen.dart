@@ -268,7 +268,13 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
       );
     }
 
-    ref.read(activeFarmProvider.notifier).setActiveFarm(farm.id);
+    // Riverpod forbids modifying a provider synchronously during build (it
+    // crashes with "Tried to modify a provider while the widget tree was
+    // building"), so defer this to right after the frame finishes.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(activeFarmProvider.notifier).setActiveFarm(farm!.id);
+    });
 
     if (!_canAccessFarm(
         farm, currentUser?.uid, currentUser?.email, profile?.accountRole)) {
@@ -4353,6 +4359,14 @@ String _speciesLabel(LivestockSpecies species) {
       return 'Cattle';
     case LivestockSpecies.sheep:
       return 'Sheep';
+    case LivestockSpecies.rabbit:
+      return 'Rabbits';
+    case LivestockSpecies.duck:
+      return 'Ducks';
+    case LivestockSpecies.fish:
+      return 'Fish';
+    case LivestockSpecies.snail:
+      return 'Snails';
   }
 }
 

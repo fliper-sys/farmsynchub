@@ -31,9 +31,11 @@ class _FeedingPlanWidgetState extends ConsumerState<FeedingPlanWidget> {
 
     final double feedPerAnimal = FeedCalculatorService.feedPerAnimalKg(
       l.species, l.growthStage, l.averageAgeMonths, l.purpose,
+      actualWeightKg: l.averageWeightKg,
     );
     final double waterPerAnimal = FeedCalculatorService.waterPerAnimalLitres(
       l.species, l.growthStage, l.averageAgeMonths, l.purpose,
+      actualWeightKg: l.averageWeightKg,
     );
     final double totalFeedKg = feedPerAnimal * l.count;
     final double totalWaterL = waterPerAnimal * l.count;

@@ -94,12 +94,28 @@ class FarmsNotifier extends StateNotifier<AsyncValue<List<Farm>>> {
 
   final FarmRepository _repository;
 
-  /// Loads all farms from the repository.
+  /// Loads all farms from the repository. Shows whatever is already cached
+  /// on the device immediately (so the app never sits on a loading spinner
+  /// just because the network round-trip is slow or offline), then
+  /// refreshes from the cloud in the background.
   Future<void> _loadFarms() async {
     if (!mounted) {
       return;
     }
-    state = const AsyncValue.loading();
+    try {
+      final List<Farm> cached = await _repository.getCachedOnly();
+      if (!mounted) {
+        return;
+      }
+      if (cached.isNotEmpty) {
+        state = AsyncValue.data(cached);
+      } else if (!state.hasValue) {
+        state = const AsyncValue.loading();
+      }
+    } catch (_) {
+      // Cache read failures aren't fatal - fall through to the full load.
+    }
+
     try {
       final farms = await _repository.getAll();
       if (!mounted) {
@@ -110,7 +126,9 @@ class FarmsNotifier extends StateNotifier<AsyncValue<List<Farm>>> {
       if (!mounted) {
         return;
       }
-      state = AsyncValue.error(error, stackTrace);
+      if (!state.hasValue) {
+        state = AsyncValue.error(error, stackTrace);
+      }
     }
   }
 

@@ -16,11 +16,16 @@ class TodoEditSheet extends StatefulWidget {
     required this.entityName,
     this.initialTask,
     this.onDelete,
+    this.initialDueDate,
   });
 
   final String entityName;
   final FarmTodoItem? initialTask;
   final VoidCallback? onDelete;
+
+  /// Seeds the due date for a new reminder (ignored when [initialTask] is
+  /// set). Used when creating a task for a specific day from the calendar.
+  final DateTime? initialDueDate;
 
   @override
   State<TodoEditSheet> createState() => _TodoEditSheetState();
@@ -43,7 +48,9 @@ class _TodoEditSheetState extends State<TodoEditSheet> {
     _titleController = TextEditingController(
         text: task?.title ?? 'Check ${widget.entityName}');
     _notesController = TextEditingController(text: task?.notes ?? '');
-    _dueDate = task?.dueDate ?? DateTime.now().add(const Duration(days: 1));
+    _dueDate = task?.dueDate ??
+        widget.initialDueDate ??
+        DateTime.now().add(const Duration(days: 1));
     _priority = task?.priority ?? FarmTodoPriority.normal;
     _dailyReminder = task?.dailyReminder ?? false;
     _pushEnabled = task?.pushNotificationEnabled ?? true;

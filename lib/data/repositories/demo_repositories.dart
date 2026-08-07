@@ -214,6 +214,9 @@ class DemoFarmRepository implements FarmRepository {
   Future<List<Farm>> getAll() async => List<Farm>.unmodifiable(_items);
 
   @override
+  Future<List<Farm>> getCachedOnly() async => getAll();
+
+  @override
   Future<Farm?> getById(String id) async {
     for (final Farm farm in _items) {
       if (farm.id == id) {
@@ -306,6 +309,9 @@ class DemoCropRepository implements CropRepository {
 
   @override
   Future<List<Crop>> getAll() async => List<Crop>.unmodifiable(_items);
+
+  @override
+  Future<List<Crop>> getCachedOnly() async => getAll();
 
   @override
   Future<Crop?> getById(String id) async {
@@ -413,6 +419,9 @@ class DemoLivestockRepository implements LivestockRepository {
   Future<List<Livestock>> getAll() async => List<Livestock>.unmodifiable(_items);
 
   @override
+  Future<List<Livestock>> getCachedOnly() async => getAll();
+
+  @override
   Future<Livestock?> getById(String id) async {
     for (final Livestock item in _items) {
       if (item.id == id) {
@@ -502,6 +511,9 @@ class DemoFinanceRepository implements FinanceRepository {
 
   @override
   Future<List<Transaction>> getAll() async => List<Transaction>.unmodifiable(_items);
+
+  @override
+  Future<List<Transaction>> getCachedOnly() async => getAll();
 
   @override
   Future<Transaction?> getById(String id) async {

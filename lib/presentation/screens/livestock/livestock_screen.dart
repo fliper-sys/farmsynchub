@@ -1209,6 +1209,14 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
         'Cattle need more water and a slower maturity plan than small stock.',
       LivestockSpecies.sheep =>
         'Sheep do best with regular grazing, shelter, and parasite checks.',
+      LivestockSpecies.rabbit =>
+        'Rabbits need dry, well-ventilated hutches and steady pelleted feed.',
+      LivestockSpecies.duck =>
+        'Ducks need reliable access to water for feeding and cleaning, not just drinking.',
+      LivestockSpecies.fish =>
+        'Fish need stable water quality checks alongside a steady feeding schedule.',
+      LivestockSpecies.snail =>
+        'Snails need humid, shaded housing and steady leafy or fruit feed.',
     };
 
     return _LivestockPlanningSummary(
@@ -1279,6 +1287,30 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
           LivestockPurpose.breeding => 18,
           LivestockPurpose.eggs => 12,
         },
+      LivestockSpecies.rabbit => switch (purpose) {
+          LivestockPurpose.meat => 5,
+          LivestockPurpose.breeding => 7,
+          LivestockPurpose.milk => 5,
+          LivestockPurpose.eggs => 5,
+        },
+      LivestockSpecies.duck => switch (purpose) {
+          LivestockPurpose.eggs => 5,
+          LivestockPurpose.meat => 3,
+          LivestockPurpose.breeding => 6,
+          LivestockPurpose.milk => 3,
+        },
+      LivestockSpecies.fish => switch (purpose) {
+          LivestockPurpose.meat => 6,
+          LivestockPurpose.breeding => 8,
+          LivestockPurpose.milk => 6,
+          LivestockPurpose.eggs => 6,
+        },
+      LivestockSpecies.snail => switch (purpose) {
+          LivestockPurpose.meat => 10,
+          LivestockPurpose.breeding => 12,
+          LivestockPurpose.milk => 10,
+          LivestockPurpose.eggs => 10,
+        },
     };
     final int stageAdjustment = switch (stage) {
       AnimalGrowthStage.starter => -1,
@@ -1340,6 +1372,34 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
           AnimalGrowthStage.breeding => 1.1,
           AnimalGrowthStage.finishing => 0.9,
         },
+      LivestockSpecies.rabbit => switch (stage) {
+          AnimalGrowthStage.starter => 0.05,
+          AnimalGrowthStage.grower => 0.09,
+          AnimalGrowthStage.mature => 0.13,
+          AnimalGrowthStage.breeding => 0.15,
+          AnimalGrowthStage.finishing => 0.12,
+        },
+      LivestockSpecies.duck => switch (stage) {
+          AnimalGrowthStage.starter => 0.06,
+          AnimalGrowthStage.grower => 0.12,
+          AnimalGrowthStage.mature => 0.16,
+          AnimalGrowthStage.breeding => 0.18,
+          AnimalGrowthStage.finishing => 0.14,
+        },
+      LivestockSpecies.fish => switch (stage) {
+          AnimalGrowthStage.starter => 0.01,
+          AnimalGrowthStage.grower => 0.03,
+          AnimalGrowthStage.mature => 0.05,
+          AnimalGrowthStage.breeding => 0.05,
+          AnimalGrowthStage.finishing => 0.04,
+        },
+      LivestockSpecies.snail => switch (stage) {
+          AnimalGrowthStage.starter => 0.01,
+          AnimalGrowthStage.grower => 0.02,
+          AnimalGrowthStage.mature => 0.03,
+          AnimalGrowthStage.breeding => 0.035,
+          AnimalGrowthStage.finishing => 0.03,
+        },
     };
     return base * ageFactor * purposeFactor;
   }
@@ -1369,6 +1429,10 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
       LivestockSpecies.pig => 6.0,
       LivestockSpecies.cattle => 25.0,
       LivestockSpecies.sheep => 2.5,
+      LivestockSpecies.rabbit => 0.4,
+      LivestockSpecies.duck => 0.8,
+      LivestockSpecies.fish => 0.0,
+      LivestockSpecies.snail => 0.05,
     };
     return base * ageFactor * stageFactor * purposeFactor;
   }
@@ -2987,6 +3051,14 @@ String _labelForSpecies(LivestockSpecies species) {
       return 'Cattle';
     case LivestockSpecies.sheep:
       return 'Sheep';
+    case LivestockSpecies.rabbit:
+      return 'Rabbits';
+    case LivestockSpecies.duck:
+      return 'Ducks';
+    case LivestockSpecies.fish:
+      return 'Fish';
+    case LivestockSpecies.snail:
+      return 'Snails';
   }
 }
 
@@ -3002,6 +3074,14 @@ String _emojiForSpecies(LivestockSpecies species) {
       return '🐄';
     case LivestockSpecies.sheep:
       return '🐑';
+    case LivestockSpecies.rabbit:
+      return '🐰';
+    case LivestockSpecies.duck:
+      return '🦆';
+    case LivestockSpecies.fish:
+      return '🐟';
+    case LivestockSpecies.snail:
+      return '🐌';
   }
 }
 

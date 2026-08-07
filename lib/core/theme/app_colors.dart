@@ -39,16 +39,26 @@ abstract final class AppColors {
   static const Color darkBorder = Color(0x17EDEFEC);
 
   /// Deep botanical green used as the primary brand color.
-  static const Color primary = Color(0xFF32D583);
+  static const Color primary = premiumGreen;
 
   /// Medium green used for active states and FABs.
-  static const Color primaryMid = Color(0xFF22C55E);
+  static const Color primaryMid = secondaryGreen;
 
   /// Bright green used for progress and highlight states.
-  static const Color primaryLight = Color(0xFF32D583);
+  static const Color primaryLight = premiumGreen;
 
-  /// Warm cream surface for light mode containers.
-  static const Color surfaceLight = Color(0xFFFFFBF2);
+  // Light-mode elevation ladder: a soft "milk cream" family (gentle,
+  // slightly warm off-white rather than a tan/beige aged-paper cream) kept
+  // consistent end to end (background AND cards) instead of a cream
+  // background with cards that jump to pure white.
+  /// Level 0 — app scaffold background.
+  static const Color surfaceLight = Color.fromARGB(255, 241, 236, 224);
+
+  /// Level 1 — cards, chips, input fields.
+  static const Color surfaceLightCard = Color.fromARGB(255, 240, 232, 220);
+
+  /// Level 2 — bottom sheets, dialogs, bottom navigation, popovers.
+  static const Color surfaceLightElevated = Color(0xFFFFF4E4);
 
   /// Soft green-tinted surface for highlighted cards.
   static const Color surfaceSoft = Color(0xFFF2FAEE);

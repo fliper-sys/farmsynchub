@@ -14,6 +14,7 @@ import '../../common/widgets/app_text_field.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
 import 'lesson_certificate_screen.dart';
+import 'video_player_screen.dart';
 
 class LearnScreen extends ConsumerStatefulWidget {
   const LearnScreen({super.key});
@@ -476,11 +477,8 @@ class LearnLessonDetailScreen extends ConsumerWidget {
                     _VideoThumbnailPreview(
                       videoId: lesson.youtubeVideoId!,
                       tint: lesson.tint,
-                      onTap: () async {
-                        await _launchExternalUrl(
-                          'https://www.youtube.com/watch?v=${lesson.youtubeVideoId}',
-                        );
-                      },
+                      onTap: () => _playVideo(
+                          context, lesson.youtubeVideoId!, lesson.title),
                     ),
                     const SizedBox(height: 10),
                     Text(
@@ -493,20 +491,26 @@ class LearnLessonDetailScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 12),
                     AppButton.primary(
-                      onPressed: () async {
-                        await _launchExternalUrl(
-                          'https://www.youtube.com/watch?v=${lesson.youtubeVideoId}',
-                        );
-                      },
+                      onPressed: () => _playVideo(
+                          context, lesson.youtubeVideoId!, lesson.title),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: <Widget>[
-                          const Icon(Icons.ondemand_video_rounded, size: 18),
+                          Icon(
+                              VideoPlayerScreen.isSupported
+                                  ? Icons.play_circle_fill_rounded
+                                  : Icons.ondemand_video_rounded,
+                              size: 18),
                           const SizedBox(width: 8),
-                          Text(language.tr(
-                              en: 'Open in YouTube',
-                              ha: 'Bude a YouTube',
-                              fr: 'Ouvrir dans YouTube')),
+                          Text(VideoPlayerScreen.isSupported
+                              ? language.tr(
+                                  en: 'Play video',
+                                  ha: 'Kunna Bidiyo',
+                                  fr: 'Lire la video')
+                              : language.tr(
+                                  en: 'Open in YouTube',
+                                  ha: 'Bude a YouTube',
+                                  fr: 'Ouvrir dans YouTube')),
                         ],
                       ),
                     ),
@@ -1371,8 +1375,10 @@ class _ToolRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
     return AppCard(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      color: theme.colorScheme.surfaceContainerHighest,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(
@@ -1381,10 +1387,14 @@ class _ToolRow extends StatelessWidget {
               width: 38,
               height: 38,
               decoration: BoxDecoration(
-                color: tint,
+                color: AppColors.chipBackgroundFor(tint,
+                    isDark: isDark, surface: theme.colorScheme.surfaceContainerHighest),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Icon(Icons.build_circle_outlined, size: 20),
+              child: Icon(Icons.build_circle_outlined,
+                  size: 20,
+                  color: AppColors.chipForegroundFor(
+                      isDark: isDark, onSurface: theme.colorScheme.onSurface)),
             ),
             const SizedBox(width: 12),
             Expanded(child: Text(text)),
@@ -1530,14 +1540,23 @@ class _QuizQuestionCardState extends ConsumerState<_QuizQuestionCard> {
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: widget.tint,
+                    color: AppColors.chipBackgroundFor(
+                      widget.tint,
+                      isDark: theme.brightness == Brightness.dark,
+                      surface: theme.colorScheme.surfaceContainerHighest,
+                    ),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Center(
                     child: Text(
                       '${widget.index}',
-                      style: theme.textTheme.labelLarge
-                          ?.copyWith(fontWeight: FontWeight.w800),
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.chipForegroundFor(
+                          isDark: theme.brightness == Brightness.dark,
+                          onSurface: theme.colorScheme.onSurface,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -1770,6 +1789,19 @@ class _ChecklistTile extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _playVideo(
+    BuildContext context, String videoId, String title) async {
+  if (VideoPlayerScreen.isSupported) {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => VideoPlayerScreen(videoId: videoId, title: title),
+      ),
+    );
+    return;
+  }
+  await _launchExternalUrl('https://www.youtube.com/watch?v=$videoId');
 }
 
 Future<void> _launchExternalUrl(String url) async {

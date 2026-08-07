@@ -74,6 +74,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     final SyncOverview sync = ref.watch(syncOverviewProvider);
     final String? activeFarmId = ref.watch(activeFarmProvider);
 
+    // "Active focus" is meant to reflect whatever farm the user is actually
+    // working on. An explicit selection (from opening a farm's own detail
+    // screen) wins if present, but most people manage things through the
+    // Crops/Livestock/Finance tabs and never trigger that - so without a
+    // data-driven fallback this always showed the same farm (whichever
+    // sorts first) no matter what the user was actually doing. Falling back
+    // to the farm with the most recently updated record (the farm itself,
+    // or any of its crops/livestock/transactions) makes this track real
+    // activity instead of list order.
     Farm? activeFarm;
     for (final Farm farm in farms) {
       if (farm.id == activeFarmId) {
@@ -81,7 +90,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         break;
       }
     }
-    activeFarm ??= farms.isNotEmpty ? farms.first : null;
+    activeFarm ??= _mostRecentlyActiveFarm(
+      farms: farms,
+      crops: crops,
+      livestock: livestock,
+      transactions: transactions,
+    );
 
     final int animals =
         livestock.fold<int>(0, (int sum, Livestock item) => sum + item.count);
@@ -97,8 +111,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         : profile?.fullName.trim().isNotEmpty == true
             ? profile!.fullName.trim()
             : 'Love Bari';
-    final String activeFocus =
-        activeFarm?.name ?? (crops.isNotEmpty ? crops.first.name : 'Jane');
+    final String activeFocus = activeFarm?.name ??
+        (crops.isNotEmpty ? crops.first.name : 'Add your first farm');
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -107,6 +121,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         foregroundColor: theme.colorScheme.onSurface,
         title: Text(language.tr(en: 'Home', ha: 'Gida', fr: 'Accueil')),
         actions: <Widget>[
+          _SyncHeaderIcon(
+            pendingCount: sync.pendingCount,
+            hasConnection: sync.hasConnection,
+            isSyncing: sync.isSyncing,
+            onTap: sync.hasConnection && !sync.isSyncing
+                ? () => ref.read(syncOverviewProvider.notifier).runSync()
+                : null,
+          ),
           _HeaderIcon(
               icon: Icons.school_outlined, onTap: () => context.go('/learn')),
           _HeaderIcon(
@@ -117,7 +139,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           _HeaderIcon(
               icon: Icons.auto_awesome_rounded,
               onTap: () => context.go('/ai-advisor')),
-          const SizedBox(width: 10),
+          const SizedBox(width: 6),
         ],
       ),
       body: DecoratedBox(
@@ -153,37 +175,27 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(18, 10, 18, 112),
                   children: <Widget>[
-                    _SyncRow(
-                      pendingCount: sync.pendingCount,
-                      hasConnection: sync.hasConnection,
-                      onSyncTap: sync.hasConnection && !sync.isSyncing
-                          ? () =>
-                              ref.read(syncOverviewProvider.notifier).runSync()
-                          : null,
+                    _HeroSummaryCard(
+                      greeting: _greeting(),
+                      userName: userName,
+                      activeFocus: activeFocus,
+                      onMeasurements: () => context.go('/farms'),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 14),
                     _TodayTasksCard(
                       farm: activeFarm,
                       tasks: activeFarm?.workspaceTasks ??
                           const <FarmWorkspaceTask>[],
                       onViewAll: () => context.go('/farm-tasks'),
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 14),
                     _HarvestReadinessCard(
                       items: HarvestReadinessService.all(
                           crops: crops, livestock: livestock),
                     ),
-                    const SizedBox(height: 18),
-                    _HeroSummaryCard(
-                      greeting: _greeting(),
-                      userName: userName,
-                      activeFocus: activeFocus,
-                      pendingSync: sync.pendingCount,
-                      onMeasurements: () => context.go('/farms'),
-                    ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 14),
                     const WeatherPill(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 14),
                     Row(
                       children: <Widget>[
                         Expanded(
@@ -218,7 +230,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                         ),
                       ],
                     ),
-                    const SizedBox(height: 26),
+                    const SizedBox(height: 18),
                     _SectionTitle(
                         title: language.tr(
                             en: 'Management center',
@@ -241,10 +253,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                             'Live readings', '/farms'),
                       ],
                     ),
-                    const SizedBox(height: 26),
+                    const SizedBox(height: 18),
                     if (profile?.isComplete != true) ...<Widget>[
                       _SetupCard(onTap: () => context.go('/account-setup')),
-                      const SizedBox(height: 22),
+                      const SizedBox(height: 16),
                     ],
                     _SectionTitle(
                         title: language.tr(
@@ -269,6 +281,51 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     if (hour < 17) return 'Good afternoon';
     return 'Good evening';
   }
+}
+
+/// The farm with the most recently updated record - itself, or any of its
+/// crops, livestock groups, or transactions - used as the dashboard's
+/// "active focus" when the user hasn't explicitly opened a farm's own
+/// detail screen this session.
+Farm? _mostRecentlyActiveFarm({
+  required List<Farm> farms,
+  required List<Crop> crops,
+  required List<Livestock> livestock,
+  required List<Transaction> transactions,
+}) {
+  if (farms.isEmpty) return null;
+
+  final Map<String, DateTime> lastActivityByFarmId = <String, DateTime>{
+    for (final Farm farm in farms) farm.id: farm.updatedAt,
+  };
+
+  void bump(String farmId, DateTime updatedAt) {
+    final DateTime? current = lastActivityByFarmId[farmId];
+    if (current == null || updatedAt.isAfter(current)) {
+      lastActivityByFarmId[farmId] = updatedAt;
+    }
+  }
+
+  for (final Crop crop in crops) {
+    bump(crop.farmId, crop.updatedAt);
+  }
+  for (final Livestock item in livestock) {
+    bump(item.farmId, item.updatedAt);
+  }
+  for (final Transaction transaction in transactions) {
+    bump(transaction.farmId, transaction.updatedAt);
+  }
+
+  Farm mostRecent = farms.first;
+  DateTime mostRecentAt = lastActivityByFarmId[mostRecent.id] ?? mostRecent.updatedAt;
+  for (final Farm farm in farms) {
+    final DateTime candidateAt = lastActivityByFarmId[farm.id] ?? farm.updatedAt;
+    if (candidateAt.isAfter(mostRecentAt)) {
+      mostRecent = farm;
+      mostRecentAt = candidateAt;
+    }
+  }
+  return mostRecent;
 }
 
 class _TodayTasksCard extends StatelessWidget {
@@ -506,69 +563,70 @@ class _HarvestReadinessCard extends StatelessWidget {
   }
 }
 
-class _SyncRow extends StatelessWidget {
-  const _SyncRow({
+/// A compact sync status indicator for the app bar - a status dot on the
+/// existing outline-icon button style, instead of a separate full-width
+/// pill row duplicating what the hero card used to also show.
+class _SyncHeaderIcon extends StatelessWidget {
+  const _SyncHeaderIcon({
     required this.pendingCount,
     required this.hasConnection,
-    required this.onSyncTap,
+    required this.isSyncing,
+    required this.onTap,
   });
 
   final int pendingCount;
   final bool hasConnection;
-  final VoidCallback? onSyncTap;
+  final bool isSyncing;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final String label = !hasConnection
-        ? 'Offline'
+        ? 'Offline - changes will sync when back online'
+        : isSyncing
+            ? 'Syncing...'
+            : pendingCount == 0
+                ? 'Everything synced'
+                : '$pendingCount updates pending - tap to sync';
+    final Color dotColor = !hasConnection
+        ? theme.colorScheme.onSurfaceVariant
         : pendingCount == 0
-            ? 'Synchronise'
-            : '$pendingCount pending';
-    return Align(
-      alignment: Alignment.centerRight,
-      child: GestureDetector(
-        onTap: onSyncTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(999),
-            border:
-                Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+            ? AppColors.premiumGreen
+            : AppColors.premiumWarning;
+
+    return Tooltip(
+      message: label,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: <Widget>[
+          IconButton(
+            onPressed: onTap,
+            icon: isSyncing
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: theme.colorScheme.onSurface),
+                  )
+                : Icon(Icons.sync_rounded, color: theme.colorScheme.onSurface),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Container(
-                width: 9,
-                height: 9,
+          if (!isSyncing)
+            Positioned(
+              right: 8,
+              top: 8,
+              child: Container(
+                width: 8,
+                height: 8,
                 decoration: BoxDecoration(
-                  color: hasConnection
-                      ? AppColors.premiumGreen
-                      : theme.colorScheme.onSurfaceVariant,
+                  color: dotColor,
                   shape: BoxShape.circle,
-                  boxShadow: hasConnection
-                      ? <BoxShadow>[
-                          BoxShadow(
-                              color: AppColors.premiumGreen.withOpacity(0.55),
-                              blurRadius: 12),
-                        ]
-                      : null,
+                  border: Border.all(
+                      color: theme.scaffoldBackgroundColor, width: 1.5),
                 ),
               ),
-              const SizedBox(width: 10),
-              Text(label,
-                  style: Theme.of(context)
-                      .textTheme
-                      .labelLarge
-                      ?.copyWith(color: AppColors.premiumGreen)),
-              const SizedBox(width: 8),
-              const Icon(Icons.chevron_right_rounded,
-                  color: AppColors.premiumGreen, size: 19),
-            ],
-          ),
-        ),
+            ),
+        ],
       ),
     );
   }
@@ -579,14 +637,12 @@ class _HeroSummaryCard extends StatefulWidget {
     required this.greeting,
     required this.userName,
     required this.activeFocus,
-    required this.pendingSync,
     required this.onMeasurements,
   });
 
   final String greeting;
   final String userName;
   final String activeFocus;
-  final int pendingSync;
   final VoidCallback onMeasurements;
 
   @override
@@ -615,7 +671,7 @@ class _HeroSummaryCardState extends State<_HeroSummaryCard>
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     return _PremiumPanel(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
       child: Stack(
         children: <Widget>[
           Positioned.fill(
@@ -625,146 +681,73 @@ class _HeroSummaryCardState extends State<_HeroSummaryCard>
                   CustomPaint(painter: _LeafPatternPainter(_leaf.value)),
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(widget.greeting,
-                            style: theme.textTheme.titleMedium
-                                ?.copyWith(color: AppColors.premiumGreen)),
-                        const SizedBox(height: 8),
-                        Text(
-                          widget.userName,
-                          style: theme.textTheme.headlineMedium?.copyWith(
-                            color: theme.colorScheme.onSurface,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 36,
-                            letterSpacing: 0,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text.rich(
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text.rich(
+                      TextSpan(
+                        text: '${widget.greeting}, ',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600),
+                        children: <InlineSpan>[
                           TextSpan(
-                            text: 'Active focus: ',
-                            children: <InlineSpan>[
-                              TextSpan(
-                                text: widget.activeFocus,
-                                style: const TextStyle(
-                                    color: AppColors.premiumGreen,
-                                    fontWeight: FontWeight.w800),
-                              ),
-                            ],
+                            text: widget.userName,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                                color: theme.colorScheme.onSurface,
+                                fontWeight: FontWeight.w900),
                           ),
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant),
-                        ),
-                      ],
+                        ],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
+                    const SizedBox(height: 6),
+                    Text.rich(
+                      TextSpan(
+                        text: 'Active focus: ',
+                        children: <InlineSpan>[
+                          TextSpan(
+                            text: widget.activeFocus,
+                            style: const TextStyle(
+                                color: AppColors.premiumGreen,
+                                fontWeight: FontWeight.w800),
+                          ),
+                        ],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              InkWell(
+                onTap: widget.onMeasurements,
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface
+                        .withOpacity(theme.brightness == Brightness.dark ? 0.5 : 0.7),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
                   ),
-                  _ThemeToggleButton(),
-                ],
+                  child: const Icon(Icons.monitor_heart_rounded,
+                      color: AppColors.premiumGreen, size: 22),
+                ),
               ),
-              const SizedBox(height: 26),
-              LayoutBuilder(
-                builder: (BuildContext context, BoxConstraints constraints) {
-                  final bool stack = constraints.maxWidth < 520;
-                  final List<Widget> chips = <Widget>[
-                    Expanded(
-                      child: _HeroChip(
-                        icon: Icons.check_circle_rounded,
-                        title: widget.pendingSync == 0
-                            ? 'Everything synced'
-                            : '${widget.pendingSync} updates pending',
-                        subtitle: widget.pendingSync == 0
-                            ? 'All data is up to date'
-                            : 'Tap sync when online',
-                      ),
-                    ),
-                    SizedBox(width: stack ? 0 : 14, height: stack ? 12 : 0),
-                    Expanded(
-                      child: _HeroChip(
-                        icon: Icons.monitor_heart_rounded,
-                        title: 'Live measurements',
-                        subtitle: 'Real-time farm data',
-                        onTap: widget.onMeasurements,
-                      ),
-                    ),
-                  ];
-                  return stack
-                      ? Column(
-                          children: chips
-                              .map((Widget item) =>
-                                  item is Expanded ? item.child : item)
-                              .toList())
-                      : Row(children: chips);
-                },
-              ),
+              const SizedBox(width: 8),
+              const _ThemeToggleButton(),
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _HeroChip extends StatelessWidget {
-  const _HeroChip({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest
-              .withOpacity(theme.brightness == Brightness.dark ? 0.82 : 0.96),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: theme.colorScheme.outlineVariant),
-        ),
-        child: Row(
-          children: <Widget>[
-            Icon(icon, color: AppColors.premiumGreen, size: 26),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(title,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                          color: theme.colorScheme.onSurface,
-                          fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 3),
-                  Text(subtitle,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant)),
-                ],
-              ),
-            ),
-            if (onTap != null)
-              Icon(Icons.chevron_right_rounded,
-                  color: theme.colorScheme.onSurfaceVariant),
-          ],
-        ),
       ),
     );
   }
@@ -807,19 +790,19 @@ class _MetricCardState extends State<_MetricCard> {
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
         child: _PremiumPanel(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Row(
                 children: <Widget>[
-                  _GlowIcon(icon: widget.icon, size: 40),
+                  _GlowIcon(icon: widget.icon, size: 32),
                   const Spacer(),
                   Icon(Icons.chevron_right_rounded,
-                      color: theme.colorScheme.onSurfaceVariant),
+                      size: 18, color: theme.colorScheme.onSurfaceVariant),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
@@ -866,9 +849,9 @@ class _ManagementGrid extends StatelessWidget {
           itemCount: actions.length,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columns,
-            crossAxisSpacing: 14,
-            mainAxisSpacing: 14,
-            childAspectRatio: columns == 3 ? 2.45 : 2.15,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: columns == 3 ? 2.7 : 2.5,
           ),
           itemBuilder: (BuildContext context, int index) {
             return _ManagementTile(action: actions[index]);
@@ -898,10 +881,10 @@ class _ManagementTile extends StatelessWidget {
     return GestureDetector(
       onTap: () => context.go(action.route),
       child: _PremiumPanel(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           children: <Widget>[
-            _GlowIcon(icon: action.icon, size: 40),
+            _GlowIcon(icon: action.icon, size: 32),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -1059,23 +1042,18 @@ class _ThemeToggleButton extends ConsumerWidget {
 
     return InkWell(
       onTap: () => ref.read(themeProvider.notifier).toggleTheme(),
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        width: 78,
-        height: 78,
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(24),
+          color: theme.colorScheme.surface
+              .withOpacity(theme.brightness == Brightness.dark ? 0.5 : 0.7),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: theme.colorScheme.outlineVariant),
-          boxShadow: <BoxShadow>[
-            BoxShadow(
-                color: AppColors.premiumGreen.withOpacity(0.10),
-                blurRadius: 22),
-          ],
         ),
         child: Tooltip(
           message: label,
-          child: Icon(icon, color: theme.colorScheme.onSurface, size: 34),
+          child: Icon(icon, color: theme.colorScheme.onSurface, size: 22),
         ),
       ),
     );

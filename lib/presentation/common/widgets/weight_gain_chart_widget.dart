@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../../domain/models/livestock.dart';
@@ -66,8 +68,10 @@ class WeightGainChartWidget extends StatelessWidget {
             padding: const EdgeInsets.only(top: 20, right: 12, bottom: 4),
             child: _WeightChart(
               logs: logs,
-              stageTargets: stageTargets,
               maxWeight: _calculateMaxWeight(logs, stageTargets),
+              matureWeightKg: _defaultBaseWeight(),
+              maturityDays: _maturityDays(),
+              referenceDate: logs.isNotEmpty ? logs.first.recordedAt : livestock.createdAt,
               theme: theme,
             ),
           ),
@@ -81,12 +85,7 @@ class WeightGainChartWidget extends StatelessWidget {
               const SizedBox(width: 16),
               _LegendDot(
                 color: Colors.orange,
-                label: 'Stage target',
-              ),
-              const SizedBox(width: 16),
-              _LegendDot(
-                color: theme.colorScheme.outlineVariant,
-                label: 'Growth stages',
+                label: 'Expected growth',
               ),
             ],
           ),
@@ -193,26 +192,12 @@ class WeightGainChartWidget extends StatelessWidget {
       final double multiplier = _stageWeightMultiplier(stage);
       final double targetWeight = baseWeight * multiplier;
 
-      // Find the closest production log weight recorded around this stage
-      double actualWeight = 0;
-      if (livestock.growthStage == stage) {
-        actualWeight = livestock.averageWeightKg;
-      } else if (livestock.productionLogs.isNotEmpty) {
-        // Use the most recent weight as reference for past stages
-        final List<LivestockProductionRecord> sortedLogs =
-            livestock.productionLogs
-                .where((LivestockProductionRecord r) => r.weightKg > 0)
-                .toList(growable: false)
-              ..sort((LivestockProductionRecord a, LivestockProductionRecord b) =>
-                  a.recordedAt.compareTo(b.recordedAt));
-
-        if (sortedLogs.isNotEmpty) {
-          // If it's a past stage or early stage, use first available weight
-          if (i <= AnimalGrowthStage.values.indexOf(livestock.growthStage)) {
-            actualWeight = sortedLogs.last.weightKg;
-          }
-        }
-      }
+      // Only the animal's current stage has a real "actual" reading — past
+      // stages don't have their own logged weight, so showing the latest
+      // reading against every earlier stage would overstate how much was
+      // achieved at that point in time.
+      final double actualWeight =
+          livestock.growthStage == stage ? livestock.averageWeightKg : 0;
 
       targets.add(_GrowthStageTarget(
         stage: stage,
@@ -252,6 +237,40 @@ class WeightGainChartWidget extends StatelessWidget {
         return 200;
       case LivestockSpecies.sheep:
         return 30;
+      case LivestockSpecies.rabbit:
+        return 2.5;
+      case LivestockSpecies.duck:
+        return 3;
+      case LivestockSpecies.fish:
+        return 1;
+      case LivestockSpecies.snail:
+        return 0.15;
+    }
+  }
+
+  /// Typical days to reach mature weight, used to shape the expected
+  /// growth curve. Independent of purpose (unlike [FeedCalculatorService]'s
+  /// maturity estimate) since the chart shows one reference curve per animal.
+  int _maturityDays() {
+    switch (livestock.species) {
+      case LivestockSpecies.goat:
+        return 540;
+      case LivestockSpecies.chicken:
+        return 150;
+      case LivestockSpecies.pig:
+        return 210;
+      case LivestockSpecies.cattle:
+        return 730;
+      case LivestockSpecies.sheep:
+        return 365;
+      case LivestockSpecies.rabbit:
+        return 150;
+      case LivestockSpecies.duck:
+        return 150;
+      case LivestockSpecies.fish:
+        return 180;
+      case LivestockSpecies.snail:
+        return 300;
     }
   }
 
@@ -267,6 +286,7 @@ class WeightGainChartWidget extends StatelessWidget {
       if (target.targetWeightKg > max) max = target.targetWeightKg;
     }
     if (livestock.averageWeightKg > max) max = livestock.averageWeightKg;
+    if (_defaultBaseWeight() > max) max = _defaultBaseWeight();
     return max > 0 ? max * 1.15 : 10; // Add 15% headroom
   }
 
@@ -303,14 +323,18 @@ class _GrowthStageTarget {
 class _WeightChart extends StatelessWidget {
   const _WeightChart({
     required this.logs,
-    required this.stageTargets,
     required this.maxWeight,
+    required this.matureWeightKg,
+    required this.maturityDays,
+    required this.referenceDate,
     required this.theme,
   });
 
   final List<LivestockProductionRecord> logs;
-  final List<_GrowthStageTarget> stageTargets;
   final double maxWeight;
+  final double matureWeightKg;
+  final int maturityDays;
+  final DateTime referenceDate;
   final ThemeData theme;
 
   @override
@@ -324,11 +348,12 @@ class _WeightChart extends StatelessWidget {
           size: Size(chartWidth, chartHeight),
           painter: _WeightChartPainter(
             logs: logs,
-            stageTargets: stageTargets,
             maxWeight: maxWeight,
+            matureWeightKg: matureWeightKg,
+            maturityDays: maturityDays,
+            referenceDate: referenceDate,
             chartColor: theme.colorScheme.primary,
             gridColor: theme.colorScheme.outlineVariant.withOpacity(0.3),
-            stageColor: theme.colorScheme.outlineVariant,
             targetColor: Colors.orange,
             achievedColor: Colors.green,
           ),
@@ -341,23 +366,34 @@ class _WeightChart extends StatelessWidget {
 class _WeightChartPainter extends CustomPainter {
   _WeightChartPainter({
     required this.logs,
-    required this.stageTargets,
     required this.maxWeight,
+    required this.matureWeightKg,
+    required this.maturityDays,
+    required this.referenceDate,
     required this.chartColor,
     required this.gridColor,
-    required this.stageColor,
     required this.targetColor,
     required this.achievedColor,
   });
 
   final List<LivestockProductionRecord> logs;
-  final List<_GrowthStageTarget> stageTargets;
   final double maxWeight;
+  final double matureWeightKg;
+  final int maturityDays;
+  final DateTime referenceDate;
   final Color chartColor;
   final Color gridColor;
-  final Color stageColor;
   final Color targetColor;
   final Color achievedColor;
+
+  /// Expected weight at [day] days of age, modelled as an exponential
+  /// approach to the species' mature weight (reaches ~95% of mature
+  /// weight at [maturityDays]).
+  double _expectedWeightAtDay(int day) {
+    if (maturityDays <= 0) return matureWeightKg;
+    final double t = day / maturityDays;
+    return matureWeightKg * (1 - math.exp(-3 * t));
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -401,65 +437,45 @@ class _WeightChartPainter extends CustomPainter {
       );
     }
 
-    // Draw stage background zones
-    if (stageTargets.isNotEmpty) {
-      final double stageWidth = chartWidth / stageTargets.length;
-      for (int i = 0; i < stageTargets.length; i++) {
-        final double x = paddingLeft + stageWidth * i;
-        final Paint stagePaint = Paint()
-          ..color = stageColor.withOpacity(0.08);
-        canvas.drawRect(
-          Rect.fromLTWH(x, paddingTop, stageWidth, chartHeight),
-          stagePaint,
-        );
+    // Shared time axis: runs from the reference date (first log, or the
+    // animal's record date if no logs yet) out to whichever is further —
+    // the last recorded weight or the species' typical maturity age — so
+    // the expected-growth curve and the actual readings line up correctly.
+    final int lastLogDayOffset = logs.isNotEmpty
+        ? logs.last.recordedAt.difference(referenceDate).inDays
+        : 0;
+    final int totalDays = math.max(math.max(lastLogDayOffset, maturityDays), 1);
 
-        // Stage label
-        final TextPainter labelPainter = TextPainter(
-          text: TextSpan(
-            text: stageTargets[i].stageLabel.substring(0, 3),
-            style: TextStyle(
-              color: stageColor.withOpacity(0.6),
-              fontSize: 8,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout(maxWidth: stageWidth);
-        labelPainter.paint(
-          canvas,
-          Offset(
-            x + stageWidth / 2 - labelPainter.width / 2,
-            paddingTop + chartHeight + 6,
-          ),
-        );
-      }
+    // Draw expected growth curve (smooth dashed curve to the mature weight)
+    final Paint targetPaint = Paint()
+      ..color = targetColor.withOpacity(0.6)
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    const int curveSamples = 40;
+    final List<Offset> curvePoints = <Offset>[];
+    for (int i = 0; i <= curveSamples; i++) {
+      final int day = (totalDays * i / curveSamples).round();
+      final double weight = _expectedWeightAtDay(day);
+      final double x = paddingLeft + (day / totalDays) * chartWidth;
+      final double y = paddingTop + chartHeight * (1 - weight / maxWeight);
+      curvePoints.add(Offset(x, y));
     }
-
-    // Draw stage target lines (horizontal dashed)
-    if (stageTargets.isNotEmpty) {
-      final double stageWidth = chartWidth / stageTargets.length;
-      final Paint targetPaint = Paint()
-        ..color = targetColor.withOpacity(0.4)
-        ..strokeWidth = 1.0;
-
-      for (int i = 0; i < stageTargets.length; i++) {
-        final double targetY =
-            paddingTop + chartHeight * (1 - stageTargets[i].targetWeightKg / maxWeight);
-        final double stageX = paddingLeft + stageWidth * i;
-        final double dashWidth = 4;
-        final double dashSpace = 3;
-        double startX = stageX;
-        while (startX < stageX + stageWidth) {
-          canvas.drawLine(
-            Offset(startX, targetY),
-            Offset(
-                startX + dashWidth > stageX + stageWidth
-                    ? stageX + stageWidth
-                    : startX + dashWidth,
-                targetY),
-            targetPaint,
-          );
-          startX += dashWidth + dashSpace;
-        }
+    for (int i = 0; i < curvePoints.length - 1; i++) {
+      final Offset start = curvePoints[i];
+      final Offset end = curvePoints[i + 1];
+      final double segmentLength = (end - start).distance;
+      const double dashWidth = 4;
+      const double dashSpace = 3;
+      double covered = 0;
+      while (covered < segmentLength) {
+        final double next = math.min(covered + dashWidth, segmentLength);
+        canvas.drawLine(
+          Offset.lerp(start, end, covered / segmentLength)!,
+          Offset.lerp(start, end, next / segmentLength)!,
+          targetPaint,
+        );
+        covered += dashWidth + dashSpace;
       }
     }
 
@@ -475,14 +491,9 @@ class _WeightChartPainter extends CustomPainter {
       final Path path = Path();
       final List<Offset> points = <Offset>[];
 
-      final DateTime firstDate = logs.first.recordedAt;
-      final DateTime lastDate = logs.last.recordedAt;
-      final double totalDays =
-          lastDate.difference(firstDate).inDays.clamp(1, 365).toDouble();
-
       for (int i = 0; i < logs.length; i++) {
         final double daysFromStart =
-            logs[i].recordedAt.difference(firstDate).inDays.toDouble();
+            logs[i].recordedAt.difference(referenceDate).inDays.toDouble();
         final double x =
             paddingLeft + (daysFromStart / totalDays) * chartWidth;
         final double y =

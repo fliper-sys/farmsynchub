@@ -16,7 +16,11 @@ abstract final class AppTheme {
     secondary: AppColors.primaryMid,
     tertiary: AppColors.amberAccent,
     surface: AppColors.surfaceLight,
-    surfaceContainerHighest: Colors.white,
+    // Cards (level 1) and sheets/dialogs/nav (level 2) both stay in the
+    // cream family instead of jumping to pure white, matching the dark
+    // theme's elevation ladder.
+    surfaceContainerHighest: AppColors.surfaceLightCard,
+    surfaceContainerHigh: AppColors.surfaceLightElevated,
     onPrimary: Colors.white,
     onSurfaceVariant: const Color(0xFF6B746C),
     outline: AppColors.borderLight,
@@ -161,7 +165,9 @@ abstract final class AppTheme {
           : AppColors.darkPrimaryBackground,
       textTheme: textTheme,
       cardTheme: CardThemeData(
-        color: brightness == Brightness.light ? Colors.white : AppColors.darkCard,
+        color: brightness == Brightness.light
+            ? AppColors.surfaceLightCard
+            : AppColors.darkCard,
         elevation: 0,
         shadowColor: colorScheme.shadow,
         surfaceTintColor: Colors.transparent,
@@ -191,7 +197,7 @@ abstract final class AppTheme {
       // level-2 elevated surface instead of Material's default white/grey.
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: brightness == Brightness.light
-            ? Colors.white
+            ? AppColors.surfaceLightElevated
             : AppColors.darkElevatedCard,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
@@ -202,7 +208,7 @@ abstract final class AppTheme {
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: brightness == Brightness.light
-            ? Colors.white
+            ? AppColors.surfaceLightElevated
             : AppColors.darkElevatedCard,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
@@ -213,7 +219,7 @@ abstract final class AppTheme {
       navigationBarTheme: NavigationBarThemeData(
         surfaceTintColor: Colors.transparent,
         backgroundColor: brightness == Brightness.light
-            ? Colors.white
+            ? AppColors.surfaceLightElevated
             : AppColors.darkBottomNavigation,
         indicatorColor: brightness == Brightness.light
             ? AppColors.surfaceSoft
@@ -254,7 +260,9 @@ abstract final class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: brightness == Brightness.light ? Colors.white : AppColors.darkCard,
+        fillColor: brightness == Brightness.light
+            ? AppColors.surfaceLightCard
+            : AppColors.darkCard,
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
