@@ -688,21 +688,20 @@ class _HeroSummaryCardState extends State<_HeroSummaryCard>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text.rich(
-                      TextSpan(
-                        text: '${widget.greeting}, ',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w600),
-                        children: <InlineSpan>[
-                          TextSpan(
-                            text: widget.userName,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                                color: theme.colorScheme.onSurface,
-                                fontWeight: FontWeight.w900),
-                          ),
-                        ],
-                      ),
+                    Text(
+                      '${widget.greeting},',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      widget.userName,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                          color: theme.colorScheme.onSurface,
+                          fontWeight: FontWeight.w900),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),

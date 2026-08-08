@@ -47,15 +47,24 @@ abstract final class AppColors {
   /// Bright green used for progress and highlight states.
   static const Color primaryLight = premiumGreen;
 
-  // Light-mode elevation ladder: a soft "milk cream" family (gentle,
-  // slightly warm off-white rather than a tan/beige aged-paper cream) kept
+  // Light-mode elevation ladder: a deliberately warm "milk cream" family —
+  // closer to the colour of dairy milk/cream than an off-white — kept
   // consistent end to end (background AND cards) instead of a cream
-  // background with cards that jump to pure white.
+// background with cards that jump to pure white.
   /// Level 0 — app scaffold background.
   static const Color surfaceLight = Color.fromARGB(255, 241, 236, 224);
 
+  /// Level 0/-1 — lightest cream for lowest surface tier.
+  static const Color surfaceLightLowest = Color.fromARGB(255, 250, 247, 240);
+
+  /// Level 0 — soft cream for low surface tier.
+  static const Color surfaceLightLow = Color.fromARGB(255, 244, 240, 228);
+
   /// Level 1 — cards, chips, input fields.
   static const Color surfaceLightCard = Color.fromARGB(255, 240, 232, 220);
+
+  /// Level 1 — container tier (matches [surfaceLightCard]).
+  static const Color surfaceLightContainer = Color.fromARGB(255, 240, 232, 220);
 
   /// Level 2 — bottom sheets, dialogs, bottom navigation, popovers.
   static const Color surfaceLightElevated = Color(0xFFFFF4E4);

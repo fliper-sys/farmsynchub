@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_ai/firebase_ai.dart';
@@ -52,6 +53,17 @@ class GeminiService {
   bool get hasApiKey => Firebase.apps.isNotEmpty;
 
   String get modelName => _kFirebaseAiModelName;
+
+  /// App Check is only activated on non-web platforms (see
+  /// `_initializeCloudServices` in main.dart, guarded by `if (!kIsWeb)`).
+  /// Passing an unactivated `FirebaseAppCheck.instance` into the AI SDK
+  /// makes it call `getToken()` on a provider that was never configured,
+  /// which throws internally - and a known FlutterFire-web bug then mangles
+  /// that into an unhelpful `TypeError: ... is not a subtype of type
+  /// 'JavaScriptObject'` instead of a clean error. Omitting App Check on
+  /// web avoids the broken call entirely.
+  FirebaseAppCheck? get _appCheckForPlatform =>
+      kIsWeb ? null : FirebaseAppCheck.instance;
 
   List<ChatMessage> historyFor(AiTopic topic) =>
       List<ChatMessage>.unmodifiable(_history[topic] ?? const <ChatMessage>[]);
@@ -139,21 +151,27 @@ class GeminiService {
 
       await _persistHistory(topic);
       return aiMessage;
-    } on InvalidApiKey catch (_) {
+    } on InvalidApiKey catch (error, stackTrace) {
+      debugPrint('[GeminiService] InvalidApiKey: $error');
+      debugPrintStack(stackTrace: stackTrace);
       return _handleFirebaseAiFailure(
         topic: topic,
         message: trimmedMessage,
         imageBytes: imageBytes,
         reason: 'FarmSync AI is not configured correctly right now.',
       );
-    } on UnsupportedUserLocation catch (_) {
+    } on UnsupportedUserLocation catch (error, stackTrace) {
+      debugPrint('[GeminiService] UnsupportedUserLocation: $error');
+      debugPrintStack(stackTrace: stackTrace);
       return _handleFirebaseAiFailure(
         topic: topic,
         message: trimmedMessage,
         imageBytes: imageBytes,
         reason: 'FarmSync AI is unavailable in this location.',
       );
-    } on FirebaseAIException catch (error) {
+    } on FirebaseAIException catch (error, stackTrace) {
+      debugPrint('[GeminiService] FirebaseAIException: $error');
+      debugPrintStack(stackTrace: stackTrace);
       final String errorText = error.toString().toLowerCase();
       if (errorText.contains('quota') || errorText.contains('resource_exhausted')) {
         _rateLimitedUntil = DateTime.now().add(const Duration(minutes: 10));
@@ -183,33 +201,44 @@ class GeminiService {
             ? 'Firebase AI is not enabled for this project: $error'
             : 'Firebase AI could not complete the request: $error',
       );
-    } on FirebaseAISdkException catch (_) {
+    } on FirebaseAISdkException catch (error, stackTrace) {
+      debugPrint('[GeminiService] FirebaseAISdkException: $error');
+      debugPrintStack(stackTrace: stackTrace);
       return _handleFirebaseAiFailure(
         topic: topic,
         message: trimmedMessage,
         imageBytes: imageBytes,
         reason: 'FarmSync AI could not read the response just now.',
       );
-    } on SocketException catch (_) {
+    } on SocketException catch (error, stackTrace) {
+      debugPrint('[GeminiService] SocketException: $error');
+      debugPrintStack(stackTrace: stackTrace);
       return _handleFirebaseAiFailure(
         topic: topic,
         message: trimmedMessage,
         imageBytes: imageBytes,
         reason: 'Network error while contacting FarmSync AI.',
       );
-    } on HttpException catch (_) {
+    } on HttpException catch (error, stackTrace) {
+      debugPrint('[GeminiService] HttpException: $error');
+      debugPrintStack(stackTrace: stackTrace);
       return _handleFirebaseAiFailure(
         topic: topic,
         message: trimmedMessage,
         imageBytes: imageBytes,
         reason: 'FarmSync AI could not reach the service right now.',
       );
-    } catch (_) {
+    } catch (error, stackTrace) {
+      // Log the real cause so failures are diagnosable (this used to be
+      // swallowed entirely, making "AI never works" reports unactionable).
+      debugPrint('[GeminiService] Unexpected error (${error.runtimeType}): $error');
+      debugPrintStack(stackTrace: stackTrace);
       return _handleFirebaseAiFailure(
         topic: topic,
         message: trimmedMessage,
         imageBytes: imageBytes,
-        reason: 'FarmSync AI could not complete this request right now.',
+        reason: 'FarmSync AI could not complete this request right now '
+            '(${error.runtimeType}).',
       );
     }
   }
@@ -223,7 +252,7 @@ class GeminiService {
     try {
       final FirebaseAI firebaseAi = FirebaseAI.googleAI(
         auth: FirebaseAuth.instance,
-        appCheck: FirebaseAppCheck.instance,
+        appCheck: _appCheckForPlatform,
       );
 
       final GenerativeModel model = firebaseAi.generativeModel(
@@ -280,7 +309,7 @@ class GeminiService {
     try {
       final FirebaseAI firebaseAi = FirebaseAI.googleAI(
         auth: FirebaseAuth.instance,
-        appCheck: FirebaseAppCheck.instance,
+        appCheck: _appCheckForPlatform,
       );
 
       final GenerativeModel model = firebaseAi.generativeModel(
@@ -412,7 +441,7 @@ Future estimate
   }) async {
     final FirebaseAI firebaseAi = FirebaseAI.googleAI(
       auth: FirebaseAuth.instance,
-      appCheck: FirebaseAppCheck.instance,
+      appCheck: _appCheckForPlatform,
     );
 
     final GenerativeModel model = firebaseAi.generativeModel(

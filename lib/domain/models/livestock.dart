@@ -163,6 +163,9 @@ class Livestock {
     this.intelligenceNotes = '',
     this.lastIntelligenceSyncAt,
     this.photoJournal = const <PhotoJournalEntry>[],
+    this.feedReminderEnabled = false,
+    this.feedReminderHour = 7,
+    this.feedReminderMinute = 0,
   });
 
   final String id;
@@ -198,6 +201,9 @@ class Livestock {
   final String intelligenceNotes;
   final DateTime? lastIntelligenceSyncAt;
   final List<PhotoJournalEntry> photoJournal;
+  final bool feedReminderEnabled;
+  final int feedReminderHour;
+  final int feedReminderMinute;
 
   int get openTaskCount => todoItems.where((FarmTodoItem item) => !item.isCompleted).length;
   double get syncedInputCost => inputRecords.fold<double>(0, (double sum, FarmInputRecord item) => sum + item.totalCost);
@@ -208,6 +214,24 @@ class Livestock {
     final double progress = averageAgeMonths / targetMaturityMonths;
     return progress.clamp(0, 1).toDouble();
   }
+
+  /// Daily feed-log entries: production log records with period == daily
+  /// and a positive feedKg, one per calendar day the group was marked fed.
+  List<LivestockProductionRecord> get feedLogEntries => productionLogs
+      .where((LivestockProductionRecord record) =>
+          record.period == LivestockRecordPeriod.daily && record.feedKg > 0)
+      .toList(growable: false);
+
+  bool wasFedOn(DateTime day) {
+    final DateTime target = DateTime(day.year, day.month, day.day);
+    return feedLogEntries.any((LivestockProductionRecord record) {
+      final DateTime recordDay = DateTime(
+          record.recordedAt.year, record.recordedAt.month, record.recordedAt.day);
+      return recordDay == target;
+    });
+  }
+
+  bool get wasFedToday => wasFedOn(DateTime.now());
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -244,6 +268,9 @@ class Livestock {
         'lastIntelligenceSyncAt': lastIntelligenceSyncAt?.toIso8601String(),
         'photoJournal':
             photoJournal.map((PhotoJournalEntry item) => item.toJson()).toList(),
+        'feedReminderEnabled': feedReminderEnabled,
+        'feedReminderHour': feedReminderHour,
+        'feedReminderMinute': feedReminderMinute,
       };
 
   factory Livestock.fromJson(Map<String, dynamic> json) => Livestock(
@@ -300,6 +327,9 @@ class Livestock {
         photoJournal: _jsonObjectList(json['photoJournal'])
             .map(PhotoJournalEntry.fromJson)
             .toList(),
+        feedReminderEnabled: json['feedReminderEnabled'] as bool? ?? false,
+        feedReminderHour: (json['feedReminderHour'] as num?)?.toInt() ?? 7,
+        feedReminderMinute: (json['feedReminderMinute'] as num?)?.toInt() ?? 0,
       );
 
   Livestock copyWith({
@@ -334,6 +364,9 @@ class Livestock {
     String? intelligenceNotes,
     DateTime? lastIntelligenceSyncAt,
     List<PhotoJournalEntry>? photoJournal,
+    bool? feedReminderEnabled,
+    int? feedReminderHour,
+    int? feedReminderMinute,
   }) =>
       Livestock(
         id: id,
@@ -369,6 +402,9 @@ class Livestock {
         intelligenceNotes: intelligenceNotes ?? this.intelligenceNotes,
         lastIntelligenceSyncAt: lastIntelligenceSyncAt ?? this.lastIntelligenceSyncAt,
         photoJournal: photoJournal ?? this.photoJournal,
+        feedReminderEnabled: feedReminderEnabled ?? this.feedReminderEnabled,
+        feedReminderHour: feedReminderHour ?? this.feedReminderHour,
+        feedReminderMinute: feedReminderMinute ?? this.feedReminderMinute,
       );
 }
 

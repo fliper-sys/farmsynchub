@@ -16,9 +16,14 @@ abstract final class AppTheme {
     secondary: AppColors.primaryMid,
     tertiary: AppColors.amberAccent,
     surface: AppColors.surfaceLight,
-    // Cards (level 1) and sheets/dialogs/nav (level 2) both stay in the
-    // cream family instead of jumping to pure white, matching the dark
-    // theme's elevation ladder.
+    // Every Material 3 surface container tier is mapped onto the same warm
+    // "milk cream" family so no screen, card, sheet, or dialog ever falls
+    // back to the seeded grayish off-white. The tiers step very subtly from
+    // lightest (lowest) to slightly warmer (elevated) to keep depth without
+    // breaking the cohesive palette.
+    surfaceContainerLowest: AppColors.surfaceLightLowest,
+    surfaceContainerLow: AppColors.surfaceLightLow,
+    surfaceContainer: AppColors.surfaceLightContainer,
     surfaceContainerHighest: AppColors.surfaceLightCard,
     surfaceContainerHigh: AppColors.surfaceLightElevated,
     onPrimary: Colors.white,

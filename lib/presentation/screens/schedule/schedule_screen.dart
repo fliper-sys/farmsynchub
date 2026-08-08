@@ -1,9 +1,15 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/services/farm_notification_service.dart';
+import '../../../core/services/report_file_saver.dart';
+import '../../../core/services/report_file_saver_base.dart';
+import '../../../core/services/report_share_service.dart';
+import '../../../core/services/schedule_report_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/models/crop.dart';
 import '../../../domain/models/farm.dart';
@@ -57,6 +63,11 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
   _ScheduleViewMode _viewMode = _ScheduleViewMode.list;
   late DateTime _focusedMonth;
   DateTime? _selectedDay;
+  bool _isExporting = false;
+
+  final ScheduleReportService _reportService = ScheduleReportService();
+  final ReportFileSaver _fileSaver = createReportFileSaver();
+  final ReportShareService _shareService = const ReportShareService();
 
   @override
   void initState() {
@@ -64,6 +75,41 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     final DateTime now = DateTime.now();
     _focusedMonth = DateTime(now.year, now.month);
     _selectedDay = DateTime(now.year, now.month, now.day);
+  }
+
+  Future<void> _shareSchedule(
+      BuildContext context, List<_ScheduleEntry> entries) async {
+    setState(() => _isExporting = true);
+    try {
+      final List<ScheduleReportItem> items = entries
+          .map((_ScheduleEntry entry) => ScheduleReportItem(
+                title: entry.title,
+                dueDate: entry.dueDate,
+                sourceType: switch (entry.sourceType) {
+                  _ScheduleSourceType.farm => ScheduleReportSourceType.farm,
+                  _ScheduleSourceType.crop => ScheduleReportSourceType.crop,
+                  _ScheduleSourceType.livestock =>
+                    ScheduleReportSourceType.livestock,
+                },
+                sourceLabel: entry.sourceLabel,
+              ))
+          .toList();
+      final Uint8List pdfBytes = await _reportService.buildReport(items: items);
+      final String fileName =
+          'farmsync-schedule-${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final String savedPath =
+          await _fileSaver.savePdf(bytes: pdfBytes, fileName: fileName);
+      await _shareService.sharePdf(
+        filePath: savedPath,
+        fileName: fileName,
+        message: 'My FarmSync Hub schedule is ready to share.',
+      );
+      if (context.mounted) {
+        context.showSnackBar('Schedule report saved: $savedPath');
+      }
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
   }
 
   @override
@@ -127,6 +173,19 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
         ),
         title: const Text('Schedule'),
         actions: <Widget>[
+          IconButton(
+            tooltip: 'Share schedule',
+            icon: _isExporting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2.2),
+                  )
+                : const Icon(Icons.ios_share_rounded),
+            onPressed: _isExporting || entries.isEmpty
+                ? null
+                : () => _shareSchedule(context, entries),
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: _ViewModeToggle(

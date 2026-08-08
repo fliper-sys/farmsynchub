@@ -12,6 +12,10 @@ import '../../../domain/models/chat_message.dart';
 import '../../../providers/ai_chat_provider.dart';
 import '../../../providers/app_preferences_provider.dart';
 
+/// A focused, chat-first AI advisor screen: the message list is the whole
+/// screen, the composer stays fixed at the bottom, and everything else
+/// (topic switching, quick-start suggestions) lives in compact, dismissable
+/// surfaces instead of permanent hero/grid chrome above the conversation.
 class AiAdvisorScreen extends ConsumerStatefulWidget {
   const AiAdvisorScreen({super.key});
 
@@ -20,7 +24,6 @@ class AiAdvisorScreen extends ConsumerStatefulWidget {
 }
 
 class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
-  final TextEditingController _searchController = TextEditingController();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _chatScrollController = ScrollController();
   final ImagePicker _imagePicker = ImagePicker();
@@ -28,10 +31,27 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
   Uint8List? _selectedImageBytes;
   String? _selectedImageLabel;
   int _lastMessageCount = -1;
+  bool _showScrollToBottom = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _chatScrollController.addListener(_handleScroll);
+  }
+
+  void _handleScroll() {
+    if (!_chatScrollController.hasClients) return;
+    final double distanceFromBottom = _chatScrollController.position.maxScrollExtent -
+        _chatScrollController.position.pixels;
+    final bool shouldShow = distanceFromBottom > 240;
+    if (shouldShow != _showScrollToBottom) {
+      setState(() => _showScrollToBottom = shouldShow);
+    }
+  }
 
   @override
   void dispose() {
-    _searchController.dispose();
+    _chatScrollController.removeListener(_handleScroll);
     _messageController.dispose();
     _chatScrollController.dispose();
     super.dispose();
@@ -41,8 +61,6 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
   Widget build(BuildContext context) {
     final AiProvider ai = ref.watch(aiChatProvider);
     final AppLanguage language = ref.watch(appLanguageProvider);
-    final ThemeData theme = Theme.of(context);
-    final bool isDark = theme.brightness == Brightness.dark;
 
     if (!ai.isInitialized) {
       return const _AiLoadingScreen();
@@ -53,164 +71,155 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     }
 
+    final List<ChatMessage> messages = ai.activeMessages;
+    final bool isBusy = ai.isActiveLoading || ai.isActiveCoolingDown;
+
     return Scaffold(
       resizeToAvoidBottomInset: true,
       backgroundColor: _aiBackground(context),
-      body: Stack(
-        children: <Widget>[
-          _StudioBackdrop(isDark: isDark),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-              child: Column(
-                children: <Widget>[
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          _TopBar(
-                            language: language,
-                            onBack: () => Navigator.of(context).canPop()
-                                ? Navigator.of(context).pop()
-                                : context.go('/dashboard'),
-                            onPremiumTap: () => _showPremiumSnack(context),
-                            onMenuAction: (String value) async {
-                              if (value == 'clear-topic') {
-                                await ai.clearTopic(ai.activeTopic);
-                              } else if (value == 'clear-all') {
-                                await ai.clearAll();
-                              }
-                            },
+      appBar: AppBar(
+        backgroundColor: _aiBackground(context),
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close_rounded),
+          onPressed: () => Navigator.of(context).canPop()
+              ? Navigator.of(context).pop()
+              : context.go('/dashboard'),
+        ),
+        title: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _openTopicSwitcher(context, ai, language),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(ai.activeTopic.emoji, style: const TextStyle(fontSize: 18)),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      ai.activeTopic.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: _aiText(context),
+                            fontWeight: FontWeight.w700,
                           ),
-                          const SizedBox(height: 18),
-                          _HeroCard(
-                            language: language,
-                            ai: ai,
-                            onPremiumTap: () => _showPremiumSnack(context),
-                            onQuickPrompt: (String prompt) =>
-                                _sendQuickPrompt(ai, prompt),
-                          ),
-                          const SizedBox(height: 14),
-                          _SearchBar(
-                            language: language,
-                            controller: _searchController,
-                            onSubmitted: (String text) =>
-                                _runSearchPrompt(ai, text),
-                          ),
-                          const SizedBox(height: 18),
-                          _StatusRow(language: language, ai: ai),
-                          const SizedBox(height: 18),
-                          _SectionHeader(
-                            title: language.tr(
-                                en: 'Studio tools',
-                                ha: 'Kayan Aikin Studio',
-                                fr: 'Outils du studio'),
-                            subtitle: language.tr(
-                                en: 'One-tap prompts for the most common farm tasks.',
-                                ha: 'Shawarwari cikin dannawa daya domin ayyukan gona da suka fi kowa yawa.',
-                                fr: 'Invites en un clic pour les taches agricoles les plus courantes.'),
-                            trailing: Text(
-                              ai.modelName,
-                              style: theme.textTheme.labelLarge
-                                  ?.copyWith(color: _aiMuted(context)),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          _StudioGrid(
-                            language: language,
-                            onTapAction: (AiStudioAction action) =>
-                                _runStudioAction(ai, action),
-                          ),
-                          const SizedBox(height: 20),
-                          _SectionHeader(
-                            title: language.tr(
-                                en: 'For you',
-                                ha: 'A gare ka',
-                                fr: 'Pour vous'),
-                            subtitle: language.tr(
-                                en: 'Jump back into a topic thread or start fresh from a saved context.',
-                                ha: 'Koma cikin batun tattaunawa ko fara sabo daga bayanan da aka ajiye.',
-                                fr: 'Reprenez un fil de discussion ou recommencez a partir d\'un contexte enregistre.'),
-                            trailing: TextButton(
-                              style: TextButton.styleFrom(
-                                  foregroundColor: _aiText(context)),
-                              onPressed: () => ai.setTopic(AiTopic.general),
-                              child: Text(language.tr(
-                                  en: 'General',
-                                  ha: 'Gama gari',
-                                  fr: 'General')),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          _HistoryRail(
-                            language: language,
-                            ai: ai,
-                            onTopicSelected: (AiTopic topic) =>
-                                ai.setTopic(topic),
-                          ),
-                          const SizedBox(height: 20),
-                          _SectionHeader(
-                            title: language.tr(
-                                en: 'Live chat',
-                                ha: 'Tattaunawa Kai Tsaye',
-                                fr: 'Discussion en direct'),
-                            subtitle: language.tr(
-                                en: 'Ask a question, attach a photo, and keep the conversation focused on one topic.',
-                                ha: 'Yi tambaya, haɗa hoto, kuma ka ci gaba da tattaunawa akan batu daya.',
-                                fr: 'Posez une question, joignez une photo et gardez la conversation centree sur un sujet.'),
-                            trailing: Text(
-                              language.tr(
-                                  en: '${ai.activeMessageCount} messages',
-                                  ha: '${ai.activeMessageCount} sakonni',
-                                  fr: '${ai.activeMessageCount} messages'),
-                              style: theme.textTheme.labelLarge
-                                  ?.copyWith(color: AppColors.primary),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          _ChatSurface(
-                            language: language,
-                            topic: ai.activeTopic,
-                            messages: ai.activeMessages,
-                            controller: _chatScrollController,
-                            onClearTopic: () => ai.clearTopic(ai.activeTopic),
-                          ),
-                          if (ai.isActiveCoolingDown) ...<Widget>[
-                            const SizedBox(height: 12),
-                            _NoticeCard(
-                              icon: Icons.timer_outlined,
-                              tint: const Color(0xFFFFE1B8),
-                              message: language.tr(
-                                en: 'Please wait ${ai.cooldownRemainingFor(ai.activeTopic).inSeconds + 1} seconds before sending another request.',
-                                ha: 'Da fatan za a jira dakiku ${ai.cooldownRemainingFor(ai.activeTopic).inSeconds + 1} kafin aika wata bukata.',
-                                fr: 'Veuillez patienter ${ai.cooldownRemainingFor(ai.activeTopic).inSeconds + 1} secondes avant d\'envoyer une autre demande.',
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  _ComposerCard(
-                    language: language,
-                    controller: _messageController,
-                    isLoading: ai.isActiveLoading || ai.isActiveCoolingDown,
-                    selectedImageBytes: _selectedImageBytes,
-                    selectedImageLabel: _selectedImageLabel,
-                    onSend: () => _sendMessage(ai),
-                    onTakePhoto: () => _pickImage(ImageSource.camera),
-                    onUploadImage: () => _pickImage(ImageSource.gallery),
-                    onVoiceTap: () => _showVoiceComingSoon(context),
-                    onRemoveImage: _clearSelectedImage,
-                  ),
-                ],
+                    Text(
+                      ai.modelName,
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelSmall
+                          ?.copyWith(color: _aiMuted(context)),
+                    ),
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(width: 4),
+              Icon(Icons.expand_more_rounded, size: 18, color: _aiMuted(context)),
+            ],
+          ),
+        ),
+        actions: <Widget>[
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert_rounded, color: _aiText(context)),
+            onSelected: (String value) async {
+              if (value == 'clear-topic') {
+                await ai.clearTopic(ai.activeTopic);
+              } else if (value == 'clear-all') {
+                await ai.clearAll();
+              }
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              PopupMenuItem<String>(
+                value: 'clear-topic',
+                enabled: messages.isNotEmpty,
+                child: Text(language.tr(
+                    en: 'Clear this conversation',
+                    ha: 'Share wannan tattaunawar',
+                    fr: 'Effacer cette conversation')),
+              ),
+              PopupMenuItem<String>(
+                value: 'clear-all',
+                child: Text(language.tr(
+                    en: 'Clear all conversations',
+                    ha: 'Share dukkan tattaunawa',
+                    fr: 'Effacer toutes les conversations')),
+              ),
+            ],
           ),
         ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: <Widget>[
+            if (!ai.hasApiKey) _OfflineNotice(language: language),
+            Expanded(
+              child: messages.isEmpty
+                  ? _EmptyState(
+                      language: language,
+                      topic: ai.activeTopic,
+                      onSuggestionTap: (AiStudioAction action) =>
+                          _runStudioAction(ai, action),
+                    )
+                  : Stack(
+                      children: <Widget>[
+                        ListView.builder(
+                          controller: _chatScrollController,
+                          padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+                          itemCount: messages.length,
+                          itemBuilder: (BuildContext context, int index) {
+                            final ChatMessage message = messages[index];
+                            if (message.isLoading) {
+                              return const Padding(
+                                padding: EdgeInsets.only(bottom: 10),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: _TypingBubble(),
+                                ),
+                              );
+                            }
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _ChatBubble(language: language, message: message),
+                            );
+                          },
+                        ),
+                        if (_showScrollToBottom)
+                          Positioned(
+                            bottom: 8,
+                            right: 0,
+                            left: 0,
+                            child: Center(
+                              child: _ScrollToBottomButton(onTap: () {
+                                _scrollToBottom();
+                              }),
+                            ),
+                          ),
+                      ],
+                    ),
+            ),
+            if (ai.isActiveCoolingDown)
+              _CooldownBanner(
+                seconds: ai.cooldownRemainingFor(ai.activeTopic).inSeconds + 1,
+                language: language,
+              ),
+            _Composer(
+              language: language,
+              controller: _messageController,
+              isBusy: isBusy,
+              selectedImageBytes: _selectedImageBytes,
+              selectedImageLabel: _selectedImageLabel,
+              onSend: () => _sendMessage(ai),
+              onAttach: () => _showAttachSheet(context),
+              onRemoveImage: _clearSelectedImage,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -233,29 +242,6 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
     final Uint8List? imageBytes = _selectedImageBytes;
     _clearSelectedImage();
     await ai.sendMessage(message, imageBytes: imageBytes);
-  }
-
-  Future<void> _runSearchPrompt(AiProvider ai, String text) async {
-    if (ai.isActiveLoading || ai.isActiveCoolingDown) {
-      return;
-    }
-
-    final String trimmed = text.trim();
-    if (trimmed.isEmpty) {
-      return;
-    }
-    _searchController.clear();
-    await ai.setTopic(AiTopic.general);
-    await ai.sendSuggestion(trimmed);
-  }
-
-  Future<void> _sendQuickPrompt(AiProvider ai, String prompt) async {
-    if (ai.isActiveLoading || ai.isActiveCoolingDown) {
-      return;
-    }
-
-    await ai.setTopic(AiTopic.general);
-    await ai.sendSuggestion(prompt);
   }
 
   Future<void> _runStudioAction(AiProvider ai, AiStudioAction action) async {
@@ -307,634 +293,326 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
     );
   }
 
-  void _showPremiumSnack(BuildContext context) {
+  Future<void> _showAttachSheet(BuildContext context) async {
     final AppLanguage language = ref.read(appLanguageProvider);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-          content: Text(language.tr(
-              en: 'Premium AI tools can be added here later.',
-              ha: 'Ana iya kara kayan aikin AI na premium a nan daga baya.',
-              fr: 'Des outils IA premium pourront etre ajoutes ici plus tard.'))),
-    );
-  }
-
-  void _showVoiceComingSoon(BuildContext context) {
-    final AppLanguage language = ref.read(appLanguageProvider);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-          content: Text(language.tr(
-              en: 'Voice input is coming soon.',
-              ha: 'Shigar da murya na zuwa nan gaba kadan.',
-              fr: 'La saisie vocale arrive bientot.'))),
-    );
-  }
-}
-
-class _TopBar extends StatelessWidget {
-  const _TopBar({
-    required this.language,
-    required this.onBack,
-    required this.onPremiumTap,
-    required this.onMenuAction,
-  });
-
-  final AppLanguage language;
-  final VoidCallback onBack;
-  final VoidCallback onPremiumTap;
-  final ValueChanged<String> onMenuAction;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isDark = _aiIsDark(context);
-    return Row(
-      children: <Widget>[
-        _GlassButton(
-          icon: Icons.arrow_back_rounded,
-          onTap: onBack,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            'Farmsync AI',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: _aiText(context),
-                  fontWeight: FontWeight.w700,
-                ),
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext sheetContext) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: _aiSurface(context),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: _aiBorder(context)),
           ),
-        ),
-        GestureDetector(
-          onTap: onPremiumTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF17171C)
-                  : Theme.of(context).colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: _aiBorder(context)),
-            ),
-            child: Text(
-              language.tr(
-                  en: 'Try premium',
-                  ha: 'Gwada Premium',
-                  fr: 'Essayer premium'),
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: _aiText(context),
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        PopupMenuButton<String>(
-          color: _aiSurface(context),
-          icon: Icon(Icons.more_vert_rounded, color: _aiText(context)),
-          onSelected: onMenuAction,
-          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-            PopupMenuItem<String>(
-                value: 'clear-topic',
-                child: Text(language.tr(
-                    en: 'Clear this topic',
-                    ha: 'Share wannan batu',
-                    fr: 'Effacer ce sujet'))),
-            PopupMenuItem<String>(
-                value: 'clear-all',
-                child: Text(language.tr(
-                    en: 'Clear all chats',
-                    ha: 'Share dukkan tattaunawa',
-                    fr: 'Effacer toutes les discussions'))),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _HeroCard extends StatelessWidget {
-  const _HeroCard({
-    required this.language,
-    required this.ai,
-    required this.onPremiumTap,
-    required this.onQuickPrompt,
-  });
-
-  final AppLanguage language;
-  final AiProvider ai;
-  final VoidCallback onPremiumTap;
-  final ValueChanged<String> onQuickPrompt;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final bool isDark = _aiIsDark(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark
-            ? const Color(0xFF121216)
-            : theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(34),
-        border: Border.all(color: _aiBorder(context)),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: isDark
-                ? Colors.black.withOpacity(0.35)
-                : Colors.black.withOpacity(0.08),
-            blurRadius: 32,
-            offset: const Offset(0, 18),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Stack(
-          children: <Widget>[
-            Positioned(
-              top: -16,
-              right: -14,
-              child: _GlowOrb(
-                diameter: 120,
-                colors: <Color>[
-                  const Color(0xFFFF4FD8).withOpacity(0.35),
-                  const Color(0xFF7C3AED).withOpacity(0.18),
-                ],
-              ),
-            ),
-            Positioned(
-              bottom: -18,
-              right: 70,
-              child: _GlowOrb(
-                diameter: 78,
-                colors: <Color>[
-                  const Color(0xFFFF6B6B).withOpacity(0.18),
-                  const Color(0xFFFFC271).withOpacity(0.08),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? const Color(0xFF1A1A20)
-                            : Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: _aiBorder(context)),
-                      ),
-                      child: Text(
-                        language.tr(
-                            en: 'Farm AI workspace',
-                            ha: 'Wurin Aikin AI na Gona',
-                            fr: 'Espace IA agricole'),
-                        style: theme.textTheme.labelMedium
-                            ?.copyWith(color: _aiMuted(context)),
-                      ),
-                    ),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: onPremiumTap,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 10),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(999),
-                          gradient: const LinearGradient(
-                            colors: <Color>[
-                              Color(0xFFFF4FD8),
-                              Color(0xFF7C3AED)
-                            ],
-                          ),
-                        ),
-                        child: Text(
-                          language.tr(
-                              en: 'Premium', ha: 'Premium', fr: 'Premium'),
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  language.tr(
-                      en: 'Create, explore,\nbe inspired',
-                      ha: 'Kirkira, bincika,\nsami kwarin gwiwa',
-                      fr: 'Creez, explorez,\nsoyez inspire'),
-                  style: theme.textTheme.displaySmall?.copyWith(
-                    fontFamily: 'DM Serif Display',
-                    height: 0.96,
-                    color: _aiText(context),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  language.tr(
-                    en: 'Ask for field plans, diagnose with images, review market ideas, and keep crop, livestock, and finance advice in one beautiful workspace.',
-                    ha: 'Nemi shirye-shiryen gona, gano matsala ta hoto, bincika ra\'ayoyin kasuwa, kuma ka rike shawarwarin amfanin gona, dabbobi, da kudi a wuri daya mai kyau.',
-                    fr: 'Demandez des plans de terrain, diagnostiquez avec des images, examinez les idees de marche et gardez les conseils sur les cultures, l\'elevage et les finances dans un seul bel espace.',
-                  ),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: _aiMuted(context),
-                    height: 1.55,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: <Widget>[
-                    _QuickBadge(
-                      icon: Icons.spa_rounded,
-                      label: language.tr(
-                          en: 'Crop plans',
-                          ha: 'Shirye-shiryen Amfanin Gona',
-                          fr: 'Plans de cultures'),
-                      onTap: () => onQuickPrompt(
-                          'Create a simple crop management plan for my farm this week.'),
-                    ),
-                    _QuickBadge(
-                      icon: Icons.pets_rounded,
-                      label: language.tr(
-                          en: 'Animal care',
-                          ha: 'Kulawa da Dabbobi',
-                          fr: 'Soins aux animaux'),
-                      onTap: () => onQuickPrompt(
-                          'Review my livestock care routine and suggest improvements.'),
-                    ),
-                    _QuickBadge(
-                      icon: Icons.camera_alt_rounded,
-                      label: language.tr(
-                          en: 'Image check',
-                          ha: 'Duba Hoto',
-                          fr: 'Verification d\'image'),
-                      onTap: () => onQuickPrompt(
-                          'Look at this image and help me diagnose the issue.'),
-                    ),
-                    _QuickBadge(
-                      icon: Icons.storefront_rounded,
-                      label: language.tr(
-                          en: 'Market help',
-                          ha: 'Taimakon Kasuwa',
-                          fr: 'Aide au marche'),
-                      onTap: () => onQuickPrompt(
-                          'Help me plan a practical market and pricing strategy.'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: _HeroStat(
-                        label:
-                            language.tr(en: 'Topic', ha: 'Batu', fr: 'Sujet'),
-                        value: ai.activeTopic.label,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _HeroStat(
-                        label: language.tr(
-                            en: 'Language', ha: 'Harshe', fr: 'Langue'),
-                        value: ai.language,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _HeroStat(
-                        label: language.tr(
-                            en: 'Model', ha: 'Samfuri', fr: 'Modele'),
-                        value: ai.modelName,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SearchBar extends StatelessWidget {
-  const _SearchBar({
-    required this.language,
-    required this.controller,
-    required this.onSubmitted,
-  });
-
-  final AppLanguage language;
-  final TextEditingController controller;
-  final ValueChanged<String> onSubmitted;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isDark = _aiIsDark(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        color: isDark
-            ? const Color(0xFF141418)
-            : Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: _aiBorder(context)),
-      ),
-      child: Row(
-        children: <Widget>[
-          Icon(Icons.search_rounded, color: _aiMuted(context)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              style: TextStyle(color: _aiText(context)),
-              decoration: InputDecoration(
-                hintText: language.tr(
-                    en: 'Search or ask something farming-related...',
-                    ha: 'Nemi ko yi tambaya game da noma...',
-                    fr: 'Rechercher ou poser une question liee a l\'agriculture...'),
-                hintStyle: TextStyle(color: _aiMuted(context)),
-                border: InputBorder.none,
-              ),
-              textInputAction: TextInputAction.search,
-              onSubmitted: onSubmitted,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatusRow extends StatelessWidget {
-  const _StatusRow({required this.language, required this.ai});
-
-  final AppLanguage language;
-  final AiProvider ai;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        Expanded(
-          child: _StatusPill(
-            icon: Icons.track_changes_rounded,
-            label: language.tr(en: 'Topic', ha: 'Batu', fr: 'Sujet'),
-            value: ai.activeTopic.label,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _StatusPill(
-            icon: Icons.translate_rounded,
-            label: language.tr(en: 'Language', ha: 'Harshe', fr: 'Langue'),
-            value: ai.language,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _StatusPill(
-            icon: Icons.memory_rounded,
-            label: language.tr(en: 'Model', ha: 'Samfuri', fr: 'Modele'),
-            value: ai.modelName,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isDark = _aiIsDark(context);
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDark
-            ? const Color(0xFF121216)
-            : Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: _aiBorder(context)),
-      ),
-      child: Row(
-        children: <Widget>[
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.18),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, size: 18, color: _aiText(context)),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(label,
-                    style: Theme.of(context)
-                        .textTheme
-                        .labelSmall
-                        ?.copyWith(color: _aiMuted(context))),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: _aiText(context),
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({
-    required this.title,
-    required this.subtitle,
-    this.trailing,
-  });
-
-  final String title;
-  final String subtitle;
-  final Widget? trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    final Color textColor = _aiText(context);
-    final Color mutedColor = _aiMuted(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Expanded(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Text(
-                title,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: textColor,
-                      fontWeight: FontWeight.w700,
-                    ),
+              ListTile(
+                leading: Icon(Icons.camera_alt_rounded, color: _aiText(context)),
+                title: Text(
+                  language.tr(en: 'Take a photo', ha: 'Dauki hoto', fr: 'Prendre une photo'),
+                  style: TextStyle(color: _aiText(context)),
+                ),
+                subtitle: Text(
+                  language.tr(
+                      en: 'For diagnosing crop, leaf, or animal issues',
+                      ha: 'Domin gano matsalar amfanin gona, ganye, ko dabba',
+                      fr: 'Pour diagnostiquer les problemes de culture, de feuille ou d\'animal'),
+                  style: TextStyle(color: _aiMuted(context), fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _pickImage(ImageSource.camera);
+                },
               ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: mutedColor,
-                      height: 1.4,
-                    ),
+              ListTile(
+                leading: Icon(Icons.image_outlined, color: _aiText(context)),
+                title: Text(
+                  language.tr(en: 'Choose from gallery', ha: 'Zaba daga zauren hoto', fr: 'Choisir dans la galerie'),
+                  style: TextStyle(color: _aiText(context)),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _pickImage(ImageSource.gallery);
+                },
               ),
+              const SizedBox(height: 8),
             ],
           ),
         ),
-        if (trailing != null) ...<Widget>[
-          const SizedBox(width: 12),
-          trailing!,
+      ),
+    );
+  }
+
+  Future<void> _openTopicSwitcher(
+      BuildContext context, AiProvider ai, AppLanguage language) async {
+    final AiTopic? selected = await showModalBottomSheet<AiTopic>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (BuildContext sheetContext) => _TopicSwitcherSheet(
+        language: language,
+        activeTopic: ai.activeTopic,
+        countFor: (AiTopic topic) => ai
+            .messagesFor(topic)
+            .where((ChatMessage m) => !m.isLoading)
+            .length,
+      ),
+    );
+    if (selected != null) {
+      await ai.setTopic(selected);
+    }
+  }
+}
+
+class _OfflineNotice extends StatelessWidget {
+  const _OfflineNotice({required this.language});
+
+  final AppLanguage language;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFE1B8).withOpacity(0.9),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: <Widget>[
+          const Icon(Icons.wifi_off_rounded, size: 18, color: Color(0xFF7A4B00)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              language.tr(
+                  en: 'AI advisor needs an internet connection to answer questions or inspect photos.',
+                  ha: 'Mai ba da shawara na AI yana bukatar hanyar sadarwa domin amsa tambayoyi ko duba hotuna.',
+                  fr: 'Le conseiller IA a besoin d\'une connexion internet pour repondre aux questions ou inspecter des photos.'),
+              style: const TextStyle(color: Color(0xFF7A4B00), fontSize: 12.5),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _CooldownBanner extends StatelessWidget {
+  const _CooldownBanner({required this.seconds, required this.language});
+
+  final int seconds;
+  final AppLanguage language;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFE1B8).withOpacity(0.9),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: <Widget>[
+          const Icon(Icons.timer_outlined, size: 18, color: Color(0xFF7A4B00)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              language.tr(
+                en: 'Please wait $seconds seconds before sending another request.',
+                ha: 'Da fatan za a jira dakiku $seconds kafin aika wata bukata.',
+                fr: 'Veuillez patienter $seconds secondes avant d\'envoyer une autre demande.',
+              ),
+              style: const TextStyle(color: Color(0xFF7A4B00), fontSize: 12.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TopicSwitcherSheet extends StatelessWidget {
+  const _TopicSwitcherSheet({
+    required this.language,
+    required this.activeTopic,
+    required this.countFor,
+  });
+
+  final AppLanguage language;
+  final AiTopic activeTopic;
+  final int Function(AiTopic topic) countFor;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Container(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
+        decoration: BoxDecoration(
+          color: _aiSurface(context),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: _aiBorder(context)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              language.tr(en: 'Switch topic', ha: 'Sauya batu', fr: 'Changer de sujet'),
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(color: _aiText(context), fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              language.tr(
+                  en: 'Jump back into a topic thread - each keeps its own history.',
+                  ha: 'Koma cikin batun tattaunawa - kowanne yana da tarihinsa.',
+                  fr: 'Reprenez un fil de discussion - chacun garde son propre historique.'),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: _aiMuted(context)),
+            ),
+            const SizedBox(height: 10),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: <Widget>[
+                  for (final AiTopic topic in AiTopic.values)
+                    ListTile(
+                      leading: Text(topic.emoji, style: const TextStyle(fontSize: 20)),
+                      title: Text(topic.label, style: TextStyle(color: _aiText(context), fontWeight: FontWeight.w600)),
+                      subtitle: Text(topic.description, style: TextStyle(color: _aiMuted(context), fontSize: 12)),
+                      trailing: topic == activeTopic
+                          ? Icon(Icons.check_circle_rounded, color: AppColors.primary)
+                          : countFor(topic) > 0
+                              ? CircleAvatar(
+                                  radius: 11,
+                                  backgroundColor: _aiBorder(context),
+                                  child: Text(
+                                    '${countFor(topic)}',
+                                    style: TextStyle(fontSize: 10, color: _aiText(context)),
+                                  ),
+                                )
+                              : null,
+                      onTap: () => Navigator.of(context).pop(topic),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({
+    required this.language,
+    required this.topic,
+    required this.onSuggestionTap,
+  });
+
+  final AppLanguage language;
+  final AiTopic topic;
+  final ValueChanged<AiStudioAction> onSuggestionTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<AiStudioAction> suggestions = _studioActionsFor(language);
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+      children: <Widget>[
+        Center(
+          child: Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.14),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 30),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          language.tr(
+              en: 'Ask me anything about your farm',
+              ha: 'Yi mini tambaya kan gonarka',
+              fr: 'Posez-moi une question sur votre ferme'),
+          textAlign: TextAlign.center,
+          style: Theme.of(context)
+              .textTheme
+              .titleMedium
+              ?.copyWith(color: _aiText(context), fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          language.tr(
+              en: 'Type a question or attach a photo for a diagnosis. Try one of these to get started:',
+              ha: 'Rubuta tambaya ko haɗa hoto domin gano matsala. Gwada daya daga cikin wadannan domin farawa:',
+              fr: 'Tapez une question ou joignez une photo pour un diagnostic. Essayez l\'une de ces suggestions pour commencer :'),
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: _aiMuted(context)),
+        ),
+        const SizedBox(height: 20),
+        for (final AiStudioAction action in suggestions)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _SuggestionTile(action: action, onTap: () => onSuggestionTap(action)),
+          ),
       ],
     );
   }
 }
 
-class _StudioGrid extends StatelessWidget {
-  const _StudioGrid({required this.language, required this.onTapAction});
-
-  final AppLanguage language;
-  final ValueChanged<AiStudioAction> onTapAction;
-
-  @override
-  Widget build(BuildContext context) {
-    final List<AiStudioAction> studioActions = _studioActionsFor(language);
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: studioActions.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.08,
-      ),
-      itemBuilder: (BuildContext context, int index) {
-        final AiStudioAction action = studioActions[index];
-        return _StudioCard(
-          action: action,
-          onTap: () => onTapAction(action),
-        );
-      },
-    );
-  }
-}
-
-class _StudioCard extends StatelessWidget {
-  const _StudioCard({
-    required this.action,
-    required this.onTap,
-  });
+class _SuggestionTile extends StatelessWidget {
+  const _SuggestionTile({required this.action, required this.onTap});
 
   final AiStudioAction action;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final bool isDark = _aiIsDark(context);
     return Material(
-      color: isDark
-          ? const Color(0xFF121216)
-          : Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(28),
+      color: _aiSurfaceAlt(context),
+      borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(28),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: _aiBorder(context)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Stack(
-              children: <Widget>[
-                Positioned(
-                  top: -12,
-                  right: -12,
-                  child: _GlowOrb(
-                    diameter: 84,
-                    colors: <Color>[
-                      action.tint.withOpacity(0.28),
-                      Colors.transparent,
-                    ],
-                  ),
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: <Widget>[
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: action.tint.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                Column(
+                child: Icon(action.icon, size: 19, color: action.tint),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: action.tint.withOpacity(0.18),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Icon(action.icon, color: _aiText(context)),
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      action.title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: _aiText(context),
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                    const SizedBox(height: 6),
-                    Expanded(
-                      child: Text(
-                        action.subtitle,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: _aiMuted(context),
-                              height: 1.45,
-                            ),
-                      ),
-                    ),
-                    Align(
-                      alignment: Alignment.bottomRight,
-                      child: Icon(Icons.arrow_outward_rounded,
-                          color: _aiMuted(context)),
-                    ),
+                    Text(action.title,
+                        style: TextStyle(color: _aiText(context), fontWeight: FontWeight.w700, fontSize: 13.5)),
+                    const SizedBox(height: 2),
+                    Text(action.subtitle,
+                        style: TextStyle(color: _aiMuted(context), fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
                   ],
                 ),
-              ],
-            ),
+              ),
+              Icon(Icons.arrow_forward_ios_rounded, size: 14, color: _aiMuted(context)),
+            ],
           ),
         ),
       ),
@@ -942,364 +620,95 @@ class _StudioCard extends StatelessWidget {
   }
 }
 
-class _HistoryRail extends StatelessWidget {
-  const _HistoryRail({
-    required this.language,
-    required this.ai,
-    required this.onTopicSelected,
-  });
-
-  final AppLanguage language;
-  final AiProvider ai;
-  final ValueChanged<AiTopic> onTopicSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 148,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: AiTopic.values.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (BuildContext context, int index) {
-          final AiTopic topic = AiTopic.values[index];
-          final List<ChatMessage> messages = ai
-              .messagesFor(topic)
-              .where((ChatMessage item) => !item.isLoading)
-              .toList(growable: false);
-          final ChatMessage? lastMessage =
-              messages.isEmpty ? null : messages.last;
-          return _HistoryCard(
-            language: language,
-            topic: topic,
-            messageCount: messages.length,
-            preview: lastMessage?.text ??
-                language.tr(
-                    en: 'No messages yet',
-                    ha: 'Babu sakonni tukuna',
-                    fr: 'Aucun message pour le moment'),
-            onTap: () => onTopicSelected(topic),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _HistoryCard extends StatelessWidget {
-  const _HistoryCard({
-    required this.language,
-    required this.topic,
-    required this.messageCount,
-    required this.preview,
-    required this.onTap,
-  });
-
-  final AppLanguage language;
-  final AiTopic topic;
-  final int messageCount;
-  final String preview;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isDark = _aiIsDark(context);
-    return SizedBox(
-      width: 220,
-      child: Material(
-        color: isDark
-            ? const Color(0xFF121216)
-            : Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(26),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(26),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(color: _aiBorder(context)),
-            ),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Text(topic.emoji, style: const TextStyle(fontSize: 24)),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        topic.label,
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  color: _aiText(context),
-                                  fontWeight: FontWeight.w700,
-                                ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: Text(
-                    topic.description,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: _aiMuted(context), height: 1.4),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  '$messageCount messages',
-                  style: Theme.of(context)
-                      .textTheme
-                      .labelLarge
-                      ?.copyWith(color: AppColors.primary),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  preview,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: _aiMuted(context)),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ChatSurface extends StatelessWidget {
-  const _ChatSurface({
-    required this.language,
-    required this.topic,
-    required this.messages,
-    required this.controller,
-    required this.onClearTopic,
-  });
-
-  final AppLanguage language;
-  final AiTopic topic;
-  final List<ChatMessage> messages;
-  final ScrollController controller;
-  final VoidCallback onClearTopic;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isDark = _aiIsDark(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark
-            ? const Color(0xFF101014)
-            : Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: _aiBorder(context)),
-      ),
-      child: Column(
-        children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-            child: Row(
-              children: <Widget>[
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.16),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  alignment: Alignment.center,
-                  child:
-                      Text(topic.emoji, style: const TextStyle(fontSize: 20)),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        topic.label,
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  color: _aiText(context),
-                                  fontWeight: FontWeight.w700,
-                                ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        language.tr(
-                            en: 'Chat history for this topic stays here.',
-                            ha: 'Tarihin tattaunawa na wannan batu yana nan.',
-                            fr: 'L\'historique de discussion pour ce sujet reste ici.'),
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: _aiMuted(context)),
-                      ),
-                    ],
-                  ),
-                ),
-                TextButton(
-                  style: TextButton.styleFrom(foregroundColor: Colors.white),
-                  onPressed: messages.isEmpty ? null : onClearTopic,
-                  child: Text(
-                    language.tr(en: 'Clear', ha: 'Share', fr: 'Effacer'),
-                    style: TextStyle(
-                      color: messages.isEmpty ? Colors.white38 : Colors.white,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: Color(0x1FFFFFFF)),
-          SizedBox(
-            height: 420,
-            child: messages.isEmpty
-                ? _EmptyConversation(language: language, topic: topic)
-                : ListView.separated(
-                    controller: controller,
-                    padding: const EdgeInsets.all(16),
-                    itemCount: messages.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (BuildContext context, int index) {
-                      final ChatMessage message = messages[index];
-                      if (message.isLoading) {
-                        return const Align(
-                          alignment: Alignment.centerLeft,
-                          child: _TypingBubble(),
-                        );
-                      }
-                      return _ChatBubble(language: language, message: message);
-                    },
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ComposerCard extends StatelessWidget {
-  const _ComposerCard({
+class _Composer extends StatelessWidget {
+  const _Composer({
     required this.language,
     required this.controller,
-    required this.isLoading,
+    required this.isBusy,
     required this.selectedImageBytes,
     required this.selectedImageLabel,
     required this.onSend,
-    required this.onTakePhoto,
-    required this.onUploadImage,
-    required this.onVoiceTap,
+    required this.onAttach,
     required this.onRemoveImage,
   });
 
   final AppLanguage language;
   final TextEditingController controller;
-  final bool isLoading;
+  final bool isBusy;
   final Uint8List? selectedImageBytes;
   final String? selectedImageLabel;
   final VoidCallback onSend;
-  final VoidCallback onTakePhoto;
-  final VoidCallback onUploadImage;
-  final VoidCallback onVoiceTap;
+  final VoidCallback onAttach;
   final VoidCallback onRemoveImage;
 
   @override
   Widget build(BuildContext context) {
-    final bool isDark = _aiIsDark(context);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark
-            ? const Color(0xFF121216)
-            : Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: _aiBorder(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          if (selectedImageBytes != null) ...<Widget>[
-            _AttachmentPreview(
-              bytes: selectedImageBytes!,
-              label: selectedImageLabel ??
-                  language.tr(
-                      en: 'Attached image',
-                      ha: 'Hoton da aka haɗa',
-                      fr: 'Image jointe'),
-              onRemove: onRemoveImage,
+    // A floating pill card with visible margin on every side (rather than
+    // an edge-to-edge bar with a top border) so the background shows
+    // through around it, matching Claude's own floating composer.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+        decoration: BoxDecoration(
+          color: _aiSurfaceAlt(context),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: _aiBorder(context)),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: Colors.black.withOpacity(_aiIsDark(context) ? 0.25 : 0.06),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
             ),
-            const SizedBox(height: 12),
           ],
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF17171C)
-                  : Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: _aiBorder(context)),
-            ),
-            child: TextField(
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            if (selectedImageBytes != null) ...<Widget>[
+              _AttachmentPreview(
+                bytes: selectedImageBytes!,
+                label: selectedImageLabel ??
+                    language.tr(en: 'Attached image', ha: 'Hoton da aka haɗa', fr: 'Image jointe'),
+                onRemove: onRemoveImage,
+              ),
+              const SizedBox(height: 8),
+            ],
+            TextField(
               controller: controller,
               minLines: 1,
-              maxLines: 4,
+              maxLines: 5,
               textInputAction: TextInputAction.send,
-              style: TextStyle(color: _aiText(context), height: 1.5),
+              style: TextStyle(color: _aiText(context), height: 1.4),
               decoration: InputDecoration(
                 hintText: language.tr(
-                    en: 'Send a message, ask for a plan, or describe what you see...',
-                    ha: 'Aika sako, nemi shiri, ko kwatanta abin da kake gani...',
-                    fr: 'Envoyez un message, demandez un plan, ou decrivez ce que vous voyez...'),
+                    en: 'Write a message...',
+                    ha: 'Rubuta sako...',
+                    fr: 'Ecrivez un message...'),
                 hintStyle: TextStyle(color: _aiMuted(context)),
                 border: InputBorder.none,
+                isCollapsed: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               ),
               onSubmitted: (_) {
-                if (!isLoading) {
-                  onSend();
-                }
+                if (!isBusy) onSend();
               },
             ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: <Widget>[
-              _RoundActionButton(
-                icon: Icons.camera_alt_rounded,
-                label: language.tr(en: 'Photo', ha: 'Hoto', fr: 'Photo'),
-                onTap: isLoading ? null : onTakePhoto,
-              ),
-              _RoundActionButton(
-                icon: Icons.image_outlined,
-                label: language.tr(
-                    en: 'Gallery', ha: 'Zauren Hoto', fr: 'Galerie'),
-                onTap: isLoading ? null : onUploadImage,
-              ),
-              _RoundActionButton(
-                icon: Icons.mic_none_rounded,
-                label: language.tr(en: 'Voice', ha: 'Murya', fr: 'Voix'),
-                onTap: isLoading ? null : onVoiceTap,
-              ),
-              _SendButton(
-                isLoading: isLoading,
-                onTap: isLoading ? null : onSend,
-              ),
-            ],
-          ),
-        ],
+            const SizedBox(height: 4),
+            Row(
+              children: <Widget>[
+                IconButton(
+                  onPressed: isBusy ? null : onAttach,
+                  icon: Icon(Icons.add_circle_outline_rounded, color: _aiText(context)),
+                  tooltip: language.tr(en: 'Attach photo', ha: 'Haɗa hoto', fr: 'Joindre une photo'),
+                  visualDensity: VisualDensity.compact,
+                ),
+                const Spacer(),
+                _SendButton(isLoading: isBusy, onTap: isBusy ? null : onSend),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1319,74 +728,18 @@ class _SendButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 52,
-        height: 52,
+        width: 44,
+        height: 44,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: const LinearGradient(
-            colors: <Color>[Color(0xFFFF4FD8), Color(0xFF7C3AED)],
-          ),
-          boxShadow: <BoxShadow>[
-            BoxShadow(
-              color: const Color(0xFFFF4FD8).withOpacity(0.25),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
+          color: onTap == null ? AppColors.primary.withOpacity(0.4) : AppColors.primary,
         ),
         child: isLoading
             ? const Padding(
-                padding: EdgeInsets.all(16),
-                child: CircularProgressIndicator(
-                    strokeWidth: 2.2, color: Colors.white),
+                padding: EdgeInsets.all(13),
+                child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
               )
-            : const Icon(Icons.send_rounded, color: Colors.white, size: 22),
-      ),
-    );
-  }
-}
-
-class _RoundActionButton extends StatelessWidget {
-  const _RoundActionButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isDark = _aiIsDark(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
-        decoration: BoxDecoration(
-          color: isDark
-              ? const Color(0xFF17171C)
-              : Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: _aiBorder(context)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(icon, size: 18, color: _aiText(context)),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: _aiText(context),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-          ],
-        ),
+            : const Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 20),
       ),
     );
   }
@@ -1405,47 +758,32 @@ class _AttachmentPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isDark = _aiIsDark(context);
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: isDark
-            ? const Color(0xFF17171C)
-            : Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(22),
+        color: _aiSurfaceAlt(context),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: _aiBorder(context)),
       ),
       child: Row(
         children: <Widget>[
           ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child:
-                Image.memory(bytes, width: 68, height: 68, fit: BoxFit.cover),
+            borderRadius: BorderRadius.circular(12),
+            child: Image.memory(bytes, width: 44, height: 44, fit: BoxFit.cover),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(label,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(color: _aiText(context))),
-                const SizedBox(height: 4),
-                Text(
-                  'This will be sent with the next AI request.',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: _aiMuted(context)),
-                ),
-              ],
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: _aiText(context), fontSize: 12.5, fontWeight: FontWeight.w600),
             ),
           ),
           IconButton(
             onPressed: onRemove,
-            icon: Icon(Icons.close_rounded, color: _aiMuted(context)),
+            icon: Icon(Icons.close_rounded, size: 18, color: _aiMuted(context)),
+            visualDensity: VisualDensity.compact,
           ),
         ],
       ),
@@ -1453,6 +791,11 @@ class _AttachmentPreview extends StatelessWidget {
   }
 }
 
+/// Renders a chat turn the way Claude's own chat surface does: the user's
+/// own message sits in a compact right-aligned pill, while the assistant's
+/// reply is plain full-width text with no bubble/border - just the answer,
+/// with lightweight **bold** and "- " bullet support so structured advice
+/// (steps, headings) reads clearly without a markdown package.
 class _ChatBubble extends StatelessWidget {
   const _ChatBubble({required this.language, required this.message});
 
@@ -1462,100 +805,121 @@ class _ChatBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool fromUser = message.isFromUser;
-    final ThemeData theme = Theme.of(context);
-    final bool isDark = _aiIsDark(context);
-    final Color bubbleSurface = isDark
-        ? const Color(0xFF17171C)
-        : theme.colorScheme.surfaceContainerHighest;
+
+    if (fromUser) {
+      return Align(
+        alignment: Alignment.centerRight,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                if (message.hasImage)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        const Icon(Icons.image_rounded, size: 14, color: Colors.white70),
+                        const SizedBox(width: 4),
+                        Text(
+                          language.tr(en: 'Image attached', ha: 'Hoto ya hade', fr: 'Image jointe'),
+                          style: const TextStyle(fontSize: 11, color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                  ),
+                SelectableText(
+                  message.text,
+                  style: const TextStyle(color: Colors.white, height: 1.5, fontSize: 14.5),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return Align(
-      alignment: fromUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 340),
+      alignment: Alignment.centerLeft,
+      child: _MarkdownLiteText(text: message.text, color: _aiText(context)),
+    );
+  }
+}
+
+/// A minimal **bold** + "- bullet" renderer - enough to read Gemini's
+/// structured answers (headings, numbered steps, bullet lists) as intended
+/// without pulling in a full markdown package.
+class _MarkdownLiteText extends StatelessWidget {
+  const _MarkdownLiteText({required this.text, required this.color});
+
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<String> lines = text.split('\n');
+    return SelectableText.rich(
+      TextSpan(
+        children: <InlineSpan>[
+          for (int i = 0; i < lines.length; i++) ...<InlineSpan>[
+            if (i > 0) const TextSpan(text: '\n'),
+            ..._lineSpans(lines[i]),
+          ],
+        ],
+      ),
+      style: TextStyle(color: color, height: 1.55, fontSize: 14.5),
+    );
+  }
+
+  List<InlineSpan> _lineSpans(String rawLine) {
+    final bool isBullet = rawLine.trimLeft().startsWith('- ') || rawLine.trimLeft().startsWith('* ');
+    final String line = isBullet ? '•  ${rawLine.trimLeft().substring(2)}' : rawLine;
+    final List<InlineSpan> spans = <InlineSpan>[];
+    final RegExp boldPattern = RegExp(r'\*\*(.+?)\*\*');
+    int cursor = 0;
+    for (final RegExpMatch match in boldPattern.allMatches(line)) {
+      if (match.start > cursor) {
+        spans.add(TextSpan(text: line.substring(cursor, match.start)));
+      }
+      spans.add(TextSpan(
+        text: match.group(1),
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ));
+      cursor = match.end;
+    }
+    if (cursor < line.length) {
+      spans.add(TextSpan(text: line.substring(cursor)));
+    }
+    return spans;
+  }
+}
+
+class _ScrollToBottomButton extends StatelessWidget {
+  const _ScrollToBottomButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: _aiSurfaceAlt(context),
+      shape: const CircleBorder(),
+      elevation: 3,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
         child: Container(
-          decoration: BoxDecoration(
-            gradient: fromUser
-                ? const LinearGradient(
-                    colors: <Color>[Color(0xFFFF4FD8), Color(0xFF7C3AED)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                : null,
-            color: fromUser ? null : bubbleSurface,
-            borderRadius: BorderRadius.circular(24),
-            border: fromUser ? null : Border.all(color: _aiBorder(context)),
-            boxShadow: <BoxShadow>[
-              if (fromUser)
-                BoxShadow(
-                  color: const Color(0xFFFF4FD8).withOpacity(0.18),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-            ],
-          ),
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                children: <Widget>[
-                  Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: fromUser
-                          ? Colors.white.withOpacity(0.15)
-                          : AppColors.primary.withOpacity(0.18),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      fromUser
-                          ? Icons.person_rounded
-                          : Icons.auto_awesome_rounded,
-                      size: 16,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    fromUser
-                        ? language.tr(en: 'You', ha: 'Kai', fr: 'Vous')
-                        : language.tr(
-                            en: 'Advisor',
-                            ha: 'Mai Ba da Shawara',
-                            fr: 'Conseiller'),
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: fromUser ? Colors.white : _aiText(context),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const Spacer(),
-                  if (message.hasImage)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.14),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        language.tr(en: 'Image', ha: 'Hoto', fr: 'Image'),
-                        style: theme.textTheme.labelSmall?.copyWith(
-                            color: fromUser ? Colors.white : _aiText(context)),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              SelectableText(
-                message.text,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: fromUser ? Colors.white : _aiText(context),
-                  height: 1.55,
-                ),
-              ),
-            ],
-          ),
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: _aiBorder(context))),
+          child: Icon(Icons.arrow_downward_rounded, size: 18, color: _aiText(context)),
         ),
       ),
     );
@@ -1567,25 +931,21 @@ class _TypingBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isDark = _aiIsDark(context);
     return Container(
-      width: 92,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: isDark
-            ? const Color(0xFF17171C)
-            : Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(24),
+        color: _aiSurfaceAlt(context),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: _aiBorder(context)),
       ),
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          _Dot(),
-          SizedBox(width: 5),
-          _Dot(),
-          SizedBox(width: 5),
-          _Dot(),
+        children: const <Widget>[
+          _Dot(delay: 0),
+          SizedBox(width: 4),
+          _Dot(delay: 150),
+          SizedBox(width: 4),
+          _Dot(delay: 300),
         ],
       ),
     );
@@ -1593,7 +953,9 @@ class _TypingBubble extends StatelessWidget {
 }
 
 class _Dot extends StatefulWidget {
-  const _Dot();
+  const _Dot({required this.delay});
+
+  final int delay;
 
   @override
   State<_Dot> createState() => _DotState();
@@ -1601,14 +963,21 @@ class _Dot extends StatefulWidget {
 
 class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  late final Animation<double> _animation;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 900),
     )..repeat(reverse: true);
+    _animation = Tween<double>(begin: 0.3, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+    Future<void>.delayed(Duration(milliseconds: widget.delay), () {
+      if (mounted) _controller.forward();
+    });
   }
 
   @override
@@ -1619,126 +988,15 @@ class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final bool isDark = _aiIsDark(context);
     return FadeTransition(
-      opacity: Tween<double>(begin: 0.35, end: 1).animate(
-        CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-      ),
+      opacity: _animation,
       child: Container(
-        width: 8,
-        height: 8,
+        width: 6,
+        height: 6,
         decoration: BoxDecoration(
-          color:
-              isDark ? Colors.white70 : Theme.of(context).colorScheme.primary,
+          color: AppColors.primary,
           shape: BoxShape.circle,
         ),
-      ),
-    );
-  }
-}
-
-class _EmptyConversation extends StatelessWidget {
-  const _EmptyConversation({required this.language, required this.topic});
-
-  final AppLanguage language;
-  final AiTopic topic;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Container(
-              width: 76,
-              height: 76,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.16),
-                borderRadius: BorderRadius.circular(26),
-              ),
-              alignment: Alignment.center,
-              child: Text(topic.emoji, style: const TextStyle(fontSize: 32)),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              language.tr(
-                en: 'Start a ${topic.label.toLowerCase()} conversation',
-                ha: 'Fara tattaunawar ${topic.label.toLowerCase()}',
-                fr: 'Demarrer une conversation ${topic.label.toLowerCase()}',
-              ),
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: _aiText(context),
-                    fontWeight: FontWeight.w700,
-                  ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              language.tr(
-                en: 'Ask for a plan, attach a photo, or give a crop and livestock context. The assistant keeps the thread organized by topic.',
-                ha: 'Nemi shiri, haɗa hoto, ko bayar da bayanan amfanin gona da dabbobi. Mataimaki yana rike da tattaunawa cikin tsari bisa batu.',
-                fr: 'Demandez un plan, joignez une photo ou donnez un contexte sur les cultures et l\'elevage. L\'assistant garde le fil organise par sujet.',
-              ),
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: _aiMuted(context),
-                    height: 1.6,
-                  ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NoticeCard extends StatelessWidget {
-  const _NoticeCard({
-    required this.message,
-    required this.tint,
-    required this.icon,
-  });
-
-  final String message;
-  final Color tint;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isDark = _aiIsDark(context);
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDark
-            ? const Color(0xFF121216)
-            : Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: _aiBorder(context)),
-      ),
-      child: Row(
-        children: <Widget>[
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: tint,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(icon, color: Colors.black87),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              message,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: _aiMuted(context),
-                    height: 1.45,
-                  ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1751,226 +1009,8 @@ class _AiLoadingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _aiBackground(context),
-      body: const Center(
-        child: CircularProgressIndicator(strokeWidth: 3),
-      ),
-    );
-  }
-}
-
-class _StudioBackdrop extends StatelessWidget {
-  const _StudioBackdrop({required this.isDark});
-
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: <Widget>[
-        Container(
-            color: isDark ? const Color(0xFF0A0A0E) : const Color(0xFFF7F5EF)),
-        Positioned(
-          top: -80,
-          right: -50,
-          child: _GlowOrb(
-            diameter: 260,
-            colors: <Color>[
-              const Color(0xFFFF4FD8).withOpacity(isDark ? 0.18 : 0.10),
-              const Color(0xFF7C3AED).withOpacity(isDark ? 0.06 : 0.04),
-            ],
-          ),
-        ),
-        Positioned(
-          top: 220,
-          left: -80,
-          child: _GlowOrb(
-            diameter: 220,
-            colors: <Color>[
-              const Color(0xFF37D7FF).withOpacity(isDark ? 0.10 : 0.06),
-              const Color(0xFF7C3AED).withOpacity(isDark ? 0.04 : 0.03),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _GlowOrb extends StatelessWidget {
-  const _GlowOrb({
-    required this.diameter,
-    required this.colors,
-  });
-
-  final double diameter;
-  final List<Color> colors;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: diameter,
-      height: diameter,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(colors: colors),
-      ),
-    );
-  }
-}
-
-bool _aiIsDark(BuildContext context) =>
-    Theme.of(context).brightness == Brightness.dark;
-
-Color _aiBackground(BuildContext context) {
-  return _aiIsDark(context) ? const Color(0xFF0A0A0E) : const Color(0xFFF7F5EF);
-}
-
-Color _aiSurface(BuildContext context) {
-  return _aiIsDark(context)
-      ? const Color(0xFF121216)
-      : Theme.of(context).colorScheme.surface;
-}
-
-Color _aiSurfaceAlt(BuildContext context) {
-  return _aiIsDark(context)
-      ? const Color(0xFF17171C)
-      : Theme.of(context).colorScheme.surfaceContainerHighest;
-}
-
-Color _aiBorder(BuildContext context) {
-  return _aiIsDark(context)
-      ? Colors.white.withOpacity(0.08)
-      : Theme.of(context).colorScheme.outlineVariant;
-}
-
-Color _aiText(BuildContext context) {
-  return _aiIsDark(context)
-      ? Colors.white
-      : Theme.of(context).colorScheme.onSurface;
-}
-
-Color _aiMuted(BuildContext context) {
-  return _aiIsDark(context)
-      ? Colors.white70
-      : Theme.of(context).colorScheme.onSurfaceVariant;
-}
-
-class _GlassButton extends StatelessWidget {
-  const _GlassButton({
-    required this.icon,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isDark = _aiIsDark(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: isDark
-              ? const Color(0xFF1D1D24)
-              : Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: _aiBorder(context)),
-        ),
-        child: Icon(icon, color: _aiText(context), size: 26),
-      ),
-    );
-  }
-}
-
-class _QuickBadge extends StatelessWidget {
-  const _QuickBadge({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isDark = _aiIsDark(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        decoration: BoxDecoration(
-          color: isDark
-              ? const Color(0xFF1A1A20)
-              : Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: _aiBorder(context)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(icon, size: 16, color: _aiText(context)),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: _aiText(context),
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _HeroStat extends StatelessWidget {
-  const _HeroStat({
-    required this.label,
-    required this.value,
-  });
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isDark = _aiIsDark(context);
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isDark
-            ? const Color(0xFF17171C)
-            : Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _aiBorder(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(label,
-              style: Theme.of(context)
-                  .textTheme
-                  .labelSmall
-                  ?.copyWith(color: _aiMuted(context))),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: _aiText(context),
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-        ],
+      body: Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
       ),
     );
   }
@@ -1994,13 +1034,9 @@ class AiStudioAction {
   final String prompt;
 }
 
-List<AiStudioAction> _studioActionsFor(AppLanguage language) =>
-    <AiStudioAction>[
+List<AiStudioAction> _studioActionsFor(AppLanguage language) => <AiStudioAction>[
       AiStudioAction(
-        title: language.tr(
-            en: 'Text writer',
-            ha: 'Marubucin Rubutu',
-            fr: 'Redacteur de texte'),
+        title: language.tr(en: 'Text writer', ha: 'Marubucin Rubutu', fr: 'Redacteur de texte'),
         subtitle: language.tr(
             en: 'Turn a farm idea into a clear update.',
             ha: 'Mayar da tunanin gona zuwa sabuntawa mai fayyace.',
@@ -2008,12 +1044,10 @@ List<AiStudioAction> _studioActionsFor(AppLanguage language) =>
         icon: Icons.edit_note_rounded,
         tint: const Color(0xFFFF4FD8),
         topic: AiTopic.general,
-        prompt:
-            'Help me write a clear farm update for farmers about what I am doing this week.',
+        prompt: 'Help me write a clear farm update for farmers about what I am doing this week.',
       ),
       AiStudioAction(
-        title: language.tr(
-            en: 'Image doctor', ha: 'Likitan Hoto', fr: 'Docteur image'),
+        title: language.tr(en: 'Image doctor', ha: 'Likitan Hoto', fr: 'Docteur image'),
         subtitle: language.tr(
             en: 'Inspect a crop, leaf, or animal photo.',
             ha: 'Duba hoton amfanin gona, ganye, ko dabba.',
@@ -2021,14 +1055,10 @@ List<AiStudioAction> _studioActionsFor(AppLanguage language) =>
         icon: Icons.camera_alt_rounded,
         tint: const Color(0xFF37D7FF),
         topic: AiTopic.diseaseAndPest,
-        prompt:
-            'Inspect this image and help me diagnose the likely problem and next action.',
+        prompt: 'Inspect this image and help me diagnose the likely problem and next action.',
       ),
       AiStudioAction(
-        title: language.tr(
-            en: 'Crop planner',
-            ha: 'Mai Tsara Amfanin Gona',
-            fr: 'Planificateur de cultures'),
+        title: language.tr(en: 'Crop planner', ha: 'Mai Tsara Amfanin Gona', fr: 'Planificateur de cultures'),
         subtitle: language.tr(
             en: 'Build planting and feeding schedules.',
             ha: 'Gina jadawalin shuka da ciyarwa.',
@@ -2036,12 +1066,10 @@ List<AiStudioAction> _studioActionsFor(AppLanguage language) =>
         icon: Icons.spa_rounded,
         tint: const Color(0xFF7C3AED),
         topic: AiTopic.cropManagement,
-        prompt:
-            'Create a practical crop management plan with tasks I should do this week.',
+        prompt: 'Create a practical crop management plan with tasks I should do this week.',
       ),
       AiStudioAction(
-        title: language.tr(
-            en: 'Animal coach', ha: 'Kocin Dabbobi', fr: 'Coach animalier'),
+        title: language.tr(en: 'Animal coach', ha: 'Kocin Dabbobi', fr: 'Coach animalier'),
         subtitle: language.tr(
             en: 'Ask about feeding, hygiene, and health.',
             ha: 'Yi tambaya kan ciyarwa, tsafta, da lafiya.',
@@ -2049,12 +1077,10 @@ List<AiStudioAction> _studioActionsFor(AppLanguage language) =>
         icon: Icons.pets_rounded,
         tint: const Color(0xFFFFC271),
         topic: AiTopic.animalHealth,
-        prompt:
-            'Review my livestock care routine and give me practical advice for today.',
+        prompt: 'Review my livestock care routine and give me practical advice for today.',
       ),
       AiStudioAction(
-        title: language.tr(
-            en: 'Weather plan', ha: 'Shirin Yanayi', fr: 'Plan meteo'),
+        title: language.tr(en: 'Weather plan', ha: 'Shirin Yanayi', fr: 'Plan meteo'),
         subtitle: language.tr(
             en: 'Plan work around weather patterns.',
             ha: 'Tsara aiki bisa yanayin sararin samaniya.',
@@ -2062,12 +1088,10 @@ List<AiStudioAction> _studioActionsFor(AppLanguage language) =>
         icon: Icons.wb_cloudy_rounded,
         tint: const Color(0xFF1ED6A8),
         topic: AiTopic.weatherAndClimate,
-        prompt:
-            'Give me a weather-aware work plan for today and the next few days.',
+        prompt: 'Give me a weather-aware work plan for today and the next few days.',
       ),
       AiStudioAction(
-        title: language.tr(
-            en: 'Market notes', ha: 'Bayanan Kasuwa', fr: 'Notes de marche'),
+        title: language.tr(en: 'Market notes', ha: 'Bayanan Kasuwa', fr: 'Notes de marche'),
         subtitle: language.tr(
             en: 'Pricing, sales, and profitability help.',
             ha: 'Taimako kan farashi, tallace-tallace, da riba.',
@@ -2075,7 +1099,34 @@ List<AiStudioAction> _studioActionsFor(AppLanguage language) =>
         icon: Icons.storefront_rounded,
         tint: const Color(0xFFFFA24C),
         topic: AiTopic.marketAndFinance,
-        prompt:
-            'Help me think through pricing, sales timing, and profitability for my farm.',
+        prompt: 'Help me think through pricing, sales timing, and profitability for my farm.',
       ),
     ];
+
+bool _aiIsDark(BuildContext context) => Theme.of(context).brightness == Brightness.dark;
+
+Color _aiBackground(BuildContext context) {
+  return _aiIsDark(context) ? const Color(0xFF0A0A0E) : const Color(0xFFF7F5EF);
+}
+
+Color _aiSurface(BuildContext context) {
+  return _aiIsDark(context) ? const Color(0xFF121216) : Theme.of(context).colorScheme.surface;
+}
+
+Color _aiSurfaceAlt(BuildContext context) {
+  return _aiIsDark(context)
+      ? const Color(0xFF17171C)
+      : Theme.of(context).colorScheme.surfaceContainerHighest;
+}
+
+Color _aiBorder(BuildContext context) {
+  return _aiIsDark(context) ? Colors.white.withOpacity(0.08) : Theme.of(context).colorScheme.outlineVariant;
+}
+
+Color _aiText(BuildContext context) {
+  return _aiIsDark(context) ? Colors.white : Theme.of(context).colorScheme.onSurface;
+}
+
+Color _aiMuted(BuildContext context) {
+  return _aiIsDark(context) ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
+}

@@ -1,7 +1,7 @@
 name: farmsynchub
 description: "FarmSync Hub - Farm Management Information System for smallholder farmers in Jos South LGA, Plateau State, Nigeria."
 publish_to: 'none'
-version: 1.0.10+10
+version: 1.0.11+11
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

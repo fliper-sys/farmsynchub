@@ -590,27 +590,14 @@ class _SyncStatusPill extends StatelessWidget {
                         ),
                 ),
                 const SizedBox(width: 8),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      visualState.label,
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: visualState.foregroundColor,
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                    if (pendingCount > 0)
-                      Text(
-                        '$pendingCount pending',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color:
-                                  visualState.foregroundColor.withOpacity(0.8),
-                              fontWeight: FontWeight.w600,
-                            ),
+                Text(
+                  pendingCount > 0
+                      ? '${visualState.label} · $pendingCount'
+                      : visualState.label,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: visualState.foregroundColor,
+                        fontWeight: FontWeight.w700,
                       ),
-                  ],
                 ),
                 const SizedBox(width: 4),
                 Icon(

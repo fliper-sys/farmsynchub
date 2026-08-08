@@ -28,6 +28,7 @@ import '../../common/widgets/entity_card_pieces.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
 import '../schedule/schedule_screen.dart';
+import 'livestock_batch_comparison_screen.dart';
 import 'livestock_detail_screen.dart';
 
 class LivestockScreen extends ConsumerWidget {
@@ -95,6 +96,15 @@ class LivestockScreen extends ConsumerWidget {
             ),
             icon: const Icon(Icons.calendar_month_rounded),
           ),
+          if (livestock.length >= 2)
+            IconButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const LivestockBatchComparisonScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.compare_arrows_rounded),
+            ),
           IconButton(
             onPressed: eligibleFarms.isEmpty
                 ? null

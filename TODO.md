@@ -1,18 +1,10 @@
-# Task: Add Section Navigation Menu to Crop & Livestock Detail Screens
+# TODO
 
-## Steps
+## Task: Move hero name to next line + fix YouTube 512 error
 
-- [x] 1. Analyze codebase and plan approach
-- [x] 2. Create reusable `SectionScrollMenu` widget at `lib/presentation/common/widgets/section_scroll_menu.dart`
-- [ ] 3. Edit `crop_detail_screen.dart`:
-  - Add `GlobalKey`s for each major section
-  - Add `ScrollController` 
-  - Add menu button in AppBar
-  - Implement scroll-to-section logic
-- [ ] 4. Edit `livestock_detail_screen.dart`:
-  - Add `GlobalKey`s for each major section
-  - Add `ScrollController`
-  - Add menu button in AppBar
-  - Implement scroll-to-section logic
-- [ ] 5. Verify build passes
-
+### Steps
+- [x] 1. Split hero greeting/name into two lines in `dashboard_screen.dart`
+- [x] 2. Fix YouTube player 512 error in `video_player_screen.dart`
+      (error listener, no autoplay, "Open in YouTube" fallback)
+- [x] 3. Run `flutter analyze` to verify no compile errors
+      (only 3 pre-existing info-level const lints, no errors)

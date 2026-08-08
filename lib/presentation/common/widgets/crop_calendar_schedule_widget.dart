@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../../core/services/crop_schedule_service.dart';
 import '../../../core/services/farm_notification_service.dart';
 import '../../../domain/models/crop.dart';
 import '../../../domain/models/farm_activity.dart';
 import '../../../providers/crop_provider.dart';
-import 'app_button.dart';
-import 'app_card.dart';
 
 /// Displays a week-by-week auto-generated calendar schedule for a crop,
 /// with fertilizer, pesticide, irrigation, weeding, and harvest reminders.
@@ -28,7 +25,6 @@ class CropCalendarScheduleWidget extends ConsumerStatefulWidget {
 class _CropCalendarScheduleWidgetState
     extends ConsumerState<CropCalendarScheduleWidget> {
   late List<CropScheduleItem> _schedule;
-  final Set<int> _scheduledIndices = <int>{};
   bool _isBatchScheduling = false;
   String? _summary;
 
@@ -41,64 +37,102 @@ class _CropCalendarScheduleWidgetState
         : null;
   }
 
+  /// A schedule item is "already created" when a matching reminder (same
+  /// title, same day) already exists in the crop's todo list. This is
+  /// re-checked against the live crop on every build instead of tracked in
+  /// local widget state, which used to reset to "nothing scheduled yet"
+  /// every time this widget was rebuilt (e.g. navigating back to the
+  /// screen) even though the reminder had actually been saved.
+  bool _isScheduled(CropScheduleItem item) {
+    return widget.crop.todoItems.any((FarmTodoItem todo) =>
+        todo.title == item.title && _isSameDay(todo.dueDate, item.suggestedDate));
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Row(
           children: <Widget>[
-            const Icon(Icons.calendar_month_rounded, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              'Calendar Schedule',
-              style: theme.textTheme.titleLarge,
-            ),
-            const Spacer(),
-            if (_schedule.isNotEmpty)
-              TextButton.icon(
-                onPressed: _batchCreateReminders,
-                icon: _isBatchScheduling
-                    ? SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: theme.colorScheme.primary,
-                        ),
-                      )
-                    : const Icon(Icons.event_note_rounded, size: 18),
-                label: Text(
-                    _isBatchScheduling ? 'Creating...' : 'Create all'),
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: scheme.primary.withOpacity(0.14),
+                borderRadius: BorderRadius.circular(14),
               ),
+              alignment: Alignment.center,
+              child: Icon(Icons.calendar_month_rounded,
+                  size: 20, color: scheme.primary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text('Calendar Schedule', style: theme.textTheme.titleLarge),
+                  if (_summary != null)
+                    Text(
+                      _summary!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                ],
+              ),
+            ),
           ],
         ),
-        const SizedBox(height: 4),
-        if (_summary != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Text(
-              _summary!,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        if (_schedule.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _isBatchScheduling ? null : _batchCreateReminders,
+              style: FilledButton.styleFrom(
+                backgroundColor: scheme.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18)),
+              ),
+              icon: _isBatchScheduling
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.event_note_rounded, size: 18),
+              label: Text(_isBatchScheduling ? 'Creating...' : 'Create all'),
             ),
           ),
+        ],
+        const SizedBox(height: 14),
         // Week-by-week grouped schedule
         ..._buildWeekGroups(context, theme),
         if (_schedule.isEmpty)
-          AppCard(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Center(
-                child: Text(
-                  'No schedule items generated for ${widget.crop.name}. '
-                  'Add a planting date and variety to get suggestions.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                ),
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Center(
+              child: Text(
+                'No schedule items generated for ${widget.crop.name}. '
+                'Add a planting date and variety to get suggestions.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: scheme.onSurfaceVariant),
               ),
             ),
           ),
@@ -129,28 +163,20 @@ class _CropCalendarScheduleWidgetState
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      '${entry.value.length} items',
-                      style: theme.textTheme.labelSmall,
-                    ),
+                  Text(
+                    '${entry.value.length} item${entry.value.length == 1 ? '' : 's'}',
+                    style: theme.textTheme.labelSmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
               ...entry.value.map((CropScheduleItem item) {
-                final int index = _schedule.indexOf(item);
-                final bool isScheduled = _scheduledIndices.contains(index);
+                final bool isScheduled = _isScheduled(item);
                 return _ScheduleActionTile(
                   item: item,
                   isScheduled: isScheduled,
-                  onTap: () => _scheduleSingleReminder(item, index),
+                  onTap: () => _scheduleSingleReminder(item),
                 );
               }),
             ],
@@ -164,16 +190,27 @@ class _CropCalendarScheduleWidgetState
 
   Future<void> _batchCreateReminders() async {
     if (_isBatchScheduling) return;
+
+    final List<CropScheduleItem> remaining =
+        _schedule.where((CropScheduleItem item) => !_isScheduled(item)).toList();
+    if (remaining.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('All reminders are already created.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isBatchScheduling = true);
 
     try {
       final List<FarmTodoItem> todoItems =
-          CropScheduleService.scheduleToTodoItems(_schedule);
+          CropScheduleService.scheduleToTodoItems(remaining);
 
-      // Add all todo items to the crop
       final List<FarmTodoItem> updatedTodos =
-          List<FarmTodoItem>.from(widget.crop.todoItems);
-      updatedTodos.addAll(todoItems);
+          List<FarmTodoItem>.from(widget.crop.todoItems)..addAll(todoItems);
 
       await ref.read(cropsProvider.notifier).updateCrop(
             widget.crop.copyWith(
@@ -200,11 +237,7 @@ class _CropCalendarScheduleWidgetState
       }
 
       if (!mounted) return;
-      setState(() {
-        _scheduledIndices
-            .addAll(List<int>.generate(_schedule.length, (int i) => i));
-        _isBatchScheduling = false;
-      });
+      setState(() => _isBatchScheduling = false);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -225,9 +258,8 @@ class _CropCalendarScheduleWidgetState
     }
   }
 
-  Future<void> _scheduleSingleReminder(
-      CropScheduleItem item, int index) async {
-    if (_scheduledIndices.contains(index)) return;
+  Future<void> _scheduleSingleReminder(CropScheduleItem item) async {
+    if (_isScheduled(item)) return;
 
     try {
       final FarmTodoItem todo = item.toTodoItem();
@@ -259,7 +291,6 @@ class _CropCalendarScheduleWidgetState
       }
 
       if (!mounted) return;
-      setState(() => _scheduledIndices.add(index));
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -293,28 +324,30 @@ class _ScheduleActionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: AppCard(
-        color: isScheduled
-            ? theme.colorScheme.primaryContainer.withOpacity(0.3)
-            : theme.colorScheme.surfaceContainerHighest,
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: scheme.outlineVariant.withOpacity(0.5)),
+        ),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
           onTap: isScheduled ? null : onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.all(14),
             child: Row(
               children: <Widget>[
-                // Action emoji badge
                 Container(
-                  width: 38,
-                  height: 38,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
                     color: isScheduled
-                        ? theme.colorScheme.primary.withOpacity(0.15)
-                        : _actionColor(theme, item.actionType).withOpacity(0.12),
+                        ? scheme.primary.withOpacity(0.16)
+                        : scheme.primary.withOpacity(0.10),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Center(
@@ -338,23 +371,46 @@ class _ScheduleActionTile extends StatelessWidget {
                               : null,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Day ${item.dayOffset} — ${item.suggestedDate.day}/${item.suggestedDate.month}/${item.suggestedDate.year}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: <Widget>[
+                          Icon(Icons.event_rounded,
+                              size: 13, color: scheme.onSurfaceVariant),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Day ${item.dayOffset} · ${item.suggestedDate.day}/${item.suggestedDate.month}/${item.suggestedDate.year}',
+                            style: theme.textTheme.labelSmall
+                                ?.copyWith(color: scheme.onSurfaceVariant),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
                 if (isScheduled)
                   Icon(Icons.check_circle_rounded,
-                      size: 22, color: theme.colorScheme.primary)
+                      size: 22, color: scheme.primary)
                 else
-                  TextButton(
-                    onPressed: onTap,
-                    child: const Text('Schedule'),
+                  Material(
+                    color: scheme.primary,
+                    borderRadius: BorderRadius.circular(999),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(999),
+                      onTap: onTap,
+                      child: const Padding(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                        child: Text(
+                          'Schedule',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
               ],
             ),
@@ -362,26 +418,5 @@ class _ScheduleActionTile extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  Color _actionColor(ThemeData theme, CropScheduleActionType type) {
-    switch (type) {
-      case CropScheduleActionType.planting:
-        return Colors.green;
-      case CropScheduleActionType.fertilizer:
-        return Colors.orange;
-      case CropScheduleActionType.pesticide:
-        return Colors.red;
-      case CropScheduleActionType.irrigation:
-        return Colors.blue;
-      case CropScheduleActionType.weeding:
-        return Colors.brown;
-      case CropScheduleActionType.scouting:
-        return Colors.teal;
-      case CropScheduleActionType.harvest:
-        return Colors.amber;
-      case CropScheduleActionType.general:
-        return Colors.grey;
-    }
   }
 }

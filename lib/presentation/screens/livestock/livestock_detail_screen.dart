@@ -23,6 +23,7 @@ import '../../common/widgets/section_scroll_menu.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
 import '../../common/widgets/vaccination_calendar_widget.dart';
 import '../../common/widgets/weight_gain_chart_widget.dart';
+import 'feed_log_screen.dart';
 
 class LivestockDetailScreen extends ConsumerWidget {
   const LivestockDetailScreen({
@@ -527,7 +528,16 @@ class LivestockDetailScreen extends ConsumerWidget {
               title: language.tr(
                   en: 'Feeding Plan',
                   ha: 'Tsarin Ciyarwa',
-                  fr: 'Plan d\'alimentation')),
+                  fr: 'Plan d\'alimentation'),
+              action: TextButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => FeedLogScreen(livestockId: livestock!.id),
+                  ),
+                ),
+                icon: const Icon(Icons.calendar_month_rounded, size: 18),
+                label: Text(language.tr(en: 'Feed log', ha: 'Tarihin ciyarwa', fr: 'Journal d\'alimentation')),
+              )),
           Container(key: _feedingPlanKey, child: FeedingPlanWidget(livestock: livestock)),
           const SizedBox(height: 18),
           SoftSectionTitle(

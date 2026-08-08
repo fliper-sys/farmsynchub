@@ -26,6 +26,7 @@ import '../../common/widgets/entity_card_pieces.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
 import '../schedule/schedule_screen.dart';
+import 'crop_batch_comparison_screen.dart';
 import 'crop_detail_screen.dart';
 
 class CropsScreen extends ConsumerWidget {
@@ -88,11 +89,25 @@ class CropsScreen extends ConsumerWidget {
       heroIcon: Icons.grass_rounded,
       heroVariant: FarmArtworkVariant.crops,
       heroBadge: '${crops.length} crop records',
-      trailing: _HeroActionButton(
-        onTap: eligibleFarms.isEmpty
-            ? null
-            : () => _openCropSheet(context, ref, farms: eligibleFarms),
-        icon: Icons.add_circle_outline_rounded,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          if (crops.length >= 2)
+            _HeroActionButton(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const CropBatchComparisonScreen(),
+                ),
+              ),
+              icon: Icons.compare_arrows_rounded,
+            ),
+          _HeroActionButton(
+            onTap: eligibleFarms.isEmpty
+                ? null
+                : () => _openCropSheet(context, ref, farms: eligibleFarms),
+            icon: Icons.add_circle_outline_rounded,
+          ),
+        ],
       ),
       sections: <Widget>[
         if (eligibleFarms.isEmpty) ...<Widget>[
