@@ -297,7 +297,10 @@ class CropsScreen extends ConsumerWidget {
                 : () => _openCropSheet(context, ref, farms: eligibleFarms),
           )
         else
-          ...crops.map(
+          ...<Crop>[
+            ...crops.where((Crop crop) => crop.isFavorite),
+            ...crops.where((Crop crop) => !crop.isFavorite),
+          ].map(
             (Crop crop) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: _CropCard(
@@ -1472,6 +1475,11 @@ class _CropCard extends StatelessWidget {
                     children: <Widget>[
                       Row(
                         children: <Widget>[
+                          if (crop.isFavorite) ...<Widget>[
+                            const Icon(Icons.star_rounded,
+                                size: 16, color: Color(0xFFE8A93B)),
+                            const SizedBox(width: 4),
+                          ],
                           Flexible(
                             child: Text(crop.name,
                                 overflow: TextOverflow.ellipsis,

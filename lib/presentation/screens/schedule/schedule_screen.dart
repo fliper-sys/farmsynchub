@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/services/farm_notification_service.dart';
@@ -35,6 +36,7 @@ class _ScheduleEntry {
     required this.sourceType,
     required this.sourceLabel,
     required this.onTap,
+    required this.onDelete,
   });
 
   final String title;
@@ -43,6 +45,7 @@ class _ScheduleEntry {
   final _ScheduleSourceType sourceType;
   final String sourceLabel;
   final VoidCallback onTap;
+  final VoidCallback onDelete;
 
   DateTime get day => DateTime(dueDate.year, dueDate.month, dueDate.day);
 }
@@ -137,6 +140,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                   ),
                 ),
               ),
+              onDelete: () => _deleteFarmTask(context, ref, farm, task),
             ),
       for (final Crop crop in crops)
         for (final FarmTodoItem task in crop.todoItems)
@@ -148,6 +152,11 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
               sourceType: _ScheduleSourceType.crop,
               sourceLabel: crop.name,
               onTap: () => _openCropTaskSheet(context, ref, crop, task: task),
+              onDelete: () => _confirmAndDelete(
+                context,
+                title: task.title,
+                onConfirmed: () => _deleteCropTask(context, ref, crop, task),
+              ),
             ),
       for (final Livestock item in livestock)
         for (final FarmTodoItem task in item.todoItems)
@@ -160,6 +169,12 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
               sourceLabel: _speciesLabel(item.species),
               onTap: () =>
                   _openLivestockTaskSheet(context, ref, item, task: task),
+              onDelete: () => _confirmAndDelete(
+                context,
+                title: task.title,
+                onConfirmed: () =>
+                    _deleteLivestockTask(context, ref, item, task),
+              ),
             ),
     ]..sort(
         (_ScheduleEntry a, _ScheduleEntry b) => a.dueDate.compareTo(b.dueDate));
@@ -377,6 +392,68 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     if (context.mounted) {
       context.showSnackBar(task == null ? 'Reminder created.' : 'Reminder updated.');
     }
+  }
+
+  /// Shows a confirmation dialog before running a destructive delete, so a
+  /// single tap on the delete icon can't wipe out a reminder by accident.
+  Future<void> _confirmAndDelete(
+    BuildContext context, {
+    required String title,
+    required VoidCallback onConfirmed,
+  }) async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: const Text('Delete reminder?'),
+        content: Text('Delete "$title"? This can\'t be undone.'),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) onConfirmed();
+  }
+
+  Future<void> _deleteFarmTask(
+      BuildContext context, WidgetRef ref, Farm farm, FarmWorkspaceTask task) async {
+    await _confirmAndDelete(
+      context,
+      title: task.title,
+      onConfirmed: () async {
+        final List<FarmWorkspaceTask> nextTasks = farm.workspaceTasks
+            .where((FarmWorkspaceTask current) => current.id != task.id)
+            .toList(growable: false);
+        await ref.read(farmsProvider.notifier).updateFarm(
+              farm.copyWith(
+                workspaceTasks: nextTasks,
+                activityLog: <FarmActivityRecord>[
+                  FarmActivityRecord(
+                    id: const Uuid().v4(),
+                    actorName: 'Workspace',
+                    actorRole: FarmWorkspaceRole.owner,
+                    action: 'Removed task',
+                    detail: '${task.title} was removed from the farm plan.',
+                    audience: FarmActivityAudience.owners,
+                    relatedTaskId: task.id,
+                    createdAt: DateTime.now(),
+                  ),
+                  ...farm.activityLog,
+                ],
+                updatedAt: DateTime.now(),
+                isSynced: false,
+              ),
+            );
+        await FarmNotificationService.instance.cancel(task.id.hashCode.abs());
+        if (context.mounted) context.showSnackBar('Task removed.');
+      },
+    );
   }
 
   Future<void> _deleteCropTask(
@@ -1049,6 +1126,13 @@ class _EntryTile extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+              IconButton(
+                tooltip: 'Delete reminder',
+                icon: Icon(Icons.delete_outline_rounded,
+                    size: 20, color: theme.colorScheme.onSurfaceVariant),
+                onPressed: entry.onDelete,
+                visualDensity: VisualDensity.compact,
               ),
               const Icon(Icons.chevron_right_rounded),
             ],

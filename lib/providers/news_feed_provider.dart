@@ -75,7 +75,11 @@ class NewsFeedController extends StateNotifier<AsyncValue<NewsFeedState>> {
       final List<NewsPost> remotePosts = await _loadRemotePosts();
       final List<String> followed = await _loadFollowedAuthors();
       final List<UserProfile> users = await _loadUsers();
-      final List<NewsPost> posts = _mergePosts(remotePosts, _seedPosts());
+      // Starter posts only fill the feed while there's no real content yet -
+      // otherwise their hardcoded "now.subtract(...)" timestamps would make
+      // them look freshly posted forever, permanently crowding out real posts.
+      final List<NewsPost> posts =
+          remotePosts.isEmpty ? _seedPosts() : remotePosts;
       posts.sort((NewsPost a, NewsPost b) => b.createdAt.compareTo(a.createdAt));
       if (!mounted) return;
       state = AsyncValue.data(
@@ -160,14 +164,6 @@ class NewsFeedController extends StateNotifier<AsyncValue<NewsFeedState>> {
         // Keep the local cache if remote sync fails.
       }
     }
-  }
-
-  List<NewsPost> _mergePosts(List<NewsPost> remote, List<NewsPost> seeded) {
-    final Map<String, NewsPost> merged = <String, NewsPost>{
-      for (final NewsPost post in seeded) post.id: post,
-      for (final NewsPost post in remote) post.id: post,
-    };
-    return merged.values.toList(growable: false);
   }
 
   List<NewsPost> _seedPosts() {

@@ -47,27 +47,26 @@ abstract final class AppColors {
   /// Bright green used for progress and highlight states.
   static const Color primaryLight = premiumGreen;
 
-  // Light-mode elevation ladder: a deliberately warm "milk cream" family —
-  // closer to the colour of dairy milk/cream than an off-white — kept
-  // consistent end to end (background AND cards) instead of a cream
-// background with cards that jump to pure white.
-  /// Level 0 — app scaffold background.
-  static const Color surfaceLight = Color.fromARGB(255, 241, 236, 224);
-
-  /// Level 0/-1 — lightest cream for lowest surface tier.
-  static const Color surfaceLightLowest = Color.fromARGB(255, 250, 247, 240);
-
-  /// Level 0 — soft cream for low surface tier.
-  static const Color surfaceLightLow = Color.fromARGB(255, 244, 240, 228);
-
+  // Light-mode elevation ladder: a standard, neutral Material palette (no
+  // cream/tan tint) - light grey background with white cards/sheets lifted
+  // above it, the conventional look most apps use.
   /// Level 1 — cards, chips, input fields.
-  static const Color surfaceLightCard = Color.fromARGB(255, 240, 232, 220);
+  static const Color surfaceLightCard = Color(0xFFFFFFFF);
 
   /// Level 1 — container tier (matches [surfaceLightCard]).
-  static const Color surfaceLightContainer = Color.fromARGB(255, 240, 232, 220);
+  static const Color surfaceLightContainer = Color(0xFFFFFFFF);
+
+  /// Level 0 — app scaffold background.
+  static const Color surfaceLight = Color(0xFFF7F7F7);
+
+  /// Level 0 — low surface tier.
+  static const Color surfaceLightLow = Color(0xFFFAFAFA);
+
+  /// Level 0/-1 — lightest surface tier (e.g. inset search fields).
+  static const Color surfaceLightLowest = Color(0xFFFFFFFF);
 
   /// Level 2 — bottom sheets, dialogs, bottom navigation, popovers.
-  static const Color surfaceLightElevated = Color(0xFFFFF4E4);
+  static const Color surfaceLightElevated = Color(0xFFFFFFFF);
 
   /// Soft green-tinted surface for highlighted cards.
   static const Color surfaceSoft = Color(0xFFF2FAEE);
@@ -97,7 +96,7 @@ abstract final class AppColors {
   static const Color soilBrown = Color(0xFF8B5E3C);
 
   /// Light border color for cards and input outlines.
-  static const Color borderLight = Color(0xFFE7E8DD);
+  static const Color borderLight = Color(0xFFE0E0E0);
 
   /// Dark border color for dark surfaces.
   static const Color borderDark = darkBorder;

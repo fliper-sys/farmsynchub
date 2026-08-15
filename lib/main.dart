@@ -62,7 +62,16 @@ void _configureFirestoreOfflineCache() {
 }
 
 Future<void> _initializeCloudServices() async {
-  if (!kIsWeb) {
+  // firebase_app_check has no native Windows/Linux provider - activate()
+  // would just throw there every time, so skip the call entirely on those
+  // platforms instead of relying on the catch below to hide it. Services
+  // that read App Check (see GeminiService._appCheckForPlatform) treat it
+  // as unconfigured on desktop for the same reason.
+  final bool appCheckSupported = !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS);
+  if (appCheckSupported) {
     try {
       await FirebaseAppCheck.instance.activate(
         androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,

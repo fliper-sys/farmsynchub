@@ -239,7 +239,10 @@ class LivestockScreen extends ConsumerWidget {
                 : () => _openLivestockSheet(context, ref, farms: eligibleFarms),
           )
         else
-          ...livestock.map(
+          ...<Livestock>[
+            ...livestock.where((Livestock item) => item.isFavorite),
+            ...livestock.where((Livestock item) => !item.isFavorite),
+          ].map(
             (Livestock item) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: _AnimalGroupCard(
@@ -1681,6 +1684,11 @@ class _AnimalGroupCard extends StatelessWidget {
                     children: <Widget>[
                       Row(
                         children: <Widget>[
+                          if (livestock.isFavorite) ...<Widget>[
+                            const Icon(Icons.star_rounded,
+                                size: 16, color: Color(0xFFE8A93B)),
+                            const SizedBox(width: 4),
+                          ],
                           Flexible(
                             child: Text(
                               _speciesLabel(livestock.species),

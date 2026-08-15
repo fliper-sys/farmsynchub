@@ -470,6 +470,46 @@ class _TrackedOrdersSection extends ConsumerWidget {
               status: ProcurementOrderStatus.delivered,
               updatedAt: DateTime.now()),
         );
+    // A delivered order is real money spent - record it as an expense so
+    // it actually shows up in Finance/expense totals instead of only
+    // moving stock silently. Previously this step was missing entirely,
+    // so procurement done through "Add order" never counted as spend
+    // anywhere in the app.
+    final DateTime now = DateTime.now();
+    await ref.read(transactionsProvider.notifier).addTransaction(
+          Transaction(
+            id: const Uuid().v4(),
+            farmId: order.farmId,
+            type: TransactionType.expense,
+            category: _categoryFor(order.productName),
+            amount: order.totalAmount,
+            description: '${order.productName} delivered from ${order.providerName.isEmpty ? 'supplier' : order.providerName}',
+            transactionDate: now,
+            linkedEntityId: '',
+            createdAt: now,
+            updatedAt: now,
+            isSynced: true,
+            recordKind: TransactionRecordKind.procurement,
+            partyType: TransactionPartyType.provider,
+            productName: order.productName,
+            quantity: order.quantity,
+            unit: order.unit,
+            unitPrice: order.unitPrice,
+            counterpartyName: order.providerName,
+            receiptNumber: 'PR-${now.millisecondsSinceEpoch}',
+            notes: 'Auto-recorded when the tracked order was marked delivered.',
+          ),
+        );
+  }
+
+  TransactionCategory _categoryFor(String productName) {
+    final String lower = productName.toLowerCase();
+    if (lower.contains('feed')) return TransactionCategory.feed;
+    if (lower.contains('fertil')) return TransactionCategory.fertiliser;
+    if (lower.contains('vet') || lower.contains('vaccine') || lower.contains('drug')) {
+      return TransactionCategory.veterinary;
+    }
+    return TransactionCategory.other;
   }
 
   Future<void> _cancel(WidgetRef ref, ProcurementOrder order) async {

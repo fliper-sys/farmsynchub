@@ -21,16 +21,7 @@ class FeaturePlaceholderScreen extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
 
     return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[
-            Color(0xFFFFFBF2),
-            Color(0xFFF2F8EF),
-          ],
-        ),
-      ),
+      decoration: BoxDecoration(color: theme.colorScheme.surface),
       child: SafeArea(
         top: false,
         child: SingleChildScrollView(
@@ -41,7 +32,7 @@ class FeaturePlaceholderScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: theme.colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(32),
                   border: Border.all(color: theme.colorScheme.outlineVariant),
                 ),
@@ -86,7 +77,7 @@ class FeaturePlaceholderScreen extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: theme.colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(28),
                   border: Border.all(color: theme.colorScheme.outlineVariant),
                 ),

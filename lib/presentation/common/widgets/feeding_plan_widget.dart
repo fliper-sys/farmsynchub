@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/services/feed_calculator_service.dart';
 import '../../../domain/models/livestock.dart';
-import '../../../providers/livestock_provider.dart';
-import 'app_button.dart';
 import 'app_card.dart';
 
 /// Displays a feeding plan with daily feed/water requirements,
@@ -205,7 +203,7 @@ class _FeedingPlanWidgetState extends ConsumerState<FeedingPlanWidget> {
                       ),
                       Text(
                         l.averageAgeMonths >= suggestedMaturity
-                            ? 'Matured at ${suggestedMaturity} months — ready for ${_purposeLabel(l.purpose)}'
+                            ? 'Matured at $suggestedMaturity months — ready for ${_purposeLabel(l.purpose)}'
                             : '${suggestedMaturity - l.averageAgeMonths} months remaining (target: $suggestedMaturity months)',
                         style: theme.textTheme.bodySmall,
                       ),

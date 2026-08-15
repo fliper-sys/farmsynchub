@@ -220,7 +220,10 @@ class FarmsScreen extends ConsumerWidget {
             onCreate: () => _openFarmSheet(context, ref),
           )
         else
-          ...visibleFarms.map(
+          ...<Farm>[
+            ...visibleFarms.where((Farm farm) => farm.isFavorite),
+            ...visibleFarms.where((Farm farm) => !farm.isFavorite),
+          ].map(
             (Farm farm) => Padding(
               padding: const EdgeInsets.only(bottom: 14),
               child: _FarmManagementCard(
@@ -625,6 +628,11 @@ class _FarmManagementCard extends StatelessWidget {
               children: <Widget>[
                 Row(
                   children: <Widget>[
+                    if (farm.isFavorite) ...<Widget>[
+                      const Icon(Icons.star_rounded,
+                          size: 20, color: Color(0xFFE8A93B)),
+                      const SizedBox(width: 6),
+                    ],
                     Expanded(
                       child: Text(
                         farm.name,

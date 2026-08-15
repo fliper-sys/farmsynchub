@@ -1,8 +1,14 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/services/report_file_saver.dart';
+import '../../../core/services/report_file_saver_base.dart';
+import '../../../core/services/report_share_service.dart';
 import '../../../core/utils/currency_utils.dart';
+import '../../../core/utils/widget_image_capture.dart';
 import '../../../data/services/crop_advice_catalog.dart';
 import '../../../domain/models/crop.dart';
 import '../../../domain/models/farm.dart';
@@ -35,6 +41,10 @@ class CropDetailScreen extends ConsumerStatefulWidget {
 
 class _CropDetailScreenState extends ConsumerState<CropDetailScreen> {
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey _shareBoundaryKey = GlobalKey();
+  final ReportFileSaver _fileSaver = createReportFileSaver();
+  final ReportShareService _shareService = const ReportShareService();
+  bool _isSharingStatus = false;
 
   // GlobalKeys for each major section
   final GlobalKey _growthCycleKey = GlobalKey();
@@ -204,6 +214,24 @@ class _CropDetailScreenState extends ConsumerState<CropDetailScreen> {
         ),
         title: Text(crop.name),
         actions: <Widget>[
+          IconButton(
+            tooltip: crop.isFavorite ? 'Unpin' : 'Pin to top of crop list',
+            icon: Icon(
+              crop.isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
+              color: crop.isFavorite ? Colors.amber : null,
+            ),
+            onPressed: () => _toggleFavorite(crop!),
+          ),
+          IconButton(
+            tooltip: 'Share status',
+            icon: _isSharingStatus
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.ios_share_rounded),
+            onPressed: _isSharingStatus ? null : () => _shareStatus(crop!),
+          ),
           SectionScrollMenu(
             sections: _mappedSections(language),
             scrollController: _scrollController,
@@ -220,7 +248,9 @@ class _CropDetailScreenState extends ConsumerState<CropDetailScreen> {
         sections: <Widget>[
           Container(
             key: _growthCycleKey,
-            child: AppCard(
+            child: RepaintBoundary(
+              key: _shareBoundaryKey,
+              child: AppCard(
               color: theme.colorScheme.surfaceContainerHighest,
               child: Padding(
                 padding: const EdgeInsets.all(18),
@@ -267,6 +297,7 @@ class _CropDetailScreenState extends ConsumerState<CropDetailScreen> {
                     ),
                   ],
                 ),
+              ),
               ),
             ),
           ),
@@ -340,40 +371,27 @@ class _CropDetailScreenState extends ConsumerState<CropDetailScreen> {
                   color: theme.colorScheme.surfaceContainerHighest,
                   child: Padding(
                     padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
                       children: <Widget>[
-                        Text('Status: $cropWorkStatus',
-                            style: theme.textTheme.titleLarge),
-                        const SizedBox(height: 8),
-                        Text(
-                          _cropWorkNarrative(
-                            crop: crop,
-                            overdueTasks: overdueTasks,
-                            priorityTasks: priorityTasks,
-                          ),
-                          style:
-                              theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+                        _Pill(
+                          text: cropWorkStatus,
+                          color: _workStatusColor(overdueTasks, priorityTasks),
+                          emphasized: true,
                         ),
-                        const SizedBox(height: 14),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: <Widget>[
-                            _Pill(
-                                text: '$overdueTasks overdue',
-                                color: const Color(0xFFFFEBD0)),
-                            _Pill(
-                                text: '$priorityTasks high priority',
-                                color: const Color(0xFFEDE8FF)),
-                            _Pill(
-                                text: '${crop.openTaskCount} open reminders',
-                                color: const Color(0xFFE8F4D8)),
-                            _Pill(
-                                text: _harvestWindowLabel(crop),
-                                color: const Color(0xFFDFF1FF)),
-                          ],
-                        ),
+                        _Pill(
+                            text: '$overdueTasks overdue',
+                            color: const Color(0xFFFFEBD0)),
+                        _Pill(
+                            text: '$priorityTasks high priority',
+                            color: const Color(0xFFEDE8FF)),
+                        _Pill(
+                            text: '${crop.openTaskCount} open reminders',
+                            color: const Color(0xFFE8F4D8)),
+                        _Pill(
+                            text: _harvestWindowLabel(crop),
+                            color: const Color(0xFFDFF1FF)),
                       ],
                     ),
                   ),
@@ -651,6 +669,45 @@ class _CropDetailScreenState extends ConsumerState<CropDetailScreen> {
     ); // end of Scaffold
   }
 
+  Future<void> _toggleFavorite(Crop crop) async {
+    await ref.read(cropsProvider.notifier).updateCrop(
+          crop.copyWith(
+            isFavorite: !crop.isFavorite,
+            updatedAt: DateTime.now(),
+            isSynced: false,
+          ),
+        );
+  }
+
+  Future<void> _shareStatus(Crop crop) async {
+    setState(() => _isSharingStatus = true);
+    try {
+      final Uint8List? imageBytes =
+          await captureBoundaryImage(_shareBoundaryKey);
+      if (imageBytes == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Could not capture the status card.')));
+        }
+        return;
+      }
+      final String fileName =
+          'crop_status_${crop.id}_${DateTime.now().millisecondsSinceEpoch}.png';
+      final String savedPath = await _fileSaver.saveBytes(
+        bytes: imageBytes,
+        fileName: fileName,
+        mimeType: 'image/png',
+      );
+      await _shareService.shareImage(
+        filePath: savedPath,
+        fileName: fileName,
+        message: '${crop.name} status from FarmSync Hub',
+      );
+    } finally {
+      if (mounted) setState(() => _isSharingStatus = false);
+    }
+  }
+
   Future<void> _openPreviousRecommendations(
       BuildContext context, Crop crop) async {
     await Navigator.of(context).push(
@@ -851,27 +908,10 @@ String _cropWorkStatus({
   return 'Cycle on track';
 }
 
-String _cropWorkNarrative({
-  required Crop crop,
-  required int overdueTasks,
-  required int priorityTasks,
-}) {
-  if (overdueTasks > 0) {
-    return 'Clear overdue reminders before adding new work. Start with scouting, irrigation, pest checks, and input applications that affect the current stage.';
-  }
-  if (priorityTasks > 0) {
-    return 'High-priority reminders are open. Assign labour, confirm supplies, and record completion so the cycle timeline stays reliable.';
-  }
-  if (crop.daysToHarvest <= 7) {
-    return crop.daysToHarvest < 0
-        ? 'Harvest is due. Confirm quality, crates, labour, buyers, transport, and stock entry before produce leaves the field.'
-        : 'Harvest is close. Prepare labour, crates, post-harvest handling, buyer commitments, and finance records now.';
-  }
-  if (crop.currentStage == CropStage.flowering ||
-      crop.currentStage == CropStage.fruiting) {
-    return 'This is a yield-sensitive stage. Keep moisture steady, avoid missed feeding, scout pests often, and reduce handling stress.';
-  }
-  return 'Use this window to keep records tight: update stage, inspect stand quality, confirm input stock, and schedule the next field operation.';
+Color _workStatusColor(int overdueTasks, int priorityTasks) {
+  if (overdueTasks > 0) return const Color(0xFFE0685F);
+  if (priorityTasks > 0) return const Color(0xFFB98A2E);
+  return const Color(0xFF3F8B4C);
 }
 
 String _harvestWindowLabel(Crop crop) {
@@ -1124,20 +1164,26 @@ class _MetricCard extends StatelessWidget {
 }
 
 class _Pill extends StatelessWidget {
-  const _Pill({required this.text, required this.color});
+  const _Pill({required this.text, required this.color, this.emphasized = false});
 
   final String text;
   final Color color;
+  final bool emphasized;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color background = isDark
-        ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface)
-        : color;
-    final Color foreground =
-        isDark ? theme.colorScheme.onSurface : const Color(0xFF284231);
+    final Color background = emphasized
+        ? color
+        : isDark
+            ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface)
+            : color;
+    final Color foreground = emphasized
+        ? Colors.white
+        : isDark
+            ? theme.colorScheme.onSurface
+            : const Color(0xFF284231);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

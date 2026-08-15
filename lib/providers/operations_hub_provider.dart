@@ -199,6 +199,23 @@ class OperationsHubNotifier extends StateNotifier<OperationsHubState> {
     await _savePartners();
   }
 
+  Future<void> updatePartner(BusinessPartner partner) async {
+    final List<BusinessPartner> next = state.partners
+        .map((BusinessPartner current) =>
+            current.id == partner.id ? partner : current)
+        .toList(growable: false);
+    state = state.copyWith(partners: next);
+    await _savePartners();
+  }
+
+  Future<void> deletePartner(String partnerId) async {
+    final List<BusinessPartner> next = state.partners
+        .where((BusinessPartner partner) => partner.id != partnerId)
+        .toList(growable: false);
+    state = state.copyWith(partners: next);
+    await _savePartners();
+  }
+
   Future<void> addInventoryItem(InventoryItem item) async {
     final List<InventoryItem> next = <InventoryItem>[...state.inventory];
     final int index =
@@ -290,10 +307,12 @@ class OperationsHubNotifier extends StateNotifier<OperationsHubState> {
     if (lower.contains('fertil')) return '🧪';
     if (lower.contains('veg') ||
         lower.contains('leaf') ||
-        lower.contains('lettuce')) return '🥬';
-    if (lower.contains('tomato') ||
-        lower.contains('pepper') ||
-        lower.contains('pepper')) return '🍅';
+        lower.contains('lettuce')) {
+      return '🥬';
+    }
+    if (lower.contains('tomato') || lower.contains('pepper')) {
+      return '🍅';
+    }
     return '🌾';
   }
 }

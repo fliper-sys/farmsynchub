@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/services/gemini_service.dart';
-import '../../../domain/models/ai_topic.dart';
 import '../../../domain/models/crop.dart';
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/livestock.dart';
@@ -337,36 +336,6 @@ class _AiRecommendationsWidgetState
         builder: (BuildContext context) => const AiAdvisorScreen(),
       ),
     );
-  }
-
-  String _stageLabel(CropStage stage) {
-    switch (stage) {
-      case CropStage.seeding:
-        return 'Seeding';
-      case CropStage.germination:
-        return 'Germination';
-      case CropStage.vegetative:
-        return 'Vegetative';
-      case CropStage.flowering:
-        return 'Flowering';
-      case CropStage.fruiting:
-        return 'Fruiting';
-    }
-  }
-
-  String _growthStageLabel(AnimalGrowthStage stage) {
-    switch (stage) {
-      case AnimalGrowthStage.starter:
-        return 'Starter';
-      case AnimalGrowthStage.grower:
-        return 'Grower';
-      case AnimalGrowthStage.mature:
-        return 'Mature';
-      case AnimalGrowthStage.breeding:
-        return 'Breeding';
-      case AnimalGrowthStage.finishing:
-        return 'Finishing';
-    }
   }
 
   String _livestockLabel(LivestockSpecies species) {

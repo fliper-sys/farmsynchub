@@ -13,7 +13,6 @@ import '../../../domain/models/farm.dart';
 import '../../../domain/models/transaction.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/finance_provider.dart';
-import '../../../providers/operations_hub_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
@@ -61,7 +60,6 @@ class _SalesInformationScreenState
     final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
     final List<Transaction> allTransactions =
         ref.watch(transactionsProvider).valueOrNull ?? <Transaction>[];
-    final OperationsHubState operations = ref.watch(operationsHubProvider);
     final List<Transaction> sales = allTransactions
         .where(
             (Transaction item) => item.recordKind == TransactionRecordKind.sale)

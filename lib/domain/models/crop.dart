@@ -72,6 +72,7 @@ class Crop {
     this.intelligenceNotes = '',
     this.lastIntelligenceSyncAt,
     this.photoJournal = const <PhotoJournalEntry>[],
+    this.isFavorite = false,
   });
 
   final String id;
@@ -99,6 +100,7 @@ class Crop {
   final String intelligenceNotes;
   final DateTime? lastIntelligenceSyncAt;
   final List<PhotoJournalEntry> photoJournal;
+  final bool isFavorite;
 
   int get openTaskCount => todoItems.where((FarmTodoItem item) => !item.isCompleted).length;
   double get syncedInputCost => inputRecords.fold<double>(0, (double sum, FarmInputRecord item) => sum + item.totalCost);
@@ -143,6 +145,7 @@ class Crop {
         'lastIntelligenceSyncAt': lastIntelligenceSyncAt?.toIso8601String(),
         'photoJournal':
             photoJournal.map((PhotoJournalEntry item) => item.toJson()).toList(),
+        'isFavorite': isFavorite,
       };
 
   factory Crop.fromJson(Map<String, dynamic> json) => Crop(
@@ -190,6 +193,7 @@ class Crop {
         photoJournal: _jsonObjectList(json['photoJournal'])
             .map(PhotoJournalEntry.fromJson)
             .toList(),
+        isFavorite: json['isFavorite'] as bool? ?? false,
       );
 
   Crop copyWith({
@@ -216,6 +220,7 @@ class Crop {
     String? intelligenceNotes,
     DateTime? lastIntelligenceSyncAt,
     List<PhotoJournalEntry>? photoJournal,
+    bool? isFavorite,
   }) =>
       Crop(
         id: id,
@@ -243,6 +248,7 @@ class Crop {
         intelligenceNotes: intelligenceNotes ?? this.intelligenceNotes,
         lastIntelligenceSyncAt: lastIntelligenceSyncAt ?? this.lastIntelligenceSyncAt,
         photoJournal: photoJournal ?? this.photoJournal,
+        isFavorite: isFavorite ?? this.isFavorite,
       );
 }
 

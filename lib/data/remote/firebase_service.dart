@@ -250,6 +250,25 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
     return UserProfile.fromJson(data);
   }
 
+  /// Looks up an already-registered app user by email (case-insensitive),
+  /// so a farm owner can add an existing account as a workspace member
+  /// directly instead of always sending a new-account invite.
+  Future<UserProfile?> findUserProfileByEmail(String email) async {
+    final String normalized = email.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return null;
+    }
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore
+        .collection('users')
+        .where('email', isEqualTo: normalized)
+        .limit(1)
+        .get();
+    if (snapshot.docs.isEmpty) {
+      return null;
+    }
+    return UserProfile.fromJson(snapshot.docs.first.data());
+  }
+
   Future<void> saveUserProfile(UserProfile profile) async {
     await _firestore
         .collection('users')

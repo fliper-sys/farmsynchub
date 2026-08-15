@@ -402,10 +402,8 @@ class _PremiumBottomNavigation extends StatelessWidget {
                       selected: selected,
                       label: destination.label,
                       icon: selected
-                          ? (destination.selectedIcon ??
-                              destination.icon ??
-                              const SizedBox.shrink())
-                          : (destination.icon ?? const SizedBox.shrink()),
+                          ? (destination.selectedIcon ?? destination.icon)
+                          : destination.icon,
                       isCompact: isCompact,
                       onTap: () => onDestinationSelected(index),
                     ),
