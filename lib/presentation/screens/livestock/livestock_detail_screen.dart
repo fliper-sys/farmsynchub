@@ -1,11 +1,16 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/extensions/context_extensions.dart';
+import '../../../core/services/report_file_saver.dart';
+import '../../../core/services/report_file_saver_base.dart';
+import '../../../core/services/report_share_service.dart';
 import '../../../core/utils/currency_utils.dart';
+import '../../../core/utils/widget_image_capture.dart';
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/farm_activity.dart';
 import '../../../domain/models/livestock.dart';
@@ -218,6 +223,25 @@ class LivestockDetailScreen extends ConsumerWidget {
         ),
         title: Text('${livestock.emoji} ${_speciesLabel(livestock.species)}'),
         actions: <Widget>[
+          IconButton(
+            tooltip: livestock.isFavorite ? 'Unpin' : 'Pin to top of livestock list',
+            icon: Icon(
+              livestock.isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
+              color: livestock.isFavorite ? Colors.amber : null,
+            ),
+            onPressed: () => ref.read(livestockProvider.notifier).updateLivestock(
+                  livestock!.copyWith(
+                    isFavorite: !livestock.isFavorite,
+                    updatedAt: DateTime.now(),
+                    isSynced: false,
+                  ),
+                ),
+          ),
+          _ShareStatusButton(
+            boundaryKey: GlobalObjectKey('shareBoundary_$livestockId'),
+            fileName: 'livestock_status_${livestockId}_${DateTime.now().millisecondsSinceEpoch}.png',
+            shareMessage: '${_speciesLabel(livestock.species)} status from FarmSync Hub',
+          ),
           SectionScrollMenu(
             sections: sections,
             scrollController: scrollController,
@@ -236,7 +260,9 @@ class LivestockDetailScreen extends ConsumerWidget {
         heroVariant: FarmArtworkVariant.field,
         heroBadge: '${(progress * 100).round()}% maturity progress',
         sections: <Widget>[
-          AppCard(
+          RepaintBoundary(
+            key: GlobalObjectKey('shareBoundary_$livestockId'),
+            child: AppCard(
             color: theme.colorScheme.surfaceContainerHighest,
             child: Padding(
               padding: const EdgeInsets.all(18),
@@ -300,6 +326,7 @@ class LivestockDetailScreen extends ConsumerWidget {
                 ],
               ),
             ),
+            ),
           ),
           const SizedBox(height: 18),
           SoftSectionTitle(
@@ -313,37 +340,23 @@ class LivestockDetailScreen extends ConsumerWidget {
               color: theme.colorScheme.surfaceContainerHighest,
               child: Padding(
                 padding: const EdgeInsets.all(18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: <Widget>[
-                    Text('Status: $livestockWorkStatus',
-                        style: theme.textTheme.titleLarge),
-                    const SizedBox(height: 8),
-                    Text(
-                      _livestockWorkNarrative(
-                        livestock: livestock,
-                        overdueTasks: overdueTasks,
-                        priorityTasks: priorityTasks,
-                      ),
-                      style:
-                          theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+                    _MetaChip(
+                      text: livestockWorkStatus,
+                      emphasizedColor:
+                          _workStatusColor(overdueTasks, priorityTasks),
                     ),
-                    const SizedBox(height: 14),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: <Widget>[
-                        _MetaChip(text: '$overdueTasks overdue'),
-                        _MetaChip(text: '$priorityTasks high priority'),
-                        _MetaChip(
-                            text:
-                                '${livestock.openTaskCount} open reminders'),
-                        _MetaChip(
-                            text: logs.isEmpty
-                                ? 'No production logs'
-                                : '${logs.length} production logs'),
-                      ],
-                    ),
+                    _MetaChip(text: '$overdueTasks overdue'),
+                    _MetaChip(text: '$priorityTasks high priority'),
+                    _MetaChip(
+                        text: '${livestock.openTaskCount} open reminders'),
+                    _MetaChip(
+                        text: logs.isEmpty
+                            ? 'No production logs'
+                            : '${logs.length} production logs'),
                   ],
                 ),
               ),
@@ -760,30 +773,10 @@ String _livestockWorkStatus({
   return 'Stable care';
 }
 
-String _livestockWorkNarrative({
-  required Livestock livestock,
-  required int overdueTasks,
-  required int priorityTasks,
-}) {
-  if (livestock.healthScore < 70) {
-    return 'Start with weak or isolated animals, water access, feed quality, bedding, and any treatment notes. Record symptoms before routine production work.';
-  }
-  if (livestock.vaccinationStatus < 75) {
-    return 'Vaccination coverage is below target. Schedule the next round, confirm stock handling, and mark the reminder high priority.';
-  }
-  if (overdueTasks > 0) {
-    return 'Clear overdue care reminders first. Feeding, cleaning, inspection, and medication tasks should be closed before adding more work.';
-  }
-  if (priorityTasks > 0) {
-    return 'High-priority care is open. Assign labour, confirm supplies, and update completion so health and production records stay dependable.';
-  }
-  if (livestock.growthStage == AnimalGrowthStage.finishing) {
-    return 'This group is near sale or transfer decisions. Check weight, buyer timing, feed use, and final health status before committing stock.';
-  }
-  if (livestock.productionLogs.isEmpty) {
-    return 'Care looks stable, but production history is empty. Add a baseline log for weight, feed, eggs, or notes so future trends have a starting point.';
-  }
-  return 'Core care looks stable. Keep production logs current, monitor feed and water use, and review mortality or vaccination changes weekly.';
+Color _workStatusColor(int overdueTasks, int priorityTasks) {
+  if (overdueTasks > 0) return const Color(0xFFE0685F);
+  if (priorityTasks > 0) return const Color(0xFFB98A2E);
+  return const Color(0xFF3F8B4C);
 }
 
 class _CycleRow extends StatelessWidget {
@@ -895,20 +888,94 @@ class _InfoCard extends StatelessWidget {
   }
 }
 
-class _MetaChip extends StatelessWidget {
-  const _MetaChip({required this.text});
+/// Captures the boundary at [boundaryKey] and shares it as an image.
+/// Self-contained (owns its own loading spinner state) so it can be
+/// dropped into a stateless [LivestockDetailScreen] without converting the
+/// whole screen to a StatefulWidget.
+class _ShareStatusButton extends StatefulWidget {
+  const _ShareStatusButton({
+    required this.boundaryKey,
+    required this.fileName,
+    required this.shareMessage,
+  });
 
-  final String text;
+  final GlobalKey boundaryKey;
+  final String fileName;
+  final String shareMessage;
+
+  @override
+  State<_ShareStatusButton> createState() => _ShareStatusButtonState();
+}
+
+class _ShareStatusButtonState extends State<_ShareStatusButton> {
+  final ReportFileSaver _fileSaver = createReportFileSaver();
+  final ReportShareService _shareService = const ReportShareService();
+  bool _isSharing = false;
+
+  Future<void> _share() async {
+    setState(() => _isSharing = true);
+    try {
+      final Uint8List? imageBytes = await captureBoundaryImage(widget.boundaryKey);
+      if (imageBytes == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Could not capture the status card.')));
+        }
+        return;
+      }
+      final String savedPath = await _fileSaver.saveBytes(
+        bytes: imageBytes,
+        fileName: widget.fileName,
+        mimeType: 'image/png',
+      );
+      await _shareService.shareImage(
+        filePath: savedPath,
+        fileName: widget.fileName,
+        message: widget.shareMessage,
+      );
+    } finally {
+      if (mounted) setState(() => _isSharing = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: 'Share status',
+      icon: _isSharing
+          ? const SizedBox(
+              width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+          : const Icon(Icons.ios_share_rounded),
+      onPressed: _isSharing ? null : _share,
+    );
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({required this.text, this.emphasizedColor});
+
+  final String text;
+
+  /// When set, renders as a solid-colored "headline" chip instead of the
+  /// default neutral pill - used for a single standout status chip.
+  final Color? emphasizedColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color? emphasized = emphasizedColor;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: emphasized ?? Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(text, style: Theme.of(context).textTheme.labelSmall),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: emphasized != null ? Colors.white : null,
+              fontWeight: emphasized != null ? FontWeight.w700 : null,
+            ),
+      ),
     );
   }
 }
@@ -979,66 +1046,6 @@ class _InputCard extends StatelessWidget {
         title: Text(item.name),
         subtitle: Text('${item.quantity} ${item.unit} • ${item.category.name}'),
         trailing: Text(CurrencyUtils.formatCurrency(item.totalCost)),
-      ),
-    );
-  }
-}
-
-class _SuggestionCard extends StatelessWidget {
-  const _SuggestionCard({
-    required this.title,
-    required this.detail,
-    required this.tint,
-  });
-
-  final String title;
-  final String detail;
-  final Color tint;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final bool isDark = theme.brightness == Brightness.dark;
-    final Color iconBackground = isDark
-        ? Color.alphaBlend(tint.withOpacity(0.22), theme.colorScheme.surface)
-        : tint;
-    final Color iconForeground =
-        isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
-
-    return AppCard(
-      color: theme.colorScheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: iconBackground,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                    color:
-                        isDark ? tint.withOpacity(0.42) : Colors.transparent),
-              ),
-              child:
-                  Icon(Icons.lightbulb_outline_rounded, color: iconForeground),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(title, style: theme.textTheme.titleSmall),
-                  const SizedBox(height: 4),
-                  Text(detail,
-                      style: theme.textTheme.bodySmall?.copyWith(height: 1.5)),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

@@ -972,6 +972,7 @@ final GoRouter _router = GoRouter(
         }
         return NotificationDetailScreen(notification: notification);
       },
+      redirect: _authRedirect,
     ),
     // Add more routes as needed
   ],

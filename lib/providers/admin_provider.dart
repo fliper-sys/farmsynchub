@@ -131,20 +131,18 @@ class AdminWorkspaceState {
 }
 
 class AdminWorkspaceController extends StateNotifier<AsyncValue<AdminWorkspaceState>> {
-  AdminWorkspaceController(this._ref)
-      : _firebaseService = _ref.read(firebaseServiceProvider),
-        _emailService = _ref.read(farmEmailServiceProvider),
-        _notifications = _ref.read(notificationsProvider.notifier),
+  AdminWorkspaceController(Ref ref)
+      : _firebaseService = ref.read(firebaseServiceProvider),
+        _emailService = ref.read(farmEmailServiceProvider),
+        _notifications = ref.read(notificationsProvider.notifier),
         super(const AsyncValue.loading()) {
     load();
   }
 
-  final Ref _ref;
   final FirebaseService _firebaseService;
   final FarmEmailService _emailService;
   final NotificationsNotifier _notifications;
   static const String _sessionKey = 'admin_session_email';
-  static const String _collection = 'app_admins';
 
   AdminWorkspaceState? get _current => state.valueOrNull;
 

@@ -79,12 +79,20 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
             <ProcurementOrder>[];
 
     final expenseCategories = _buildExpenseCategories(snapshot.categoryTotals);
-    final double incomeChange =
-        snapshot.income > 0 ? 12.4 : 0; // Simulated trend
-    final double expenseChange =
-        snapshot.expenses > 0 ? -8.2 : 0; // Simulated trend
+    final List<Transaction> previousPeriodTransactions =
+        _filterByPreviousPeriod(transactions, _selectedPeriodIndex);
+    final FinanceSnapshot previousSnapshot =
+        FinanceSnapshot.fromTransactions(previousPeriodTransactions);
+    final double incomeChange = _percentChange(
+        current: snapshot.income, previous: previousSnapshot.income);
+    final double expenseChange = _percentChange(
+        current: snapshot.expenses, previous: previousSnapshot.expenses);
 
     return Scaffold(
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showQuickAddMenu(context, farms),
+        child: const Icon(Icons.add_rounded),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.only(bottom: 32),
@@ -199,6 +207,67 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         .toList(growable: false);
   }
 
+  /// Filters transactions to the period immediately before the selected one,
+  /// so the hero header can show a real period-over-period trend instead of
+  /// a fixed placeholder percentage.
+  List<Transaction> _filterByPreviousPeriod(
+      List<Transaction> transactions, int periodIndex) {
+    final DateTime now = DateTime.now();
+    final DateTime start;
+    final DateTime end;
+    switch (periodIndex) {
+      case 0:
+        end = DateTime(now.year, now.month, now.day)
+            .subtract(const Duration(days: 6));
+        start = end.subtract(const Duration(days: 7));
+        break;
+      case 2:
+        start = DateTime(now.year - 1, 1, 1);
+        end = DateTime(now.year, 1, 1);
+        break;
+      default:
+        start = DateTime(now.year, now.month - 1, 1);
+        end = DateTime(now.year, now.month, 1);
+    }
+    return transactions
+        .where((Transaction item) =>
+            !item.transactionDate.isBefore(start) &&
+            item.transactionDate.isBefore(end))
+        .toList(growable: false);
+  }
+
+  double _percentChange({required double current, required double previous}) {
+    if (previous <= 0) {
+      return current > 0 ? 100 : 0;
+    }
+    return ((current - previous) / previous) * 100;
+  }
+
+  Future<void> _showQuickAddMenu(BuildContext context, List<Farm> farms) async {
+    final _QuickAddAction? action = await showModalBottomSheet<_QuickAddAction>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) => _QuickAddMenu(hasFarms: farms.isNotEmpty),
+    );
+    if (action == null || !context.mounted) {
+      return;
+    }
+    switch (action) {
+      case _QuickAddAction.transaction:
+        await _openTransactionSheet(context, farms: farms);
+        break;
+      case _QuickAddAction.inventory:
+        await _openInventorySheet(context, farms);
+        break;
+      case _QuickAddAction.contact:
+        await _openPartnerSheet(context);
+        break;
+      case _QuickAddAction.manageContacts:
+        await _openContactsList(context);
+        break;
+    }
+  }
+
   List<_ExpenseCategoryData> _buildExpenseCategories(
       Map<TransactionCategory, double> categoryTotals) {
     final List<MapEntry<TransactionCategory, double>> sorted =
@@ -285,14 +354,28 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     }
   }
 
-  Future<void> _openPartnerSheet(BuildContext context) async {
+  Future<void> _openPartnerSheet(BuildContext context,
+      {BusinessPartner? existing}) async {
     final _PartnerDraft? draft = await showModalBottomSheet<_PartnerDraft>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (BuildContext context) => const _PartnerSheet(),
+      builder: (BuildContext context) => _PartnerSheet(existing: existing),
     );
     if (draft == null) {
+      return;
+    }
+    if (existing != null) {
+      await ref.read(operationsHubProvider.notifier).updatePartner(
+            BusinessPartner(
+              id: existing.id,
+              name: draft.name,
+              email: draft.email,
+              phone: draft.phone,
+              type: draft.type,
+              createdAt: existing.createdAt,
+            ),
+          );
       return;
     }
     await ref.read(operationsHubProvider.notifier).addPartner(
@@ -305,6 +388,55 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
             createdAt: DateTime.now(),
           ),
         );
+  }
+
+  Future<void> _openContactsList(BuildContext rootContext) async {
+    await showModalBottomSheet<void>(
+      context: rootContext,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext sheetContext) => Consumer(
+        builder: (BuildContext context, WidgetRef ref, _) {
+          final List<BusinessPartner> partners =
+              ref.watch(operationsHubProvider).partners;
+          return _ContactsListSheet(
+            partners: partners,
+            onEdit: (BusinessPartner partner) async {
+              Navigator.of(sheetContext).pop();
+              if (!rootContext.mounted) {
+                return;
+              }
+              await _openPartnerSheet(rootContext, existing: partner);
+            },
+            onDelete: (BusinessPartner partner) async {
+              final bool? confirm = await showDialog<bool>(
+                context: context,
+                builder: (BuildContext dialogContext) => AlertDialog(
+                  title: const Text('Remove contact?'),
+                  content: Text('Remove "${partner.name}" from contacts?'),
+                  actions: <Widget>[
+                    TextButton(
+                      onPressed: () =>
+                          Navigator.of(dialogContext).pop(false),
+                      child: const Text('Cancel'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(true),
+                      child: const Text('Remove'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirm == true) {
+                await ref
+                    .read(operationsHubProvider.notifier)
+                    .deletePartner(partner.id);
+              }
+            },
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _openInventorySheet(
@@ -2866,18 +2998,188 @@ class _InventorySheetState extends State<_InventorySheet> {
   }
 }
 
+enum _QuickAddAction { transaction, inventory, contact, manageContacts }
+
+class _QuickAddMenu extends StatelessWidget {
+  const _QuickAddMenu({required this.hasFarms});
+
+  final bool hasFarms;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return SafeArea(
+      child: Container(
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(28),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Quick add', style: theme.textTheme.titleMedium),
+              ),
+            ),
+            ListTile(
+              enabled: hasFarms,
+              leading: const Icon(Icons.receipt_long_rounded),
+              title: const Text('Log transaction'),
+              subtitle: hasFarms ? null : const Text('Add a farm first'),
+              onTap: () =>
+                  Navigator.of(context).pop(_QuickAddAction.transaction),
+            ),
+            ListTile(
+              enabled: hasFarms,
+              leading: const Icon(Icons.inventory_2_rounded),
+              title: const Text('Add stock item'),
+              subtitle: hasFarms ? null : const Text('Add a farm first'),
+              onTap: () =>
+                  Navigator.of(context).pop(_QuickAddAction.inventory),
+            ),
+            ListTile(
+              leading: const Icon(Icons.person_add_alt_1_rounded),
+              title: const Text('Add contact'),
+              subtitle: const Text('Customer or provider'),
+              onTap: () => Navigator.of(context).pop(_QuickAddAction.contact),
+            ),
+            ListTile(
+              leading: const Icon(Icons.contacts_rounded),
+              title: const Text('Manage contacts'),
+              subtitle: const Text('Edit or remove customers & providers'),
+              onTap: () =>
+                  Navigator.of(context).pop(_QuickAddAction.manageContacts),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ContactsListSheet extends StatelessWidget {
+  const _ContactsListSheet({
+    required this.partners,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final List<BusinessPartner> partners;
+  final ValueChanged<BusinessPartner> onEdit;
+  final ValueChanged<BusinessPartner> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return SafeArea(
+      child: Container(
+        margin: const EdgeInsets.all(12),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.75,
+        ),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(28),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Contacts', style: theme.textTheme.titleMedium),
+              ),
+            ),
+            Flexible(
+              child: partners.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                      child: Text(
+                        'No contacts yet. Add a customer or provider to see them here.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.only(bottom: 12),
+                      itemCount: partners.length,
+                      itemBuilder: (BuildContext context, int index) {
+                        final BusinessPartner partner = partners[index];
+                        final bool isProvider =
+                            partner.type == BusinessPartnerType.provider;
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: isProvider
+                                ? const Color(0xFF8B5CF6).withOpacity(0.15)
+                                : const Color(0xFF32D583).withOpacity(0.15),
+                            child: Icon(
+                              isProvider
+                                  ? Icons.local_shipping_rounded
+                                  : Icons.storefront_rounded,
+                              color: isProvider
+                                  ? const Color(0xFF8B5CF6)
+                                  : const Color(0xFF32D583),
+                            ),
+                          ),
+                          title: Text(partner.name.isEmpty
+                              ? 'Unnamed contact'
+                              : partner.name),
+                          subtitle: Text(<String>[
+                            isProvider ? 'Provider' : 'Customer',
+                            if (partner.phone.isNotEmpty) partner.phone,
+                          ].join(' · ')),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              IconButton(
+                                tooltip: 'Edit contact',
+                                icon: const Icon(Icons.edit_outlined),
+                                onPressed: () => onEdit(partner),
+                              ),
+                              IconButton(
+                                tooltip: 'Remove contact',
+                                icon: const Icon(Icons.delete_outline_rounded),
+                                onPressed: () => onDelete(partner),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _PartnerSheet extends StatefulWidget {
-  const _PartnerSheet();
+  const _PartnerSheet({this.existing});
+
+  final BusinessPartner? existing;
 
   @override
   State<_PartnerSheet> createState() => _PartnerSheetState();
 }
 
 class _PartnerSheetState extends State<_PartnerSheet> {
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
-  BusinessPartnerType _type = BusinessPartnerType.customer;
+  late final TextEditingController _nameController =
+      TextEditingController(text: widget.existing?.name ?? '');
+  late final TextEditingController _emailController =
+      TextEditingController(text: widget.existing?.email ?? '');
+  late final TextEditingController _phoneController =
+      TextEditingController(text: widget.existing?.phone ?? '');
+  late BusinessPartnerType _type =
+      widget.existing?.type ?? BusinessPartnerType.customer;
 
   @override
   void dispose() {
@@ -2926,7 +3228,8 @@ class _PartnerSheetState extends State<_PartnerSheet> {
               width: double.infinity,
               child: AppButton.primary(
                 onPressed: _submit,
-                child: const Text('Save contact'),
+                child: Text(
+                    widget.existing == null ? 'Save contact' : 'Save changes'),
               ),
             ),
           ],

@@ -13,7 +13,6 @@ import '../../../providers/crop_provider.dart';
 import 'app_button.dart';
 import 'app_card.dart';
 import 'app_text_field.dart';
-import 'loading_shimmer.dart';
 
 /// Displays a visual growth timeline for a crop with stage markers,
 /// photos, height/leaf measurements, and notes.
@@ -80,7 +79,7 @@ class GrowthTimelineWidget extends ConsumerWidget {
 
   List<Widget> _buildStageCards(
       BuildContext context, ThemeData theme, Crop crop) {
-    final List<CropStage> stages = CropStage.values;
+    const List<CropStage> stages = CropStage.values;
     final int currentIndex = stages.indexOf(crop.currentStage);
 
     return stages.asMap().entries.map((MapEntry<int, CropStage> entry) {
@@ -290,7 +289,7 @@ class _GrowthTimelineFormSheetState extends State<_GrowthTimelineFormSheet> {
     _heightController.text =
         widget.crop.inputRecords.isEmpty
             ? '0'
-            : '${(widget.crop.inputRecords.length * 2.5).toStringAsFixed(1)}';
+            : (widget.crop.inputRecords.length * 2.5).toStringAsFixed(1);
   }
 
   @override

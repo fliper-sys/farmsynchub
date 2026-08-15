@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_ai/firebase_ai.dart';
@@ -18,12 +19,29 @@ import '../../domain/models/chat_message.dart';
 import '../../domain/models/livestock.dart';
 import '../../domain/models/transaction.dart';
 
+// Gemini 1.5 models were retired on 2025-09-24 (Firebase AI Logic rejects
+// every request against them) - this was the actual root cause of "AI never
+// works" reports, not the App Check/network issues fixed earlier.
 const String _kFirebaseAiModelName = String.fromEnvironment(
   'FIREBASE_AI_MODEL',
-  defaultValue: 'gemini-1.5-flash',
+  defaultValue: 'gemini-2.5-flash',
 );
 const int _kMaxHistoryTurns = 6;
 const Duration _kCacheTtl = Duration(hours: 6);
+
+// Firebase AI Logic routes every request through Firebase App Check, which
+// has repeatedly rejected requests in the field (unactivated on web,
+// "invalid token" on other platforms) even after the model-retirement bug
+// was fixed. Rather than depend on App Check being correctly provisioned,
+// every AI call now tries Firebase AI Logic first and, if that throws for
+// any reason, falls back to calling the Gemini Developer API directly with
+// an API key - a transport that has nothing to do with App Check at all.
+// Override via --dart-define=GEMINI_API_KEY=... to swap keys without
+// touching source.
+const String _kGeminiApiKey = String.fromEnvironment(
+  'GEMINI_API_KEY',
+  defaultValue: 'AIzaSyDVteqjawKLk1TWd2BaHQqI1aHl18yO3wc',
+);
 
 String _buildSystemPrompt(String language, AiTopic topic) => '''
 You are Farmsync AI, the farming assistant inside FarmSync for farmers in Nigeria.
@@ -54,16 +72,24 @@ class GeminiService {
 
   String get modelName => _kFirebaseAiModelName;
 
-  /// App Check is only activated on non-web platforms (see
-  /// `_initializeCloudServices` in main.dart, guarded by `if (!kIsWeb)`).
-  /// Passing an unactivated `FirebaseAppCheck.instance` into the AI SDK
-  /// makes it call `getToken()` on a provider that was never configured,
-  /// which throws internally - and a known FlutterFire-web bug then mangles
-  /// that into an unhelpful `TypeError: ... is not a subtype of type
-  /// 'JavaScriptObject'` instead of a clean error. Omitting App Check on
-  /// web avoids the broken call entirely.
+  /// `firebase_app_check` only ships native support for Android, iOS, macOS,
+  /// and web - there is no Windows or Linux provider. `main.dart` still
+  /// calls `activate()` unconditionally for every non-web platform (only
+  /// guarded by `if (!kIsWeb)`), which throws on Windows/Linux and is
+  /// swallowed there, leaving App Check unconfigured. If this getter then
+  /// hands that unconfigured `FirebaseAppCheck.instance` to the AI SDK
+  /// anyway, `getToken()` fails and the SDK reports it as an "App Check
+  /// token is invalid" error - the same failure mode already fixed for web,
+  /// just resurfacing on desktop once Windows became a supported target
+  /// (see the `windows` case added to `firebase_options.dart`).
+  bool get _isAppCheckSupportedPlatform =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS);
+
   FirebaseAppCheck? get _appCheckForPlatform =>
-      kIsWeb ? null : FirebaseAppCheck.instance;
+      _isAppCheckSupportedPlatform ? FirebaseAppCheck.instance : null;
 
   List<ChatMessage> historyFor(AiTopic topic) =>
       List<ChatMessage>.unmodifiable(_history[topic] ?? const <ChatMessage>[]);
@@ -121,7 +147,7 @@ class GeminiService {
     }
 
     try {
-      final GenerateContentResponse response = await _sendWithFirebaseAi(
+      final String responseText = await _sendWithFallback(
         topic: topic,
         language: language,
         userMessage: trimmedMessage,
@@ -129,7 +155,6 @@ class GeminiService {
         imageBytes: imageBytes,
       );
 
-      final String responseText = response.text?.trim() ?? '';
       final ChatMessage aiMessage = ChatMessage.fromAi(
         responseText.isEmpty ? _kFallbackMessage : responseText,
         topic: topic,
@@ -289,8 +314,29 @@ class GeminiService {
       if (insight.isNotEmpty) {
         return insight;
       }
-    } catch (_) {
-      // Fall through to a local briefing if Firebase AI is unavailable.
+    } catch (error) {
+      debugPrint('[GeminiService] generateFarmInsight via Firebase AI Logic failed: $error');
+      try {
+        final String insight = await _generateViaApiKey(
+          systemPrompt: _buildFarmInsightSystemPrompt(),
+          contents: <Content>[
+            Content.text(_buildFarmInsightPrompt(
+              farm: farm,
+              crops: crops,
+              livestock: livestock,
+              transactions: transactions,
+            )),
+          ],
+          temperature: 0.35,
+          maxOutputTokens: 900,
+        );
+        if (insight.isNotEmpty) {
+          return insight;
+        }
+      } catch (restError) {
+        debugPrint('[GeminiService] generateFarmInsight direct API key fallback also failed: $restError');
+      }
+      // Fall through to a local briefing if both AI transports fail.
     }
 
     return _buildLocalFarmInsight(
@@ -344,8 +390,27 @@ class GeminiService {
       if (recap.isNotEmpty) {
         return recap;
       }
-    } catch (_) {
-      // Fall through to a local briefing if Firebase AI is unavailable.
+    } catch (error) {
+      debugPrint('[GeminiService] generateFinanceRecap via Firebase AI Logic failed: $error');
+      try {
+        final String recap = await _generateViaApiKey(
+          systemPrompt: _buildFinanceRecapSystemPrompt(language),
+          contents: <Content>[
+            Content.text(_buildFinanceRecapPrompt(
+              transactions: transactions,
+              farms: farms,
+            )),
+          ],
+          temperature: 0.35,
+          maxOutputTokens: 900,
+        );
+        if (recap.isNotEmpty) {
+          return recap;
+        }
+      } catch (restError) {
+        debugPrint('[GeminiService] generateFinanceRecap direct API key fallback also failed: $restError');
+      }
+      // Fall through to a local briefing if both AI transports fail.
     }
 
     return _buildLocalFinanceRecap(
@@ -432,6 +497,50 @@ Future estimate
     }
   }
 
+  /// Tries Firebase AI Logic first; if that throws for any reason, falls
+  /// back to the direct Gemini API key transport before giving up. On a
+  /// double failure, rethrows the *original* Firebase error (with its
+  /// original stack trace) so callers' existing type-specific handling
+  /// (quota detection, invalid-key messaging, etc.) still applies.
+  Future<String> _sendWithFallback({
+    required AiTopic topic,
+    required String language,
+    required String userMessage,
+    required List<ChatMessage> history,
+    List<int>? imageBytes,
+  }) async {
+    try {
+      final GenerateContentResponse response = await _sendWithFirebaseAi(
+        topic: topic,
+        language: language,
+        userMessage: userMessage,
+        history: history,
+        imageBytes: imageBytes,
+      );
+      return response.text?.trim() ?? '';
+    } catch (firebaseError, firebaseStack) {
+      debugPrint(
+          '[GeminiService] Firebase AI Logic failed ($firebaseError), trying direct Gemini API key fallback.');
+      try {
+        final String text = await _generateViaApiKey(
+          systemPrompt: _buildSystemPrompt(language, topic),
+          contents: _buildFirebasePrompt(
+            userMessage: userMessage,
+            history: history,
+            imageBytes: imageBytes,
+          ),
+        );
+        if (text.isNotEmpty) {
+          return text;
+        }
+      } catch (restError, restStack) {
+        debugPrint('[GeminiService] Direct API key fallback also failed: $restError');
+        debugPrintStack(stackTrace: restStack);
+      }
+      Error.throwWithStackTrace(firebaseError, firebaseStack);
+    }
+  }
+
   Future<GenerateContentResponse> _sendWithFirebaseAi({
     required AiTopic topic,
     required String language,
@@ -468,6 +577,70 @@ Future estimate
     );
     final GenerateContentResponse response = await model.generateContent(prompt);
     return response;
+  }
+
+  /// Calls the Gemini Developer API directly (generativelanguage
+  /// .googleapis.com) with an API key - no Firebase App, Auth, or App
+  /// Check involved. [Content.toJson]/[Part.toJson] already produce the
+  /// exact JSON shape this REST endpoint expects, so history/image parts
+  /// built for Firebase AI Logic are reused as-is.
+  Future<String> _generateViaApiKey({
+    required String systemPrompt,
+    required List<Content> contents,
+    double temperature = 0.4,
+    int maxOutputTokens = 700,
+  }) async {
+    final Uri uri = Uri.parse(
+      'https://generativelanguage.googleapis.com/v1beta/models/$_kFirebaseAiModelName:generateContent?key=$_kGeminiApiKey',
+    );
+    final Map<String, dynamic> body = <String, dynamic>{
+      'contents': contents.map((Content c) => c.toJson()).toList(),
+      'systemInstruction': Content.system(systemPrompt).toJson(),
+      'generationConfig': <String, dynamic>{
+        'temperature': temperature,
+        'topK': 32,
+        'topP': 0.95,
+        'maxOutputTokens': maxOutputTokens,
+      },
+      'safetySettings': const <Map<String, String>>[
+        <String, String>{'category': 'HARM_CATEGORY_HARASSMENT', 'threshold': 'BLOCK_MEDIUM_AND_ABOVE'},
+        <String, String>{'category': 'HARM_CATEGORY_HATE_SPEECH', 'threshold': 'BLOCK_MEDIUM_AND_ABOVE'},
+        <String, String>{'category': 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'threshold': 'BLOCK_ONLY_HIGH'},
+        <String, String>{'category': 'HARM_CATEGORY_DANGEROUS_CONTENT', 'threshold': 'BLOCK_MEDIUM_AND_ABOVE'},
+      ],
+    };
+
+    final http.Response response = await http.post(
+      uri,
+      headers: const <String, String>{'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+
+    if (response.statusCode != 200) {
+      throw HttpException(
+          'Gemini API returned ${response.statusCode}: ${response.body}');
+    }
+
+    final Map<String, dynamic> decoded =
+        jsonDecode(response.body) as Map<String, dynamic>;
+    final List<dynamic>? candidates = decoded['candidates'] as List<dynamic>?;
+    if (candidates == null || candidates.isEmpty) {
+      return '';
+    }
+    final Map<String, dynamic> candidateContent =
+        (candidates.first as Map<String, dynamic>)['content']
+                as Map<String, dynamic>? ??
+            const <String, dynamic>{};
+    final List<dynamic>? parts = candidateContent['parts'] as List<dynamic>?;
+    if (parts == null || parts.isEmpty) {
+      return '';
+    }
+    final StringBuffer buffer = StringBuffer();
+    for (final dynamic part in parts) {
+      final String? text = (part as Map<String, dynamic>)['text'] as String?;
+      if (text != null) buffer.write(text);
+    }
+    return buffer.toString().trim();
   }
 
   ChatMessage _handleFirebaseAiFailure({

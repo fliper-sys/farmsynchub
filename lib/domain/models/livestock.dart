@@ -166,6 +166,7 @@ class Livestock {
     this.feedReminderEnabled = false,
     this.feedReminderHour = 7,
     this.feedReminderMinute = 0,
+    this.isFavorite = false,
   });
 
   final String id;
@@ -204,6 +205,7 @@ class Livestock {
   final bool feedReminderEnabled;
   final int feedReminderHour;
   final int feedReminderMinute;
+  final bool isFavorite;
 
   int get openTaskCount => todoItems.where((FarmTodoItem item) => !item.isCompleted).length;
   double get syncedInputCost => inputRecords.fold<double>(0, (double sum, FarmInputRecord item) => sum + item.totalCost);
@@ -271,6 +273,7 @@ class Livestock {
         'feedReminderEnabled': feedReminderEnabled,
         'feedReminderHour': feedReminderHour,
         'feedReminderMinute': feedReminderMinute,
+        'isFavorite': isFavorite,
       };
 
   factory Livestock.fromJson(Map<String, dynamic> json) => Livestock(
@@ -330,6 +333,7 @@ class Livestock {
         feedReminderEnabled: json['feedReminderEnabled'] as bool? ?? false,
         feedReminderHour: (json['feedReminderHour'] as num?)?.toInt() ?? 7,
         feedReminderMinute: (json['feedReminderMinute'] as num?)?.toInt() ?? 0,
+        isFavorite: json['isFavorite'] as bool? ?? false,
       );
 
   Livestock copyWith({
@@ -367,6 +371,7 @@ class Livestock {
     bool? feedReminderEnabled,
     int? feedReminderHour,
     int? feedReminderMinute,
+    bool? isFavorite,
   }) =>
       Livestock(
         id: id,
@@ -405,6 +410,7 @@ class Livestock {
         feedReminderEnabled: feedReminderEnabled ?? this.feedReminderEnabled,
         feedReminderHour: feedReminderHour ?? this.feedReminderHour,
         feedReminderMinute: feedReminderMinute ?? this.feedReminderMinute,
+        isFavorite: isFavorite ?? this.isFavorite,
       );
 }
 

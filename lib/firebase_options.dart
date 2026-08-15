@@ -30,10 +30,7 @@ class DefaultFirebaseOptions {
           'you can reconfigure this by running the FlutterFire CLI again.',
         );
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -72,5 +69,19 @@ class DefaultFirebaseOptions {
     storageBucket: 'farmsynchub.firebasestorage.app',
     iosClientId: '190353139949-h655366lmrfn2t8jr8rj24pkjsos2v9i.apps.googleusercontent.com',
     iosBundleId: 'com.farmsynchub.app',
+  );
+
+  // Firebase has no distinct "Windows" app type; Flutter's desktop plugins
+  // talk to the same REST-style API as the Web SDK, so Windows uses its own
+  // dedicated Web app registration (farmsynchub (windows), created via
+  // `firebase apps:create WEB`) rather than throwing UnsupportedError.
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyA3lvOkYzj2_reyfikBuv0m_WHU3zhkj1g',
+    appId: '1:190353139949:web:fe60ad9a7a417d23e704e4',
+    messagingSenderId: '190353139949',
+    projectId: 'farmsynchub',
+    authDomain: 'farmsynchub.firebaseapp.com',
+    storageBucket: 'farmsynchub.firebasestorage.app',
+    measurementId: 'G-TVCR3GPC2R',
   );
 }

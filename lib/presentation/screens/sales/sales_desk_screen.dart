@@ -12,6 +12,7 @@ import '../../../core/services/sales_receipt_report_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/date_utils.dart' as app_date;
+import '../../../core/utils/widget_image_capture.dart';
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/transaction.dart';
 import '../../../providers/app_preferences_provider.dart';
@@ -274,23 +275,38 @@ class _SalesDeskScreenState extends ConsumerState<SalesDeskScreen> {
                         ?.copyWith(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 8),
                 Text(
-                  'Receipts can be exported as PDF or shared directly to WhatsApp, email, or any installed app once checkout completes.',
+                  'Share the receipt as an image (best for WhatsApp - it shows inline in the chat) or as a PDF, to WhatsApp, email, or any installed app.',
                   style: Theme.of(context)
                       .textTheme
                       .bodyMedium
                       ?.copyWith(height: 1.5),
                 ),
                 const SizedBox(height: 12),
-                AppButton.primary(
-                  onPressed: _activeReceiptNumber == null || _isSharingReceipt
-                      ? null
-                      : () => _shareReceipt(context),
-                  child: _isSharingReceipt
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Share active receipt'),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: AppButton.primary(
+                        onPressed: _activeReceiptNumber == null || _isSharingReceipt
+                            ? null
+                            : () => _shareReceiptAsImage(context),
+                        child: _isSharingReceipt
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Text('Share as image'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: AppButton.secondary(
+                        onPressed: _activeReceiptNumber == null || _isSharingReceipt
+                            ? null
+                            : () => _shareReceipt(context),
+                        child: const Text('Share as PDF'),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -576,6 +592,40 @@ class _SalesDeskScreenState extends ConsumerState<SalesDeskScreen> {
     }
   }
 
+  Future<void> _shareReceiptAsImage(BuildContext context) async {
+    final String? receiptNumber = _activeReceiptNumber;
+    if (receiptNumber == null || _isSharingReceipt) {
+      return;
+    }
+    setState(() => _isSharingReceipt = true);
+    try {
+      final Uint8List? imageBytes =
+          await captureBoundaryImage(_receiptBoundaryKey);
+      if (imageBytes == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Could not capture the receipt image.')));
+        }
+        return;
+      }
+      final String fileName = 'receipt_$receiptNumber.png';
+      final String savedPath = await _fileSaver.saveBytes(
+        bytes: imageBytes,
+        fileName: fileName,
+        mimeType: 'image/png',
+      );
+      await _shareService.shareImage(
+        filePath: savedPath,
+        fileName: fileName,
+        message: 'FarmSync receipt $receiptNumber',
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSharingReceipt = false);
+      }
+    }
+  }
+
   Future<void> _openCustomerSheet(BuildContext context) async {
     final _PartnerDraft? draft = await showModalBottomSheet<_PartnerDraft>(
       context: context,
@@ -678,8 +728,10 @@ class _SalesReceiptScreenState extends ConsumerState<SalesReceiptScreen> {
   final ReportShareService _shareService = const ReportShareService();
   final SalesReceiptReportService _receiptReportService =
       SalesReceiptReportService();
+  final GlobalKey _receiptBoundaryKey = GlobalKey();
   bool _isExporting = false;
   bool _isSharing = false;
+  bool _isSharingImage = false;
 
   @override
   Widget build(BuildContext context) {
@@ -721,7 +773,22 @@ class _SalesReceiptScreenState extends ConsumerState<SalesReceiptScreen> {
           ),
           IconButton(
             tooltip: language.tr(
-                en: 'Share receipt', ha: 'Raba Rasit', fr: 'Partager le recu'),
+                en: 'Share as image (best for WhatsApp)',
+                ha: 'Raba a matsayin hoto (mafi kyau ga WhatsApp)',
+                fr: 'Partager en image (ideal pour WhatsApp)'),
+            onPressed: receiptTransactions.isEmpty || _isSharingImage
+                ? null
+                : _shareReceiptAsImage,
+            icon: _isSharingImage
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.image_rounded),
+          ),
+          IconButton(
+            tooltip: language.tr(
+                en: 'Share as PDF', ha: 'Raba a matsayin PDF', fr: 'Partager en PDF'),
             onPressed: receiptTransactions.isEmpty || _isSharing
                 ? null
                 : () =>
@@ -739,12 +806,15 @@ class _SalesReceiptScreenState extends ConsumerState<SalesReceiptScreen> {
         padding: const EdgeInsets.all(18),
         child: Column(
           children: <Widget>[
-            _ReceiptCard(
-              language: language,
-              receiptTransactions: receiptTransactions,
-              receiptNumber: widget.receiptNumber,
-              farmName: farmName,
-              sellerName: sellerName,
+            RepaintBoundary(
+              key: _receiptBoundaryKey,
+              child: _ReceiptCard(
+                language: language,
+                receiptTransactions: receiptTransactions,
+                receiptNumber: widget.receiptNumber,
+                farmName: farmName,
+                sellerName: sellerName,
+              ),
             ),
             const SizedBox(height: 18),
             AppCard(
@@ -832,6 +902,36 @@ class _SalesReceiptScreenState extends ConsumerState<SalesReceiptScreen> {
     } finally {
       if (mounted) {
         setState(() => _isSharing = false);
+      }
+    }
+  }
+
+  Future<void> _shareReceiptAsImage() async {
+    setState(() => _isSharingImage = true);
+    try {
+      final Uint8List? imageBytes =
+          await captureBoundaryImage(_receiptBoundaryKey);
+      if (imageBytes == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Could not capture the receipt image.')));
+        }
+        return;
+      }
+      final String fileName = 'receipt_${widget.receiptNumber}.png';
+      final String path = await _fileSaver.saveBytes(
+        bytes: imageBytes,
+        fileName: fileName,
+        mimeType: 'image/png',
+      );
+      await _shareService.shareImage(
+        filePath: path,
+        fileName: fileName,
+        message: 'FarmSync receipt ${widget.receiptNumber}',
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSharingImage = false);
       }
     }
   }

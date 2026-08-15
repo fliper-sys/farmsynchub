@@ -643,21 +643,24 @@ class _Composer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = _aiIsDark(context);
     // A floating pill card with visible margin on every side (rather than
     // an edge-to-edge bar with a top border) so the background shows
-    // through around it, matching Claude's own floating composer.
+    // through around it, matching Claude's own floating composer: a
+    // lighter nested input pill sits inside the darker outer card, with
+    // the attach/send controls as their own round buttons below it.
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
       child: Container(
-        padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: _aiSurfaceAlt(context),
-          borderRadius: BorderRadius.circular(28),
+          color: _aiSurface(context),
+          borderRadius: BorderRadius.circular(26),
           border: Border.all(color: _aiBorder(context)),
           boxShadow: <BoxShadow>[
             BoxShadow(
-              color: Colors.black.withOpacity(_aiIsDark(context) ? 0.25 : 0.06),
-              blurRadius: 18,
+              color: Colors.black.withOpacity(isDark ? 0.3 : 0.06),
+              blurRadius: 20,
               offset: const Offset(0, 8),
             ),
           ],
@@ -674,40 +677,69 @@ class _Composer extends StatelessWidget {
               ),
               const SizedBox(height: 8),
             ],
-            TextField(
-              controller: controller,
-              minLines: 1,
-              maxLines: 5,
-              textInputAction: TextInputAction.send,
-              style: TextStyle(color: _aiText(context), height: 1.4),
-              decoration: InputDecoration(
-                hintText: language.tr(
-                    en: 'Write a message...',
-                    ha: 'Rubuta sako...',
-                    fr: 'Ecrivez un message...'),
-                hintStyle: TextStyle(color: _aiMuted(context)),
-                border: InputBorder.none,
-                isCollapsed: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: _aiSurfaceAlt(context),
+                borderRadius: BorderRadius.circular(20),
               ),
-              onSubmitted: (_) {
-                if (!isBusy) onSend();
-              },
+              child: TextField(
+                controller: controller,
+                minLines: 1,
+                maxLines: 5,
+                textInputAction: TextInputAction.send,
+                style: TextStyle(color: _aiText(context), height: 1.4, fontSize: 15),
+                decoration: InputDecoration(
+                  hintText: language.tr(
+                      en: 'Write a message...',
+                      ha: 'Rubuta sako...',
+                      fr: 'Ecrivez un message...'),
+                  hintStyle: TextStyle(color: _aiMuted(context)),
+                  border: InputBorder.none,
+                  isCollapsed: true,
+                ),
+                onSubmitted: (_) {
+                  if (!isBusy) onSend();
+                },
+              ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 10),
             Row(
               children: <Widget>[
-                IconButton(
-                  onPressed: isBusy ? null : onAttach,
-                  icon: Icon(Icons.add_circle_outline_rounded, color: _aiText(context)),
-                  tooltip: language.tr(en: 'Attach photo', ha: 'Haɗa hoto', fr: 'Joindre une photo'),
-                  visualDensity: VisualDensity.compact,
-                ),
+                _AttachButton(onTap: isBusy ? null : onAttach, language: language),
                 const Spacer(),
                 _SendButton(isLoading: isBusy, onTap: isBusy ? null : onSend),
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AttachButton extends StatelessWidget {
+  const _AttachButton({required this.onTap, required this.language});
+
+  final VoidCallback? onTap;
+  final AppLanguage language;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: language.tr(en: 'Attach photo', ha: 'Haɗa hoto', fr: 'Joindre une photo'),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: _aiBorder(context)),
+          ),
+          child: Icon(Icons.add_rounded, color: _aiText(context), size: 22),
         ),
       ),
     );
