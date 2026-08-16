@@ -123,6 +123,50 @@ class FarmNotificationService {
     );
   }
 
+  /// Schedules a notification that repeats every day at the given time of
+  /// day (matched by hour/minute only), e.g. a daily feeding reminder.
+  Future<void> scheduleDaily({
+    required int id,
+    required String title,
+    required String body,
+    required int hour,
+    required int minute,
+    String? payload,
+  }) async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+    if (!_isInitialized || !await _areReminderNotificationsEnabled()) {
+      return;
+    }
+    final tz.TZDateTime now = tz.TZDateTime.now(tz.local);
+    tz.TZDateTime scheduled =
+        tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
+    if (scheduled.isBefore(now)) {
+      scheduled = scheduled.add(const Duration(days: 1));
+    }
+    await _plugin.zonedSchedule(
+      id,
+      title,
+      body,
+      scheduled,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'feed_reminders',
+          'Feeding reminders',
+          channelDescription: 'Daily livestock feeding reminders',
+          importance: Importance.max,
+          priority: Priority.high,
+        ),
+        iOS: DarwinNotificationDetails(),
+        macOS: DarwinNotificationDetails(),
+      ),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.time,
+      payload: payload,
+    );
+  }
+
   Future<void> showNow({
     required int id,
     required String title,

@@ -36,7 +36,7 @@ class FirestoreProcurementRepository implements ProcurementRepository {
 
     final List<ProcurementOrder> syncedLocalOrders = await _syncPendingLocalOrders(localOrders);
     try {
-      final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('procurement_orders');
+      final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('procurement_orders', scopeByFarmIds: true);
       final List<ProcurementOrder> remoteOrders = records
           .map((Map<String, dynamic> record) {
             try {
@@ -175,7 +175,7 @@ class FirestoreExpenseRepository implements ExpenseRepository {
 
     final List<ExpenseEntry> syncedLocalEntries = await _syncPendingLocalEntries(localEntries);
     try {
-      final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('expense_entries');
+      final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('expense_entries', scopeByFarmIds: true);
       final List<ExpenseEntry> remoteEntries = records
           .map((Map<String, dynamic> record) {
             try {

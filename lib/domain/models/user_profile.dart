@@ -53,8 +53,7 @@ class UserProfile {
   bool get isComplete =>
       fullName.trim().isNotEmpty &&
       ward.trim().isNotEmpty &&
-      primaryFocus.trim().isNotEmpty &&
-      profileImageBase64.trim().isNotEmpty;
+      primaryFocus.trim().isNotEmpty;
 
   bool get hasPendingVerificationRequest => verificationStatus == 'pending';
 

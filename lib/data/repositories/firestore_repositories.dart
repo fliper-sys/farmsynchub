@@ -1,6 +1,7 @@
 import '../local/daos/crops_dao.dart';
 import '../local/daos/farms_dao.dart';
 import '../local/daos/livestock_dao.dart';
+import '../local/daos/transactions_dao.dart';
 import '../local/database.dart';
 import '../../domain/models/crop.dart';
 import '../../domain/models/farm.dart';
@@ -45,7 +46,11 @@ class FirestoreFarmRepository implements FarmRepository {
     final List<Farm> syncedLocalFarms = await _syncPendingLocalFarms(localFarms);
 
     try {
-      final List<Map<String, dynamic>> records = await _remoteStore.getFromFirestore('farms');
+      final List<Map<String, dynamic>> records = await _remoteStore.getFromFirestore(
+        'farms',
+        ownerUidField: 'ownerUid',
+        memberArrayField: 'memberUids',
+      );
       final List<Farm> remoteFarms = records
           .map(Farm.fromJson)
           .where((Farm farm) => farm.id.isNotEmpty)
@@ -59,6 +64,11 @@ class FirestoreFarmRepository implements FarmRepository {
     } catch (_) {
       return _sortFarms(syncedLocalFarms);
     }
+  }
+
+  @override
+  Future<List<Farm>> getCachedOnly() async {
+    return _sortFarms(await _farmsDao.getAll());
   }
 
   @override
@@ -187,7 +197,7 @@ class FirestoreCropRepository implements CropRepository {
     final List<Crop> syncedLocalCrops = await _syncPendingLocalCrops(localCrops);
 
     try {
-      final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('crops');
+      final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('crops', scopeByFarmIds: true);
       final List<Crop> remoteCrops = records
           .map(_tryParseCrop)
           .whereType<Crop>()
@@ -199,6 +209,11 @@ class FirestoreCropRepository implements CropRepository {
     } catch (_) {
       return _sortCrops(syncedLocalCrops);
     }
+  }
+
+  @override
+  Future<List<Crop>> getCachedOnly() async {
+    return _sortCrops(await _cropsDao.getAll());
   }
 
   @override
@@ -317,7 +332,7 @@ class FirestoreLivestockRepository implements LivestockRepository {
     final List<Livestock> syncedLocalLivestock = await _syncPendingLocalLivestock(localLivestock);
 
     try {
-      final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('livestock');
+      final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('livestock', scopeByFarmIds: true);
       final List<Livestock> remoteLivestock = records
           .map(_tryParseLivestock)
           .whereType<Livestock>()
@@ -329,6 +344,11 @@ class FirestoreLivestockRepository implements LivestockRepository {
     } catch (_) {
       return _sortLivestock(syncedLocalLivestock);
     }
+  }
+
+  @override
+  Future<List<Livestock>> getCachedOnly() async {
+    return _sortLivestock(await _livestockDao.getAll());
   }
 
   @override
@@ -440,57 +460,145 @@ Transaction? _tryParseTransaction(Map<String, dynamic> record) {
 }
 
 class FirestoreFinanceRepository implements FinanceRepository {
-  FirestoreFinanceRepository(this._firebaseService);
+  FirestoreFinanceRepository(
+    this._firebaseService, {
+    TransactionsDao? transactionsDao,
+  }) : _transactionsDao = transactionsDao ?? TransactionsDao(const LocalDatabase());
 
   final FirebaseService _firebaseService;
+  final TransactionsDao _transactionsDao;
 
   @override
   Future<void> delete(String id) async {
-    if (_firebaseService.currentUser == null) {
-      throw Exception('User not authenticated');
+    await _transactionsDao.delete(id);
+    if (!_firebaseService.hasActiveUser) {
+      return;
     }
-    await _firebaseService.deleteFromFirestore('transactions', id);
+    try {
+      await _firebaseService.deleteFromFirestore('transactions', id);
+    } catch (_) {
+      // Keep local deletion even if cloud cleanup is temporarily unavailable.
+    }
   }
 
   @override
   Future<List<Transaction>> getAll() async {
-    if (_firebaseService.currentUser == null) {
-      return <Transaction>[];
+    final List<Transaction> localTransactions = await _transactionsDao.getAll();
+    if (!_firebaseService.hasActiveUser) {
+      return _sortTransactions(localTransactions);
     }
-    final List<Map<String, dynamic>> records = await _firebaseService.getFromFirestore('transactions');
-    final List<Transaction> items = records
-        .map(_tryParseTransaction)
-        .whereType<Transaction>()
-        .where((Transaction item) => item.id.isNotEmpty)
-        .toList()
-      ..sort((Transaction a, Transaction b) => b.transactionDate.compareTo(a.transactionDate));
-    return items;
+
+    final List<Transaction> syncedLocalTransactions =
+        await _syncPendingLocalTransactions(localTransactions);
+
+    try {
+      final List<Map<String, dynamic>> records =
+          await _firebaseService.getFromFirestore('transactions', scopeByFarmIds: true);
+      final List<Transaction> remoteTransactions = records
+          .map(_tryParseTransaction)
+          .whereType<Transaction>()
+          .where((Transaction item) => item.id.isNotEmpty)
+          .toList(growable: false);
+      final List<Transaction> mergedTransactions =
+          _mergeTransactions(local: syncedLocalTransactions, remote: remoteTransactions);
+      await _transactionsDao.replaceAll(mergedTransactions);
+      return _sortTransactions(mergedTransactions);
+    } catch (_) {
+      return _sortTransactions(syncedLocalTransactions);
+    }
+  }
+
+  @override
+  Future<List<Transaction>> getCachedOnly() async {
+    return _sortTransactions(await _transactionsDao.getAll());
   }
 
   @override
   Future<Transaction?> getById(String id) async {
-    if (_firebaseService.currentUser == null) {
-      return null;
+    final List<Transaction> transactions = await getAll();
+    for (final Transaction item in transactions) {
+      if (item.id == id) {
+        return item;
+      }
     }
-    final Map<String, dynamic>? record = await _firebaseService.getDocumentFromFirestore('transactions', id);
-    return record == null ? null : _tryParseTransaction(record);
+    return null;
   }
 
   @override
   Future<void> insert(Transaction transaction) async {
-    if (_firebaseService.currentUser == null) {
-      throw Exception('User not authenticated');
-    }
-    final Map<String, dynamic> data = transaction.toJson()..['isSynced'] = true;
-    await _firebaseService.syncToFirestore('transactions', data);
+    await _saveTransaction(transaction);
   }
 
   @override
   Future<void> update(Transaction transaction) async {
-    if (_firebaseService.currentUser == null) {
-      throw Exception('User not authenticated');
+    await _saveTransaction(transaction);
+  }
+
+  Future<void> _saveTransaction(Transaction transaction) async {
+    Transaction localTransaction = transaction.copyWith(isSynced: false);
+    await _transactionsDao.upsert(localTransaction);
+
+    if (!_firebaseService.hasActiveUser) {
+      return;
     }
-    final Map<String, dynamic> data = transaction.toJson()..['isSynced'] = true;
-    await _firebaseService.syncToFirestore('transactions', data);
+
+    try {
+      await _firebaseService.syncToFirestore(
+          'transactions', localTransaction.copyWith(isSynced: true).toJson());
+      localTransaction = localTransaction.copyWith(isSynced: true);
+      await _transactionsDao.upsert(localTransaction);
+    } catch (_) {
+      await _transactionsDao.upsert(localTransaction.copyWith(isSynced: false));
+    }
+  }
+
+  Future<List<Transaction>> _syncPendingLocalTransactions(List<Transaction> transactions) async {
+    final List<Transaction> updated = <Transaction>[];
+    var hasChanges = false;
+
+    for (final Transaction item in transactions) {
+      if (!item.isSynced) {
+        try {
+          await _firebaseService.syncToFirestore(
+              'transactions', item.copyWith(isSynced: true).toJson());
+          updated.add(item.copyWith(isSynced: true));
+          hasChanges = true;
+        } catch (_) {
+          updated.add(item);
+        }
+      } else {
+        updated.add(item);
+      }
+    }
+
+    if (hasChanges) {
+      await _transactionsDao.replaceAll(updated);
+    }
+    return updated;
+  }
+
+  List<Transaction> _mergeTransactions({
+    required List<Transaction> local,
+    required List<Transaction> remote,
+  }) {
+    final Map<String, Transaction> merged = <String, Transaction>{
+      for (final Transaction item in remote) item.id: item.copyWith(isSynced: true),
+    };
+
+    for (final Transaction item in local) {
+      final Transaction? remoteItem = merged[item.id];
+      if (remoteItem == null || item.updatedAt.isAfter(remoteItem.updatedAt)) {
+        merged[item.id] = item;
+      }
+    }
+
+    return merged.values.toList(growable: false);
+  }
+
+  List<Transaction> _sortTransactions(List<Transaction> transactions) {
+    final List<Transaction> sorted = List<Transaction>.from(transactions);
+    sorted.sort((Transaction a, Transaction b) =>
+        b.transactionDate.compareTo(a.transactionDate));
+    return sorted;
   }
 }

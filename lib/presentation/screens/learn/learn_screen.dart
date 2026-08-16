@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_assets.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/learning_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
@@ -13,6 +14,7 @@ import '../../common/widgets/app_text_field.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
 import 'lesson_certificate_screen.dart';
+import 'video_player_screen.dart';
 
 class LearnScreen extends ConsumerStatefulWidget {
   const LearnScreen({super.key});
@@ -33,6 +35,7 @@ class _LearnScreenState extends ConsumerState<LearnScreen> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final AppLanguage language = ref.watch(appLanguageProvider);
     final LearningState learning = ref.watch(learningProvider);
     final String query = _searchController.text.trim().toLowerCase();
     final List<LearningLesson> lessons =
@@ -64,14 +67,17 @@ class _LearnScreenState extends ConsumerState<LearnScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Learn'),
+        title: Text(language.tr(en: 'Learn', ha: 'Koyo', fr: 'Apprendre')),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => context.go('/dashboard'),
         ),
         actions: <Widget>[
           IconButton(
-            tooltip: 'Share learning hub',
+            tooltip: language.tr(
+                en: 'Share learning hub',
+                ha: 'Raba Cibiyar Koyo',
+                fr: 'Partager le centre d\'apprentissage'),
             icon: const Icon(Icons.ios_share_rounded),
             onPressed: () => _shareText(
               ref,
@@ -82,9 +88,15 @@ class _LearnScreenState extends ConsumerState<LearnScreen> {
         ],
       ),
       body: SoftScreenScaffold(
-        heroTitle: 'Learning hub',
-        heroSubtitle:
-            'Lessons, practice work, saved progress, awards, shareable certificates, and field guides for crop, livestock, soil, weather, and finance topics.',
+        heroTitle: language.tr(
+            en: 'Learning hub',
+            ha: 'Cibiyar Koyo',
+            fr: 'Centre d\'apprentissage'),
+        heroSubtitle: language.tr(
+          en: 'Lessons, practice work, saved progress, awards, shareable certificates, and field guides for crop, livestock, soil, weather, and finance topics.',
+          ha: 'Darussa, aikin atisaye, ci gaban da aka adana, kyaututtuka, takardun shaida masu rabuwa, da jagororin gona kan batutuwan amfanin gona, dabbobi, kasa, yanayi, da kudi.',
+          fr: 'Lecons, exercices pratiques, progression enregistree, recompenses, certificats partageables et guides de terrain sur les cultures, l\'elevage, le sol, la meteo et les finances.',
+        ),
         heroIcon: Icons.menu_book_rounded,
         heroVariant: FarmArtworkVariant.field,
         heroBadge: '${learning.awardCount} awards earned',
@@ -95,15 +107,25 @@ class _LearnScreenState extends ConsumerState<LearnScreen> {
               padding: const EdgeInsets.all(18),
               child: AppTextField(
                 controller: _searchController,
-                label: 'Search lessons',
-                hint: 'Search by title, track, topic, or difficulty',
+                label: language.tr(
+                    en: 'Search lessons',
+                    ha: 'Nemi Darussa',
+                    fr: 'Rechercher des lecons'),
+                hint: language.tr(
+                    en: 'Search by title, track, topic, or difficulty',
+                    ha: 'Nemi ta take, hanya, batu, ko wahala',
+                    fr: 'Rechercher par titre, parcours, sujet ou difficulte'),
                 prefix: const Icon(Icons.search_rounded),
                 onChanged: (_) => setState(() {}),
               ),
             ),
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Learning progress'),
+          SoftSectionTitle(
+              title: language.tr(
+                  en: 'Learning progress',
+                  ha: 'Ci Gaban Koyo',
+                  fr: 'Progression d\'apprentissage')),
           Row(
             children: <Widget>[
               Expanded(
@@ -124,7 +146,8 @@ class _LearnScreenState extends ConsumerState<LearnScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: SoftInfoChip(
-                  label: 'Awards',
+                  label: language.tr(
+                      en: 'Awards', ha: 'Kyaututtuka', fr: 'Recompenses'),
                   value: '${learning.awardCount}',
                   color: const Color(0xFFFFEBCF),
                 ),
@@ -143,15 +166,23 @@ class _LearnScreenState extends ConsumerState<LearnScreen> {
             ),
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Awards'),
-          _AwardsBoard(learning: learning),
+          SoftSectionTitle(
+              title: language.tr(
+                  en: 'Awards', ha: 'Kyaututtuka', fr: 'Recompenses')),
+          _AwardsBoard(language: language, learning: learning),
           const SizedBox(height: 18),
           SoftSectionTitle(
             title: lessons.length == _learningLessons.length
                 ? AppStrings.continueLearning
-                : 'Search results',
+                : language.tr(
+                    en: 'Search results',
+                    ha: 'Sakamakon Bincike',
+                    fr: 'Resultats de recherche'),
             action: Text(
-              '$completedLessons completed',
+              language.tr(
+                  en: '$completedLessons completed',
+                  ha: '$completedLessons an kammala',
+                  fr: '$completedLessons terminees'),
               style: theme.textTheme.labelLarge
                   ?.copyWith(color: theme.colorScheme.primary),
             ),
@@ -159,10 +190,13 @@ class _LearnScreenState extends ConsumerState<LearnScreen> {
           if (lessons.isEmpty)
             AppCard(
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: const Padding(
-                padding: EdgeInsets.all(18),
-                child: Text(
-                    'No lessons match your search. Try a different keyword or clear the search box.'),
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Text(language.tr(
+                  en: 'No lessons match your search. Try a different keyword or clear the search box.',
+                  ha: 'Babu darasi da ya dace da binciken ka. Gwada wata kalma ko share akwatin bincike.',
+                  fr: 'Aucune lecon ne correspond a votre recherche. Essayez un autre mot-cle ou effacez la recherche.',
+                )),
               ),
             ),
           ...lessons.map(
@@ -173,6 +207,7 @@ class _LearnScreenState extends ConsumerState<LearnScreen> {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: _LessonCard(
+                  language: language,
                   lesson: lesson,
                   completed: completed,
                   progress: currentProgress,
@@ -186,7 +221,11 @@ class _LearnScreenState extends ConsumerState<LearnScreen> {
             },
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Learning tracks'),
+          SoftSectionTitle(
+              title: language.tr(
+                  en: 'Learning tracks',
+                  ha: 'Hanyoyin Koyo',
+                  fr: 'Parcours d\'apprentissage')),
           GridView.count(
             crossAxisCount: 2,
             shrinkWrap: true,
@@ -221,9 +260,15 @@ class _LearnScreenState extends ConsumerState<LearnScreen> {
           ),
           const SizedBox(height: 18),
           SoftSectionTitle(
-            title: 'Practice activities',
+            title: language.tr(
+                en: 'Practice activities',
+                ha: 'Ayyukan Atisaye',
+                fr: 'Activites pratiques'),
             action: Text(
-              '$completedPractices done',
+              language.tr(
+                  en: '$completedPractices done',
+                  ha: '$completedPractices an kammala',
+                  fr: '$completedPractices terminees'),
               style: theme.textTheme.labelLarge
                   ?.copyWith(color: theme.colorScheme.primary),
             ),
@@ -232,6 +277,7 @@ class _LearnScreenState extends ConsumerState<LearnScreen> {
             (PracticeActivity activity) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: _PracticeCard(
+                language: language,
                 activity: activity,
                 completed: learning.completedPractices.contains(activity.id),
                 onTap: () => _openPage(
@@ -267,6 +313,7 @@ class LearnLessonDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ThemeData theme = Theme.of(context);
+    final AppLanguage language = ref.watch(appLanguageProvider);
     final LearningState learning = ref.watch(learningProvider);
     final bool completed = learning.completedLessons.contains(lesson.id);
     final bool skipped = learning.skippedLessons.contains(lesson.id);
@@ -291,7 +338,10 @@ class LearnLessonDetailScreen extends ConsumerWidget {
         ),
         actions: <Widget>[
           IconButton(
-            tooltip: 'Share to WhatsApp',
+            tooltip: language.tr(
+                en: 'Share to WhatsApp',
+                ha: 'Raba zuwa WhatsApp',
+                fr: 'Partager sur WhatsApp'),
             icon: const Icon(Icons.ios_share_rounded),
             onPressed: () => _shareText(ref, lesson.id, lesson.shareText),
           ),
@@ -311,7 +361,7 @@ class LearnLessonDetailScreen extends ConsumerWidget {
             children: <Widget>[
               Expanded(
                 child: SoftInfoChip(
-                  label: 'Track',
+                  label: language.tr(en: 'Track', ha: 'Hanya', fr: 'Parcours'),
                   value: lesson.track,
                   color: lesson.tint,
                 ),
@@ -319,14 +369,24 @@ class LearnLessonDetailScreen extends ConsumerWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: SoftInfoChip(
-                  label: 'Status',
+                  label: language.tr(en: 'Status', ha: 'Matsayi', fr: 'Statut'),
                   value: completed
-                      ? 'Completed'
+                      ? language.tr(
+                          en: 'Completed', ha: 'An Kammala', fr: 'Termine')
                       : skipped
-                          ? 'Skipped for now'
+                          ? language.tr(
+                              en: 'Skipped for now',
+                              ha: 'An tsallake na yanzu',
+                              fr: 'Ignore pour le moment')
                           : reviewedQuestions == 0
-                              ? 'Not started'
-                              : '$reviewedQuestions checked',
+                              ? language.tr(
+                                  en: 'Not started',
+                                  ha: 'Ba a fara ba',
+                                  fr: 'Non commence')
+                              : language.tr(
+                                  en: '$reviewedQuestions checked',
+                                  ha: '$reviewedQuestions an duba',
+                                  fr: '$reviewedQuestions verifiees'),
                   color: const Color(0xFFE8F4D8),
                 ),
               ),
@@ -346,12 +406,20 @@ class LearnLessonDetailScreen extends ConsumerWidget {
           const SizedBox(height: 8),
           Text(
             lesson.questions.isEmpty
-                ? 'Lesson progress is based on the reading steps.'
-                : '$reviewedQuestions of ${lesson.questions.length} understanding checks reviewed',
+                ? language.tr(
+                    en: 'Lesson progress is based on the reading steps.',
+                    ha: 'Ci gaban darasi ya dogara ne akan matakan karatu.',
+                    fr: 'La progression de la lecon est basee sur les etapes de lecture.')
+                : language.tr(
+                    en: '$reviewedQuestions of ${lesson.questions.length} understanding checks reviewed',
+                    ha: '$reviewedQuestions daga cikin ${lesson.questions.length} an duba jarabawar fahimta',
+                    fr: '$reviewedQuestions sur ${lesson.questions.length} controles de comprehension revus',
+                  ),
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Overview'),
+          SoftSectionTitle(
+              title: language.tr(en: 'Overview', ha: 'Bayyani', fr: 'Apercu')),
           AppCard(
             child: Padding(
               padding: const EdgeInsets.all(18),
@@ -365,7 +433,11 @@ class LearnLessonDetailScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Field steps'),
+          SoftSectionTitle(
+              title: language.tr(
+                  en: 'Field steps',
+                  ha: 'Matakan Gona',
+                  fr: 'Etapes de terrain')),
           ...lesson.steps.asMap().entries.map(
                 (MapEntry<int, String> entry) => Padding(
                   padding: const EdgeInsets.only(bottom: 12),
@@ -377,7 +449,11 @@ class LearnLessonDetailScreen extends ConsumerWidget {
                 ),
               ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Use this on the farm'),
+          SoftSectionTitle(
+              title: language.tr(
+                  en: 'Use this on the farm',
+                  ha: 'Yi Amfani da Wannan a Gona',
+                  fr: 'Utiliser ceci a la ferme')),
           ...lesson.tools.map(
             (String tool) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
@@ -386,7 +462,11 @@ class LearnLessonDetailScreen extends ConsumerWidget {
           ),
           if (lesson.youtubeVideoId != null) ...<Widget>[
             const SizedBox(height: 18),
-            const SoftSectionTitle(title: 'Watch video'),
+            SoftSectionTitle(
+                title: language.tr(
+                    en: 'Watch video',
+                    ha: 'Kalli Bidiyo',
+                    fr: 'Regarder la video')),
             AppCard(
               color: theme.colorScheme.surfaceContainerHighest,
               child: Padding(
@@ -394,74 +474,43 @@ class LearnLessonDetailScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(18),
-                        gradient: LinearGradient(
-                          colors: <Color>[
-                            lesson.tint.withOpacity(0.96),
-                            Color.alphaBlend(lesson.tint.withOpacity(0.58),
-                                theme.colorScheme.surface),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
+                    _VideoThumbnailPreview(
+                      videoId: lesson.youtubeVideoId!,
+                      tint: lesson.tint,
+                      onTap: () => _playVideo(
+                          context, lesson.youtubeVideoId!, lesson.title),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      language.tr(
+                        en: 'Watch a short demonstration to reinforce the field steps.',
+                        ha: 'Kalli takaitaccen nunin aiki don karfafa matakan gona.',
+                        fr: 'Regardez une courte demonstration pour renforcer les etapes de terrain.',
                       ),
-                      child: Row(
-                        children: <Widget>[
-                          Container(
-                            width: 52,
-                            height: 52,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.24),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: const Icon(
-                              Icons.play_circle_fill_rounded,
-                              size: 30,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Text(
-                                  'Video lesson',
-                                  style: theme.textTheme.labelLarge?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Watch a short demonstration to reinforce the field steps.',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: Colors.white.withOpacity(0.92),
-                                    height: 1.4,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                      style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
                     ),
                     const SizedBox(height: 12),
                     AppButton.primary(
-                      onPressed: () async {
-                        await _launchExternalUrl(
-                          'https://www.youtube.com/watch?v=${lesson.youtubeVideoId}',
-                        );
-                      },
-                      child: const Row(
+                      onPressed: () => _playVideo(
+                          context, lesson.youtubeVideoId!, lesson.title),
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: <Widget>[
-                          Icon(Icons.ondemand_video_rounded, size: 18),
-                          SizedBox(width: 8),
-                          Text('Open in YouTube'),
+                          Icon(
+                              VideoPlayerScreen.isSupported
+                                  ? Icons.play_circle_fill_rounded
+                                  : Icons.ondemand_video_rounded,
+                              size: 18),
+                          const SizedBox(width: 8),
+                          Text(VideoPlayerScreen.isSupported
+                              ? language.tr(
+                                  en: 'Play video',
+                                  ha: 'Kunna Bidiyo',
+                                  fr: 'Lire la video')
+                              : language.tr(
+                                  en: 'Open in YouTube',
+                                  ha: 'Bude a YouTube',
+                                  fr: 'Ouvrir dans YouTube')),
                         ],
                       ),
                     ),
@@ -472,7 +521,9 @@ class LearnLessonDetailScreen extends ConsumerWidget {
           ],
           if (lesson.websiteUrl != null) ...<Widget>[
             const SizedBox(height: 18),
-            const SoftSectionTitle(title: 'Learn more'),
+            SoftSectionTitle(
+                title: language.tr(
+                    en: 'Learn more', ha: 'Koyi Kara', fr: 'En savoir plus')),
             AppCard(
               color: theme.colorScheme.surfaceContainerHighest,
               child: Padding(
@@ -481,7 +532,11 @@ class LearnLessonDetailScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
                     Text(
-                      'Visit an external resource for additional details, images, and practical guidance.',
+                      language.tr(
+                        en: 'Visit an external resource for additional details, images, and practical guidance.',
+                        ha: 'Ziyarci wata majiya ta waje domin karin bayani, hotuna, da jagora mai amfani.',
+                        fr: 'Consultez une ressource externe pour plus de details, d\'images et de conseils pratiques.',
+                      ),
                       style: Theme.of(context)
                           .textTheme
                           .bodyMedium
@@ -492,12 +547,15 @@ class LearnLessonDetailScreen extends ConsumerWidget {
                       onPressed: () async {
                         await _launchExternalUrl(lesson.websiteUrl!);
                       },
-                      child: const Row(
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: <Widget>[
-                          Icon(Icons.open_in_new_rounded, size: 18),
-                          SizedBox(width: 8),
-                          Text('Visit website'),
+                          const Icon(Icons.open_in_new_rounded, size: 18),
+                          const SizedBox(width: 8),
+                          Text(language.tr(
+                              en: 'Visit website',
+                              ha: 'Ziyarci Shafin Yanar Gizo',
+                              fr: 'Visiter le site web')),
                         ],
                       ),
                     ),
@@ -507,13 +565,20 @@ class LearnLessonDetailScreen extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Check your understanding'),
+          SoftSectionTitle(
+              title: language.tr(
+                  en: 'Check your understanding',
+                  ha: 'Duba Fahimtarka',
+                  fr: 'Verifiez votre comprehension')),
           if (lesson.questions.isEmpty)
             AppCard(
               child: Padding(
                 padding: const EdgeInsets.all(18),
                 child: Text(
-                  'This lesson does not have quiz questions yet.',
+                  language.tr(
+                      en: 'This lesson does not have quiz questions yet.',
+                      ha: 'Wannan darasi ba shi da tambayoyin gwaji tukuna.',
+                      fr: 'Cette lecon n\'a pas encore de questions de quiz.'),
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ),
@@ -536,7 +601,10 @@ class LearnLessonDetailScreen extends ConsumerWidget {
               Expanded(
                 child: AppButton.secondary(
                   onPressed: () => _shareText(ref, lesson.id, lesson.shareText),
-                  child: const Text('Share guide'),
+                  child: Text(language.tr(
+                      en: 'Share guide',
+                      ha: 'Raba Jagora',
+                      fr: 'Partager le guide')),
                 ),
               ),
               const SizedBox(width: 12),
@@ -556,9 +624,11 @@ class LearnLessonDetailScreen extends ConsumerWidget {
                               .certificateForLesson(lesson.id);
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text(
-                                      'Lesson completed. Award progress updated.')),
+                              SnackBar(
+                                  content: Text(language.tr(
+                                      en: 'Lesson completed. Award progress updated.',
+                                      ha: 'An kammala darasi. An sabunta ci gaban kyauta.',
+                                      fr: 'Lecon terminee. Progression des recompenses mise a jour.'))),
                             );
                             if (record != null) {
                               Navigator.of(context).push(
@@ -572,7 +642,13 @@ class LearnLessonDetailScreen extends ConsumerWidget {
                             }
                           }
                         },
-                  child: Text(completed ? 'Completed' : 'Mark complete'),
+                  child: Text(completed
+                      ? language.tr(
+                          en: 'Completed', ha: 'An Kammala', fr: 'Termine')
+                      : language.tr(
+                          en: 'Mark complete',
+                          ha: 'Alama an Kammala',
+                          fr: 'Marquer comme termine')),
                 ),
               ),
             ],
@@ -583,7 +659,10 @@ class LearnLessonDetailScreen extends ConsumerWidget {
               width: double.infinity,
               child: AppButton.secondary(
                 onPressed: () => _openCertificate(context, certificate),
-                child: const Text('View certificate'),
+                child: Text(language.tr(
+                    en: 'View certificate',
+                    ha: 'Duba Takardar Shaida',
+                    fr: 'Voir le certificat')),
               ),
             ),
           ],
@@ -599,13 +678,20 @@ class LearnLessonDetailScreen extends ConsumerWidget {
                           .skipLesson(lesson.id);
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text(
-                                  'Lesson skipped for now. You can come back later.')),
+                          SnackBar(
+                              content: Text(language.tr(
+                                  en: 'Lesson skipped for now. You can come back later.',
+                                  ha: 'An tsallake darasi na yanzu. Za ka iya dawowa daga baya.',
+                                  fr: 'Lecon ignoree pour le moment. Vous pouvez revenir plus tard.'))),
                         );
                       }
                     },
-              child: Text(skipped ? 'Skipped' : 'Skip lesson for now'),
+              child: Text(skipped
+                  ? language.tr(en: 'Skipped', ha: 'An Tsallake', fr: 'Ignore')
+                  : language.tr(
+                      en: 'Skip lesson for now',
+                      ha: 'Tsallake darasi na yanzu',
+                      fr: 'Ignorer la lecon pour le moment')),
             ),
           ),
         ],
@@ -637,6 +723,7 @@ class LearnTrackDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final AppLanguage language = ref.watch(appLanguageProvider);
     final LearningState learning = ref.watch(learningProvider);
     final int completed = lessons
         .where((LearningLesson lesson) =>
@@ -662,7 +749,7 @@ class LearnTrackDetailScreen extends ConsumerWidget {
             children: <Widget>[
               Expanded(
                 child: SoftInfoChip(
-                  label: 'Lessons',
+                  label: AppStrings.lessons,
                   value: '${lessons.length}',
                   color: track.color,
                 ),
@@ -670,7 +757,8 @@ class LearnTrackDetailScreen extends ConsumerWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: SoftInfoChip(
-                  label: 'Completed',
+                  label: language.tr(
+                      en: 'Completed', ha: 'An Kammala', fr: 'Termine'),
                   value: '$completed',
                   color: const Color(0xFFE8F4D8),
                 ),
@@ -678,13 +766,20 @@ class LearnTrackDetailScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Featured lessons'),
+          SoftSectionTitle(
+              title: language.tr(
+                  en: 'Featured lessons',
+                  ha: 'Darussan da Aka Zaba',
+                  fr: 'Lecons en vedette')),
           if (lessons.isEmpty)
             AppCard(
               child: Padding(
                 padding: const EdgeInsets.all(18),
                 child: Text(
-                  'New lessons for this track are being prepared.',
+                  language.tr(
+                      en: 'New lessons for this track are being prepared.',
+                      ha: 'Ana shirya sabbin darussa domin wannan hanya.',
+                      fr: 'De nouvelles lecons pour ce parcours sont en preparation.'),
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ),
@@ -694,6 +789,7 @@ class LearnTrackDetailScreen extends ConsumerWidget {
               (LearningLesson lesson) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: _LessonCard(
+                  language: language,
                   lesson: lesson,
                   completed: learning.completedLessons.contains(lesson.id),
                   progress: _lessonProgress(learning, lesson),
@@ -724,6 +820,7 @@ class LearnPracticeDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final AppLanguage language = ref.watch(appLanguageProvider);
     final bool completed =
         ref.watch(learningProvider).completedPractices.contains(activity.id);
 
@@ -736,7 +833,10 @@ class LearnPracticeDetailScreen extends ConsumerWidget {
         ),
         actions: <Widget>[
           IconButton(
-            tooltip: 'Share to WhatsApp',
+            tooltip: language.tr(
+                en: 'Share to WhatsApp',
+                ha: 'Raba zuwa WhatsApp',
+                fr: 'Partager sur WhatsApp'),
             icon: const Icon(Icons.ios_share_rounded),
             onPressed: () => _shareText(ref, activity.id, activity.shareText),
           ),
@@ -747,9 +847,21 @@ class LearnPracticeDetailScreen extends ConsumerWidget {
         heroSubtitle: activity.subtitle,
         heroIcon: activity.icon,
         heroVariant: FarmArtworkVariant.dashboard,
-        heroBadge: completed ? 'Practice completed' : 'Practice activity',
+        heroBadge: completed
+            ? language.tr(
+                en: 'Practice completed',
+                ha: 'An Kammala Atisaye',
+                fr: 'Exercice termine')
+            : language.tr(
+                en: 'Practice activity',
+                ha: 'Ayyukan Atisaye',
+                fr: 'Activite pratique'),
         sections: <Widget>[
-          const SoftSectionTitle(title: 'Action steps'),
+          SoftSectionTitle(
+              title: language.tr(
+                  en: 'Action steps',
+                  ha: 'Matakan Aiki',
+                  fr: 'Etapes a suivre')),
           ...activity.checklist.asMap().entries.map(
                 (MapEntry<int, String> entry) => Padding(
                   padding: const EdgeInsets.only(bottom: 12),
@@ -772,7 +884,10 @@ class LearnPracticeDetailScreen extends ConsumerWidget {
                 ),
                 child: const Icon(Icons.lightbulb_outline_rounded),
               ),
-              title: const Text('Why this matters'),
+              title: Text(language.tr(
+                  en: 'Why this matters',
+                  ha: 'Me Ya Sa Wannan Yake Da Muhimmanci',
+                  fr: 'Pourquoi c\'est important')),
               subtitle: Text(
                 activity.whyItMatters,
                 style: Theme.of(context)
@@ -789,7 +904,8 @@ class LearnPracticeDetailScreen extends ConsumerWidget {
                 child: AppButton.secondary(
                   onPressed: () =>
                       _shareText(ref, activity.id, activity.shareText),
-                  child: const Text('Share'),
+                  child: Text(
+                      language.tr(en: 'Share', ha: 'Raba', fr: 'Partager')),
                 ),
               ),
               const SizedBox(width: 12),
@@ -803,12 +919,21 @@ class LearnPracticeDetailScreen extends ConsumerWidget {
                               .completePractice(activity.id);
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text('Practice completed.')),
+                              SnackBar(
+                                  content: Text(language.tr(
+                                      en: 'Practice completed.',
+                                      ha: 'An kammala atisaye.',
+                                      fr: 'Exercice termine.'))),
                             );
                           }
                         },
-                  child: Text(completed ? 'Completed' : 'Mark done'),
+                  child: Text(completed
+                      ? language.tr(
+                          en: 'Completed', ha: 'An Kammala', fr: 'Termine')
+                      : language.tr(
+                          en: 'Mark done',
+                          ha: 'Alama an Yi',
+                          fr: 'Marquer comme fait')),
                 ),
               ),
             ],
@@ -820,37 +945,58 @@ class LearnPracticeDetailScreen extends ConsumerWidget {
 }
 
 class _AwardsBoard extends StatelessWidget {
-  const _AwardsBoard({required this.learning});
+  const _AwardsBoard({required this.language, required this.learning});
 
+  final AppLanguage language;
   final LearningState learning;
 
   @override
   Widget build(BuildContext context) {
     final List<_AwardData> awards = <_AwardData>[
       _AwardData(
-        title: 'First Lesson',
-        detail: 'Complete one lesson',
+        title: language.tr(
+            en: 'First Lesson', ha: 'Darasi na Farko', fr: 'Premiere lecon'),
+        detail: language.tr(
+            en: 'Complete one lesson',
+            ha: 'Kammala darasi daya',
+            fr: 'Terminer une lecon'),
         unlocked: learning.completedLessons.isNotEmpty,
         icon: Icons.school_rounded,
         tint: const Color(0xFFDFF1FF),
       ),
       _AwardData(
-        title: 'Crop Scholar',
-        detail: 'Complete three lessons',
+        title: language.tr(
+            en: 'Crop Scholar',
+            ha: 'Masanin Amfanin Gona',
+            fr: 'Expert des cultures'),
+        detail: language.tr(
+            en: 'Complete three lessons',
+            ha: 'Kammala darussa uku',
+            fr: 'Terminer trois lecons'),
         unlocked: learning.completedLessons.length >= 3,
         icon: Icons.workspace_premium_rounded,
         tint: const Color(0xFFE8F4D8),
       ),
       _AwardData(
-        title: 'Field Doer',
-        detail: 'Finish two practices',
+        title: language.tr(
+            en: 'Field Doer', ha: 'Mai Aikin Gona', fr: 'Acteur de terrain'),
+        detail: language.tr(
+            en: 'Finish two practices',
+            ha: 'Kammala atisaye biyu',
+            fr: 'Terminer deux exercices'),
         unlocked: learning.completedPractices.length >= 2,
         icon: Icons.fact_check_rounded,
         tint: const Color(0xFFFFEBCF),
       ),
       _AwardData(
-        title: 'Community Helper',
-        detail: 'Share one guide',
+        title: language.tr(
+            en: 'Community Helper',
+            ha: 'Mataimakin Al\'umma',
+            fr: 'Aide communautaire'),
+        detail: language.tr(
+            en: 'Share one guide',
+            ha: 'Raba jagora daya',
+            fr: 'Partager un guide'),
         unlocked: learning.sharedItems.isNotEmpty,
         icon: Icons.groups_rounded,
         tint: const Color(0xFFEDE8FF),
@@ -987,6 +1133,7 @@ class _LessonImageHeader extends StatelessWidget {
 
 class _LessonCard extends StatelessWidget {
   const _LessonCard({
+    required this.language,
     required this.lesson,
     required this.completed,
     required this.progress,
@@ -994,6 +1141,7 @@ class _LessonCard extends StatelessWidget {
     required this.onShare,
   });
 
+  final AppLanguage language;
   final LearningLesson lesson;
   final bool completed;
   final double progress;
@@ -1041,7 +1189,10 @@ class _LessonCard extends StatelessWidget {
                         ),
                       ),
                       IconButton(
-                        tooltip: 'Share to WhatsApp',
+                        tooltip: language.tr(
+                            en: 'Share to WhatsApp',
+                            ha: 'Raba zuwa WhatsApp',
+                            fr: 'Partager sur WhatsApp'),
                         onPressed: onShare,
                         icon: const Icon(Icons.ios_share_rounded),
                       ),
@@ -1072,7 +1223,10 @@ class _LessonCard extends StatelessWidget {
                     children: <Widget>[
                       _MiniMeta(
                         text: completed
-                            ? 'Completed'
+                            ? language.tr(
+                                en: 'Completed',
+                                ha: 'An Kammala',
+                                fr: 'Termine')
                             : '${(progress * 100).round()}%',
                         color:
                             completed ? const Color(0xFFE8F4D8) : lesson.tint,
@@ -1147,12 +1301,14 @@ class _TopicCard extends StatelessWidget {
 
 class _PracticeCard extends StatelessWidget {
   const _PracticeCard({
+    required this.language,
     required this.activity,
     required this.completed,
     required this.onTap,
     required this.onShare,
   });
 
+  final AppLanguage language;
   final PracticeActivity activity;
   final bool completed;
   final VoidCallback onTap;
@@ -1194,7 +1350,7 @@ class _PracticeCard extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: <Widget>[
             IconButton(
-              tooltip: 'Share',
+              tooltip: language.tr(en: 'Share', ha: 'Raba', fr: 'Partager'),
               onPressed: onShare,
               icon: const Icon(Icons.ios_share_rounded),
             ),
@@ -1219,8 +1375,10 @@ class _ToolRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
     return AppCard(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      color: theme.colorScheme.surfaceContainerHighest,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(
@@ -1229,14 +1387,112 @@ class _ToolRow extends StatelessWidget {
               width: 38,
               height: 38,
               decoration: BoxDecoration(
-                color: tint,
+                color: AppColors.chipBackgroundFor(tint,
+                    isDark: isDark, surface: theme.colorScheme.surfaceContainerHighest),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Icon(Icons.build_circle_outlined, size: 20),
+              child: Icon(Icons.build_circle_outlined,
+                  size: 20,
+                  color: AppColors.chipForegroundFor(
+                      isDark: isDark, onSurface: theme.colorScheme.onSurface)),
             ),
             const SizedBox(width: 12),
             Expanded(child: Text(text)),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shows the real YouTube thumbnail for a lesson's video so learners can see
+/// what they're about to watch, instead of a generic placeholder card.
+class _VideoThumbnailPreview extends StatelessWidget {
+  const _VideoThumbnailPreview({
+    required this.videoId,
+    required this.tint,
+    required this.onTap,
+  });
+
+  final String videoId;
+  final Color tint;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: AspectRatio(
+        aspectRatio: 16 / 9,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              Image.network(
+                'https://i.ytimg.com/vi/$videoId/hqdefault.jpg',
+                fit: BoxFit.cover,
+                loadingBuilder: (BuildContext context, Widget child,
+                    ImageChunkEvent? progress) {
+                  if (progress == null) return child;
+                  return Container(
+                    color: tint.withOpacity(0.4),
+                    alignment: Alignment.center,
+                    child: const SizedBox(
+                      width: 26,
+                      height: 26,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    ),
+                  );
+                },
+                errorBuilder: (BuildContext context, Object error,
+                        StackTrace? stackTrace) =>
+                    Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: <Color>[
+                        tint.withOpacity(0.96),
+                        Color.alphaBlend(
+                            tint.withOpacity(0.58),
+                            Theme.of(context).colorScheme.surface),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                ),
+              ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: <Color>[
+                      Colors.black.withOpacity(0.05),
+                      Colors.black.withOpacity(0.32),
+                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
+              ),
+              Center(
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.45),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white.withOpacity(0.8)),
+                  ),
+                  child: const Icon(
+                    Icons.play_arrow_rounded,
+                    size: 32,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1269,6 +1525,7 @@ class _QuizQuestionCardState extends ConsumerState<_QuizQuestionCard> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final AppLanguage language = ref.watch(appLanguageProvider);
 
     return AppCard(
       color: theme.colorScheme.surfaceContainerHighest,
@@ -1283,14 +1540,23 @@ class _QuizQuestionCardState extends ConsumerState<_QuizQuestionCard> {
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: widget.tint,
+                    color: AppColors.chipBackgroundFor(
+                      widget.tint,
+                      isDark: theme.brightness == Brightness.dark,
+                      surface: theme.colorScheme.surfaceContainerHighest,
+                    ),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Center(
                     child: Text(
                       '${widget.index}',
-                      style: theme.textTheme.labelLarge
-                          ?.copyWith(fontWeight: FontWeight.w800),
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.chipForegroundFor(
+                          isDark: theme.brightness == Brightness.dark,
+                          onSurface: theme.colorScheme.onSurface,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -1335,10 +1601,21 @@ class _QuizQuestionCardState extends ConsumerState<_QuizQuestionCard> {
                 ),
                 child: Text(
                   _skipped
-                      ? 'Skipped for now. ${widget.question.explanation}'
+                      ? language.tr(
+                          en: 'Skipped for now. ${widget.question.explanation}',
+                          ha:
+                              'An tsallake na yanzu. ${widget.question.explanation}',
+                          fr:
+                              'Ignore pour le moment. ${widget.question.explanation}')
                       : (_isCorrect ?? false)
-                          ? 'Correct. ${widget.question.explanation}'
-                          : 'Not quite. ${widget.question.explanation}',
+                          ? language.tr(
+                              en: 'Correct. ${widget.question.explanation}',
+                              ha: 'Daidai ne. ${widget.question.explanation}',
+                              fr: 'Correct. ${widget.question.explanation}')
+                          : language.tr(
+                              en: 'Not quite. ${widget.question.explanation}',
+                              ha: 'Ba haka ba. ${widget.question.explanation}',
+                              fr: 'Pas tout a fait. ${widget.question.explanation}'),
                   style: theme.textTheme.bodySmall?.copyWith(height: 1.5),
                 ),
               ),
@@ -1362,7 +1639,8 @@ class _QuizQuestionCardState extends ConsumerState<_QuizQuestionCard> {
                               _isCorrect = null;
                             });
                           },
-                    child: const Text('Skip'),
+                    child: Text(
+                        language.tr(en: 'Skip', ha: 'Tsallake', fr: 'Ignorer')),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1373,9 +1651,11 @@ class _QuizQuestionCardState extends ConsumerState<_QuizQuestionCard> {
                         : () async {
                             if (_selectedIndex == null) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content: Text(
-                                        'Choose an answer or skip the question.')),
+                                SnackBar(
+                                    content: Text(language.tr(
+                                        en: 'Choose an answer or skip the question.',
+                                        ha: 'Zaɓi amsa ko tsallake tambayar.',
+                                        fr: 'Choisissez une reponse ou ignorez la question.'))),
                               );
                               return;
                             }
@@ -1393,7 +1673,13 @@ class _QuizQuestionCardState extends ConsumerState<_QuizQuestionCard> {
                               _revealed = true;
                             });
                           },
-                    child: Text(_revealed ? 'Checked' : 'Check answer'),
+                    child: Text(_revealed
+                        ? language.tr(
+                            en: 'Checked', ha: 'An Duba', fr: 'Verifie')
+                        : language.tr(
+                            en: 'Check answer',
+                            ha: 'Duba Amsa',
+                            fr: 'Verifier la reponse')),
                   ),
                 ),
               ],
@@ -1503,6 +1789,19 @@ class _ChecklistTile extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _playVideo(
+    BuildContext context, String videoId, String title) async {
+  if (VideoPlayerScreen.isSupported) {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => VideoPlayerScreen(videoId: videoId, title: title),
+      ),
+    );
+    return;
+  }
+  await _launchExternalUrl('https://www.youtube.com/watch?v=$videoId');
 }
 
 Future<void> _launchExternalUrl(String url) async {
@@ -4447,7 +4746,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
       ),
     ],
     tools: <String>['Calculator, notes'],
-    youtubeVideoId: 'cFLC1j9ebfA',
+    youtubeVideoId: 'KeVCI3CBQGg',
     websiteUrl: 'https://www.fao.org/3/i3661e/i3661e.pdf',
   ),
   const LearningLesson(
@@ -4507,7 +4806,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
       ),
     ],
     tools: <String>['Seeds, water source'],
-    youtubeVideoId: '2BJ-CyVtbNQ',
+    youtubeVideoId: 'kG7U_EL1ABU',
     websiteUrl: 'https://www.pollinator.org/guides/creating-habitat',
   ),
   const LearningLesson(
@@ -4568,7 +4867,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
       ),
     ],
     tools: <String>['Shade, tape'],
-    youtubeVideoId: 'X5gSDVrZ0-Q',
+    youtubeVideoId: 'njjoAu2Laj8',
     websiteUrl: 'https://www.gardenmyths.com/grafting-guide/',
   ),
   const LearningLesson(
@@ -4629,7 +4928,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
       ),
     ],
     tools: <String>['Bucket, aerator'],
-    youtubeVideoId: 'Ov-ZCDS2p8g',
+    youtubeVideoId: 'bu9aYT7h5Gs',
     websiteUrl: 'https://www.gardenmyths.com/compost-tea/',
   ),
   const LearningLesson(
@@ -4675,7 +4974,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: '5-10 cm protects and allows water flow.'),
     ],
     tools: <String>['Residue, seed'],
-    youtubeVideoId: 'sJ9LpL7X4Ys',
+    youtubeVideoId: 'bu9aYT7h5Gs',
     websiteUrl: 'https://www.agronomy.org/cover-crops',
   ),
   const LearningLesson(
@@ -4725,7 +5024,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Profit = price minus costs.'),
     ],
     tools: <String>['Phone, notes'],
-    youtubeVideoId: 'gKw7KE5fBi4',
+    youtubeVideoId: 'CVuc5w59CkQ',
     websiteUrl: 'https://www.fao.org/3/i3088e/i3088e.pdf',
   ),
   const LearningLesson(
@@ -4771,7 +5070,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Stress from sudden sun.'),
     ],
     tools: <String>['Shade cloth'],
-    youtubeVideoId: 'qsH9JwFxDjE',
+    youtubeVideoId: 'PsSHhdc-7Zc',
     websiteUrl: 'https://www.almanac.com/gardening/hardening-off',
   ),
   const LearningLesson(
@@ -4816,7 +5115,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Shows persistent issues.'),
     ],
     tools: <String>['Flags, notebook'],
-    youtubeVideoId: '7zGnP_s5pzw',
+    youtubeVideoId: 'QOALTFgOoxM',
     websiteUrl: 'https://www.cropwatch.unl.edu/weeds',
   ),
   const LearningLesson(
@@ -4866,7 +5165,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Regular catches issues.'),
     ],
     tools: <String>['Notebook, pen'],
-    youtubeVideoId: 'fLVcXD_IXPg',
+    youtubeVideoId: 'iHKqsjp6LZo',
     websiteUrl: 'https://www.sare.org/learning/record-keeping/',
   ),
   const LearningLesson(
@@ -4913,7 +5212,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Fast species work within years.'),
     ],
     tools: <String>['Shovel, stakes'],
-    youtubeVideoId: '5RdxY5jSh0w',
+    youtubeVideoId: 'EW7dD07w3P8',
     websiteUrl: 'https://www.agroforestry.org/tree-selection/',
   ),
   const LearningLesson(
@@ -4964,7 +5263,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Organic and roots create pores.'),
     ],
     tools: <String>['Fork, aerator'],
-    youtubeVideoId: 'ql0kI62sKvQ',
+    youtubeVideoId: 'bu9aYT7h5Gs',
     websiteUrl: 'https://www.soilhealth.org/improving-compaction/',
   ),
   const LearningLesson(
@@ -5019,7 +5318,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Quick prevents losses.'),
     ],
     tools: <String>['Wire, pliers'],
-    youtubeVideoId: 'pVJwz8KqSrE',
+    youtubeVideoId: 'xVcjds5jSpY',
     websiteUrl: 'https://www.ext.vt.edu/fencing',
   ),
   const LearningLesson(
@@ -5074,7 +5373,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Dry is shelf-stable.'),
     ],
     tools: <String>['Racks, tarpaulin'],
-    youtubeVideoId: 'WvSrLMtqKiA',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.fao.org/3/i3972e/i3972e.pdf',
   ),
   const LearningLesson(
@@ -5125,7 +5424,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Dry prevents rust.'),
     ],
     tools: <String>['File, oil'],
-    youtubeVideoId: 'RpxvJY8u8RI',
+    youtubeVideoId: 'HM7eevbQd3Q',
     websiteUrl: 'https://www.gardenmyths.com/tool-maintenance/',
   ),
   const LearningLesson(
@@ -5180,7 +5479,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Remains legible.'),
     ],
     tools: <String>['Stakes, marker'],
-    youtubeVideoId: 'KG7d1iBFZ0A',
+    youtubeVideoId: 'PsSHhdc-7Zc',
     websiteUrl: 'https://www.almanac.com/gardening/starting-seeds',
   ),
   const LearningLesson(
@@ -5231,7 +5530,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Records reveal timing.'),
     ],
     tools: <String>['Simple traps'],
-    youtubeVideoId: 'dJGZnX-ZpQY',
+    youtubeVideoId: 'QOALTFgOoxM',
     websiteUrl: 'https://www.ipm.ucdavis.edu/monitoring',
   ),
   const LearningLesson(
@@ -5281,7 +5580,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Need protection.'),
     ],
     tools: <String>['Netting, posts'],
-    youtubeVideoId: 'sY_qCu-KLTo',
+    youtubeVideoId: 'xVcjds5jSpY',
     websiteUrl: 'https://www.extension.org/poultry-fencing',
   ),
   const LearningLesson(
@@ -5328,7 +5627,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Concise gets read.'),
     ],
     tools: <String>['Phone, email'],
-    youtubeVideoId: 'n0Eg8xD2lbM',
+    youtubeVideoId: 'CVuc5w59CkQ',
     websiteUrl: 'https://www.fao.org/3/i3161e/i3161e.pdf',
   ),
   const LearningLesson(
@@ -5375,7 +5674,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Shows anaerobic.'),
     ],
     tools: <String>['Thermometer'],
-    youtubeVideoId: 'VF1mALvgD-8',
+    youtubeVideoId: 'bu9aYT7h5Gs',
     websiteUrl: 'https://www.gardenmyths.com/compost-management/',
   ),
   const LearningLesson(
@@ -5430,7 +5729,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Ensures correct care.'),
     ],
     tools: <String>['Tags, marker'],
-    youtubeVideoId: 'GrJBLnCbSIQ',
+    youtubeVideoId: 'KeVCI3CBQGg',
     websiteUrl: 'https://www.extension.org/animal-grouping',
   ),
   const LearningLesson(
@@ -5485,7 +5784,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Fresh sales prevent storage losses.'),
     ],
     tools: <String>['Moisture tester, scale'],
-    youtubeVideoId: 'EcL3W5zEPCg',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.fao.org/3/i3956e/i3956e.pdf',
   ),
   const LearningLesson(
@@ -5536,7 +5835,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Heat stress requires more protection.'),
     ],
     tools: <String>['Shade cloth, clips'],
-    youtubeVideoId: 'Z8tNDQvLEMo',
+    youtubeVideoId: 'EW7dD07w3P8',
     websiteUrl: 'https://www.gardenmyths.com/shade-cloth/',
   ),
   const LearningLesson(
@@ -5591,7 +5890,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Underripe produces longer market life.'),
     ],
     tools: <String>['Knife, scale'],
-    youtubeVideoId: 'A9m3YC_sKOU',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.almanac.com/gardening/harvest-guide',
   ),
   const LearningLesson(
@@ -5646,7 +5945,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Regular cleaning maintains conditions.'),
     ],
     tools: <String>['Broom, disinfectant'],
-    youtubeVideoId: 'qL5yLqZnBJQ',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.fao.org/3/i3097e/i3097e.pdf',
   ),
   const LearningLesson(
@@ -5701,7 +6000,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Clean water prevents algae and disease.'),
     ],
     tools: <String>['Tank, gutter'],
-    youtubeVideoId: 'M0gkI9aXMfU',
+    youtubeVideoId: 'nitJ_7imTnk',
     websiteUrl: 'https://www.fao.org/3/i5773e/i5773e.pdf',
   ),
   const LearningLesson(
@@ -5756,7 +6055,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Signs of infection require vet care.'),
     ],
     tools: <String>['Water, antiseptic, bandage'],
-    youtubeVideoId: 'zLSMDQHbAaA',
+    youtubeVideoId: '6mT66F3jv1c',
     websiteUrl: 'https://www.sare.org/animal-first-aid/',
   ),
   const LearningLesson(
@@ -5807,7 +6106,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Watering reduces transplant shock.'),
     ],
     tools: <String>['Shears, water'],
-    youtubeVideoId: 'Qz3KY5pXDWE',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.almanac.com/gardening/thinning',
   ),
   const LearningLesson(
@@ -5858,7 +6157,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Mixing creates good rooting zone.'),
     ],
     tools: <String>['Fork, compost'],
-    youtubeVideoId: 'G5vLQVKE--8',
+    youtubeVideoId: 'bu9aYT7h5Gs',
     websiteUrl: 'https://www.soilhealth.org/amendments/',
   ),
   const LearningLesson(
@@ -5909,7 +6208,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Same depth prevents crown rot.'),
     ],
     tools: <String>['Water, shade cloth'],
-    youtubeVideoId: 'TIGbXhxPd1I',
+    youtubeVideoId: 'PsSHhdc-7Zc',
     websiteUrl: 'https://www.almanac.com/gardening/transplanting',
   ),
   const LearningLesson(
@@ -5964,7 +6263,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Young and producing animals need more.'),
     ],
     tools: <String>['Scale, bucket'],
-    youtubeVideoId: 'b2J7iiMj3q4',
+    youtubeVideoId: 'KeVCI3CBQGg',
     websiteUrl: 'https://www.sare.org/animal-nutrition/',
   ),
   const LearningLesson(
@@ -6019,7 +6318,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Walking away shows you have options.'),
     ],
     tools: <String>['Calculator, phone'],
-    youtubeVideoId: 'D5MwI1cFJYg',
+    youtubeVideoId: 'CVuc5w59CkQ',
     websiteUrl: 'https://www.fao.org/3/ca5162en/ca5162en.pdf',
   ),
   const LearningLesson(
@@ -6074,7 +6373,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Erosion degrades productive topsoil.'),
     ],
     tools: <String>['Seed, seeder'],
-    youtubeVideoId: 'F9PnVCQfHxE',
+    youtubeVideoId: 'bu9aYT7h5Gs',
     websiteUrl: 'https://www.sare.org/cover-crops/',
   ),
   const LearningLesson(
@@ -6129,7 +6428,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Advance prep avoids last-minute stress.'),
     ],
     tools: <String>['Checklist, phone'],
-    youtubeVideoId: 'X8dQu4TyDe8',
+    youtubeVideoId: 'CVuc5w59CkQ',
     websiteUrl: 'https://www.fao.org/3/i5415e/i5415e.pdf',
   ),
   const LearningLesson(
@@ -6184,7 +6483,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Forecasting saves water and money.'),
     ],
     tools: <String>['Moisture meter, calendar'],
-    youtubeVideoId: 'Ln_yKvE2-zI',
+    youtubeVideoId: 'nitJ_7imTnk',
     websiteUrl: 'https://www.gardenmyths.com/irrigation/',
   ),
   const LearningLesson(
@@ -6239,7 +6538,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Quality improves with thinning.'),
     ],
     tools: <String>['Shears'],
-    youtubeVideoId: 'bW6qRNxRbqE',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.almanac.com/gardening/thinning',
   ),
   const LearningLesson(
@@ -6294,7 +6593,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Proper storage prevents mold.'),
     ],
     tools: <String>['Scoop, light'],
-    youtubeVideoId: 'qEYn-BzPy1g',
+    youtubeVideoId: 'KeVCI3CBQGg',
     websiteUrl: 'https://www.sare.org/feed-quality/',
   ),
   const LearningLesson(
@@ -6349,7 +6648,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Data guides efficient control.'),
     ],
     tools: <String>['Marker flags, notebook'],
-    youtubeVideoId: 'rJ5iEQKX_-I',
+    youtubeVideoId: 'QOALTFgOoxM',
     websiteUrl: 'https://www.fao.org/3/i3956e/i3956e.pdf',
   ),
   const LearningLesson(
@@ -6404,7 +6703,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Records resolve disagreements fairly.'),
     ],
     tools: <String>['Receipt book, phone'],
-    youtubeVideoId: 'X8dQu4TyDe8',
+    youtubeVideoId: 'CVuc5w59CkQ',
     websiteUrl: 'https://www.fao.org/3/i3956e/i3956e.pdf',
   ),
   const LearningLesson(
@@ -6459,7 +6758,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Protection improves farm health.'),
     ],
     tools: <String>['Notebook'],
-    youtubeVideoId: 'E5Z0G9W8pRo',
+    youtubeVideoId: 'bu9aYT7h5Gs',
     websiteUrl: 'https://www.soilhealth.org/cover-soil/',
   ),
   const LearningLesson(
@@ -6514,7 +6813,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Leaks waste water and money.'),
     ],
     tools: <String>['Spare emitters, pliers'],
-    youtubeVideoId: 'Ln_yKvE2-zI',
+    youtubeVideoId: 'nitJ_7imTnk',
     websiteUrl: 'https://www.fao.org/3/i3956e/i3956e.pdf',
   ),
   const LearningLesson(
@@ -6569,7 +6868,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Animals thrive on routine.'),
     ],
     tools: <String>['Buckets, scale'],
-    youtubeVideoId: 'L3bQ5OU6DsQ',
+    youtubeVideoId: 'KeVCI3CBQGg',
     websiteUrl: 'https://www.sare.org/feeding-animals/',
   ),
   const LearningLesson(
@@ -6624,7 +6923,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Quality commands price premium.'),
     ],
     tools: <String>['Crates, labels'],
-    youtubeVideoId: 'VKz6dNXzlFA',
+    youtubeVideoId: 'CVuc5w59CkQ',
     websiteUrl: 'https://www.fao.org/3/i5415e/i5415e.pdf',
   ),
   const LearningLesson(
@@ -6679,7 +6978,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Deterrents discourage attacks.'),
     ],
     tools: <String>['Locks, lights'],
-    youtubeVideoId: 'bC_6sLvWaVQ',
+    youtubeVideoId: '6mT66F3jv1c',
     websiteUrl: 'https://www.sare.org/predator-protection/',
   ),
   const LearningLesson(
@@ -6730,7 +7029,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Turning ensures uniformity.'),
     ],
     tools: <String>['Wood, mesh'],
-    youtubeVideoId: 'qL5yLqZnBJQ',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.fao.org/3/i3956e/i3956e.pdf',
   ),
   const LearningLesson(
@@ -6785,7 +7084,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Balanced layers decompose faster.'),
     ],
     tools: <String>['Pitchfork'],
-    youtubeVideoId: 'G5vLQVKE--8',
+    youtubeVideoId: 'bu9aYT7h5Gs',
     websiteUrl: 'https://www.soilhealth.org/composting/',
   ),
   const LearningLesson(
@@ -6840,7 +7139,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Competition stresses plants.'),
     ],
     tools: <String>['Measuring stick'],
-    youtubeVideoId: 'Qz3KY5pXDWE',
+    youtubeVideoId: 'PsSHhdc-7Zc',
     websiteUrl: 'https://www.almanac.com/gardening/spacing',
   ),
   const LearningLesson(
@@ -6891,7 +7190,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Contaminated water causes harm.'),
     ],
     tools: <String>['Container, test kit'],
-    youtubeVideoId: 'M0gkI9aXMfU',
+    youtubeVideoId: 'nitJ_7imTnk',
     websiteUrl: 'https://www.fao.org/3/i5773e/i5773e.pdf',
   ),
   const LearningLesson(
@@ -6946,7 +7245,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Fullness prevents movement.'),
     ],
     tools: <String>['Padding, crates'],
-    youtubeVideoId: 'X8dQu4TyDe8',
+    youtubeVideoId: 'CVuc5w59CkQ',
     websiteUrl: 'https://www.fao.org/3/i5415e/i5415e.pdf',
   ),
   const LearningLesson(
@@ -7001,7 +7300,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Height indicates ready-to-eat stage.'),
     ],
     tools: <String>['Stick measure'],
-    youtubeVideoId: 'L3bQ5OU6DsQ',
+    youtubeVideoId: 'KeVCI3CBQGg',
     websiteUrl: 'https://www.sare.org/pasture-management/',
   ),
   const LearningLesson(
@@ -7052,7 +7351,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Cool storage prevents sprouting.'),
     ],
     tools: <String>['Bins, shade'],
-    youtubeVideoId: 'qL5yLqZnBJQ',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.fao.org/3/i3097e/i3097e.pdf',
   ),
   const LearningLesson(
@@ -7103,7 +7402,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Wet soil needs no irrigation.'),
     ],
     tools: <String>['Hands'],
-    youtubeVideoId: 'xY7ZQR3PpKE',
+    youtubeVideoId: 'bu9aYT7h5Gs',
     websiteUrl: 'https://www.soilhealth.org/moisture-test/',
   ),
   const LearningLesson(
@@ -7158,7 +7457,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Securing prevents loss.'),
     ],
     tools: <String>['Pump, straps'],
-    youtubeVideoId: 'L3bQ5OU6DsQ',
+    youtubeVideoId: 'yvX-NtmqP1U',
     websiteUrl: 'https://www.fao.org/3/i5415e/i5415e.pdf',
   ),
   const LearningLesson(
@@ -7213,7 +7512,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Rates are scientifically determined.'),
     ],
     tools: <String>['PPE, sprayer'],
-    youtubeVideoId: 'Aa8T1wGvPmM',
+    youtubeVideoId: 'yvX-NtmqP1U',
     websiteUrl: 'https://www.fao.org/3/i3956e/i3956e.pdf',
   ),
   const LearningLesson(
@@ -7268,7 +7567,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Poor seed needs adjustment.'),
     ],
     tools: <String>['Paper, water'],
-    youtubeVideoId: 'bC_6sLvWaVQ',
+    youtubeVideoId: 'PsSHhdc-7Zc',
     websiteUrl: 'https://www.fao.org/3/i5773e/i5773e.pdf',
   ),
   const LearningLesson(
@@ -7323,7 +7622,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Updates ensure accuracy.'),
     ],
     tools: <String>['Phone, notebook'],
-    youtubeVideoId: 'D5MwI1cFJYg',
+    youtubeVideoId: 'CVuc5w59CkQ',
     websiteUrl: 'https://www.fao.org/3/ca5162en/ca5162en.pdf',
   ),
   const LearningLesson(
@@ -7378,7 +7677,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Environment affects shelf life.'),
     ],
     tools: <String>['Containers, pallets'],
-    youtubeVideoId: 'qEYn-BzPy1g',
+    youtubeVideoId: 'KeVCI3CBQGg',
     websiteUrl: 'https://www.sare.org/feed-storage/',
   ),
   const LearningLesson(
@@ -7433,7 +7732,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Action prevents crop loss.'),
     ],
     tools: <String>['Notebook'],
-    youtubeVideoId: 'rJ5iEQKX_-I',
+    youtubeVideoId: 'QOALTFgOoxM',
     websiteUrl: 'https://www.fao.org/3/i3956e/i3956e.pdf',
   ),
   const LearningLesson(
@@ -7488,7 +7787,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Planning enables efficiency.'),
     ],
     tools: <String>['Calendar, pruner'],
-    youtubeVideoId: 'bW6qRNxRbqE',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.almanac.com/gardening/pruning',
   ),
   const LearningLesson(
@@ -7543,7 +7842,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Records prove transactions.'),
     ],
     tools: <String>['Invoice book, phone'],
-    youtubeVideoId: 'X8dQu4TyDe8',
+    youtubeVideoId: 'CVuc5w59CkQ',
     websiteUrl: 'https://www.fao.org/3/i5415e/i5415e.pdf',
   ),
   const LearningLesson(
@@ -7593,7 +7892,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Quality barriers persist.'),
     ],
     tools: <String>['Fabric, pegs'],
-    youtubeVideoId: 'E5Z0G9W8pRo',
+    youtubeVideoId: 'QOALTFgOoxM',
     websiteUrl: 'https://www.gardenmyths.com/landscape-fabric/',
   ),
   const LearningLesson(
@@ -7648,7 +7947,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'History informs planning.'),
     ],
     tools: <String>['Phone, notebook'],
-    youtubeVideoId: 'rJ5iEQKX_-I',
+    youtubeVideoId: 'QOALTFgOoxM',
     websiteUrl: 'https://www.fao.org/3/i3956e/i3956e.pdf',
   ),
   const LearningLesson(
@@ -7703,7 +8002,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Quality samples justify premiums.'),
     ],
     tools: <String>['Tray, cloth'],
-    youtubeVideoId: 'VKz6dNXzlFA',
+    youtubeVideoId: 'CVuc5w59CkQ',
     websiteUrl: 'https://www.fao.org/3/i5415e/i5415e.pdf',
   ),
   const LearningLesson(
@@ -7758,7 +8057,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Regular checks catch infestations.'),
     ],
     tools: <String>['Tick remover, treatment'],
-    youtubeVideoId: 'bC_6sLvWaVQ',
+    youtubeVideoId: '6mT66F3jv1c',
     websiteUrl: 'https://www.sare.org/parasite-management/',
   ),
   const LearningLesson(
@@ -7813,7 +8112,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Low areas retain moisture.'),
     ],
     tools: <String>['Flags, map'],
-    youtubeVideoId: 'Ln_yKvE2-zI',
+    youtubeVideoId: 'nitJ_7imTnk',
     websiteUrl: 'https://www.fao.org/3/i5773e/i5773e.pdf',
   ),
   const LearningLesson(
@@ -7868,7 +8167,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Adjustments fine-tune rate.'),
     ],
     tools: <String>['Container, measure tape'],
-    youtubeVideoId: 'bW6qRNxRbqE',
+    youtubeVideoId: 'PsSHhdc-7Zc',
     websiteUrl: 'https://www.almanac.com/gardening/seeding',
   ),
   const LearningLesson(
@@ -7918,7 +8217,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Secure tie-downs prevent loss.'),
     ],
     tools: <String>['Straps, tarpaulin'],
-    youtubeVideoId: 'X8dQu4TyDe8',
+    youtubeVideoId: 'yvX-NtmqP1U',
     websiteUrl: 'https://www.fao.org/3/i5415e/i5415e.pdf',
   ),
   const LearningLesson(
@@ -7969,7 +8268,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Goggles guard eyes.'),
     ],
     tools: <String>['Gloves, goggles'],
-    youtubeVideoId: 'Aa8T1wGvPmM',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.fao.org/3/i3956e/i3956e.pdf',
   ),
   const LearningLesson(
@@ -8024,7 +8323,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Preparation ensures efficiency.'),
     ],
     tools: <String>['Moisture tester, tools'],
-    youtubeVideoId: 'A9m3YC_sKOU',
+    youtubeVideoId: 'V2AOeQHyoZM',
     websiteUrl: 'https://www.almanac.com/gardening/harvest-guide',
   ),
   const LearningLesson(
@@ -8079,7 +8378,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Prompt response prevents complications.'),
     ],
     tools: <String>['PPE, lockable cabinet'],
-    youtubeVideoId: 'Aa8T1wGvPmM',
+    youtubeVideoId: 'yvX-NtmqP1U',
     websiteUrl: 'https://www.fao.org/3/i3956e/i3956e.pdf',
   ),
   const LearningLesson(
@@ -8134,7 +8433,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
           explanation: 'Actions drive improvement.'),
     ],
     tools: <String>['Notebook, pen'],
-    youtubeVideoId: 'D5MwI1cFJYg',
+    youtubeVideoId: 'iHKqsjp6LZo',
     websiteUrl: 'https://www.fao.org/3/ca5162en/ca5162en.pdf',
   ),
 ];

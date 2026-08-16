@@ -1,6 +1,5 @@
-import 'dart:convert';
-
 import 'package:farmsynchub/data/remote/operations_hub_remote_store.dart';
+import 'package:farmsynchub/data/repositories/inventory_repository.dart';
 import 'package:farmsynchub/providers/operations_hub_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,9 +11,10 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
-  test('addInventoryItem persists inventory locally and syncs it to remote storage', () async {
+  test('addInventoryItem updates state and forwards it to the inventory repository', () async {
     final FakeOperationsHubRemoteStore remoteStore = FakeOperationsHubRemoteStore(hasActiveUser: true);
-    final OperationsHubNotifier notifier = OperationsHubNotifier(remoteStore);
+    final FakeInventoryRepository inventoryRepository = FakeInventoryRepository();
+    final OperationsHubNotifier notifier = OperationsHubNotifier(remoteStore, inventoryRepository);
 
     final InventoryItem item = InventoryItem(
       id: 'item-1',
@@ -32,16 +32,34 @@ void main() {
 
     await notifier.addInventoryItem(item);
 
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    final String? raw = prefs.getString('operations_hub_state');
-    expect(raw, isNotNull);
-    final Map<String, dynamic> decoded = jsonDecode(raw!) as Map<String, dynamic>;
-    expect(decoded['inventory'], isA<List>());
-    expect((decoded['inventory'] as List<dynamic>).first['id'], item.id);
-    expect(remoteStore.syncCalls, 1);
-    expect(remoteStore.syncedPayloads.single['id'], 'operations_hub_state');
-    expect(remoteStore.syncedPayloads.single['payload']['inventory'].first['id'], item.id);
+    expect(notifier.state.inventory, hasLength(1));
+    expect(notifier.state.inventory.single.id, item.id);
+    expect(inventoryRepository.insertedItems, hasLength(1));
+    expect(inventoryRepository.insertedItems.single.id, item.id);
   });
+}
+
+class FakeInventoryRepository implements InventoryRepository {
+  final List<InventoryItem> insertedItems = <InventoryItem>[];
+
+  @override
+  Future<List<InventoryItem>> getAll() async => <InventoryItem>[];
+
+  @override
+  Future<InventoryItem?> getById(String id) async => null;
+
+  @override
+  Future<void> insert(InventoryItem item) async {
+    insertedItems.add(item);
+  }
+
+  @override
+  Future<void> update(InventoryItem item) async {
+    insertedItems.add(item);
+  }
+
+  @override
+  Future<void> delete(String id) async {}
 }
 
 class FakeOperationsHubRemoteStore implements OperationsHubRemoteStore {

@@ -15,6 +15,7 @@ import '../../../domain/models/crop.dart';
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/livestock.dart';
 import '../../../domain/models/transaction.dart';
+import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/crop_provider.dart';
 import '../../../providers/farm_provider.dart';
@@ -27,6 +28,7 @@ import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
+import '../schedule/schedule_screen.dart';
 import 'farm_detail_screen.dart';
 
 class FarmsScreen extends ConsumerWidget {
@@ -35,6 +37,7 @@ class FarmsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
+    final AppLanguage language = ref.watch(appLanguageProvider);
     final currentUser = ref.watch(firebaseServiceProvider).currentUser;
     final profile = ref.watch(userProfileProvider).valueOrNull;
     final AsyncValue<List<Farm>> farmsAsync = ref.watch(farmsProvider);
@@ -89,9 +92,16 @@ class FarmsScreen extends ConsumerWidget {
         visibleFarms.where((Farm farm) => farm.notes.trim().isNotEmpty).length;
 
     return SoftScreenScaffold(
-      heroTitle: 'Farm operations',
-      heroSubtitle:
-          'Create farm records, update land profiles, and keep crop, livestock, and finance activity linked to the right place.',
+      heroTitle: language.tr(
+        en: 'Farm operations',
+        ha: 'Ayyukan gona',
+        fr: 'Operations agricoles',
+      ),
+      heroSubtitle: language.tr(
+        en: 'Create farm records, update land profiles, and keep crop, livestock, and finance activity linked to the right place.',
+        ha: 'Kirkiri bayanan gona, sabunta bayanan kasa, kuma ka rike ayyukan amfanin gona, dabbobi, da kudi a hade.',
+        fr: 'Creez des fiches de ferme, mettez a jour les profils fonciers et gardez les activites de culture, d\'elevage et de finances bien liees.',
+      ),
       heroIcon: Icons.agriculture_rounded,
       heroVariant: FarmArtworkVariant.field,
       heroBadge: '${visibleFarms.length} managed farms',
@@ -104,6 +114,15 @@ class FarmsScreen extends ConsumerWidget {
           ),
           const SizedBox(width: 10),
           _HeroActionButton(
+            icon: Icons.calendar_month_rounded,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const ScheduleScreen(),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          _HeroActionButton(
             icon: Icons.add_rounded,
             onTap: () => _openFarmSheet(context, ref),
           ),
@@ -111,14 +130,24 @@ class FarmsScreen extends ConsumerWidget {
       ),
       sections: <Widget>[
         if (farmsAsync.hasError) ...<Widget>[
-          const _InlineNotice(
-            message: 'Could not load farms right now. Please try again.',
-            color: Color(0xFFFFEBD3),
+          _InlineNotice(
+            message: language.tr(
+              en: 'Could not load farms right now. Please try again.',
+              ha: 'An kasa loda gonaki yanzu. Da fatan za a sake gwadawa.',
+              fr: 'Impossible de charger les fermes pour le moment. Veuillez reessayer.',
+            ),
+            color: const Color(0xFFFFEBD3),
             icon: Icons.error_outline_rounded,
           ),
           const SizedBox(height: 18),
         ],
-        const SoftSectionTitle(title: 'Structure overview'),
+        SoftSectionTitle(
+          title: language.tr(
+            en: 'Structure overview',
+            ha: 'Bayanin tsari',
+            fr: 'Apercu de la structure',
+          ),
+        ),
         AppCard(
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
           child: Padding(
@@ -128,7 +157,11 @@ class FarmsScreen extends ConsumerWidget {
                 Expanded(
                   child: _CompactStatTile(
                     icon: Icons.map_rounded,
-                    label: 'Managed land',
+                    label: language.tr(
+                      en: 'Managed land',
+                      ha: 'Kasar da ake sarrafawa',
+                      fr: 'Terres gerees',
+                    ),
                     value: '${totalHectares.toStringAsFixed(1)} ha',
                     color: const Color(0xFFE5F5D8),
                   ),
@@ -137,7 +170,11 @@ class FarmsScreen extends ConsumerWidget {
                 Expanded(
                   child: _CompactStatTile(
                     icon: Icons.account_balance_wallet_rounded,
-                    label: 'Inventory value',
+                    label: language.tr(
+                      en: 'Inventory value',
+                      ha: 'Darajar kaya',
+                      fr: 'Valeur des stocks',
+                    ),
                     value: CurrencyUtils.formatCompactCurrency(inventoryValue),
                     color: const Color(0xFFDFF1FF),
                   ),
@@ -146,7 +183,11 @@ class FarmsScreen extends ConsumerWidget {
                 Expanded(
                   child: _CompactStatTile(
                     icon: Icons.sync_rounded,
-                    label: 'Pending sync',
+                    label: language.tr(
+                      en: 'Pending sync',
+                      ha: 'Ana jiran sync',
+                      fr: 'Synchro en attente',
+                    ),
                     value: '$pendingSync',
                     color: const Color(0xFFFFEBD2),
                   ),
@@ -157,21 +198,32 @@ class FarmsScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 18),
         SoftSectionTitle(
-          title: 'Farm management board',
+          title: language.tr(
+            en: 'Farm management board',
+            ha: 'Allon gudanar da gonaki',
+            fr: 'Tableau de gestion des fermes',
+          ),
           action: TextButton.icon(
             onPressed: () => _openFarmSheet(context, ref),
             icon: const Icon(Icons.add_rounded),
-            label: const Text('Add farm'),
+            label: Text(
+              language.tr(
+                  en: 'Add farm', ha: 'Kara gona', fr: 'Ajouter une ferme'),
+            ),
           ),
         ),
         if (farmsAsync.isLoading && visibleFarms.isEmpty)
-          const _FarmLoadingCard()
+          _FarmLoadingCard(language: language)
         else if (visibleFarms.isEmpty)
           _EmptyFarmState(
+            language: language,
             onCreate: () => _openFarmSheet(context, ref),
           )
         else
-          ...visibleFarms.map(
+          ...<Farm>[
+            ...visibleFarms.where((Farm farm) => farm.isFavorite),
+            ...visibleFarms.where((Farm farm) => !farm.isFavorite),
+          ].map(
             (Farm farm) => Padding(
               padding: const EdgeInsets.only(bottom: 14),
               child: _FarmManagementCard(
@@ -202,7 +254,13 @@ class FarmsScreen extends ConsumerWidget {
             ),
           ),
         const SizedBox(height: 18),
-        const SoftSectionTitle(title: 'Farm processes'),
+        SoftSectionTitle(
+          title: language.tr(
+            en: 'Farm processes',
+            ha: 'Tsarin ayyukan gona',
+            fr: 'Processus agricoles',
+          ),
+        ),
         const Row(
           children: <Widget>[
             Expanded(
@@ -252,7 +310,13 @@ class FarmsScreen extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 18),
-        const SoftSectionTitle(title: 'Documentation support'),
+        SoftSectionTitle(
+          title: language.tr(
+            en: 'Documentation support',
+            ha: 'Tallafin takardu',
+            fr: 'Support documentaire',
+          ),
+        ),
         AppCard(
           color: scheme.surfaceContainerHighest,
           child: Padding(
@@ -296,7 +360,13 @@ class FarmsScreen extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 18),
-        const SoftSectionTitle(title: 'Inventory and management'),
+        SoftSectionTitle(
+          title: language.tr(
+            en: 'Inventory and management',
+            ha: 'Kaya da gudanarwa',
+            fr: 'Stocks et gestion',
+          ),
+        ),
         Row(
           children: <Widget>[
             Expanded(
@@ -558,6 +628,11 @@ class _FarmManagementCard extends StatelessWidget {
               children: <Widget>[
                 Row(
                   children: <Widget>[
+                    if (farm.isFavorite) ...<Widget>[
+                      const Icon(Icons.star_rounded,
+                          size: 20, color: Color(0xFFE8A93B)),
+                      const SizedBox(width: 6),
+                    ],
                     Expanded(
                       child: Text(
                         farm.name,
@@ -1448,9 +1523,11 @@ class _HeroActionButton extends StatelessWidget {
 
 class _EmptyFarmState extends StatelessWidget {
   const _EmptyFarmState({
+    required this.language,
     required this.onCreate,
   });
 
+  final AppLanguage language;
   final VoidCallback onCreate;
 
   @override
@@ -1468,12 +1545,20 @@ class _EmptyFarmState extends StatelessWidget {
             ),
             const SizedBox(height: 18),
             Text(
-              'No farms added yet',
+              language.tr(
+                en: 'No farms added yet',
+                ha: 'Babu wata gona da aka kara har yanzu',
+                fr: 'Aucune ferme ajoutee pour le moment',
+              ),
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
             Text(
-              'Create your first farm profile to start linking crops, livestock, and financial activity.',
+              language.tr(
+                en: 'Create your first farm profile to start linking crops, livestock, and financial activity.',
+                ha: 'Kirkiri bayanan gonarka ta farko domin fara hada amfanin gona, dabbobi, da harkokin kudi.',
+                fr: 'Creez votre premier profil de ferme pour commencer a lier cultures, elevage et activites financieres.',
+              ),
               style:
                   Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
               textAlign: TextAlign.center,
@@ -1481,7 +1566,13 @@ class _EmptyFarmState extends StatelessWidget {
             const SizedBox(height: 16),
             AppButton.primary(
               onPressed: onCreate,
-              child: const Text('Create first farm'),
+              child: Text(
+                language.tr(
+                  en: 'Create first farm',
+                  ha: 'Kirkiri gona ta farko',
+                  fr: 'Creer la premiere ferme',
+                ),
+              ),
             ),
           ],
         ),
@@ -1491,24 +1582,32 @@ class _EmptyFarmState extends StatelessWidget {
 }
 
 class _FarmLoadingCard extends StatelessWidget {
-  const _FarmLoadingCard();
+  const _FarmLoadingCard({required this.language});
+
+  final AppLanguage language;
 
   @override
   Widget build(BuildContext context) {
     return AppCard(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: const Padding(
-        padding: EdgeInsets.all(24),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
         child: Row(
           children: <Widget>[
-            SizedBox(
+            const SizedBox(
               width: 24,
               height: 24,
               child: CircularProgressIndicator(strokeWidth: 2.4),
             ),
-            SizedBox(width: 14),
+            const SizedBox(width: 14),
             Expanded(
-              child: Text('Loading farms and linked records...'),
+              child: Text(
+                language.tr(
+                  en: 'Loading farms and linked records...',
+                  ha: 'Ana loda gonaki da bayanan da suka hade...',
+                  fr: 'Chargement des fermes et des enregistrements lies...',
+                ),
+              ),
             ),
           ],
         ),

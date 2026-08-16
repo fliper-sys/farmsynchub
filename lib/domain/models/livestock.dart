@@ -1,4 +1,5 @@
 import 'farm_activity.dart';
+import 'photo_journal_entry.dart';
 
 /// Livestock species enumeration.
 enum LivestockSpecies {
@@ -7,6 +8,10 @@ enum LivestockSpecies {
   pig,
   cattle,
   sheep,
+  rabbit,
+  duck,
+  fish,
+  snail,
 }
 
 /// Livestock purpose enumeration.
@@ -157,6 +162,11 @@ class Livestock {
     this.stockNotes = '',
     this.intelligenceNotes = '',
     this.lastIntelligenceSyncAt,
+    this.photoJournal = const <PhotoJournalEntry>[],
+    this.feedReminderEnabled = false,
+    this.feedReminderHour = 7,
+    this.feedReminderMinute = 0,
+    this.isFavorite = false,
   });
 
   final String id;
@@ -191,6 +201,11 @@ class Livestock {
   final String stockNotes;
   final String intelligenceNotes;
   final DateTime? lastIntelligenceSyncAt;
+  final List<PhotoJournalEntry> photoJournal;
+  final bool feedReminderEnabled;
+  final int feedReminderHour;
+  final int feedReminderMinute;
+  final bool isFavorite;
 
   int get openTaskCount => todoItems.where((FarmTodoItem item) => !item.isCompleted).length;
   double get syncedInputCost => inputRecords.fold<double>(0, (double sum, FarmInputRecord item) => sum + item.totalCost);
@@ -201,6 +216,24 @@ class Livestock {
     final double progress = averageAgeMonths / targetMaturityMonths;
     return progress.clamp(0, 1).toDouble();
   }
+
+  /// Daily feed-log entries: production log records with period == daily
+  /// and a positive feedKg, one per calendar day the group was marked fed.
+  List<LivestockProductionRecord> get feedLogEntries => productionLogs
+      .where((LivestockProductionRecord record) =>
+          record.period == LivestockRecordPeriod.daily && record.feedKg > 0)
+      .toList(growable: false);
+
+  bool wasFedOn(DateTime day) {
+    final DateTime target = DateTime(day.year, day.month, day.day);
+    return feedLogEntries.any((LivestockProductionRecord record) {
+      final DateTime recordDay = DateTime(
+          record.recordedAt.year, record.recordedAt.month, record.recordedAt.day);
+      return recordDay == target;
+    });
+  }
+
+  bool get wasFedToday => wasFedOn(DateTime.now());
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -235,6 +268,12 @@ class Livestock {
         'stockNotes': stockNotes,
         'intelligenceNotes': intelligenceNotes,
         'lastIntelligenceSyncAt': lastIntelligenceSyncAt?.toIso8601String(),
+        'photoJournal':
+            photoJournal.map((PhotoJournalEntry item) => item.toJson()).toList(),
+        'feedReminderEnabled': feedReminderEnabled,
+        'feedReminderHour': feedReminderHour,
+        'feedReminderMinute': feedReminderMinute,
+        'isFavorite': isFavorite,
       };
 
   factory Livestock.fromJson(Map<String, dynamic> json) => Livestock(
@@ -288,6 +327,13 @@ class Livestock {
         stockNotes: json['stockNotes'] as String? ?? '',
         intelligenceNotes: json['intelligenceNotes'] as String? ?? '',
         lastIntelligenceSyncAt: DateTime.tryParse(json['lastIntelligenceSyncAt'] as String? ?? ''),
+        photoJournal: _jsonObjectList(json['photoJournal'])
+            .map(PhotoJournalEntry.fromJson)
+            .toList(),
+        feedReminderEnabled: json['feedReminderEnabled'] as bool? ?? false,
+        feedReminderHour: (json['feedReminderHour'] as num?)?.toInt() ?? 7,
+        feedReminderMinute: (json['feedReminderMinute'] as num?)?.toInt() ?? 0,
+        isFavorite: json['isFavorite'] as bool? ?? false,
       );
 
   Livestock copyWith({
@@ -321,6 +367,11 @@ class Livestock {
     String? stockNotes,
     String? intelligenceNotes,
     DateTime? lastIntelligenceSyncAt,
+    List<PhotoJournalEntry>? photoJournal,
+    bool? feedReminderEnabled,
+    int? feedReminderHour,
+    int? feedReminderMinute,
+    bool? isFavorite,
   }) =>
       Livestock(
         id: id,
@@ -355,6 +406,11 @@ class Livestock {
         stockNotes: stockNotes ?? this.stockNotes,
         intelligenceNotes: intelligenceNotes ?? this.intelligenceNotes,
         lastIntelligenceSyncAt: lastIntelligenceSyncAt ?? this.lastIntelligenceSyncAt,
+        photoJournal: photoJournal ?? this.photoJournal,
+        feedReminderEnabled: feedReminderEnabled ?? this.feedReminderEnabled,
+        feedReminderHour: feedReminderHour ?? this.feedReminderHour,
+        feedReminderMinute: feedReminderMinute ?? this.feedReminderMinute,
+        isFavorite: isFavorite ?? this.isFavorite,
       );
 }
 

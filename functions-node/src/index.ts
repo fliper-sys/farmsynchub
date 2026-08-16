@@ -14,6 +14,46 @@ interface OwnerAggregate {
   dueTaskTitles: string[];
 }
 
+const INVENTORY_EXPIRY_WINDOW_DAYS = 7;
+
+interface InventoryAlertSummary {
+  expiringSoonCount: number;
+  lowStockCount: number;
+}
+
+function summarizeInventoryAlerts(
+  items: FirebaseFirestore.DocumentData[]
+): InventoryAlertSummary {
+  const now = Date.now();
+  const windowEnd = now + INVENTORY_EXPIRY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+  let expiringSoonCount = 0;
+  let lowStockCount = 0;
+
+  for (const item of items) {
+    const expiryDate =
+      typeof item.expiryDate === "string" ? new Date(item.expiryDate) : null;
+    if (
+      expiryDate &&
+      !Number.isNaN(expiryDate.getTime()) &&
+      expiryDate.getTime() >= now &&
+      expiryDate.getTime() < windowEnd
+    ) {
+      expiringSoonCount += 1;
+    }
+
+    const lowStockThreshold =
+      typeof item.lowStockThreshold === "number" ? item.lowStockThreshold : null;
+    const availableQuantity =
+      typeof item.availableQuantity === "number" ? item.availableQuantity : 0;
+    if (lowStockThreshold !== null && availableQuantity <= lowStockThreshold) {
+      lowStockCount += 1;
+    }
+  }
+
+  return { expiringSoonCount, lowStockCount };
+}
+
 interface NotificationPayload {
   title: string;
   body: string;
@@ -163,6 +203,35 @@ export const dailyDigest = onSchedule(
         body: fact.fact,
         actionUrl: `/learn/lesson/${fact.lessonId}`,
       });
+
+      const inventorySnapshot = await db
+        .collection("users")
+        .doc(aggregate.ownerUid)
+        .collection("inventory_items")
+        .get();
+      const { expiringSoonCount, lowStockCount } = summarizeInventoryAlerts(
+        inventorySnapshot.docs.map((doc) => doc.data())
+      );
+      if (expiringSoonCount > 0 || lowStockCount > 0) {
+        const parts: string[] = [];
+        if (lowStockCount > 0) {
+          parts.push(
+            `${lowStockCount} item${lowStockCount === 1 ? "" : "s"} low on stock`
+          );
+        }
+        if (expiringSoonCount > 0) {
+          parts.push(
+            `${expiringSoonCount} item${expiringSoonCount === 1 ? "" : "s"} expiring soon`
+          );
+        }
+        await sendToTokens(tokens, aggregate.ownerUid, {
+          title: `${expiringSoonCount + lowStockCount} inventory item${
+            expiringSoonCount + lowStockCount === 1 ? "" : "s"
+          } need attention`,
+          body: parts.join(" and "),
+          actionUrl: "/procurement",
+        });
+      }
 
       notified += 1;
     }

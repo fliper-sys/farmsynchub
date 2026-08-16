@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import '../core/services/farm_email_service.dart';
 import '../data/remote/firebase_service.dart';
@@ -42,8 +43,10 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
         email: email,
         password: password,
       );
-      final String displayName = _firebaseService.currentUser?.displayName?.trim() ?? '';
-      final String recipientName = displayName.isNotEmpty ? displayName : email.split('@').first;
+      final String displayName =
+          _firebaseService.currentUser?.displayName?.trim() ?? '';
+      final String recipientName =
+          displayName.isNotEmpty ? displayName : email.split('@').first;
       await _emailService.sendLoginNotification(
         toEmail: email,
         recipientName: recipientName,
@@ -58,10 +61,33 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
       await _firebaseService.signInWithGoogle();
       final String email = _firebaseService.currentUser?.email ?? '';
       if (email.isNotEmpty) {
-        final String displayName = _firebaseService.currentUser?.displayName?.trim() ?? '';
+        final String displayName =
+            _firebaseService.currentUser?.displayName?.trim() ?? '';
         await _emailService.sendLoginNotification(
           toEmail: email,
-          recipientName: displayName.isNotEmpty ? displayName : email.split('@').first,
+          recipientName:
+              displayName.isNotEmpty ? displayName : email.split('@').first,
+          signInMethod: 'Google sign-in',
+        );
+      }
+    });
+  }
+
+  /// Completes sign-in for a [GoogleSignInAccount] obtained from the web
+  /// GIS button (`googleSignIn.onCurrentUserChanged`) rather than the
+  /// deprecated imperative popup.
+  Future<void> completeGoogleSignIn(GoogleSignInAccount account) async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      await _firebaseService.completeGoogleSignIn(account);
+      final String email = _firebaseService.currentUser?.email ?? '';
+      if (email.isNotEmpty) {
+        final String displayName =
+            _firebaseService.currentUser?.displayName?.trim() ?? '';
+        await _emailService.sendLoginNotification(
+          toEmail: email,
+          recipientName:
+              displayName.isNotEmpty ? displayName : email.split('@').first,
           signInMethod: 'Google sign-in',
         );
       }
@@ -71,7 +97,8 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
   Future<String> startPhoneSignIn(String phoneNumber) async {
     state = const AsyncValue.loading();
     try {
-      final String verificationId = await _firebaseService.signInWithPhoneNumber(phoneNumber);
+      final String verificationId =
+          await _firebaseService.signInWithPhoneNumber(phoneNumber);
       state = const AsyncValue.data(null);
       return verificationId;
     } catch (error, stackTrace) {

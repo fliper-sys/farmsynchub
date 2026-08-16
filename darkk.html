@@ -1,0 +1,458 @@
+<title>FarmSync — Dark Theme &amp; Card System Proposal</title>
+<style>
+  @font-face {
+    font-family: 'Manrope';
+    src: local('Manrope');
+    font-weight: 400 800;
+  }
+
+  :root {
+    --bg: #0B0F0D;
+    --surface: #121714;
+    --surface-2: #1A211D;
+    --surface-3: #232B26;
+    --border: rgba(237, 239, 236, 0.09);
+    --border-strong: rgba(237, 239, 236, 0.16);
+    --text: #EDEFEC;
+    --text-2: #A9B3AC;
+    --text-3: #737F76;
+    --accent: #34D399;
+    --accent-strong: #10B981;
+    --accent-soft-bg: #17271F;
+    --accent-soft-text: #6EE7B7;
+    --teal: #2DD4BF;
+    --amber: #F5B14C;
+    --amber-soft-bg: #2A2213;
+    --amber-soft-text: #F5C878;
+    --danger: #F0645C;
+    --danger-soft-bg: #2A1615;
+    --danger-soft-text: #F5928C;
+    --info: #60A5FA;
+    --info-soft-bg: #161F2E;
+    --info-soft-text: #93C0FB;
+    --radius-lg: 20px;
+    --radius-md: 14px;
+    --radius-sm: 10px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Manrope', -apple-system, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body { padding: 40px 20px 80px; }
+
+  .wrap { max-width: 1080px; margin: 0 auto; }
+
+  header.page-head { margin-bottom: 48px; }
+  .eyebrow {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-soft-text);
+    background: var(--accent-soft-bg);
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: 999px;
+    margin-bottom: 16px;
+    border: 1px solid rgba(52,211,153,0.25);
+  }
+  h1 {
+    font-size: clamp(28px, 4vw, 38px);
+    font-weight: 800;
+    line-height: 1.12;
+    margin: 0 0 12px;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+  .lede {
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--text-2);
+    max-width: 640px;
+    margin: 0;
+  }
+
+  section { margin-bottom: 56px; }
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+  h2 {
+    font-size: 20px;
+    font-weight: 800;
+    margin: 0;
+    letter-spacing: -0.005em;
+  }
+  .section-note { font-size: 13px; color: var(--text-3); margin: 0; max-width: 420px; text-align: right; }
+
+  /* ---------- Elevation ladder ---------- */
+  .ladder {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  .rung {
+    border-radius: var(--radius-md);
+    padding: 20px 16px;
+    border: 1px solid var(--border);
+    min-height: 108px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+  .rung .lvl { font-size: 11px; color: var(--text-3); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .rung .name { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+  .rung .hex { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+  .rung.r0 { background: var(--bg); }
+  .rung.r1 { background: var(--surface); }
+  .rung.r2 { background: var(--surface-2); }
+  .rung.r3 { background: var(--surface-3); }
+
+  /* ---------- swatch grid ---------- */
+  .swatch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+  }
+  .swatch {
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .swatch .chip { height: 56px; }
+  .swatch .meta { padding: 10px 12px; background: var(--surface); }
+  .swatch .meta .name { font-size: 12.5px; font-weight: 700; }
+  .swatch .meta .hex { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; margin-top: 2px; }
+
+  /* ---------- text on bg preview ---------- */
+  .text-demo {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 22px 24px;
+  }
+  .text-demo .t1 { font-size: 17px; font-weight: 800; color: var(--text); margin-bottom: 6px; }
+  .text-demo .t2 { font-size: 14px; color: var(--text-2); margin-bottom: 6px; }
+  .text-demo .t3 { font-size: 12.5px; color: var(--text-3); }
+
+  /* ---------- phone mock ---------- */
+  .phone-row { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; }
+  .phone {
+    width: 320px;
+    background: var(--bg);
+    border-radius: 34px;
+    border: 1px solid var(--border-strong);
+    padding: 14px;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.6);
+  }
+  .phone .screen-label { text-align: center; font-size: 12px; color: var(--text-3); margin: 10px 0 0; font-weight: 700; }
+  .phone-inner { position: relative; }
+
+  .app-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; padding: 0 2px;}
+  .sync-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--accent-soft-bg); color: var(--accent-soft-text);
+    border: 1px solid rgba(52,211,153,0.22);
+    padding: 6px 10px 6px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 700;
+  }
+  .sync-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .avatar-pill { width: 30px; height: 30px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size: 12px; font-weight: 800; color: var(--text-2);}
+
+  .hero-card {
+    border-radius: var(--radius-lg);
+    padding: 18px;
+    background: linear-gradient(135deg, #12321F 0%, #0E241C 60%, #0B0F0D 100%);
+    border: 1px solid rgba(52,211,153,0.14);
+    margin-bottom: 14px;
+  }
+  .hero-card .h-eyebrow { font-size: 11px; font-weight: 800; color: var(--accent-soft-text); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px;}
+  .hero-card .h-title { font-size: 19px; font-weight: 800; margin-bottom: 6px; }
+  .hero-card .h-sub { font-size: 12.5px; color: var(--text-2); line-height: 1.5; margin-bottom: 14px;}
+  .hero-stats { display: flex; gap: 8px; }
+  .hero-stat { flex: 1; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: var(--radius-sm); padding: 8px 10px; }
+  .hero-stat .v { font-size: 15px; font-weight: 800; }
+  .hero-stat .l { font-size: 10.5px; color: var(--text-3); margin-top: 1px;}
+
+  .section-title-row { display: flex; justify-content: space-between; align-items: center; margin: 16px 0 8px; }
+  .section-title-row .st { font-size: 13.5px; font-weight: 800; }
+  .section-title-row .action { font-size: 12px; font-weight: 700; color: var(--accent); }
+
+  /* redesigned crop card */
+  .crop-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .crop-card .cc-top { display: flex; gap: 12px; padding: 14px 14px 10px; }
+  .cc-thumb {
+    width: 56px; height: 56px; border-radius: 14px; flex-shrink: 0; overflow: hidden;
+    background: linear-gradient(135deg, #2A4536, #14251C);
+    display: flex; align-items: center; justify-content: center; font-size: 22px;
+  }
+  .cc-body { flex: 1; min-width: 0; }
+  .cc-title-row { display: flex; align-items: center; gap: 8px; }
+  .cc-name { font-size: 15.5px; font-weight: 800; }
+  .cc-stage {
+    font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
+    background: var(--accent-soft-bg); color: var(--accent-soft-text);
+    padding: 3px 8px; border-radius: 999px; border: 1px solid rgba(52,211,153,.2);
+  }
+  .cc-sub { font-size: 12px; color: var(--text-2); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cc-progress-track { height: 4px; border-radius: 2px; background: rgba(255,255,255,.07); margin: 10px 14px 0; overflow: hidden; }
+  .cc-progress-fill { height: 100%; width: 34%; background: linear-gradient(90deg, var(--accent-strong), var(--accent)); border-radius: 2px; }
+  .cc-metrics { display: flex; gap: 8px; padding: 10px 14px 4px; overflow-x: auto; scrollbar-width: none; }
+  .cc-metrics::-webkit-scrollbar { display: none; }
+  .cc-metric { flex: none; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px; font-size: 11px; color: var(--text-2); white-space: nowrap; font-weight: 600;}
+  .cc-metric b { color: var(--text); font-weight: 800; }
+  .cc-more { flex: none; background: transparent; border: 1px dashed var(--border-strong); border-radius: 10px; padding: 6px 10px; font-size: 11px; color: var(--text-3); white-space: nowrap; }
+  .cc-footer { display: flex; border-top: 1px solid var(--border); margin-top: 12px; }
+  .cc-action { flex: 1; text-align: center; padding: 11px 0; font-size: 12px; font-weight: 700; color: var(--text-2); display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .cc-action:first-child { border-right: 1px solid var(--border); }
+  .cc-action.accent { color: var(--accent-soft-text); }
+
+  .bottom-nav {
+    display: flex; justify-content: space-around; align-items: center;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 20px; padding: 10px 4px; margin-top: 14px;
+  }
+  .nav-item { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 9.5px; color: var(--text-3); font-weight: 700; }
+  .nav-item.active { color: var(--accent); }
+  .nav-dot { width: 18px; height: 18px; border-radius: 6px; display:flex;align-items:center;justify-content:center; font-size: 11px;}
+  .nav-item.active .nav-dot { background: var(--accent-soft-bg); }
+
+  /* before/after */
+  .compare { display: flex; gap: 24px; flex-wrap: wrap; }
+  .compare-col { flex: 1; min-width: 280px; }
+  .compare-label { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+  .compare-label.bad { color: var(--danger-soft-text); }
+  .compare-label.good { color: var(--accent-soft-text); }
+
+  .old-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 16px; display: flex; gap: 12px;
+  }
+  .old-thumb { width: 44px; height: 44px; border-radius: 12px; background: #223420; flex-shrink:0; }
+  .old-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .old-chip { font-size: 10.5px; background: var(--surface-3); border-radius: 999px; padding: 4px 9px; color: var(--text-2); border: 1px solid var(--border); }
+  .old-log { font-size: 11px; color: var(--text-3); line-height: 1.6; }
+
+  /* recommendations */
+  .rec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .rec-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px 18px; }
+  .rec-card .rec-icon { font-size: 18px; margin-bottom: 8px; }
+  .rec-card .rec-title { font-size: 13.5px; font-weight: 800; margin-bottom: 5px; }
+  .rec-card .rec-body { font-size: 12.5px; color: var(--text-2); line-height: 1.55; }
+  .rec-card code { font-size: 11px; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; color: var(--accent-soft-text); }
+
+  footer.foot {
+    margin-top: 60px; padding-top: 24px; border-top: 1px solid var(--border);
+    font-size: 12px; color: var(--text-3); line-height: 1.7;
+  }
+  footer.foot a { color: var(--text-2); }
+
+  @media (max-width: 640px) {
+    .ladder { grid-template-columns: repeat(2, 1fr); }
+    .phone-row { justify-content: center; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="page-head">
+    <div class="eyebrow">Design proposal · not yet implemented</div>
+    <h1>A dark theme built on real elevation, not one grey</h1>
+    <p class="lede">Right now the app leans on flat near-black surfaces and pure white text, which is why the procurement/sales sheets read as jarring pure-white flashes and why cards feel either too plain or too busy. This proposes a proper 4-level elevation ladder, a softened text scale, and a redesigned card pattern that won't break on a small phone.</p>
+  </header>
+
+  <section>
+    <div class="section-head">
+      <h2>1 · Elevation ladder</h2>
+      <p class="section-note">Each level is a controlled step lighter than the one below — never one flat grey reused everywhere. Background stays near-black for OLED battery savings; sheets/dialogs/bottom nav sit on level 2–3.</p>
+    </div>
+    <div class="ladder">
+      <div class="rung r0"><div class="lvl">Level 0 · App background</div><div class="name">bg</div><div class="hex">#0B0F0D</div></div>
+      <div class="rung r1"><div class="lvl">Level 1 · Cards</div><div class="name">surface</div><div class="hex">#121714</div></div>
+      <div class="rung r2"><div class="lvl">Level 2 · Sheets, nav, dialogs</div><div class="name">surface-2</div><div class="hex">#1A211D</div></div>
+      <div class="rung r3"><div class="lvl">Level 3 · Menus, tooltips</div><div class="name">surface-3</div><div class="hex">#232B26</div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>2 · Text on background</h2>
+      <p class="section-note">Off-white instead of pure white — pure #FFFFFF on near-black is the single biggest cause of dark-mode eye strain.</p>
+    </div>
+    <div class="text-demo">
+      <div class="t1">Vaccination &amp; Health</div>
+      <div class="t2">4 interventions recommended for Sheep</div>
+      <div class="t3">Age: 14 months · Due 6/8/2026</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>3 · Accent &amp; semantic colors</h2>
+      <p class="section-note">Brand green stays the one accent — used for actions and success states only, never as a large fill. Semantic colors are separate hues, not tints of the accent.</p>
+    </div>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="chip" style="background:var(--accent)"></div><div class="meta"><div class="name">Accent</div><div class="hex">#34D399</div></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--accent-strong)"></div><div class="meta"><div class="name">Accent · pressed</div><div class="hex">#10B981</div></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--teal)"></div><div class="meta"><div class="name">Secondary · teal</div><div class="hex">#2DD4BF</div></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--amber)"></div><div class="meta"><div class="name">Warning</div><div class="hex">#F5B14C</div></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--danger)"></div><div class="meta"><div class="name">Danger</div><div class="hex">#F0645C</div></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--info)"></div><div class="meta"><div class="name">Info</div><div class="hex">#60A5FA</div></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>4 · In context</h2>
+      <p class="section-note">Same tokens applied to a real screen and the redesigned crop card side by side.</p>
+    </div>
+    <div class="phone-row">
+      <div>
+        <div class="phone">
+          <div class="phone-inner">
+            <div class="app-topbar">
+              <span class="sync-pill"><span class="dot"></span>Synced</span>
+              <span class="avatar-pill">U</span>
+            </div>
+            <div class="hero-card">
+              <div class="h-eyebrow">3 managed farms</div>
+              <div class="h-title">Farm operations</div>
+              <div class="h-sub">Create farm records and keep crop, livestock, and finance activity linked to the right place.</div>
+              <div class="hero-stats">
+                <div class="hero-stat"><div class="v">12.9 ha</div><div class="l">Managed land</div></div>
+                <div class="hero-stat"><div class="v">₦706K</div><div class="l">Inventory</div></div>
+                <div class="hero-stat"><div class="v">0</div><div class="l">Pending sync</div></div>
+              </div>
+            </div>
+            <div class="section-title-row"><span class="st">Current crops</span><span class="action">+ Add crop</span></div>
+            <div class="crop-card">
+              <div class="cc-top">
+                <div class="cc-thumb">🌽</div>
+                <div class="cc-body">
+                  <div class="cc-title-row"><span class="cc-name">Maize</span><span class="cc-stage">Seeding</span></div>
+                  <div class="cc-sub">Cornet variety · Jane's plot</div>
+                </div>
+              </div>
+              <div class="cc-progress-track"><div class="cc-progress-fill"></div></div>
+              <div class="cc-metrics">
+                <div class="cc-metric"><b>8.0</b>&nbsp;plots</div>
+                <div class="cc-metric"><b>2</b>&nbsp;open tasks</div>
+                <div class="cc-metric"><b>5,000kg</b>&nbsp;target</div>
+                <div class="cc-more">+2 more</div>
+              </div>
+              <div class="cc-footer">
+                <div class="cc-action">🔔 Todo</div>
+                <div class="cc-action accent">📦 Input</div>
+              </div>
+            </div>
+            <div class="bottom-nav">
+              <div class="nav-item active"><div class="nav-dot">🏠</div>Home</div>
+              <div class="nav-item">🚜</div>
+              <div class="nav-item active"><div class="nav-dot">🌿</div>Crops</div>
+              <div class="nav-item">🐐</div>
+              <div class="nav-item">💳</div>
+            </div>
+          </div>
+        </div>
+        <div class="screen-label">Dashboard tokens applied</div>
+      </div>
+
+      <div style="flex:1; min-width:280px;">
+        <div class="compare">
+          <div class="compare-col">
+            <div class="compare-label bad">Current — as reported</div>
+            <div class="old-card">
+              <div class="old-thumb"></div>
+              <div style="flex:1; min-width:0;">
+                <div style="font-weight:800; font-size:14px;">Maize</div>
+                <div class="old-chips">
+                  <span class="old-chip">Seeding</span><span class="old-chip">8.0 plots</span><span class="old-chip">16% cycle</span><span class="old-chip">₦0.00</span><span class="old-chip">jane</span><span class="old-chip">20 open tasks</span><span class="old-chip">0 input records</span><span class="old-chip">5000 kg target</span>
+                </div>
+                <div class="old-log">[22/7] 📸 Photo added<br>[22/7] 📸 Photo added<br>[22/7] Day 0: it's fresh | Height: 6.0cm<br>Renewed from previous maize cycle.</div>
+              </div>
+            </div>
+            <p style="font-size:12px;color:var(--text-3);margin-top:10px;line-height:1.6;">8 chips force 3–4 wrap lines below ~380px wide, and raw log text is dumped straight onto the list card instead of staying inside the detail screen.</p>
+          </div>
+          <div class="compare-col">
+            <div class="compare-label good">Proposed</div>
+            <div class="crop-card">
+              <div class="cc-top">
+                <div class="cc-thumb">🌽</div>
+                <div class="cc-body">
+                  <div class="cc-title-row"><span class="cc-name">Maize</span><span class="cc-stage">Seeding</span></div>
+                  <div class="cc-sub">Cornet variety · Jane's plot</div>
+                </div>
+              </div>
+              <div class="cc-progress-track"><div class="cc-progress-fill"></div></div>
+              <div class="cc-metrics">
+                <div class="cc-metric"><b>8.0</b>&nbsp;plots</div>
+                <div class="cc-metric"><b>2</b>&nbsp;open tasks</div>
+                <div class="cc-metric"><b>5,000kg</b>&nbsp;target</div>
+                <div class="cc-more">+2 more</div>
+              </div>
+              <div class="cc-footer">
+                <div class="cc-action">🔔 Todo</div>
+                <div class="cc-action accent">📦 Input</div>
+              </div>
+            </div>
+            <p style="font-size:12px;color:var(--text-3);margin-top:10px;line-height:1.6;">Stage moves into a badge next to the name, growth progress becomes one bar, only the 3 most relevant metrics show with a horizontally-scrollable overflow instead of wrapping, and the activity log moves to the detail screen. Same pattern works for the livestock card.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>5 · Flutter techniques behind the fix</h2>
+      <p class="section-note">What each redesign change actually maps to in code.</p>
+    </div>
+    <div class="rec-grid">
+      <div class="rec-card">
+        <div class="rec-icon">📐</div>
+        <div class="rec-title">Responsive chip row, not Wrap</div>
+        <div class="rec-body">Swap the <code>Wrap</code> of 8 chips for a horizontally-scrolling <code>ListView</code> capped at 3 chips + a "+N more" chip. Width-independent — never wraps to 4 lines on a small phone again.</div>
+      </div>
+      <div class="rec-card">
+        <div class="rec-icon">🖼️</div>
+        <div class="rec-title">Decode images at display size</div>
+        <div class="rec-body">Thumbnails currently decode the full uploaded photo. Add <code>cacheWidth</code>/<code>cacheHeight</code> to every <code>Image.memory</code> thumbnail — same visual result, a fraction of the memory and jank on lower-end phones.</div>
+      </div>
+      <div class="rec-card">
+        <div class="rec-icon">🧱</div>
+        <div class="rec-title">Material 3 card variants</div>
+        <div class="rec-body">Use <code>Card.filled</code> with an explicit <code>CardTheme</code> (12dp radius, <code>surfaceTintColor: transparent</code>) so cards stay flat and match this palette instead of Material 3's default purple-ish elevation tint.</div>
+      </div>
+      <div class="rec-card">
+        <div class="rec-icon">🎬</div>
+        <div class="rec-title">Hero transitions</div>
+        <div class="rec-body">Wrap the crop/livestock thumbnail in a <code>Hero</code> widget so tapping into the detail screen animates the image growing into place — cheap, and it's the single highest-perceived-polish animation for list → detail flows.</div>
+      </div>
+      <div class="rec-card">
+        <div class="rec-icon">✨</div>
+        <div class="rec-title">Implicit animations for state</div>
+        <div class="rec-body"><code>AnimatedContainer</code>/<code>AnimatedSize</code> on checkbox toggles, the progress bar fill, and section expand/collapse — no controller boilerplate needed, and it's what makes the UI feel alive instead of snapping between states.</div>
+      </div>
+      <div class="rec-card">
+        <div class="rec-icon">📱</div>
+        <div class="rec-title">LayoutBuilder for true adaptivity</div>
+        <div class="rec-body">Below ~360dp, stack the thumbnail above the title instead of beside it. <code>LayoutBuilder</code> makes this a per-card decision instead of hoping <code>Expanded</code> saves you.</div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    Palette informed by current 2026 dark-mode guidance: near-black (not pure black) bases, a 4-level elevation ladder, desaturated/lightened text and accents for reduced eye strain, and OLED-friendly true-dark backgrounds.<br>
+    Sources: <a href="https://appinventiv.com/blog/guide-on-designing-dark-mode-for-mobile-app/">Appinventiv — Dark Mode Guide 2026</a> · <a href="https://updivision.com/blog/post/ui-color-trends-to-watch-in-2026">UpDivision — UI Color Trends 2026</a> · <a href="https://uxplanet.org/8-tips-for-dark-theme-design-8dfc2f8f7ab6">UX Planet — Dark Theme Design</a> · <a href="https://design.google/library/material-design-dark-theme">Material Design — Dark Theme</a> · <a href="https://www.getwidget.dev/blog/flutter-card-widget/">GetWidget — Flutter Card M3 Variants</a>
+  </footer>
+
+</div>

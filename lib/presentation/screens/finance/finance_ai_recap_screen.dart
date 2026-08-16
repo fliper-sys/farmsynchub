@@ -143,7 +143,7 @@ class _FinanceAiRecapScreenState extends ConsumerState<FinanceAiRecapScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => context.canPop() ? context.pop() : context.go('/finance'),
         ),
       ),
       body: SoftScreenScaffold(

@@ -207,8 +207,18 @@ class _SummaryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color background = AppColors.chipBackgroundFor(
+      color,
+      isDark: isDark,
+      surface: theme.colorScheme.surfaceContainerHighest,
+    );
+    final Color foreground = AppColors.chipForegroundFor(
+      isDark: isDark,
+      onSurface: theme.colorScheme.onSurface,
+    );
     return AppCard(
-      color: color,
+      color: background,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -216,11 +226,13 @@ class _SummaryTile extends StatelessWidget {
           children: <Widget>[
             Icon(icon, color: AppColors.primary),
             const SizedBox(height: 10),
-            Text(label, style: theme.textTheme.labelMedium),
+            Text(label,
+                style: theme.textTheme.labelMedium?.copyWith(color: foreground)),
             const SizedBox(height: 6),
             Text(
               value,
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800, color: foreground),
             ),
           ],
         ),

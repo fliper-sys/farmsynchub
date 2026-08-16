@@ -12,17 +12,18 @@ import '../../../core/services/finance_report_service.dart';
 import '../../../core/services/report_file_saver.dart';
 import '../../../core/services/report_file_saver_base.dart';
 import '../../../core/services/report_share_service.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/date_utils.dart' as app_date;
 import '../../../core/utils/validators.dart';
 import '../../../domain/models/farm.dart';
+import '../../../domain/models/procurement_order.dart';
 import '../../../domain/models/transaction.dart';
-import '../../../providers/auth_provider.dart';
 import '../../../providers/app_preferences_provider.dart';
+import '../../../providers/auth_provider.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/finance_provider.dart';
 import '../../../providers/operations_hub_provider.dart';
+import '../../../providers/procurement_provider.dart';
 import 'market_trends_screen.dart';
 import 'finance_workspace_screen.dart';
 import 'finance_ai_recap_screen.dart';
@@ -30,7 +31,6 @@ import '../sales/sales_desk_screen.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
-import '../../common/widgets/farm_scene_artwork.dart';
 
 class FinanceScreen extends ConsumerStatefulWidget {
   const FinanceScreen({super.key});
@@ -54,13 +54,15 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
     final List<Transaction> transactions =
         ref.watch(transactionsProvider).valueOrNull ?? <Transaction>[];
+    final List<Transaction> periodTransactions =
+        _filterByPeriod(transactions, _selectedPeriodIndex);
     final FinanceSnapshot snapshot =
-        FinanceSnapshot.fromTransactions(transactions);
-    final List<Transaction> sales = transactions
+        FinanceSnapshot.fromTransactions(periodTransactions);
+    final List<Transaction> sales = periodTransactions
         .where(
             (Transaction item) => item.recordKind == TransactionRecordKind.sale)
         .toList(growable: false);
-    final List<Transaction> procurement = transactions
+    final List<Transaction> procurement = periodTransactions
         .where((Transaction item) =>
             item.recordKind == TransactionRecordKind.procurement)
         .toList(growable: false);
@@ -70,14 +72,27 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
           b.transactionDate.compareTo(a.transactionDate));
     final List<Transaction> topRecentActivities =
         recentActivities.take(6).toList(growable: false);
+    final List<InventoryItem> inventory =
+        ref.watch(operationsHubProvider).inventory;
+    final List<ProcurementOrder> procurementOrders =
+        ref.watch(procurementOrdersProvider).valueOrNull ??
+            <ProcurementOrder>[];
 
     final expenseCategories = _buildExpenseCategories(snapshot.categoryTotals);
-    final double incomeChange =
-        snapshot.income > 0 ? 12.4 : 0; // Simulated trend
-    final double expenseChange =
-        snapshot.expenses > 0 ? -8.2 : 0; // Simulated trend
+    final List<Transaction> previousPeriodTransactions =
+        _filterByPreviousPeriod(transactions, _selectedPeriodIndex);
+    final FinanceSnapshot previousSnapshot =
+        FinanceSnapshot.fromTransactions(previousPeriodTransactions);
+    final double incomeChange = _percentChange(
+        current: snapshot.income, previous: previousSnapshot.income);
+    final double expenseChange = _percentChange(
+        current: snapshot.expenses, previous: previousSnapshot.expenses);
 
     return Scaffold(
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showQuickAddMenu(context, farms),
+        child: const Icon(Icons.add_rounded),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.only(bottom: 32),
@@ -85,6 +100,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
             children: <Widget>[
               // ─── PREMIUM GRADIENT HERO HEADER ─────────────────────────
               _PremiumHeroHeader(
+                language: language,
                 balance: snapshot.balance,
                 income: snapshot.income,
                 expenses: snapshot.expenses,
@@ -97,6 +113,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
 
               // ─── QUICK ACTION STRIP ────────────────────────────────────
               _QuickActionStrip(
+                language: language,
                 farms: farms,
                 sales: sales,
                 procurement: procurement,
@@ -112,6 +129,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
               // ─── SPENDING BREAKDOWN ────────────────────────────────────
               if (expenseCategories.isNotEmpty)
                 _SpendingBreakdownCard(
+                  language: language,
                   categories: expenseCategories,
                   totalExpenses: snapshot.expenses,
                 ),
@@ -120,14 +138,22 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
 
               // ─── RECENT ACTIVITY FEED ──────────────────────────────────
               _RecentActivityCard(
+                language: language,
                 activities: topRecentActivities,
-                onViewAll: () => context.go('/finance'),
+                onViewAll: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const FinanceWorkspaceScreen(),
+                  ),
+                ),
+                onTapTransaction: (Transaction transaction) =>
+                    _openReceiptDetail(context, transaction),
               ),
 
               const SizedBox(height: 20),
 
               // ─── SMART INSIGHTS CARD ──────────────────────────────────
               _SmartInsightsCard(
+                language: language,
                 farmCount: farms.length,
                 transactionCount: transactions.length,
                 topCategory: expenseCategories.isNotEmpty
@@ -139,8 +165,19 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
 
               const SizedBox(height: 20),
 
+              // ─── INVENTORY & PROCUREMENT CARD ─────────────────────────
+              _InventoryProcurementCard(
+                language: language,
+                inventory: inventory,
+                procurementOrders: procurementOrders,
+                onManage: () => context.go('/procurement'),
+              ),
+
+              const SizedBox(height: 20),
+
               // ─── QUICK EXPORT BAR ──────────────────────────────────────
               _QuickExportBar(
+                language: language,
                 isExporting: _isExporting,
                 hasTransactions: transactions.isNotEmpty,
                 onExport: () => _exportReport(snapshot, transactions),
@@ -153,6 +190,82 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         ),
       ),
     );
+  }
+
+  /// Filters transactions to the selected period (0 = week, 1 = month, 2 = year).
+  List<Transaction> _filterByPeriod(
+      List<Transaction> transactions, int periodIndex) {
+    final DateTime now = DateTime.now();
+    final DateTime start = switch (periodIndex) {
+      0 => DateTime(now.year, now.month, now.day)
+          .subtract(const Duration(days: 6)),
+      2 => DateTime(now.year, 1, 1),
+      _ => DateTime(now.year, now.month, 1),
+    };
+    return transactions
+        .where((Transaction item) => !item.transactionDate.isBefore(start))
+        .toList(growable: false);
+  }
+
+  /// Filters transactions to the period immediately before the selected one,
+  /// so the hero header can show a real period-over-period trend instead of
+  /// a fixed placeholder percentage.
+  List<Transaction> _filterByPreviousPeriod(
+      List<Transaction> transactions, int periodIndex) {
+    final DateTime now = DateTime.now();
+    final DateTime start;
+    final DateTime end;
+    switch (periodIndex) {
+      case 0:
+        end = DateTime(now.year, now.month, now.day)
+            .subtract(const Duration(days: 6));
+        start = end.subtract(const Duration(days: 7));
+        break;
+      case 2:
+        start = DateTime(now.year - 1, 1, 1);
+        end = DateTime(now.year, 1, 1);
+        break;
+      default:
+        start = DateTime(now.year, now.month - 1, 1);
+        end = DateTime(now.year, now.month, 1);
+    }
+    return transactions
+        .where((Transaction item) =>
+            !item.transactionDate.isBefore(start) &&
+            item.transactionDate.isBefore(end))
+        .toList(growable: false);
+  }
+
+  double _percentChange({required double current, required double previous}) {
+    if (previous <= 0) {
+      return current > 0 ? 100 : 0;
+    }
+    return ((current - previous) / previous) * 100;
+  }
+
+  Future<void> _showQuickAddMenu(BuildContext context, List<Farm> farms) async {
+    final _QuickAddAction? action = await showModalBottomSheet<_QuickAddAction>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) => _QuickAddMenu(hasFarms: farms.isNotEmpty),
+    );
+    if (action == null || !context.mounted) {
+      return;
+    }
+    switch (action) {
+      case _QuickAddAction.transaction:
+        await _openTransactionSheet(context, farms: farms);
+        break;
+      case _QuickAddAction.inventory:
+        await _openInventorySheet(context, farms);
+        break;
+      case _QuickAddAction.contact:
+        await _openPartnerSheet(context);
+        break;
+      case _QuickAddAction.manageContacts:
+        await _openContactsList(context);
+        break;
+    }
   }
 
   List<_ExpenseCategoryData> _buildExpenseCategories(
@@ -169,63 +282,6 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
               color: _categoryColor(entry.key),
             ))
         .toList();
-  }
-
-  String _categoryLabel(TransactionCategory category) {
-    switch (category) {
-      case TransactionCategory.cropSale:
-        return 'Crop Sales';
-      case TransactionCategory.livestockSale:
-        return 'Livestock Sales';
-      case TransactionCategory.feed:
-        return 'Feed';
-      case TransactionCategory.fertiliser:
-        return 'Fertiliser';
-      case TransactionCategory.labour:
-        return 'Labour';
-      case TransactionCategory.veterinary:
-        return 'Veterinary';
-      case TransactionCategory.other:
-        return 'Other';
-    }
-  }
-
-  IconData _categoryIcon(TransactionCategory category) {
-    switch (category) {
-      case TransactionCategory.cropSale:
-        return Icons.spa_rounded;
-      case TransactionCategory.livestockSale:
-        return Icons.pets_rounded;
-      case TransactionCategory.feed:
-        return Icons.grass_rounded;
-      case TransactionCategory.fertiliser:
-        return Icons.science_rounded;
-      case TransactionCategory.labour:
-        return Icons.engineering_rounded;
-      case TransactionCategory.veterinary:
-        return Icons.medical_services_rounded;
-      case TransactionCategory.other:
-        return Icons.more_horiz_rounded;
-    }
-  }
-
-  Color _categoryColor(TransactionCategory category) {
-    switch (category) {
-      case TransactionCategory.cropSale:
-        return const Color(0xFF32D583);
-      case TransactionCategory.livestockSale:
-        return const Color(0xFF14B8A6);
-      case TransactionCategory.feed:
-        return const Color(0xFFFBBF24);
-      case TransactionCategory.fertiliser:
-        return const Color(0xFF8B5CF6);
-      case TransactionCategory.labour:
-        return const Color(0xFFF97316);
-      case TransactionCategory.veterinary:
-        return const Color(0xFFEF4444);
-      case TransactionCategory.other:
-        return const Color(0xFF8A93A2);
-    }
   }
 
   Future<void> _exportReport(
@@ -298,14 +354,28 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     }
   }
 
-  Future<void> _openPartnerSheet(BuildContext context) async {
+  Future<void> _openPartnerSheet(BuildContext context,
+      {BusinessPartner? existing}) async {
     final _PartnerDraft? draft = await showModalBottomSheet<_PartnerDraft>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (BuildContext context) => const _PartnerSheet(),
+      builder: (BuildContext context) => _PartnerSheet(existing: existing),
     );
     if (draft == null) {
+      return;
+    }
+    if (existing != null) {
+      await ref.read(operationsHubProvider.notifier).updatePartner(
+            BusinessPartner(
+              id: existing.id,
+              name: draft.name,
+              email: draft.email,
+              phone: draft.phone,
+              type: draft.type,
+              createdAt: existing.createdAt,
+            ),
+          );
       return;
     }
     await ref.read(operationsHubProvider.notifier).addPartner(
@@ -318,6 +388,55 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
             createdAt: DateTime.now(),
           ),
         );
+  }
+
+  Future<void> _openContactsList(BuildContext rootContext) async {
+    await showModalBottomSheet<void>(
+      context: rootContext,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext sheetContext) => Consumer(
+        builder: (BuildContext context, WidgetRef ref, _) {
+          final List<BusinessPartner> partners =
+              ref.watch(operationsHubProvider).partners;
+          return _ContactsListSheet(
+            partners: partners,
+            onEdit: (BusinessPartner partner) async {
+              Navigator.of(sheetContext).pop();
+              if (!rootContext.mounted) {
+                return;
+              }
+              await _openPartnerSheet(rootContext, existing: partner);
+            },
+            onDelete: (BusinessPartner partner) async {
+              final bool? confirm = await showDialog<bool>(
+                context: context,
+                builder: (BuildContext dialogContext) => AlertDialog(
+                  title: const Text('Remove contact?'),
+                  content: Text('Remove "${partner.name}" from contacts?'),
+                  actions: <Widget>[
+                    TextButton(
+                      onPressed: () =>
+                          Navigator.of(dialogContext).pop(false),
+                      child: const Text('Cancel'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(true),
+                      child: const Text('Remove'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirm == true) {
+                await ref
+                    .read(operationsHubProvider.notifier)
+                    .deletePartner(partner.id);
+              }
+            },
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _openInventorySheet(
@@ -430,12 +549,70 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
   }
 }
 
+String _categoryLabel(TransactionCategory category) {
+  switch (category) {
+    case TransactionCategory.cropSale:
+      return 'Crop Sales';
+    case TransactionCategory.livestockSale:
+      return 'Livestock Sales';
+    case TransactionCategory.feed:
+      return 'Feed';
+    case TransactionCategory.fertiliser:
+      return 'Fertiliser';
+    case TransactionCategory.labour:
+      return 'Labour';
+    case TransactionCategory.veterinary:
+      return 'Veterinary';
+    case TransactionCategory.other:
+      return 'Other';
+  }
+}
+
+IconData _categoryIcon(TransactionCategory category) {
+  switch (category) {
+    case TransactionCategory.cropSale:
+      return Icons.spa_rounded;
+    case TransactionCategory.livestockSale:
+      return Icons.pets_rounded;
+    case TransactionCategory.feed:
+      return Icons.grass_rounded;
+    case TransactionCategory.fertiliser:
+      return Icons.science_rounded;
+    case TransactionCategory.labour:
+      return Icons.engineering_rounded;
+    case TransactionCategory.veterinary:
+      return Icons.medical_services_rounded;
+    case TransactionCategory.other:
+      return Icons.more_horiz_rounded;
+  }
+}
+
+Color _categoryColor(TransactionCategory category) {
+  switch (category) {
+    case TransactionCategory.cropSale:
+      return const Color(0xFF32D583);
+    case TransactionCategory.livestockSale:
+      return const Color(0xFF14B8A6);
+    case TransactionCategory.feed:
+      return const Color(0xFFFBBF24);
+    case TransactionCategory.fertiliser:
+      return const Color(0xFF8B5CF6);
+    case TransactionCategory.labour:
+      return const Color(0xFFF97316);
+    case TransactionCategory.veterinary:
+      return const Color(0xFFEF4444);
+    case TransactionCategory.other:
+      return const Color(0xFF8A93A2);
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // HERO HEADER
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class _PremiumHeroHeader extends StatelessWidget {
   const _PremiumHeroHeader({
+    required this.language,
     required this.balance,
     required this.income,
     required this.expenses,
@@ -445,6 +622,7 @@ class _PremiumHeroHeader extends StatelessWidget {
     required this.onPeriodChanged,
   });
 
+  final AppLanguage language;
   final double balance;
   final double income;
   final double expenses;
@@ -453,12 +631,15 @@ class _PremiumHeroHeader extends StatelessWidget {
   final int selectedPeriodIndex;
   final ValueChanged<int> onPeriodChanged;
 
-  static const List<String> _periods = <String>['Week', 'Month', 'Year'];
-
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
+    final List<String> periods = <String>[
+      language.tr(en: 'Week', ha: 'Mako', fr: 'Semaine'),
+      language.tr(en: 'Month', ha: 'Wata', fr: 'Mois'),
+      language.tr(en: 'Year', ha: 'Shekara', fr: 'Annee'),
+    ];
 
     return Container(
       decoration: BoxDecoration(
@@ -535,7 +716,7 @@ class _PremiumHeroHeader extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      'Finance',
+                      language.tr(en: 'Finance', ha: 'Kudi', fr: 'Finances'),
                       style: theme.textTheme.titleLarge?.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
@@ -559,7 +740,10 @@ class _PremiumHeroHeader extends StatelessWidget {
 
                 // Balance label
                 Text(
-                  'Total Balance',
+                  language.tr(
+                      en: 'Total Balance',
+                      ha: 'Jimlar Ma\'auni',
+                      fr: 'Solde total'),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: Colors.white.withOpacity(0.7),
                     fontWeight: FontWeight.w500,
@@ -568,12 +752,17 @@ class _PremiumHeroHeader extends StatelessWidget {
                 const SizedBox(height: 6),
 
                 // Balance amount
-                Text(
-                  CurrencyUtils.formatCurrency(balance),
-                  style: theme.textTheme.displaySmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    CurrencyUtils.formatCurrency(balance),
+                    maxLines: 1,
+                    style: theme.textTheme.displaySmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                    ),
                   ),
                 ),
 
@@ -611,7 +800,10 @@ class _PremiumHeroHeader extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: <Widget>[
                                   Text(
-                                    'Income',
+                                    language.tr(
+                                        en: 'Income',
+                                        ha: 'Kudin shiga',
+                                        fr: 'Revenus'),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: theme.textTheme.labelSmall?.copyWith(
@@ -619,13 +811,18 @@ class _PremiumHeroHeader extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 2),
-                                  Text(
-                                    CurrencyUtils.formatCompactCurrency(income),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.titleSmall?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w700,
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      CurrencyUtils.formatCompactCurrency(
+                                          income),
+                                      maxLines: 1,
+                                      style:
+                                          theme.textTheme.titleSmall?.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -686,7 +883,10 @@ class _PremiumHeroHeader extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: <Widget>[
                                   Text(
-                                    'Expenses',
+                                    language.tr(
+                                        en: 'Expenses',
+                                        ha: 'Kashewa',
+                                        fr: 'Depenses'),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: theme.textTheme.labelSmall?.copyWith(
@@ -694,14 +894,18 @@ class _PremiumHeroHeader extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 2),
-                                  Text(
-                                    CurrencyUtils.formatCompactCurrency(
-                                        expenses),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.titleSmall?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w700,
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      CurrencyUtils.formatCompactCurrency(
+                                          expenses),
+                                      maxLines: 1,
+                                      style:
+                                          theme.textTheme.titleSmall?.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -741,7 +945,7 @@ class _PremiumHeroHeader extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: List<Widget>.generate(
-                    _periods.length,
+                    periods.length,
                     (int index) => Padding(
                       padding: EdgeInsets.only(
                           left: index == 0 ? 0 : 8, right: index == 2 ? 0 : 8),
@@ -757,7 +961,7 @@ class _PremiumHeroHeader extends StatelessWidget {
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            _periods[index],
+                            periods[index],
                             style: theme.textTheme.labelMedium?.copyWith(
                               color: selectedPeriodIndex == index
                                   ? const Color(0xFF0F3D3E)
@@ -787,6 +991,7 @@ class _PremiumHeroHeader extends StatelessWidget {
 
 class _QuickActionStrip extends StatelessWidget {
   const _QuickActionStrip({
+    required this.language,
     required this.farms,
     required this.sales,
     required this.procurement,
@@ -795,6 +1000,7 @@ class _QuickActionStrip extends StatelessWidget {
     required this.onExport,
   });
 
+  final AppLanguage language;
   final List<Farm> farms;
   final List<Transaction> sales;
   final List<Transaction> procurement;
@@ -810,31 +1016,35 @@ class _QuickActionStrip extends StatelessWidget {
     final List<_QuickActionItem> actions = <_QuickActionItem>[
       _QuickActionItem(
         icon: Icons.point_of_sale_rounded,
-        label: 'Sales Desk',
+        label: language.tr(
+            en: 'Sales Desk',
+            ha: 'Tebur Tallace-tallace',
+            fr: 'Bureau des ventes'),
         color: const Color(0xFF32D583),
         onTap: () => context.go(SalesDeskScreen.routeName),
       ),
       _QuickActionItem(
         icon: Icons.receipt_long_outlined,
-        label: 'Expenses',
+        label: language.tr(en: 'Expenses', ha: 'Kashewa', fr: 'Depenses'),
         color: const Color(0xFFF97316),
         onTap: () => context.go('/expenses'),
       ),
       _QuickActionItem(
         icon: Icons.shopping_cart_outlined,
-        label: 'Procurement',
+        label: language.tr(
+            en: 'Procurement', ha: 'Sayayya', fr: 'Approvisionnement'),
         color: const Color(0xFF8B5CF6),
         onTap: () => context.go('/procurement'),
       ),
       _QuickActionItem(
         icon: Icons.auto_awesome_rounded,
-        label: 'AI Recap',
+        label: language.tr(en: 'AI Recap', ha: 'Takaitawar AI', fr: 'Recap IA'),
         color: const Color(0xFF14B8A6),
-        onTap: () => context.go(FinanceAiRecapScreen.routeName),
+        onTap: () => context.push(FinanceAiRecapScreen.routeName),
       ),
       _QuickActionItem(
         icon: Icons.show_chart_rounded,
-        label: 'Market',
+        label: language.tr(en: 'Market', ha: 'Kasuwa', fr: 'Marche'),
         color: const Color(0xFF3B82F6),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute<void>(
@@ -844,7 +1054,8 @@ class _QuickActionStrip extends StatelessWidget {
       ),
       _QuickActionItem(
         icon: Icons.grid_view_rounded,
-        label: 'Workspace',
+        label: language.tr(
+            en: 'Workspace', ha: 'Wurin aiki', fr: 'Espace de travail'),
         color: const Color(0xFF8A93A2),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute<void>(
@@ -864,7 +1075,10 @@ class _QuickActionStrip extends StatelessWidget {
             child: Row(
               children: <Widget>[
                 Text(
-                  'Quick Actions',
+                  language.tr(
+                      en: 'Quick Actions',
+                      ha: 'Ayyuka Masu Sauri',
+                      fr: 'Actions rapides'),
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: isDark ? Colors.white : theme.colorScheme.onSurface,
@@ -1010,10 +1224,12 @@ class _ExpenseCategoryData {
 
 class _SpendingBreakdownCard extends StatelessWidget {
   const _SpendingBreakdownCard({
+    required this.language,
     required this.categories,
     required this.totalExpenses,
   });
 
+  final AppLanguage language;
   final List<_ExpenseCategoryData> categories;
   final double totalExpenses;
 
@@ -1061,7 +1277,10 @@ class _SpendingBreakdownCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    'Spending Breakdown',
+                    language.tr(
+                        en: 'Spending Breakdown',
+                        ha: 'Rarrabuwar Kashewa',
+                        fr: 'Repartition des depenses'),
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                       color:
@@ -1193,12 +1412,16 @@ class _CategoryBar extends StatelessWidget {
 
 class _RecentActivityCard extends StatelessWidget {
   const _RecentActivityCard({
+    required this.language,
     required this.activities,
     required this.onViewAll,
+    required this.onTapTransaction,
   });
 
+  final AppLanguage language;
   final List<Transaction> activities;
   final VoidCallback onViewAll;
+  final ValueChanged<Transaction> onTapTransaction;
 
   @override
   Widget build(BuildContext context) {
@@ -1244,7 +1467,10 @@ class _RecentActivityCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    'Recent Activity',
+                    language.tr(
+                        en: 'Recent Activity',
+                        ha: 'Ayyukan Baya-bayan nan',
+                        fr: 'Activite recente'),
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                       color:
@@ -1255,7 +1481,8 @@ class _RecentActivityCard extends StatelessWidget {
                   GestureDetector(
                     onTap: onViewAll,
                     child: Text(
-                      'View All',
+                      language.tr(
+                          en: 'View All', ha: 'Duba Duka', fr: 'Voir tout'),
                       style: theme.textTheme.labelMedium?.copyWith(
                         color: theme.colorScheme.primary,
                         fontWeight: FontWeight.w700,
@@ -1270,7 +1497,11 @@ class _RecentActivityCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 20),
                   child: Center(
                     child: Text(
-                      'No recent transactions yet.\nStart by recording a sale or expense.',
+                      language.tr(
+                        en: 'No recent transactions yet.\nStart by recording a sale or expense.',
+                        ha: 'Babu ma\'amaloli na baya-bayan nan tukuna.\nFara ta hanyar rubuta tallace-tallace ko kashewa.',
+                        fr: 'Aucune transaction recente pour le moment.\nCommencez par enregistrer une vente ou une depense.',
+                      ),
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
@@ -1286,6 +1517,7 @@ class _RecentActivityCard extends StatelessWidget {
                     child: _ActivityRow(
                       transaction: transaction,
                       isDark: isDark,
+                      onTap: () => onTapTransaction(transaction),
                     ),
                   ),
                 ),
@@ -1301,10 +1533,12 @@ class _ActivityRow extends StatelessWidget {
   const _ActivityRow({
     required this.transaction,
     required this.isDark,
+    required this.onTap,
   });
 
   final Transaction transaction;
   final bool isDark;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1315,55 +1549,66 @@ class _ActivityRow extends StatelessWidget {
     final IconData icon =
         isIncome ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded;
 
-    return Row(
-      children: <Widget>[
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: accentColor.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(14),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: accentColor.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: accentColor, size: 20),
           ),
-          child: Icon(icon, color: accentColor, size: 20),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                transaction.description.isNotEmpty
-                    ? transaction.description
-                    : transaction.productName.isNotEmpty
-                        ? transaction.productName
-                        : 'Transaction',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: isDark
-                      ? Colors.white.withOpacity(0.9)
-                      : theme.colorScheme.onSurface,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  transaction.description.isNotEmpty
+                      ? transaction.description
+                      : transaction.productName.isNotEmpty
+                          ? transaction.productName
+                          : 'Transaction',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: isDark
+                        ? Colors.white.withOpacity(0.9)
+                        : theme.colorScheme.onSurface,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                app_date.DateUtils.formatDate(transaction.transactionDate),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                const SizedBox(height: 2),
+                Text(
+                  app_date.DateUtils.formatDate(transaction.transactionDate),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        Text(
-          CurrencyUtils.formatCurrency(transaction.amount),
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: isIncome ? const Color(0xFF32D583) : const Color(0xFFF97316),
+          Text(
+            CurrencyUtils.formatCurrency(transaction.amount),
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              color:
+                  isIncome ? const Color(0xFF32D583) : const Color(0xFFF97316),
+            ),
           ),
-        ),
-      ],
+          const SizedBox(width: 4),
+          Icon(
+            Icons.chevron_right_rounded,
+            size: 18,
+            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.6),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1374,6 +1619,7 @@ class _ActivityRow extends StatelessWidget {
 
 class _SmartInsightsCard extends StatelessWidget {
   const _SmartInsightsCard({
+    required this.language,
     required this.farmCount,
     required this.transactionCount,
     required this.topCategory,
@@ -1381,6 +1627,7 @@ class _SmartInsightsCard extends StatelessWidget {
     required this.expenses,
   });
 
+  final AppLanguage language;
   final int farmCount;
   final int transactionCount;
   final String topCategory;
@@ -1446,7 +1693,10 @@ class _SmartInsightsCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    'Smart Insights',
+                    language.tr(
+                        en: 'Smart Insights',
+                        ha: 'Basirar Fasaha',
+                        fr: 'Analyses intelligentes'),
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                       color: isDark ? Colors.white : const Color(0xFF0F3D3E),
@@ -1466,7 +1716,10 @@ class _SmartInsightsCard extends StatelessWidget {
                 child: Column(
                   children: <Widget>[
                     _InsightStat(
-                      label: 'Profit Margin',
+                      label: language.tr(
+                          en: 'Profit Margin',
+                          ha: 'Ribar Riba',
+                          fr: 'Marge beneficiaire'),
                       value: '${profitMargin.toStringAsFixed(1)}%',
                       icon: Icons.trending_up_rounded,
                       color: profitMargin >= 0
@@ -1475,41 +1728,68 @@ class _SmartInsightsCard extends StatelessWidget {
                       isDark: isDark,
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: _InsightStat(
-                            label: 'Farms',
+                    LayoutBuilder(
+                      builder:
+                          (BuildContext context, BoxConstraints constraints) {
+                        final List<Widget> stats = <Widget>[
+                          _InsightStat(
+                            label: language.tr(
+                                en: 'Farms', ha: 'Gonaki', fr: 'Fermes'),
                             value: '$farmCount',
                             icon: Icons.agriculture_rounded,
                             color: const Color(0xFF14B8A6),
                             isDark: isDark,
                             compact: true,
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _InsightStat(
-                            label: 'Transactions',
+                          _InsightStat(
+                            label: language.tr(
+                                en: 'Txns', ha: 'Ma\'amaloli', fr: 'Trans.'),
                             value: '$transactionCount',
                             icon: Icons.receipt_rounded,
                             color: const Color(0xFF8B5CF6),
                             isDark: isDark,
                             compact: true,
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _InsightStat(
-                            label: 'Top Category',
+                          _InsightStat(
+                            label: language.tr(
+                                en: 'Top category',
+                                ha: 'Babban rukuni',
+                                fr: 'Categorie principale'),
                             value: topCategory,
                             icon: Icons.star_rounded,
                             color: const Color(0xFFFBBF24),
                             isDark: isDark,
                             compact: true,
                           ),
-                        ),
-                      ],
+                        ];
+
+                        if (constraints.maxWidth >= 360) {
+                          return Row(
+                            children: <Widget>[
+                              for (int i = 0;
+                                  i < stats.length;
+                                  i++) ...<Widget>[
+                                if (i > 0) const SizedBox(width: 10),
+                                Expanded(child: stats[i]),
+                              ],
+                            ],
+                          );
+                        }
+
+                        return Column(
+                          children: <Widget>[
+                            Row(
+                              children: <Widget>[
+                                Expanded(child: stats[0]),
+                                const SizedBox(width: 10),
+                                Expanded(child: stats[1]),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            stats[2],
+                          ],
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -1626,17 +1906,194 @@ class _InsightStat extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// INVENTORY & PROCUREMENT CARD
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _InventoryProcurementCard extends StatelessWidget {
+  const _InventoryProcurementCard({
+    required this.language,
+    required this.inventory,
+    required this.procurementOrders,
+    required this.onManage,
+  });
+
+  final AppLanguage language;
+  final List<InventoryItem> inventory;
+  final List<ProcurementOrder> procurementOrders;
+  final VoidCallback onManage;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+
+    final double inventoryValue = inventory.fold<double>(
+      0,
+      (double sum, InventoryItem item) =>
+          sum + (item.availableQuantity * item.unitPrice),
+    );
+    final int lowStockCount =
+        inventory.where((InventoryItem item) => item.isLowStock).length;
+    final int expiringSoonCount = inventory
+        .where((InventoryItem item) =>
+            item.isExpiringWithin(const Duration(days: 7)))
+        .length;
+    final int pendingOrderCount = procurementOrders
+        .where((ProcurementOrder order) =>
+            order.status == ProcurementOrderStatus.pending ||
+            order.status == ProcurementOrderStatus.ordered)
+        .length;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        decoration: BoxDecoration(
+          color:
+              isDark ? theme.colorScheme.surfaceContainerHighest : Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: isDark
+                  ? Colors.black.withOpacity(0.2)
+                  : Colors.black.withOpacity(0.04),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF8B5CF6).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.inventory_2_rounded,
+                      color: Color(0xFF8B5CF6),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      language.tr(
+                          en: 'Inventory & Procurement',
+                          ha: 'Kaya & Sayayya',
+                          fr: 'Stocks et approvisionnement'),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color:
+                            isDark ? Colors.white : theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    CurrencyUtils.formatCompactCurrency(inventoryValue),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF8B5CF6),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                language.tr(
+                  en: 'Stock value on hand, plus items that need attention.',
+                  ha: 'Darajar kayan da ke hannu, tare da abubuwan da ke bukatar kulawa.',
+                  fr: 'Valeur des stocks disponibles, plus les articles necessitant une attention.',
+                ),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: _InsightStat(
+                      label: language.tr(
+                          en: 'Low stock',
+                          ha: 'Karancin kaya',
+                          fr: 'Stock faible'),
+                      value: '$lowStockCount',
+                      icon: Icons.production_quantity_limits_rounded,
+                      color: const Color(0xFFF97316),
+                      isDark: isDark,
+                      compact: true,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _InsightStat(
+                      label: language.tr(
+                          en: 'Expiring soon',
+                          ha: 'Zai kare kwanan nan',
+                          fr: 'Expire bientot'),
+                      value: '$expiringSoonCount',
+                      icon: Icons.hourglass_bottom_rounded,
+                      color: const Color(0xFFEF4444),
+                      isDark: isDark,
+                      compact: true,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _InsightStat(
+                      label: language.tr(
+                          en: 'Orders pending',
+                          ha: 'Odar da ke jira',
+                          fr: 'Commandes en attente'),
+                      value: '$pendingOrderCount',
+                      icon: Icons.local_shipping_rounded,
+                      color: const Color(0xFF3B82F6),
+                      isDark: isDark,
+                      compact: true,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: onManage,
+                  child: Text(language.tr(
+                      en: 'Manage inventory & orders',
+                      ha: 'Sarrafa kaya & oda',
+                      fr: 'Gerer les stocks et commandes')),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // QUICK EXPORT BAR
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class _QuickExportBar extends StatelessWidget {
   const _QuickExportBar({
+    required this.language,
     required this.isExporting,
     required this.hasTransactions,
     required this.onExport,
     required this.onShareSummary,
   });
 
+  final AppLanguage language;
   final bool isExporting;
   final bool hasTransactions;
   final VoidCallback? onExport;
@@ -1681,7 +2138,10 @@ class _QuickExportBar extends StatelessWidget {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.picture_as_pdf_rounded),
-                    label: const Text('Export Report'),
+                    label: Text(language.tr(
+                        en: 'Export Report',
+                        ha: 'Fitar da Rahoto',
+                        fr: 'Exporter le rapport')),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF0F3D3E),
                       foregroundColor: Colors.white,
@@ -1701,7 +2161,10 @@ class _QuickExportBar extends StatelessWidget {
                     onPressed:
                         isExporting || !hasTransactions ? null : onShareSummary,
                     icon: const Icon(Icons.share_rounded),
-                    label: const Text('Share Summary'),
+                    label: Text(language.tr(
+                        en: 'Share Summary',
+                        ha: 'Raba Takaitawa',
+                        fr: 'Partager le resume')),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFF0F3D3E),
                       side: const BorderSide(
@@ -1746,6 +2209,7 @@ class _ReceiptDetailScreenState extends ConsumerState<ReceiptDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final AppLanguage language = ref.watch(appLanguageProvider);
     final Transaction transaction = widget.transaction;
     final Farm? farm = ref.watch(farmsProvider).valueOrNull?.firstWhere(
           (Farm item) => item.id == transaction.farmId,
@@ -1777,8 +2241,14 @@ class _ReceiptDetailScreenState extends ConsumerState<ReceiptDetailScreen> {
         ),
         title: Text(
           transaction.recordKind == TransactionRecordKind.procurement
-              ? 'Procurement Detail'
-              : 'Receipt Detail',
+              ? language.tr(
+                  en: 'Procurement Detail',
+                  ha: 'Bayanin Sayayya',
+                  fr: 'Detail d\'approvisionnement')
+              : language.tr(
+                  en: 'Receipt Detail',
+                  ha: 'Bayanin Rasit',
+                  fr: 'Detail du recu'),
         ),
         actions: <Widget>[
           IconButton(
@@ -1790,12 +2260,16 @@ class _ReceiptDetailScreenState extends ConsumerState<ReceiptDetailScreen> {
                       sellerName: sellerName,
                     ),
             icon: const Icon(Icons.picture_as_pdf_rounded),
-            tooltip: 'Export PDF',
+            tooltip: language.tr(
+                en: 'Export PDF', ha: 'Fitar da PDF', fr: 'Exporter en PDF'),
           ),
           IconButton(
             onPressed: _isExporting ? null : _exportReceiptImage,
             icon: const Icon(Icons.image_outlined),
-            tooltip: 'Export image',
+            tooltip: language.tr(
+                en: 'Export image',
+                ha: 'Fitar da Hoto',
+                fr: 'Exporter l\'image'),
           ),
           IconButton(
             onPressed: () => _composeEmail(
@@ -1815,6 +2289,7 @@ class _ReceiptDetailScreenState extends ConsumerState<ReceiptDetailScreen> {
             RepaintBoundary(
               key: _receiptBoundaryKey,
               child: _ReceiptPreviewCard(
+                language: language,
                 transaction: transaction,
                 farmName: farm?.name ?? 'Farm',
                 sellerName: sellerName,
@@ -1936,11 +2411,13 @@ class _ReceiptDetailScreenState extends ConsumerState<ReceiptDetailScreen> {
 
 class _ReceiptPreviewCard extends StatelessWidget {
   const _ReceiptPreviewCard({
+    required this.language,
     required this.transaction,
     required this.farmName,
     required this.sellerName,
   });
 
+  final AppLanguage language;
   final Transaction transaction;
   final String farmName;
   final String sellerName;
@@ -1973,8 +2450,14 @@ class _ReceiptPreviewCard extends StatelessWidget {
                       Text(
                         transaction.recordKind ==
                                 TransactionRecordKind.procurement
-                            ? 'Procurement Record'
-                            : 'Sales Receipt',
+                            ? language.tr(
+                                en: 'Procurement Record',
+                                ha: 'Bayanin Sayayya',
+                                fr: 'Registre d\'approvisionnement')
+                            : language.tr(
+                                en: 'Sales Receipt',
+                                ha: 'Rasit na Talla',
+                                fr: 'Recu de vente'),
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       Text(transaction.receiptNumber),
@@ -2151,6 +2634,22 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
     super.dispose();
   }
 
+  List<TransactionCategory> _categoryOptionsFor(TransactionRecordKind kind) {
+    if (kind == TransactionRecordKind.sale) {
+      return const <TransactionCategory>[
+        TransactionCategory.cropSale,
+        TransactionCategory.livestockSale,
+      ];
+    }
+    return const <TransactionCategory>[
+      TransactionCategory.feed,
+      TransactionCategory.fertiliser,
+      TransactionCategory.labour,
+      TransactionCategory.veterinary,
+      TransactionCategory.other,
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<BusinessPartner> partners =
@@ -2218,11 +2717,21 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
                     if (value != null) {
                       setState(() {
                         _recordKind = value;
-                        _category = value == TransactionRecordKind.procurement
-                            ? TransactionCategory.other
-                            : TransactionCategory.cropSale;
+                        _category = _categoryOptionsFor(value).first;
                         _partnerId = null;
                       });
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                _DropdownField<TransactionCategory>(
+                  label: 'Category',
+                  value: _category,
+                  items: _categoryOptionsFor(_recordKind),
+                  itemLabel: _categoryLabel,
+                  onChanged: (TransactionCategory? value) {
+                    if (value != null) {
+                      setState(() => _category = value);
                     }
                   },
                 ),
@@ -2357,11 +2866,7 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
       _TransactionDraft(
         farmId: _farmId,
         type: type,
-        category: _recordKind == TransactionRecordKind.procurement
-            ? TransactionCategory.other
-            : _productController.text.trim().toLowerCase().contains('livestock')
-                ? TransactionCategory.livestockSale
-                : TransactionCategory.cropSale,
+        category: _category,
         amount: double.parse(_amountController.text.trim()),
         description: _descriptionController.text.trim().isEmpty
             ? _productController.text.trim()
@@ -2493,18 +2998,188 @@ class _InventorySheetState extends State<_InventorySheet> {
   }
 }
 
+enum _QuickAddAction { transaction, inventory, contact, manageContacts }
+
+class _QuickAddMenu extends StatelessWidget {
+  const _QuickAddMenu({required this.hasFarms});
+
+  final bool hasFarms;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return SafeArea(
+      child: Container(
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(28),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Quick add', style: theme.textTheme.titleMedium),
+              ),
+            ),
+            ListTile(
+              enabled: hasFarms,
+              leading: const Icon(Icons.receipt_long_rounded),
+              title: const Text('Log transaction'),
+              subtitle: hasFarms ? null : const Text('Add a farm first'),
+              onTap: () =>
+                  Navigator.of(context).pop(_QuickAddAction.transaction),
+            ),
+            ListTile(
+              enabled: hasFarms,
+              leading: const Icon(Icons.inventory_2_rounded),
+              title: const Text('Add stock item'),
+              subtitle: hasFarms ? null : const Text('Add a farm first'),
+              onTap: () =>
+                  Navigator.of(context).pop(_QuickAddAction.inventory),
+            ),
+            ListTile(
+              leading: const Icon(Icons.person_add_alt_1_rounded),
+              title: const Text('Add contact'),
+              subtitle: const Text('Customer or provider'),
+              onTap: () => Navigator.of(context).pop(_QuickAddAction.contact),
+            ),
+            ListTile(
+              leading: const Icon(Icons.contacts_rounded),
+              title: const Text('Manage contacts'),
+              subtitle: const Text('Edit or remove customers & providers'),
+              onTap: () =>
+                  Navigator.of(context).pop(_QuickAddAction.manageContacts),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ContactsListSheet extends StatelessWidget {
+  const _ContactsListSheet({
+    required this.partners,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final List<BusinessPartner> partners;
+  final ValueChanged<BusinessPartner> onEdit;
+  final ValueChanged<BusinessPartner> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return SafeArea(
+      child: Container(
+        margin: const EdgeInsets.all(12),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.75,
+        ),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(28),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Contacts', style: theme.textTheme.titleMedium),
+              ),
+            ),
+            Flexible(
+              child: partners.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                      child: Text(
+                        'No contacts yet. Add a customer or provider to see them here.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.only(bottom: 12),
+                      itemCount: partners.length,
+                      itemBuilder: (BuildContext context, int index) {
+                        final BusinessPartner partner = partners[index];
+                        final bool isProvider =
+                            partner.type == BusinessPartnerType.provider;
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: isProvider
+                                ? const Color(0xFF8B5CF6).withOpacity(0.15)
+                                : const Color(0xFF32D583).withOpacity(0.15),
+                            child: Icon(
+                              isProvider
+                                  ? Icons.local_shipping_rounded
+                                  : Icons.storefront_rounded,
+                              color: isProvider
+                                  ? const Color(0xFF8B5CF6)
+                                  : const Color(0xFF32D583),
+                            ),
+                          ),
+                          title: Text(partner.name.isEmpty
+                              ? 'Unnamed contact'
+                              : partner.name),
+                          subtitle: Text(<String>[
+                            isProvider ? 'Provider' : 'Customer',
+                            if (partner.phone.isNotEmpty) partner.phone,
+                          ].join(' · ')),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              IconButton(
+                                tooltip: 'Edit contact',
+                                icon: const Icon(Icons.edit_outlined),
+                                onPressed: () => onEdit(partner),
+                              ),
+                              IconButton(
+                                tooltip: 'Remove contact',
+                                icon: const Icon(Icons.delete_outline_rounded),
+                                onPressed: () => onDelete(partner),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _PartnerSheet extends StatefulWidget {
-  const _PartnerSheet();
+  const _PartnerSheet({this.existing});
+
+  final BusinessPartner? existing;
 
   @override
   State<_PartnerSheet> createState() => _PartnerSheetState();
 }
 
 class _PartnerSheetState extends State<_PartnerSheet> {
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
-  BusinessPartnerType _type = BusinessPartnerType.customer;
+  late final TextEditingController _nameController =
+      TextEditingController(text: widget.existing?.name ?? '');
+  late final TextEditingController _emailController =
+      TextEditingController(text: widget.existing?.email ?? '');
+  late final TextEditingController _phoneController =
+      TextEditingController(text: widget.existing?.phone ?? '');
+  late BusinessPartnerType _type =
+      widget.existing?.type ?? BusinessPartnerType.customer;
 
   @override
   void dispose() {
@@ -2553,7 +3228,8 @@ class _PartnerSheetState extends State<_PartnerSheet> {
               width: double.infinity,
               child: AppButton.primary(
                 onPressed: _submit,
-                child: const Text('Save contact'),
+                child: Text(
+                    widget.existing == null ? 'Save contact' : 'Save changes'),
               ),
             ),
           ],

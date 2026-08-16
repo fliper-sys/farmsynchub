@@ -72,7 +72,7 @@ class _AdminUserDetailScreenState extends ConsumerState<AdminUserDetailScreen> {
       ),
     );
 
-    if (user == null || user.uid.isEmpty) {
+    if (user.uid.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: const Text('User details')),
         body: const Center(child: Text('User not found.')),

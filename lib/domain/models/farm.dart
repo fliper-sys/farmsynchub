@@ -72,6 +72,9 @@ class FarmDocumentRecord {
     required this.reference,
     required this.notes,
     required this.createdAt,
+    this.fileBase64 = '',
+    this.fileName = '',
+    this.mimeType = '',
   });
 
   final String id;
@@ -81,6 +84,15 @@ class FarmDocumentRecord {
   final String notes;
   final DateTime createdAt;
 
+  /// Base64-encoded bytes of an attached file, if the farmer uploaded one
+  /// instead of (or alongside) a plain storage reference. Empty when no
+  /// file is attached.
+  final String fileBase64;
+  final String fileName;
+  final String mimeType;
+
+  bool get hasAttachedFile => fileBase64.isNotEmpty;
+
   FarmDocumentRecord copyWith({
     String? id,
     String? title,
@@ -88,6 +100,9 @@ class FarmDocumentRecord {
     String? reference,
     String? notes,
     DateTime? createdAt,
+    String? fileBase64,
+    String? fileName,
+    String? mimeType,
   }) {
     return FarmDocumentRecord(
       id: id ?? this.id,
@@ -96,6 +111,9 @@ class FarmDocumentRecord {
       reference: reference ?? this.reference,
       notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,
+      fileBase64: fileBase64 ?? this.fileBase64,
+      fileName: fileName ?? this.fileName,
+      mimeType: mimeType ?? this.mimeType,
     );
   }
 
@@ -106,6 +124,9 @@ class FarmDocumentRecord {
         'reference': reference,
         'notes': notes,
         'createdAt': createdAt.toIso8601String(),
+        'fileBase64': fileBase64,
+        'fileName': fileName,
+        'mimeType': mimeType,
       };
 
   factory FarmDocumentRecord.fromJson(Map<String, dynamic> json) {
@@ -117,6 +138,9 @@ class FarmDocumentRecord {
       notes: json['notes'] as String? ?? '',
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.now(),
+      fileBase64: json['fileBase64'] as String? ?? '',
+      fileName: json['fileName'] as String? ?? '',
+      mimeType: json['mimeType'] as String? ?? '',
     );
   }
 }
@@ -138,6 +162,8 @@ class FarmWorkspaceMember {
     this.canViewActivityLog = true,
     this.isActive = true,
     this.lastSeenAt,
+    this.allowedCropIds = const <String>[],
+    this.allowedLivestockIds = const <String>[],
   });
 
   final String id;
@@ -155,6 +181,20 @@ class FarmWorkspaceMember {
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? lastSeenAt;
+
+  /// Crop record ids this member may access within their allowed farms.
+  /// Empty means unrestricted (every crop on those farms is visible).
+  final List<String> allowedCropIds;
+
+  /// Livestock record ids this member may access within their allowed
+  /// farms. Empty means unrestricted (every group on those farms is
+  /// visible).
+  final List<String> allowedLivestockIds;
+
+  /// Whether this member's crop/livestock access is scoped to specific
+  /// records rather than everything on their allowed farms.
+  bool get hasScopedRecordAccess =>
+      allowedCropIds.isNotEmpty || allowedLivestockIds.isNotEmpty;
 
   String get roleLabel => switch (role) {
         FarmWorkspaceRole.owner => 'Owner',
@@ -190,6 +230,8 @@ class FarmWorkspaceMember {
     DateTime? updatedAt,
     DateTime? lastSeenAt,
     bool clearLastSeenAt = false,
+    List<String>? allowedCropIds,
+    List<String>? allowedLivestockIds,
   }) {
     return FarmWorkspaceMember(
       id: id ?? this.id,
@@ -207,6 +249,8 @@ class FarmWorkspaceMember {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       lastSeenAt: clearLastSeenAt ? null : lastSeenAt ?? this.lastSeenAt,
+      allowedCropIds: allowedCropIds ?? this.allowedCropIds,
+      allowedLivestockIds: allowedLivestockIds ?? this.allowedLivestockIds,
     );
   }
 
@@ -226,6 +270,8 @@ class FarmWorkspaceMember {
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
         'lastSeenAt': lastSeenAt?.toIso8601String(),
+        'allowedCropIds': allowedCropIds,
+        'allowedLivestockIds': allowedLivestockIds,
       };
 
   factory FarmWorkspaceMember.fromJson(Map<String, dynamic> json) {
@@ -253,6 +299,8 @@ class FarmWorkspaceMember {
       updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
           DateTime.now(),
       lastSeenAt: DateTime.tryParse(json['lastSeenAt'] as String? ?? ''),
+      allowedCropIds: _stringList(json['allowedCropIds']),
+      allowedLivestockIds: _stringList(json['allowedLivestockIds']),
     );
   }
 }
@@ -515,6 +563,7 @@ class Farm {
     this.workspaceTasks = const <FarmWorkspaceTask>[],
     this.activityLog = const <FarmActivityRecord>[],
     this.workspaceNotes = '',
+    this.isFavorite = false,
   });
 
   final String id;
@@ -548,6 +597,7 @@ class Farm {
   final List<FarmWorkspaceTask> workspaceTasks;
   final List<FarmActivityRecord> activityLog;
   final String workspaceNotes;
+  final bool isFavorite;
 
   bool get supportsCrops => <FarmType>[
         FarmType.crop,
@@ -571,6 +621,15 @@ class Farm {
       .where((FarmWorkspaceMember item) =>
           item.financeAccess != FarmFinanceAccess.none)
       .length;
+
+  /// Denormalized workspace-member uids, kept in sync with [workspaceMembers]
+  /// on every serialize. Lets Firestore query "farms I can access" with a
+  /// single array-contains clause instead of downloading every farm in the
+  /// collection and filtering client-side.
+  List<String> get memberUids => workspaceMembers
+      .map((FarmWorkspaceMember member) => member.id.trim())
+      .where((String id) => id.isNotEmpty)
+      .toList(growable: false);
 
   Farm copyWith({
     String? id,
@@ -604,6 +663,7 @@ class Farm {
     List<FarmWorkspaceTask>? workspaceTasks,
     List<FarmActivityRecord>? activityLog,
     String? workspaceNotes,
+    bool? isFavorite,
   }) {
     return Farm(
       id: id ?? this.id,
@@ -637,6 +697,7 @@ class Farm {
       workspaceTasks: workspaceTasks ?? this.workspaceTasks,
       activityLog: activityLog ?? this.activityLog,
       workspaceNotes: workspaceNotes ?? this.workspaceNotes,
+      isFavorite: isFavorite ?? this.isFavorite,
     );
   }
 
@@ -672,6 +733,7 @@ class Farm {
         'workspaceMembers': workspaceMembers
             .map((FarmWorkspaceMember item) => item.toJson())
             .toList(),
+        'memberUids': memberUids,
         'workspaceTasks': workspaceTasks
             .map((FarmWorkspaceTask item) => item.toJson())
             .toList(),
@@ -679,6 +741,7 @@ class Farm {
             .map((FarmActivityRecord item) => item.toJson())
             .toList(),
         'workspaceNotes': workspaceNotes,
+        'isFavorite': isFavorite,
       };
 
   factory Farm.fromJson(Map<String, dynamic> json) => Farm(
@@ -737,6 +800,7 @@ class Farm {
             .map(FarmActivityRecord.fromJson)
             .toList(growable: false),
         workspaceNotes: json['workspaceNotes'] as String? ?? '',
+        isFavorite: json['isFavorite'] as bool? ?? false,
       );
 }
 

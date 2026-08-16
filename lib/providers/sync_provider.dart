@@ -76,9 +76,21 @@ final syncOverviewProvider =
   });
   ref.listen<AsyncValue<User?>>(authStateProvider, (_, __) {
     notifier.refreshOverview();
+    notifier.maybeAutoSync();
   });
-  ref.listen<AsyncValue<ConnectivityResult>>(connectivityProvider, (_, __) {
+  ref.listen<AsyncValue<ConnectivityResult>>(connectivityProvider,
+      (AsyncValue<ConnectivityResult>? previous, AsyncValue<ConnectivityResult> next) {
     notifier.refreshOverview();
+    // Only fire on an actual offline -> online transition, not on every
+    // connectivity event (which can fire repeatedly on mobile networks).
+    final bool wasOffline = previous == null ||
+        previous.valueOrNull == null ||
+        previous.valueOrNull == ConnectivityResult.none;
+    final bool isOnlineNow = next.valueOrNull != null &&
+        next.valueOrNull != ConnectivityResult.none;
+    if (wasOffline && isOnlineNow) {
+      notifier.maybeAutoSync();
+    }
   });
 
   return notifier;
@@ -93,9 +105,30 @@ class SyncOverviewNotifier extends StateNotifier<SyncOverview> {
           isSyncing: false,
         )) {
     _recalculate();
+    maybeAutoSync();
   }
 
   final Ref _ref;
+
+  /// Automatically pulls cloud data and pushes any pending local changes
+  /// when the app starts online, and again whenever connectivity comes back
+  /// after being offline - without requiring the user to tap the sync
+  /// button themselves. Cached local data is already shown immediately
+  /// regardless (each repository reads its local store first), so this only
+  /// affects when the cloud round-trip happens.
+  Future<void> maybeAutoSync() async {
+    if (state.isSyncing) {
+      return;
+    }
+    if (_ref.read(firebaseServiceProvider).currentUser == null) {
+      return;
+    }
+    final bool online = await _ref.read(syncServiceProvider).isOnline();
+    if (!online) {
+      return;
+    }
+    await runSync();
+  }
 
   Future<void> _recalculate() async {
     final List<Farm> farms = _ref.read(farmsProvider).valueOrNull ?? <Farm>[];

@@ -8,6 +8,7 @@ import '../../../core/services/gemini_service.dart';
 import '../../../core/services/report_file_saver.dart';
 import '../../../core/services/report_share_service.dart';
 import '../../../core/services/report_file_saver_base.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/date_utils.dart' as app_date;
 import '../../../domain/models/crop.dart';
@@ -409,18 +410,31 @@ class _SummaryStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color background = AppColors.chipBackgroundFor(
+      color,
+      isDark: isDark,
+      surface: theme.colorScheme.surfaceContainerHighest,
+    );
+    final Color foreground = AppColors.chipForegroundFor(
+      isDark: isDark,
+      onSurface: theme.colorScheme.onSurface,
+    );
     return AppCard(
-      color: color,
+      color: background,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text(label, style: Theme.of(context).textTheme.labelMedium),
+            Text(label,
+                style: theme.textTheme.labelMedium?.copyWith(color: foreground)),
             const SizedBox(height: 6),
             Text(
               value,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700, color: foreground),
             ),
           ],
         ),

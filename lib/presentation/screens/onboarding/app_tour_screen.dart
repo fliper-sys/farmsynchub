@@ -6,6 +6,7 @@ import '../../../core/services/user_walkthrough_preferences.dart';
 import '../../../providers/auth_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
+import '../../common/widgets/entity_card_pieces.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 
 class AppTourScreen extends ConsumerStatefulWidget {
@@ -112,14 +113,7 @@ class _AppTourScreenState extends ConsumerState<AppTourScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: step.tint,
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Text(step.badge),
-                              ),
+                              EntityStageBadge(label: step.badge, tint: step.tint),
                               const SizedBox(height: 18),
                               Text(
                                 step.title,
