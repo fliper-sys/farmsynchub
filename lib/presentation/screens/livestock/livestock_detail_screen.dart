@@ -369,6 +369,14 @@ class LivestockDetailScreen extends ConsumerWidget {
                           : '${logs.length} production logs',
                       onTap: () => _scrollToKey(context, _productionLogKey),
                     ),
+                    _MetaChip(text: '$overdueTasks overdue'),
+                    _MetaChip(text: '$priorityTasks high priority'),
+                    _MetaChip(
+                        text: '${livestock.openTaskCount} open reminders'),
+                    _MetaChip(
+                        text: logs.isEmpty
+                            ? 'No production logs'
+                            : '${logs.length} production logs'),
                   ],
                 ),
               ),
