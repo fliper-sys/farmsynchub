@@ -349,15 +349,26 @@ class LivestockDetailScreen extends ConsumerWidget {
                       text: livestockWorkStatus,
                       emphasizedColor:
                           _workStatusColor(overdueTasks, priorityTasks),
+                      onTap: () => _scrollToKey(context, _careTasksKey),
                     ),
-                    _MetaChip(text: '$overdueTasks overdue'),
-                    _MetaChip(text: '$priorityTasks high priority'),
                     _MetaChip(
-                        text: '${livestock.openTaskCount} open reminders'),
+                      text: '$overdueTasks overdue',
+                      onTap: () => _scrollToKey(context, _careTasksKey),
+                    ),
                     _MetaChip(
-                        text: logs.isEmpty
-                            ? 'No production logs'
-                            : '${logs.length} production logs'),
+                      text: '$priorityTasks high priority',
+                      onTap: () => _scrollToKey(context, _careTasksKey),
+                    ),
+                    _MetaChip(
+                      text: '${livestock.openTaskCount} open reminders',
+                      onTap: () => _scrollToKey(context, _careTasksKey),
+                    ),
+                    _MetaChip(
+                      text: logs.isEmpty
+                          ? 'No production logs'
+                          : '${logs.length} production logs',
+                      onTap: () => _scrollToKey(context, _productionLogKey),
+                    ),
                   ],
                 ),
               ),
@@ -1076,6 +1087,19 @@ class _InputCard extends StatelessWidget {
       ),
     );
   }
+}
+
+void _scrollToKey(BuildContext context, GlobalKey key) {
+  final BuildContext? sectionContext = key.currentContext;
+  if (sectionContext == null) {
+    return;
+  }
+  Scrollable.ensureVisible(
+    sectionContext,
+    duration: const Duration(milliseconds: 400),
+    curve: Curves.easeInOut,
+    alignment: 0.08,
+  );
 }
 
 Future<void> _markFedToday(
