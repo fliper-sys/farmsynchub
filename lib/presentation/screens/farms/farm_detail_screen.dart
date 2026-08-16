@@ -10,6 +10,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/services/farm_notification_service.dart';
 import '../../../core/services/farm_task_calendar_service.dart';
+import '../../../core/services/greenhouse_planner_service.dart';
 import '../../../core/services/report_file_saver.dart';
 import '../../../core/services/report_file_saver_base.dart';
 import '../../../core/services/report_share_service.dart';
@@ -706,13 +707,45 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Text(
-                        'Live greenhouse sizing is based on the farm area, current weather readings, and a conservative production layout. Farmers can keep these suggestions or override them if they already run a tighter system.',
+                        'Live greenhouse sizing is based on the farm area, the crop you pick below, and current weather readings. Farmers can keep these suggestions or override them if they already run a tighter system.',
                         style: Theme.of(context)
                             .textTheme
                             .bodyMedium
                             ?.copyWith(height: 1.5),
                       ),
                       const SizedBox(height: 14),
+                      DropdownButtonFormField<GreenhouseCropType>(
+                        value: greenhousePlan.cropType,
+                        decoration: const InputDecoration(
+                          labelText: 'What are you growing?',
+                          filled: true,
+                          border: OutlineInputBorder(),
+                        ),
+                        items: GreenhouseCropType.values
+                            .map((GreenhouseCropType type) =>
+                                DropdownMenuItem<GreenhouseCropType>(
+                                  value: type,
+                                  child: Text(type.label),
+                                ))
+                            .toList(),
+                        onChanged: (GreenhouseCropType? value) {
+                          if (value != null) {
+                            _setGreenhouseCropType(ref, farm!, value);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: () =>
+                              _openTargetPlantCountCalculator(context, farm!),
+                          icon: const Icon(Icons.calculate_outlined, size: 18),
+                          label: const Text(
+                              'Not built yet? Size for a target plant count'),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                       Row(
                         children: <Widget>[
                           Expanded(
@@ -818,6 +851,75 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
                         detail:
                             'Log seedlings, coco coir, mature compost, rice husk, drip line, emitters, grow bags, pH meter, trays, and nutrient salts. Start with about ${greenhousePlan.dripLineMeters.toStringAsFixed(0)} m of drip line and ${greenhousePlan.seedlingTrayCount} nursery trays for this setup.',
                         tint: const Color(0xFFFFEBD0),
+                      ),
+                      const SizedBox(height: 12),
+                      _SuggestionCard(
+                        icon: Icons.height_rounded,
+                        title: 'Height & support',
+                        detail: greenhousePlan.needsTrellis
+                            ? '${greenhousePlan.heightNote} Budget for support material across all ${greenhousePlan.estimatedPlantSlots} plants.'
+                            : greenhousePlan.heightNote,
+                        tint: const Color(0xFFE5F5D8),
+                      ),
+                      const SizedBox(height: 12),
+                      AppCard(
+                        color: Theme.of(context).colorScheme.surface,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Row(
+                                children: <Widget>[
+                                  const Icon(Icons.payments_outlined, size: 20),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text('Estimated setup budget',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleSmall
+                                            ?.copyWith(
+                                                fontWeight: FontWeight.w700)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Typical smallholder-market estimate for this size and crop - adjust for your local prices.',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant),
+                              ),
+                              const SizedBox(height: 12),
+                              _BudgetLine(
+                                  label: 'Cover / structure sheeting',
+                                  amount: greenhousePlan.coverCostNaira),
+                              _BudgetLine(
+                                  label: 'Seedlings',
+                                  amount: greenhousePlan.seedlingCostNaira),
+                              if (greenhousePlan.needsTrellis)
+                                _BudgetLine(
+                                    label: 'Trellis / stakes / twine',
+                                    amount: greenhousePlan.supportCostNaira),
+                              _BudgetLine(
+                                  label: 'Substrate mix',
+                                  amount: greenhousePlan.substrateCostNaira),
+                              _BudgetLine(
+                                  label: 'Drip line',
+                                  amount: greenhousePlan.dripLineCostNaira),
+                              const Divider(height: 20),
+                              _BudgetLine(
+                                label: 'Estimated total',
+                                amount: greenhousePlan.totalBudgetNaira,
+                                emphasized: true,
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 14),
                       Wrap(
@@ -1560,6 +1662,106 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
                 : 'Greenhouse plan saved to activity log.')),
       );
     }
+  }
+
+  Future<void> _setGreenhouseCropType(
+      WidgetRef ref, Farm farm, GreenhouseCropType type) async {
+    await ref.read(farmsProvider.notifier).updateFarm(
+          farm.copyWith(
+            greenhouseCropType: type.name,
+            updatedAt: DateTime.now(),
+            isSynced: false,
+          ),
+        );
+  }
+
+  Future<void> _openTargetPlantCountCalculator(
+      BuildContext context, Farm farm) async {
+    final TextEditingController countController = TextEditingController();
+    GreenhouseCropType cropType =
+        _parseGreenhouseCropType(farm.greenhouseCropType);
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) => StatefulBuilder(
+        builder: (BuildContext dialogContext, StateSetter setDialogState) {
+          return AlertDialog(
+            title: const Text('Size for a target plant count'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text(
+                    'Tell us how many plants you want to grow and we\'ll estimate the greenhouse area and budget needed.'),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<GreenhouseCropType>(
+                  value: cropType,
+                  decoration: const InputDecoration(labelText: 'Crop'),
+                  items: GreenhouseCropType.values
+                      .map((GreenhouseCropType type) =>
+                          DropdownMenuItem<GreenhouseCropType>(
+                              value: type, child: Text(type.label)))
+                      .toList(),
+                  onChanged: (GreenhouseCropType? value) {
+                    if (value != null) {
+                      setDialogState(() => cropType = value);
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: countController,
+                  keyboardType: TextInputType.number,
+                  autofocus: true,
+                  decoration:
+                      const InputDecoration(labelText: 'Target plant count'),
+                ),
+              ],
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Close'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final int? count =
+                      int.tryParse(countController.text.trim());
+                  if (count == null || count <= 0) {
+                    return;
+                  }
+                  final GreenhousePlan plan =
+                      GreenhousePlannerService.planForTargetPlantCount(
+                    targetPlantCount: count,
+                    cropType: cropType,
+                  );
+                  final double suggestedAreaHa = plan.usableAreaM2 / 10000 / 0.72;
+                  Navigator.of(dialogContext).pop();
+                  showDialog<void>(
+                    context: context,
+                    builder: (BuildContext resultContext) => AlertDialog(
+                      title: const Text('Suggested greenhouse size'),
+                      content: Text(
+                        'For $count ${cropType.label.toLowerCase()} plants, plan for about '
+                        '${plan.usableAreaM2.toStringAsFixed(0)} m² of usable growing area '
+                        '(roughly ${suggestedAreaHa.toStringAsFixed(2)} ha of greenhouse footprint), '
+                        'with an estimated setup budget of ${CurrencyUtils.formatCurrency(plan.totalBudgetNaira)}.',
+                      ),
+                      actions: <Widget>[
+                        TextButton(
+                          onPressed: () => Navigator.of(resultContext).pop(),
+                          child: const Text('Got it'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                child: const Text('Calculate'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _openNotesSheet(
@@ -3909,6 +4111,35 @@ Color _operatingStatusSolidColor(String status) {
   }
 }
 
+class _BudgetLine extends StatelessWidget {
+  const _BudgetLine({
+    required this.label,
+    required this.amount,
+    this.emphasized = false,
+  });
+
+  final String label;
+  final double amount;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final TextStyle? style = emphasized
+        ? theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)
+        : theme.textTheme.bodyMedium;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: <Widget>[
+          Expanded(child: Text(label, style: style)),
+          Text(CurrencyUtils.formatCurrency(amount), style: style),
+        ],
+      ),
+    );
+  }
+}
+
 class _Tag extends StatelessWidget {
   const _Tag({
     required this.text,
@@ -4751,6 +4982,7 @@ class _FarmDocumentDraft {
 
 class _GreenhousePlanSummary {
   const _GreenhousePlanSummary({
+    required this.cropType,
     required this.usableAreaM2,
     required this.plantSpacingM,
     required this.interRowSpacingM,
@@ -4765,11 +4997,21 @@ class _GreenhousePlanSummary {
     required this.riceHuskLitres,
     required this.sandLitres,
     required this.dripLineMeters,
+    required this.trellisHeightM,
+    required this.needsTrellis,
+    required this.heightNote,
+    required this.coverCostNaira,
+    required this.seedlingCostNaira,
+    required this.supportCostNaira,
+    required this.substrateCostNaira,
+    required this.dripLineCostNaira,
+    required this.totalBudgetNaira,
     required this.layoutNote,
     required this.irrigationNote,
     required this.mixNote,
   });
 
+  final GreenhouseCropType cropType;
   final double usableAreaM2;
   final double plantSpacingM;
   final double interRowSpacingM;
@@ -4784,9 +5026,25 @@ class _GreenhousePlanSummary {
   final double riceHuskLitres;
   final double sandLitres;
   final double dripLineMeters;
+  final double trellisHeightM;
+  final bool needsTrellis;
+  final String heightNote;
+  final double coverCostNaira;
+  final double seedlingCostNaira;
+  final double supportCostNaira;
+  final double substrateCostNaira;
+  final double dripLineCostNaira;
+  final double totalBudgetNaira;
   final String layoutNote;
   final String irrigationNote;
   final String mixNote;
+}
+
+GreenhouseCropType _parseGreenhouseCropType(String value) {
+  return GreenhouseCropType.values.firstWhere(
+    (GreenhouseCropType type) => type.name == value,
+    orElse: () => GreenhouseCropType.mixedVegetables,
+  );
 }
 
 _GreenhousePlanSummary _greenhousePlanSummary(Farm farm) {
@@ -4794,11 +5052,16 @@ _GreenhousePlanSummary _greenhousePlanSummary(Farm farm) {
       ? farm.greenhouseAreaHa
       : math.max(farm.sizeHa * 0.12, 0.05);
   final double usableAreaM2 = greenhouseAreaHa * 10000 * 0.72;
-  final double plantSpacingM = farm.temperatureCelsius >= 32 ? 0.40 : 0.35;
-  final double interRowSpacingM = farm.temperatureCelsius >= 32 ? 0.70 : 0.60;
+  final GreenhouseCropType cropType =
+      _parseGreenhouseCropType(farm.greenhouseCropType);
+  final GreenhousePlan cropPlan = GreenhousePlannerService.planForArea(
+    usableAreaM2: usableAreaM2,
+    cropType: cropType,
+  );
+  final double plantSpacingM = cropPlan.plantSpacingM;
+  final double interRowSpacingM = cropPlan.rowSpacingM;
   const double bedWidthM = 1.20;
-  final int estimatedPlantSlots =
-      math.max(1, (usableAreaM2 / (plantSpacingM * interRowSpacingM)).floor());
+  final int estimatedPlantSlots = cropPlan.estimatedPlantSlots;
   final int seedlingTrayCount = math.max(1, (estimatedPlantSlots / 98).ceil());
   final int irrigationRoundsPerDay =
       (farm.temperatureCelsius >= 32 || farm.soilMoisturePercent < 35) ? 3 : 2;
@@ -4820,6 +5083,7 @@ _GreenhousePlanSummary _greenhousePlanSummary(Farm farm) {
   final double sandLitres = substrateVolumeLitres * 0.10;
   final double dripLineMeters = usableAreaM2 / interRowSpacingM;
   return _GreenhousePlanSummary(
+    cropType: cropType,
     usableAreaM2: usableAreaM2,
     plantSpacingM: plantSpacingM,
     interRowSpacingM: interRowSpacingM,
@@ -4834,8 +5098,17 @@ _GreenhousePlanSummary _greenhousePlanSummary(Farm farm) {
     riceHuskLitres: riceHuskLitres,
     sandLitres: sandLitres,
     dripLineMeters: dripLineMeters,
+    trellisHeightM: cropPlan.trellisHeightM,
+    needsTrellis: cropPlan.needsTrellis,
+    heightNote: cropPlan.heightNote,
+    coverCostNaira: cropPlan.coverCostNaira,
+    seedlingCostNaira: cropPlan.seedlingCostNaira,
+    supportCostNaira: cropPlan.supportCostNaira,
+    substrateCostNaira: cropPlan.substrateCostNaira,
+    dripLineCostNaira: cropPlan.dripLineCostNaira,
+    totalBudgetNaira: cropPlan.totalBudgetNaira,
     layoutNote:
-        'Use about ${plantSpacingM.toStringAsFixed(2)} m between plants and ${interRowSpacingM.toStringAsFixed(2)} m between rows. That gives roughly $estimatedPlantSlots plants across ${usableAreaM2.toStringAsFixed(0)} m² of usable greenhouse area. Growers can widen the spacing for fruiting crops or tighten it slightly for leafy greens.',
+        'Use about ${plantSpacingM.toStringAsFixed(2)} m between ${cropType.label.toLowerCase()} plants and ${interRowSpacingM.toStringAsFixed(2)} m between rows. That gives roughly $estimatedPlantSlots plants across ${usableAreaM2.toStringAsFixed(0)} m² of usable greenhouse area.',
     irrigationNote:
         'Start with $irrigationRoundsPerDay short irrigation rounds per day. Each plant needs about ${waterPerPlantLitres.toStringAsFixed(2)} L daily from the current temperature, humidity, and moisture profile. In hotter weather, split watering into morning and afternoon cycles instead of one long run.',
     mixNote:

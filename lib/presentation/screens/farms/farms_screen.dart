@@ -261,50 +261,62 @@ class FarmsScreen extends ConsumerWidget {
             fr: 'Processus agricoles',
           ),
         ),
-        const Row(
+        Row(
           children: <Widget>[
             Expanded(
               child: _ProcessCard(
                 title: 'Land preparation',
                 detail: 'Bed shaping, soil checks, and water access planning.',
-                status: 'Active',
-                color: Color(0xFFE9F4DB),
+                status:
+                    '${crops.where((Crop c) => c.currentStage == CropStage.seeding || c.currentStage == CropStage.germination).length} in prep',
+                color: const Color(0xFFE9F4DB),
                 icon: Icons.construction_rounded,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const CropsScreen()),
+                ),
               ),
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             Expanded(
               child: _ProcessCard(
                 title: 'Planting cycle',
                 detail:
                     'Seed scheduling, spacing, and expected harvest windows.',
-                status: 'Tracked',
-                color: Color(0xFFDFF1FF),
+                status:
+                    '${crops.where((Crop c) => c.status != CropStatus.harvested).length} active',
+                color: const Color(0xFFDFF1FF),
                 icon: Icons.event_note_rounded,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const CropsScreen()),
+                ),
               ),
             ),
           ],
         ),
         const SizedBox(height: 12),
-        const Row(
+        Row(
           children: <Widget>[
             Expanded(
               child: _ProcessCard(
                 title: 'Input management',
                 detail: 'Fertiliser, feed, tools, and usage planning.',
-                status: 'Monitored',
-                color: Color(0xFFFFEBD0),
+                status:
+                    '${crops.fold<int>(0, (int sum, Crop c) => sum + c.inputRecords.length) + livestock.fold<int>(0, (int sum, Livestock l) => sum + l.inputRecords.length)} logged',
+                color: const Color(0xFFFFEBD0),
                 icon: Icons.inventory_2_rounded,
+                onTap: () => context.go('/procurement'),
               ),
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             Expanded(
               child: _ProcessCard(
                 title: 'Harvest and sales',
                 detail: 'Output records, market timing, and delivery notes.',
-                status: 'Ready',
-                color: Color(0xFFE8F0D9),
+                status:
+                    '${transactions.where((Transaction t) => t.recordKind == TransactionRecordKind.sale).length} sales',
+                color: const Color(0xFFE8F0D9),
                 icon: Icons.local_shipping_rounded,
+                onTap: () => context.go('/sales'),
               ),
             ),
           ],
@@ -1767,6 +1779,7 @@ class _ProcessCard extends StatelessWidget {
     required this.status,
     required this.color,
     required this.icon,
+    this.onTap,
   });
 
   final String title;
@@ -1774,6 +1787,7 @@ class _ProcessCard extends StatelessWidget {
   final String status;
   final Color color;
   final IconData icon;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1787,6 +1801,7 @@ class _ProcessCard extends StatelessWidget {
 
     return AppCard(
       color: theme.colorScheme.surfaceContainerHighest,
+      onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
