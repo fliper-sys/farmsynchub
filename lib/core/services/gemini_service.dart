@@ -39,12 +39,16 @@ const Duration _kCacheTtl = Duration(hours: 6);
 // every AI call now tries Firebase AI Logic first and, if that throws for
 // any reason, falls back to calling the Gemini Developer API directly with
 // an API key - a transport that has nothing to do with App Check at all.
-// Override via --dart-define=GEMINI_API_KEY=... to swap keys without
-// touching source.
-const String _kGeminiApiKey = String.fromEnvironment(
-  'GEMINI_API_KEY',
-  defaultValue: 'REDACTED_ROTATED_KEY',
-);
+//
+// This key is deliberately NOT hardcoded here. A prior key was committed to
+// source, got scraped and reported as leaked, and was revoked by Google;
+// GitHub push protection now blocks commits containing a literal key in
+// this file outright. Supply it at build/run time instead, e.g.:
+//   flutter run --dart-define=GEMINI_API_KEY=your-key-here
+// or bake it into CI/release builds via the same flag. Without it, calls
+// fall back to Firebase AI Logic only (or the offline/local fallback if
+// that also fails).
+const String _kGeminiApiKey = String.fromEnvironment('GEMINI_API_KEY');
 
 String _buildSystemPrompt(String language, AiTopic topic) => '''
 You are Farmsync AI, the farming assistant inside FarmSync for farmers in Nigeria.
@@ -597,6 +601,10 @@ Future estimate
     double temperature = 0.4,
     int maxOutputTokens = 700,
   }) async {
+    if (_kGeminiApiKey.isEmpty) {
+      throw StateError(
+          'No GEMINI_API_KEY configured (pass --dart-define=GEMINI_API_KEY=... at build/run time)');
+    }
     final Uri uri = Uri.parse(
       'https://generativelanguage.googleapis.com/v1beta/models/$_kFirebaseAiModelName:generateContent?key=$_kGeminiApiKey',
     );
