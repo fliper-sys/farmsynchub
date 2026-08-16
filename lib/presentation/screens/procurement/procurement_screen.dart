@@ -22,6 +22,7 @@ import '../../../providers/procurement_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
+import '../../common/widgets/responsive_card_grid.dart';
 
 class ProcurementScreen extends ConsumerStatefulWidget {
   const ProcurementScreen({super.key});
@@ -303,24 +304,27 @@ class _ProcurementScreenState extends ConsumerState<ProcurementScreen> {
               fr: 'Aucun historique d\'approvisionnement ne correspond aux filtres actuels.',
             ))
           else
-            ...procurement.map(
-              (Transaction transaction) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _HistoryCard(
-                  title: transaction.productName.isEmpty
-                      ? transaction.description
-                      : transaction.productName,
-                  subtitle: transaction.counterpartyName.isEmpty
-                      ? language.tr(
-                          en: 'Supplier not set',
-                          ha: 'Ba a saita mai bayarwa ba',
-                          fr: 'Fournisseur non defini')
-                      : transaction.counterpartyName,
-                  meta:
-                      '${transaction.receiptNumber} • ${transaction.unit} • ${appDate(transaction.transactionDate)}',
-                  amount: CurrencyUtils.formatCurrency(transaction.amount),
-                ),
-              ),
+            ResponsiveCardGrid(
+              minTileWidth: 360,
+              children: procurement
+                  .map(
+                    (Transaction transaction) => _HistoryCard(
+                      title: transaction.productName.isEmpty
+                          ? transaction.description
+                          : transaction.productName,
+                      subtitle: transaction.counterpartyName.isEmpty
+                          ? language.tr(
+                              en: 'Supplier not set',
+                              ha: 'Ba a saita mai bayarwa ba',
+                              fr: 'Fournisseur non defini')
+                          : transaction.counterpartyName,
+                      meta:
+                          '${transaction.receiptNumber} • ${transaction.unit} • ${appDate(transaction.transactionDate)}',
+                      amount:
+                          CurrencyUtils.formatCurrency(transaction.amount),
+                    ),
+                  )
+                  .toList(growable: false),
             ),
           const SizedBox(height: 10),
           AppCard(

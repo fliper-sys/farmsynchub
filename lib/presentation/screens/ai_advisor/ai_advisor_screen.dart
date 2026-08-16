@@ -1,6 +1,5 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -17,7 +16,17 @@ import '../../../providers/app_preferences_provider.dart';
 /// (topic switching, quick-start suggestions) lives in compact, dismissable
 /// surfaces instead of permanent hero/grid chrome above the conversation.
 class AiAdvisorScreen extends ConsumerStatefulWidget {
-  const AiAdvisorScreen({super.key});
+  const AiAdvisorScreen({super.key, this.initialTopic, this.contextPrompt});
+
+  /// Topic to switch to on open - lets a caller land the advisor on the
+  /// right specialty (e.g. Crop Management) instead of always General.
+  final AiTopic? initialTopic;
+
+  /// A ready-made question describing the specific crop/livestock record
+  /// the advisor was opened from. Auto-sent once, only if that topic's
+  /// conversation is still empty, so the very first reply is grounded in
+  /// this record instead of generic advice.
+  final String? contextPrompt;
 
   @override
   ConsumerState<AiAdvisorScreen> createState() => _AiAdvisorScreenState();
@@ -27,6 +36,7 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _chatScrollController = ScrollController();
   final ImagePicker _imagePicker = ImagePicker();
+  bool _hasAppliedInitialContext = false;
 
   Uint8List? _selectedImageBytes;
   String? _selectedImageLabel;
@@ -64,6 +74,12 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
 
     if (!ai.isInitialized) {
       return const _AiLoadingScreen();
+    }
+
+    if (!_hasAppliedInitialContext && widget.initialTopic != null) {
+      _hasAppliedInitialContext = true;
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _applyInitialContext(ai));
     }
 
     if (ai.activeMessages.length != _lastMessageCount) {
@@ -170,7 +186,7 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
                       children: <Widget>[
                         ListView.builder(
                           controller: _chatScrollController,
-                          padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+                          padding: const EdgeInsets.fromLTRB(14, 14, 14, 52),
                           itemCount: messages.length,
                           itemBuilder: (BuildContext context, int index) {
                             final ChatMessage message = messages[index];
@@ -222,6 +238,15 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _applyInitialContext(AiProvider ai) async {
+    final AiTopic topic = widget.initialTopic!;
+    await ai.setTopic(topic);
+    final String? prompt = widget.contextPrompt;
+    if (prompt != null && prompt.isNotEmpty && ai.messagesFor(topic).isEmpty) {
+      await ai.sendSuggestion(prompt);
+    }
   }
 
   Future<void> _sendMessage(AiProvider ai) async {
@@ -880,14 +905,82 @@ class _ChatBubble extends StatelessWidget {
 
     return Align(
       alignment: Alignment.centerLeft,
-      child: _MarkdownLiteText(text: message.text, color: _aiText(context)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Container(
+          decoration: BoxDecoration(
+            color: _aiSurfaceAlt(context),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _aiBorder(context)),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 14, 10, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              _MarkdownLiteText(text: message.text, color: _aiText(context)),
+              const SizedBox(height: 2),
+              Align(
+                alignment: Alignment.centerRight,
+                child: _CopyButton(text: message.text),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
 
-/// A minimal **bold** + "- bullet" renderer - enough to read Gemini's
-/// structured answers (headings, numbered steps, bullet lists) as intended
-/// without pulling in a full markdown package.
+class _CopyButton extends StatefulWidget {
+  const _CopyButton({required this.text});
+
+  final String text;
+
+  @override
+  State<_CopyButton> createState() => _CopyButtonState();
+}
+
+class _CopyButtonState extends State<_CopyButton> {
+  bool _justCopied = false;
+
+  Future<void> _copy() async {
+    await Clipboard.setData(ClipboardData(text: widget.text));
+    if (!mounted) {
+      return;
+    }
+    setState(() => _justCopied = true);
+    Future<void>.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() => _justCopied = false);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: _copy,
+      style: TextButton.styleFrom(
+        foregroundColor: _aiMuted(context),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+      ),
+      icon: Icon(
+        _justCopied ? Icons.check_rounded : Icons.copy_rounded,
+        size: 14,
+      ),
+      label: Text(_justCopied ? 'Copied' : 'Copy'),
+    );
+  }
+}
+
+/// A lightweight markdown renderer covering the subset Gemini's structured
+/// answers actually use - headings, blockquotes, numbered/bulleted lists,
+/// horizontal rules, and **bold** - without pulling in a full markdown
+/// package.
 class _MarkdownLiteText extends StatelessWidget {
   const _MarkdownLiteText({required this.text, required this.color});
 
@@ -897,22 +990,97 @@ class _MarkdownLiteText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final List<String> lines = text.split('\n');
-    return SelectableText.rich(
-      TextSpan(
-        children: <InlineSpan>[
-          for (int i = 0; i < lines.length; i++) ...<InlineSpan>[
-            if (i > 0) const TextSpan(text: '\n'),
-            ..._lineSpans(lines[i]),
-          ],
-        ],
-      ),
-      style: TextStyle(color: color, height: 1.55, fontSize: 14.5),
+    final List<Widget> blocks = <Widget>[];
+    for (final String rawLine in lines) {
+      blocks.add(_buildLine(rawLine));
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: blocks,
     );
   }
 
-  List<InlineSpan> _lineSpans(String rawLine) {
-    final bool isBullet = rawLine.trimLeft().startsWith('- ') || rawLine.trimLeft().startsWith('* ');
-    final String line = isBullet ? '•  ${rawLine.trimLeft().substring(2)}' : rawLine;
+  Widget _buildLine(String rawLine) {
+    final String trimmed = rawLine.trimLeft();
+    final double indent = (rawLine.length - trimmed.length).toDouble();
+
+    if (trimmed.trim().isEmpty) {
+      return const SizedBox(height: 8);
+    }
+
+    if (RegExp(r'^(-{3,}|\*{3,}|_{3,})$').hasMatch(trimmed.trim())) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Divider(height: 1, color: color.withOpacity(0.2)),
+      );
+    }
+
+    final RegExpMatch? heading = RegExp(r'^(#{1,3})\s+(.*)$').firstMatch(trimmed);
+    if (heading != null) {
+      final int level = heading.group(1)!.length;
+      final double fontSize = level == 1 ? 19 : (level == 2 ? 17 : 15.5);
+      return Padding(
+        padding: const EdgeInsets.only(top: 6, bottom: 4),
+        child: SelectableText.rich(
+          TextSpan(children: _inlineSpans(heading.group(2)!.trim())),
+          style: TextStyle(color: color, fontSize: fontSize, fontWeight: FontWeight.w800, height: 1.4),
+        ),
+      );
+    }
+
+    if (trimmed.startsWith('> ')) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Container(
+          padding: const EdgeInsets.only(left: 12),
+          decoration: BoxDecoration(
+            border: Border(left: BorderSide(color: color.withOpacity(0.35), width: 3)),
+          ),
+          child: SelectableText.rich(
+            TextSpan(children: _inlineSpans(trimmed.substring(2))),
+            style: TextStyle(color: color.withOpacity(0.85), height: 1.55, fontSize: 14.5, fontStyle: FontStyle.italic),
+          ),
+        ),
+      );
+    }
+
+    final bool isBullet = trimmed.startsWith('- ') || trimmed.startsWith('* ');
+    final RegExpMatch? numbered = RegExp(r'^(\d+)\.\s+(.*)$').firstMatch(trimmed);
+
+    if (isBullet || numbered != null) {
+      final String marker = isBullet ? '•' : '${numbered!.group(1)}.';
+      final String content = isBullet ? trimmed.substring(2) : numbered!.group(2)!;
+      return Padding(
+        padding: EdgeInsets.only(left: indent, bottom: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            SizedBox(
+              width: 20,
+              child: Text(marker, style: TextStyle(color: color, height: 1.55, fontSize: 14.5, fontWeight: FontWeight.w700)),
+            ),
+            Expanded(
+              child: SelectableText.rich(
+                TextSpan(children: _inlineSpans(content)),
+                style: TextStyle(color: color, height: 1.55, fontSize: 14.5),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: SelectableText.rich(
+        TextSpan(children: _inlineSpans(rawLine)),
+        style: TextStyle(color: color, height: 1.55, fontSize: 14.5),
+      ),
+    );
+  }
+
+  List<InlineSpan> _inlineSpans(String line) {
     final List<InlineSpan> spans = <InlineSpan>[];
     final RegExp boldPattern = RegExp(r'\*\*(.+?)\*\*');
     int cursor = 0;
@@ -928,6 +1096,9 @@ class _MarkdownLiteText extends StatelessWidget {
     }
     if (cursor < line.length) {
       spans.add(TextSpan(text: line.substring(cursor)));
+    }
+    if (spans.isEmpty) {
+      spans.add(TextSpan(text: line));
     }
     return spans;
   }

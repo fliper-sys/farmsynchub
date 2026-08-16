@@ -1,4 +1,6 @@
+import 'crop_harvest_record.dart';
 import 'farm_activity.dart';
+import 'growth_timeline_entry.dart';
 import 'photo_journal_entry.dart';
 
 enum LandSizeUnit {
@@ -73,6 +75,8 @@ class Crop {
     this.lastIntelligenceSyncAt,
     this.photoJournal = const <PhotoJournalEntry>[],
     this.isFavorite = false,
+    this.harvestRecords = const <CropHarvestRecord>[],
+    this.growthTimeline = const <GrowthTimelineEntry>[],
   });
 
   final String id;
@@ -101,6 +105,13 @@ class Crop {
   final DateTime? lastIntelligenceSyncAt;
   final List<PhotoJournalEntry> photoJournal;
   final bool isFavorite;
+  final List<CropHarvestRecord> harvestRecords;
+  final List<GrowthTimelineEntry> growthTimeline;
+
+  /// Sum of every harvest logged this cycle, in kg - the real counterpart to
+  /// [targetYieldKg]. Zero until at least one harvest has been recorded.
+  double get actualYieldKg => harvestRecords.fold<double>(
+      0, (double sum, CropHarvestRecord record) => sum + record.quantityInKg);
 
   int get openTaskCount => todoItems.where((FarmTodoItem item) => !item.isCompleted).length;
   double get syncedInputCost => inputRecords.fold<double>(0, (double sum, FarmInputRecord item) => sum + item.totalCost);
@@ -146,6 +157,12 @@ class Crop {
         'photoJournal':
             photoJournal.map((PhotoJournalEntry item) => item.toJson()).toList(),
         'isFavorite': isFavorite,
+        'harvestRecords': harvestRecords
+            .map((CropHarvestRecord item) => item.toJson())
+            .toList(),
+        'growthTimeline': growthTimeline
+            .map((GrowthTimelineEntry item) => item.toJson())
+            .toList(),
       };
 
   factory Crop.fromJson(Map<String, dynamic> json) => Crop(
@@ -194,6 +211,12 @@ class Crop {
             .map(PhotoJournalEntry.fromJson)
             .toList(),
         isFavorite: json['isFavorite'] as bool? ?? false,
+        harvestRecords: _jsonObjectList(json['harvestRecords'])
+            .map(CropHarvestRecord.fromJson)
+            .toList(),
+        growthTimeline: _jsonObjectList(json['growthTimeline'])
+            .map(GrowthTimelineEntry.fromJson)
+            .toList(),
       );
 
   Crop copyWith({
@@ -221,6 +244,8 @@ class Crop {
     DateTime? lastIntelligenceSyncAt,
     List<PhotoJournalEntry>? photoJournal,
     bool? isFavorite,
+    List<CropHarvestRecord>? harvestRecords,
+    List<GrowthTimelineEntry>? growthTimeline,
   }) =>
       Crop(
         id: id,
@@ -249,6 +274,8 @@ class Crop {
         lastIntelligenceSyncAt: lastIntelligenceSyncAt ?? this.lastIntelligenceSyncAt,
         photoJournal: photoJournal ?? this.photoJournal,
         isFavorite: isFavorite ?? this.isFavorite,
+        harvestRecords: harvestRecords ?? this.harvestRecords,
+        growthTimeline: growthTimeline ?? this.growthTimeline,
       );
 }
 

@@ -57,6 +57,8 @@ class LivestockProductionRecord {
     this.eggCount = 0,
     this.eggUnit = '',
     this.notes = '',
+    this.soldCount = 0,
+    this.lossCount = 0,
   });
 
   final String id;
@@ -69,6 +71,8 @@ class LivestockProductionRecord {
   final int eggCount;
   final String eggUnit;
   final String notes;
+  final int soldCount;
+  final int lossCount;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
         'id': id,
@@ -81,6 +85,8 @@ class LivestockProductionRecord {
         'eggCount': eggCount,
         'eggUnit': eggUnit,
         'notes': notes,
+        'soldCount': soldCount,
+        'lossCount': lossCount,
       };
 
   factory LivestockProductionRecord.fromJson(Map<String, dynamic> json) {
@@ -98,6 +104,8 @@ class LivestockProductionRecord {
       eggCount: (json['eggCount'] as num?)?.toInt() ?? 0,
       eggUnit: json['eggUnit'] as String? ?? '',
       notes: json['notes'] as String? ?? '',
+      soldCount: (json['soldCount'] as num?)?.toInt() ?? 0,
+      lossCount: (json['lossCount'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -111,6 +119,8 @@ class LivestockProductionRecord {
     int? eggCount,
     String? eggUnit,
     String? notes,
+    int? soldCount,
+    int? lossCount,
   }) {
     return LivestockProductionRecord(
       id: id,
@@ -123,6 +133,8 @@ class LivestockProductionRecord {
       eggCount: eggCount ?? this.eggCount,
       eggUnit: eggUnit ?? this.eggUnit,
       notes: notes ?? this.notes,
+      soldCount: soldCount ?? this.soldCount,
+      lossCount: lossCount ?? this.lossCount,
     );
   }
 }

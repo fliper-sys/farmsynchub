@@ -7,8 +7,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/extensions/context_extensions.dart';
+import '../../../core/utils/date_utils.dart' as app_date;
 import '../../../domain/models/crop.dart';
 import '../../../domain/models/growth_timeline_entry.dart';
+import '../../../domain/models/photo_journal_entry.dart';
 import '../../../providers/crop_provider.dart';
 import 'app_button.dart';
 import 'app_card.dart';
@@ -27,8 +29,9 @@ class GrowthTimelineWidget extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ThemeData theme = Theme.of(context);
-    // In a full implementation, timeline entries would be fetched from provider.
-    // For now, we use the crop's intelligence notes and input records as backdrop.
+    final List<GrowthTimelineEntry> entries = crop.growthTimeline.toList()
+      ..sort((GrowthTimelineEntry a, GrowthTimelineEntry b) =>
+          b.recordedAt.compareTo(a.recordedAt));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -53,26 +56,36 @@ class GrowthTimelineWidget extends ConsumerWidget {
         // Stage cards — visual timeline of growth stages
         ..._buildStageCards(context, theme, crop),
         const SizedBox(height: 12),
-        // Quick-guide note
-        AppCard(
-          color: theme.colorScheme.tertiaryContainer.withOpacity(0.3),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: <Widget>[
-                Icon(Icons.photo_camera_rounded,
-                    size: 20, color: theme.colorScheme.onTertiaryContainer),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Add weekly photos and measurements to track your ${crop.name}\'s growth visually across stages.',
-                    style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
+        if (entries.isEmpty)
+          AppCard(
+            color: theme.colorScheme.tertiaryContainer.withOpacity(0.3),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: <Widget>[
+                  Icon(Icons.photo_camera_rounded,
+                      size: 20, color: theme.colorScheme.onTertiaryContainer),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Add weekly photos and measurements to track your ${crop.name}\'s growth visually across stages.',
+                      style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
+            ),
+          )
+        else ...<Widget>[
+          Text('Recorded entries', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 8),
+          ...entries.map(
+            (GrowthTimelineEntry entry) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _TimelineEntryTile(entry: entry),
             ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -212,17 +225,29 @@ class GrowthTimelineWidget extends ConsumerWidget {
 
     if (entry == null || !context.mounted) return;
 
-    // Add entry to crop's timeline — for MVP we append to intelligence notes
-    // In production, this would be saved to the Crop model's growthTimeline list
-    final String note = 'Day ${crop.daysSincePlanting}: ${entry.notes.isEmpty ? _stageLabel(entry.stage) : entry.notes}'
-        '${entry.heightCm > 0 ? ' | Height: ${entry.heightCm.toStringAsFixed(1)} cm' : ''}'
-        '${entry.leafCount > 0 ? ' | Leaves: ${entry.leafCount}' : ''}';
+    final DateTime now = DateTime.now();
+    final List<PhotoJournalEntry> photoJournal = entry.photoBase64.isEmpty
+        ? crop.photoJournal
+        : <PhotoJournalEntry>[
+            PhotoJournalEntry(
+              id: const Uuid().v4(),
+              base64: entry.photoBase64,
+              date: entry.recordedAt,
+              caption: entry.notes.isEmpty
+                  ? '${_stageLabel(entry.stage)} - Day ${crop.daysSincePlanting}'
+                  : entry.notes,
+            ),
+            ...crop.photoJournal,
+          ];
 
     await ref.read(cropsProvider.notifier).updateCrop(
           crop.copyWith(
-            intelligenceNotes:
-                '[${DateTime.now().day}/${DateTime.now().month}] $note\n${crop.intelligenceNotes}',
-            updatedAt: DateTime.now(),
+            growthTimeline: <GrowthTimelineEntry>[
+              entry,
+              ...crop.growthTimeline,
+            ],
+            photoJournal: photoJournal,
+            updatedAt: now,
             isSynced: false,
           ),
         );
@@ -260,6 +285,92 @@ class GrowthTimelineWidget extends ConsumerWidget {
       case CropStage.fruiting:
         return 'Track quality, picking window, and market prep.';
     }
+  }
+}
+
+class _TimelineEntryTile extends StatelessWidget {
+  const _TimelineEntryTile({required this.entry});
+
+  final GrowthTimelineEntry entry;
+
+  static String _stageLabel(CropStage stage) {
+    switch (stage) {
+      case CropStage.seeding:
+        return 'Seeding';
+      case CropStage.germination:
+        return 'Germination';
+      case CropStage.vegetative:
+        return 'Vegetative';
+      case CropStage.flowering:
+        return 'Flowering';
+      case CropStage.fruiting:
+        return 'Fruiting';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return AppCard(
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            if (entry.photoBase64.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Image.memory(
+                  base64Decode(entry.photoBase64),
+                  width: 56,
+                  height: 56,
+                  fit: BoxFit.cover,
+                ),
+              )
+            else
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(Icons.eco_rounded,
+                    color: theme.colorScheme.onSurfaceVariant),
+              ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    '${_stageLabel(entry.stage)} - ${app_date.DateUtils.formatDate(entry.recordedAt)}',
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  if (entry.heightCm > 0 || entry.leafCount > 0) ...<Widget>[
+                    const SizedBox(height: 2),
+                    Text(
+                      <String>[
+                        if (entry.heightCm > 0)
+                          '${entry.heightCm.toStringAsFixed(1)} cm',
+                        if (entry.leafCount > 0) '${entry.leafCount} leaves',
+                      ].join(' - '),
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                  if (entry.notes.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 4),
+                    Text(entry.notes, style: theme.textTheme.bodySmall),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

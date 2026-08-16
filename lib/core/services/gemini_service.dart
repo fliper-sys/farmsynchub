@@ -19,12 +19,15 @@ import '../../domain/models/chat_message.dart';
 import '../../domain/models/livestock.dart';
 import '../../domain/models/transaction.dart';
 
-// Gemini 1.5 models were retired on 2025-09-24 (Firebase AI Logic rejects
-// every request against them) - this was the actual root cause of "AI never
-// works" reports, not the App Check/network issues fixed earlier.
+// Gemini 1.5 models were retired on 2025-09-24, and gemini-2.5-flash was
+// retired after that too - Google keeps sunsetting dated model IDs, which
+// was the actual root cause of repeated "AI never works" reports. Using the
+// "-latest" alias instead of a dated version lets Google repoint it to
+// whatever their current flash-tier model is, so this stops expiring.
+// Override via --dart-define=FIREBASE_AI_MODEL=... if this alias ever moves.
 const String _kFirebaseAiModelName = String.fromEnvironment(
   'FIREBASE_AI_MODEL',
-  defaultValue: 'gemini-2.5-flash',
+  defaultValue: 'gemini-flash-latest',
 );
 const int _kMaxHistoryTurns = 6;
 const Duration _kCacheTtl = Duration(hours: 6);
@@ -36,12 +39,16 @@ const Duration _kCacheTtl = Duration(hours: 6);
 // every AI call now tries Firebase AI Logic first and, if that throws for
 // any reason, falls back to calling the Gemini Developer API directly with
 // an API key - a transport that has nothing to do with App Check at all.
-// Override via --dart-define=GEMINI_API_KEY=... to swap keys without
-// touching source.
-const String _kGeminiApiKey = String.fromEnvironment(
-  'GEMINI_API_KEY',
-  defaultValue: 'AIzaSyDVteqjawKLk1TWd2BaHQqI1aHl18yO3wc',
-);
+//
+// This key is deliberately NOT hardcoded here. A prior key was committed to
+// source, got scraped and reported as leaked, and was revoked by Google;
+// GitHub push protection now blocks commits containing a literal key in
+// this file outright. Supply it at build/run time instead, e.g.:
+//   flutter run --dart-define=GEMINI_API_KEY=your-key-here
+// or bake it into CI/release builds via the same flag. Without it, calls
+// fall back to Firebase AI Logic only (or the offline/local fallback if
+// that also fails).
+const String _kGeminiApiKey = String.fromEnvironment('GEMINI_API_KEY');
 
 String _buildSystemPrompt(String language, AiTopic topic) => '''
 You are Farmsync AI, the farming assistant inside FarmSync for farmers in Nigeria.
@@ -287,7 +294,7 @@ class GeminiService {
           temperature: 0.35,
           topK: 32,
           topP: 0.9,
-          maxOutputTokens: 900,
+          maxOutputTokens: 1536,
         ),
         safetySettings: <SafetySetting>[
           SafetySetting(HarmCategory.harassment, HarmBlockThreshold.medium, null),
@@ -328,7 +335,7 @@ class GeminiService {
             )),
           ],
           temperature: 0.35,
-          maxOutputTokens: 900,
+          maxOutputTokens: 1536,
         );
         if (insight.isNotEmpty) {
           return insight;
@@ -365,7 +372,7 @@ class GeminiService {
           temperature: 0.35,
           topK: 32,
           topP: 0.9,
-          maxOutputTokens: 900,
+          maxOutputTokens: 1536,
         ),
         safetySettings: <SafetySetting>[
           SafetySetting(HarmCategory.harassment, HarmBlockThreshold.medium, null),
@@ -402,7 +409,7 @@ class GeminiService {
             )),
           ],
           temperature: 0.35,
-          maxOutputTokens: 900,
+          maxOutputTokens: 1536,
         );
         if (recap.isNotEmpty) {
           return recap;
@@ -529,6 +536,7 @@ Future estimate
             history: history,
             imageBytes: imageBytes,
           ),
+          maxOutputTokens: 2048,
         );
         if (text.isNotEmpty) {
           return text;
@@ -560,7 +568,10 @@ Future estimate
         temperature: 0.4,
         topK: 32,
         topP: 0.95,
-        maxOutputTokens: 700,
+        // Current Gemini models spend part of this budget on internal
+        // "thinking" tokens before producing visible text, so 700 was
+        // cutting real chat replies off mid-sentence.
+        maxOutputTokens: 2048,
       ),
       safetySettings: <SafetySetting>[
         SafetySetting(HarmCategory.harassment, HarmBlockThreshold.medium, null),
@@ -590,6 +601,10 @@ Future estimate
     double temperature = 0.4,
     int maxOutputTokens = 700,
   }) async {
+    if (_kGeminiApiKey.isEmpty) {
+      throw StateError(
+          'No GEMINI_API_KEY configured (pass --dart-define=GEMINI_API_KEY=... at build/run time)');
+    }
     final Uri uri = Uri.parse(
       'https://generativelanguage.googleapis.com/v1beta/models/$_kFirebaseAiModelName:generateContent?key=$_kGeminiApiKey',
     );

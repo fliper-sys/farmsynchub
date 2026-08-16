@@ -24,6 +24,7 @@ import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
+import '../../common/widgets/responsive_card_grid.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
 
 class SalesDeskScreen extends ConsumerStatefulWidget {
@@ -956,42 +957,34 @@ class _SalesOverviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
+    return ResponsiveCardGrid(
+      minTileWidth: 160,
+      maxColumns: 5,
       spacing: 12,
       runSpacing: 12,
       children: <Widget>[
-        SizedBox(
-            width: 160,
-            child: _MetricCard(
-                label: language.tr(en: 'Farms', ha: 'Gonaki', fr: 'Fermes'),
-                value: farms.length.toString(),
-                icon: Icons.agriculture_rounded)),
-        SizedBox(
-            width: 160,
-            child: _MetricCard(
-                label: language.tr(
-                    en: 'Products', ha: 'Kayayyaki', fr: 'Produits'),
-                value: inventoryCount.toString(),
-                icon: Icons.inventory_2_rounded)),
-        SizedBox(
-            width: 160,
-            child: _MetricCard(
-                label: language.tr(
-                    en: 'Customers', ha: 'Abokan ciniki', fr: 'Clients'),
-                value: customerCount.toString(),
-                icon: Icons.people_alt_rounded)),
-        SizedBox(
-            width: 160,
-            child: _MetricCard(
-                label: language.tr(en: 'Receipts', ha: 'Rasitoci', fr: 'Recus'),
-                value: receiptsCount.toString(),
-                icon: Icons.receipt_long_rounded)),
-        SizedBox(
-            width: 160,
-            child: _MetricCard(
-                label: language.tr(en: 'Today', ha: 'Yau', fr: 'Aujourd\'hui'),
-                value: CurrencyUtils.formatCompactCurrency(todayRevenue),
-                icon: Icons.trending_up_rounded)),
+        _MetricCard(
+            label: language.tr(en: 'Farms', ha: 'Gonaki', fr: 'Fermes'),
+            value: farms.length.toString(),
+            icon: Icons.agriculture_rounded),
+        _MetricCard(
+            label:
+                language.tr(en: 'Products', ha: 'Kayayyaki', fr: 'Produits'),
+            value: inventoryCount.toString(),
+            icon: Icons.inventory_2_rounded),
+        _MetricCard(
+            label: language.tr(
+                en: 'Customers', ha: 'Abokan ciniki', fr: 'Clients'),
+            value: customerCount.toString(),
+            icon: Icons.people_alt_rounded),
+        _MetricCard(
+            label: language.tr(en: 'Receipts', ha: 'Rasitoci', fr: 'Recus'),
+            value: receiptsCount.toString(),
+            icon: Icons.receipt_long_rounded),
+        _MetricCard(
+            label: language.tr(en: 'Today', ha: 'Yau', fr: 'Aujourd\'hui'),
+            value: CurrencyUtils.formatCompactCurrency(todayRevenue),
+            icon: Icons.trending_up_rounded),
       ],
     );
   }

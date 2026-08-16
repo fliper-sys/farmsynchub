@@ -7,6 +7,7 @@ import '../../../../core/services/weather_reading_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../domain/models/farm.dart';
 import '../../../../providers/farm_provider.dart';
+import '../../farms/farm_detail_screen.dart';
 
 class WeatherPill extends ConsumerWidget {
   const WeatherPill({super.key});
@@ -25,7 +26,10 @@ class WeatherPill extends ConsumerWidget {
     activeFarm ??= farms.isNotEmpty ? farms.first : null;
 
     if (activeFarm == null || _looksLikeSeededPlaceholder(activeFarm)) {
-      return _LiveMonitoringEmptyCard(farmName: activeFarm?.name ?? 'Farm');
+      return _LiveMonitoringEmptyCard(
+        farmName: activeFarm?.name ?? 'Farm',
+        farmId: activeFarm?.id,
+      );
     }
 
     final WeatherLocation location = WeatherReadingService.resolveLocation(farm: activeFarm);
@@ -45,6 +49,7 @@ class WeatherPill extends ConsumerWidget {
 
         return _MonitoringPanel(
           farmName: farm.name,
+          farmId: farm.id,
           loading: loading,
           temperature: temperature,
           humidity: humidity,
@@ -58,9 +63,10 @@ class WeatherPill extends ConsumerWidget {
 }
 
 class _LiveMonitoringEmptyCard extends StatefulWidget {
-  const _LiveMonitoringEmptyCard({required this.farmName});
+  const _LiveMonitoringEmptyCard({required this.farmName, this.farmId});
 
   final String farmName;
+  final String? farmId;
 
   @override
   State<_LiveMonitoringEmptyCard> createState() => _LiveMonitoringEmptyCardState();
@@ -139,7 +145,7 @@ class _LiveMonitoringEmptyCardState extends State<_LiveMonitoringEmptyCard> with
                   ),
                 ),
                 const SizedBox(width: 12),
-                Icon(Icons.more_vert_rounded, color: theme.colorScheme.onSurfaceVariant),
+                _UpdateReadingsButton(farmId: widget.farmId),
               ],
             ),
           ),
@@ -152,6 +158,7 @@ class _LiveMonitoringEmptyCardState extends State<_LiveMonitoringEmptyCard> with
 class _MonitoringPanel extends StatelessWidget {
   const _MonitoringPanel({
     required this.farmName,
+    required this.farmId,
     required this.loading,
     required this.temperature,
     required this.humidity,
@@ -161,6 +168,7 @@ class _MonitoringPanel extends StatelessWidget {
   });
 
   final String farmName;
+  final String farmId;
   final bool loading;
   final double temperature;
   final double humidity;
@@ -192,7 +200,7 @@ class _MonitoringPanel extends StatelessWidget {
                     style: theme.textTheme.titleMedium?.copyWith(color: AppColors.premiumGreen, fontWeight: FontWeight.w800),
                   ),
                 ),
-                Icon(Icons.more_vert_rounded, color: theme.colorScheme.onSurfaceVariant),
+                _UpdateReadingsButton(farmId: farmId),
               ],
             ),
             const SizedBox(height: 16),
@@ -217,6 +225,33 @@ class _MonitoringPanel extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _UpdateReadingsButton extends StatelessWidget {
+  const _UpdateReadingsButton({required this.farmId});
+
+  final String? farmId;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final String? id = farmId;
+    return IconButton(
+      tooltip: id == null ? null : 'Update readings',
+      visualDensity: VisualDensity.compact,
+      icon: Icon(Icons.more_vert_rounded, color: theme.colorScheme.onSurfaceVariant),
+      onPressed: id == null
+          ? null
+          : () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => FarmDetailScreen(
+                    farmId: id,
+                    initialSection: 'operationProfile',
+                  ),
+                ),
+              ),
     );
   }
 }

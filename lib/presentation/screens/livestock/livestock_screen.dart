@@ -268,6 +268,9 @@ class LivestockScreen extends ConsumerWidget {
                     item.growthStage == AnimalGrowthStage.finishing
                         ? () => _openReadyForSaleSheet(context, ref, item)
                         : null,
+                onRecordLoss: item.count > 0
+                    ? () => _openRecordLossSheet(context, ref, item)
+                    : null,
                 onToggleTask: (FarmTodoItem task) =>
                     _toggleLivestockTask(context, ref, item, task),
               ),
@@ -642,17 +645,137 @@ class LivestockScreen extends ConsumerWidget {
       return;
     }
 
+    // Sale headcount can never exceed what's actually in the herd.
+    final int sold = draft.quantity.round().clamp(0, livestock.count);
+    if (sold <= 0) {
+      return;
+    }
+
     await ref.read(operationsHubProvider.notifier).adjustInventoryQuantity(
           farmId: livestock.farmId,
           productName:
               '${_speciesLabel(livestock.species)} (${livestock.breed})',
           unit: 'head',
-          deltaQuantity: draft.quantity,
+          deltaQuantity: sold.toDouble(),
           unitPrice: draft.unitPrice,
         );
+
+    final DateTime now = DateTime.now();
+    final int maleReduction = livestock.count > 0
+        ? (sold * livestock.maleCount / livestock.count)
+            .round()
+            .clamp(0, livestock.maleCount)
+        : 0;
+    final int femaleReduction =
+        (sold - maleReduction).clamp(0, livestock.femaleCount);
+
+    await ref.read(livestockProvider.notifier).updateLivestock(
+          livestock.copyWith(
+            count: livestock.count - sold,
+            maleCount: livestock.maleCount - maleReduction,
+            femaleCount: livestock.femaleCount - femaleReduction,
+            productionLogs: <LivestockProductionRecord>[
+              LivestockProductionRecord(
+                id: const Uuid().v4(),
+                period: LivestockRecordPeriod.daily,
+                recordedAt: now,
+                createdAt: now,
+                updatedAt: now,
+                soldCount: sold,
+                notes:
+                    'Sold at ${CurrencyUtils.formatCurrency(draft.unitPrice)}/head',
+              ),
+              ...livestock.productionLogs,
+            ],
+            updatedAt: now,
+            isSynced: false,
+          ),
+        );
+
+    if (draft.unitPrice > 0) {
+      await ref.read(transactionsProvider.notifier).addTransaction(
+            Transaction(
+              id: const Uuid().v4(),
+              farmId: livestock.farmId,
+              type: TransactionType.income,
+              category: TransactionCategory.livestockSale,
+              amount: sold * draft.unitPrice,
+              description:
+                  '${_speciesLabel(livestock.species)} sale ($sold head)',
+              transactionDate: now,
+              linkedEntityId: livestock.id,
+              createdAt: now,
+              updatedAt: now,
+              isSynced: true,
+              recordKind: TransactionRecordKind.sale,
+              partyType: TransactionPartyType.internal,
+              productName: '${_speciesLabel(livestock.species)} (${livestock.breed})',
+              quantity: sold.toDouble(),
+              unit: 'head',
+              unitPrice: draft.unitPrice,
+              receiptNumber: 'LV-${now.millisecondsSinceEpoch}',
+              notes: 'Auto-recorded when marked ready for sale.',
+            ),
+          );
+    }
+
     if (context.mounted) {
       context.showSnackBar(
-          'Finished stock added to inventory and ready for sale.');
+          'Herd updated, stock added to inventory, and sale recorded.');
+    }
+  }
+
+  Future<void> _openRecordLossSheet(
+      BuildContext context, WidgetRef ref, Livestock livestock) async {
+    final _RecordLossDraft? draft = await showModalBottomSheet<_RecordLossDraft>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) => _RecordLossSheet(livestock: livestock),
+    );
+    if (draft == null) {
+      return;
+    }
+
+    final int lost = draft.quantity.round().clamp(0, livestock.count);
+    if (lost <= 0) {
+      return;
+    }
+
+    final DateTime now = DateTime.now();
+    final int maleReduction = livestock.count > 0
+        ? (lost * livestock.maleCount / livestock.count)
+            .round()
+            .clamp(0, livestock.maleCount)
+        : 0;
+    final int femaleReduction =
+        (lost - maleReduction).clamp(0, livestock.femaleCount);
+
+    await ref.read(livestockProvider.notifier).updateLivestock(
+          livestock.copyWith(
+            count: livestock.count - lost,
+            maleCount: livestock.maleCount - maleReduction,
+            femaleCount: livestock.femaleCount - femaleReduction,
+            mortalityCount: livestock.mortalityCount + lost,
+            productionLogs: <LivestockProductionRecord>[
+              LivestockProductionRecord(
+                id: const Uuid().v4(),
+                period: LivestockRecordPeriod.daily,
+                recordedAt: now,
+                createdAt: now,
+                updatedAt: now,
+                lossCount: lost,
+                notes: draft.cause.isEmpty ? 'Loss recorded' : draft.cause,
+              ),
+              ...livestock.productionLogs,
+            ],
+            updatedAt: now,
+            isSynced: false,
+          ),
+        );
+
+    if (context.mounted) {
+      context.showSnackBar('Loss recorded and herd count updated.');
     }
   }
 
@@ -1070,6 +1193,32 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  'Not sure what to put? Tap an estimate button below instead of guessing a number.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: () => _estimateVaccination(context),
+                        icon: const Icon(Icons.help_outline_rounded, size: 16),
+                        label: const Text('Estimate vaccination'),
+                      ),
+                    ),
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: () => _estimateHealthScore(context),
+                        icon: const Icon(Icons.help_outline_rounded, size: 16),
+                        label: const Text('Estimate health'),
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 14),
                 Row(
                   children: <Widget>[
@@ -1450,6 +1599,81 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
     return base * ageFactor * stageFactor * purposeFactor;
   }
 
+  Future<void> _estimateVaccination(BuildContext context) async {
+    final int totalCount = int.tryParse(_countController.text.trim()) ?? 0;
+    final TextEditingController vaccinatedController = TextEditingController();
+    final int? vaccinatedCount = await showDialog<int>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: const Text('Estimate vaccination %'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(totalCount > 0
+                ? 'Out of $totalCount animals in this group, how many have received any vaccination or vet treatment so far? Enter 0 if none, or the full count if all have.'
+                : 'Enter the count first, then how many of those animals have received any vaccination or vet treatment so far.'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: vaccinatedController,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Animals vaccinated'),
+            ),
+          ],
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext)
+                .pop(int.tryParse(vaccinatedController.text.trim())),
+            child: const Text('Use this'),
+          ),
+        ],
+      ),
+    );
+    vaccinatedController.dispose();
+    if (vaccinatedCount == null || !mounted) {
+      return;
+    }
+    if (totalCount <= 0) {
+      context.showSnackBar('Enter the animal count first', isError: true);
+      return;
+    }
+    final int percent =
+        (vaccinatedCount.clamp(0, totalCount) / totalCount * 100).round();
+    setState(() => _vaccinationController.text = percent.toString());
+  }
+
+  Future<void> _estimateHealthScore(BuildContext context) async {
+    const List<_HealthOption> options = <_HealthOption>[
+      _HealthOption('All animals look strong and active', 95),
+      _HealthOption('Mostly fine, a few minor concerns', 80),
+      _HealthOption('Some animals look weak, thin, or slow', 55),
+      _HealthOption('Several sick, injured, or recent losses', 30),
+    ];
+    final int? score = await showDialog<int>(
+      context: context,
+      builder: (BuildContext dialogContext) => SimpleDialog(
+        title: const Text('How is this group doing right now?'),
+        children: options
+            .map((_HealthOption option) => SimpleDialogOption(
+                  onPressed: () =>
+                      Navigator.of(dialogContext).pop(option.score),
+                  child: Text(option.label),
+                ))
+            .toList(),
+      ),
+    );
+    if (score == null) {
+      return;
+    }
+    setState(() => _healthScoreController.text = score.toString());
+  }
+
   void _submit() {
     final String? breedError =
         Validators.required(_breedController.text, fieldName: 'Breed');
@@ -1636,6 +1860,7 @@ class _AnimalGroupCard extends StatelessWidget {
     required this.onAdjustStock,
     required this.onRecordEggCollection,
     required this.onRecordReadyForSale,
+    required this.onRecordLoss,
     required this.onToggleTask,
   });
 
@@ -1649,6 +1874,7 @@ class _AnimalGroupCard extends StatelessWidget {
   final VoidCallback onAdjustStock;
   final VoidCallback? onRecordEggCollection;
   final VoidCallback? onRecordReadyForSale;
+  final VoidCallback? onRecordLoss;
   final ValueChanged<FarmTodoItem> onToggleTask;
 
   @override
@@ -1741,6 +1967,10 @@ class _AnimalGroupCard extends StatelessWidget {
                       onRecordReadyForSale?.call();
                       return;
                     }
+                    if (value == 'loss') {
+                      onRecordLoss?.call();
+                      return;
+                    }
                     onDelete();
                   },
                   itemBuilder: (BuildContext context) =>
@@ -1759,6 +1989,9 @@ class _AnimalGroupCard extends StatelessWidget {
                       const PopupMenuItem<String>(
                           value: 'ready',
                           child: Text('Record ready for sale')),
+                    if (onRecordLoss != null)
+                      const PopupMenuItem<String>(
+                          value: 'loss', child: Text('Record loss')),
                     const PopupMenuItem<String>(
                         value: 'delete', child: Text('Delete group')),
                   ],
@@ -2921,7 +3154,7 @@ class _ReadyForSaleSheetState extends State<_ReadyForSaleSheet> {
     return _SheetShell(
       title: 'Record ready for sale',
       subtitle:
-          'Confirm the finished headcount and sale price to add to inventory for listing under Sales & Inventory.',
+          'This removes the sold headcount from the herd, adds finished stock to inventory, and records income if you enter a price.',
       children: <Widget>[
         AppTextField(
           controller: _quantityController,
@@ -2949,6 +3182,12 @@ class _ReadyForSaleSheetState extends State<_ReadyForSaleSheet> {
       context.showSnackBar('Enter a valid headcount', isError: true);
       return;
     }
+    if (quantity > widget.livestock.count) {
+      context.showSnackBar(
+          'Only ${widget.livestock.count} head are in this group',
+          isError: true);
+      return;
+    }
     Navigator.of(context).pop(
       _ReadyForSaleDraft(
         quantity: quantity,
@@ -2956,6 +3195,13 @@ class _ReadyForSaleSheetState extends State<_ReadyForSaleSheet> {
       ),
     );
   }
+}
+
+class _HealthOption {
+  const _HealthOption(this.label, this.score);
+
+  final String label;
+  final int score;
 }
 
 class _ReadyForSaleDraft {
@@ -2966,6 +3212,84 @@ class _ReadyForSaleDraft {
 
   final double quantity;
   final double unitPrice;
+}
+
+class _RecordLossSheet extends StatefulWidget {
+  const _RecordLossSheet({required this.livestock});
+
+  final Livestock livestock;
+
+  @override
+  State<_RecordLossSheet> createState() => _RecordLossSheetState();
+}
+
+class _RecordLossSheetState extends State<_RecordLossSheet> {
+  final TextEditingController _quantityController =
+      TextEditingController(text: '1');
+  final TextEditingController _causeController = TextEditingController();
+
+  @override
+  void dispose() {
+    _quantityController.dispose();
+    _causeController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _SheetShell(
+      title: 'Record loss',
+      subtitle:
+          'Log a death or missing animal. This reduces the herd count and keeps the loss in the production log for trend tracking.',
+      children: <Widget>[
+        AppTextField(
+          controller: _quantityController,
+          label: 'Headcount lost',
+          hint: 'Up to ${widget.livestock.count}',
+          keyboardType: TextInputType.number,
+        ),
+        const SizedBox(height: 12),
+        AppTextField(
+          controller: _causeController,
+          label: 'Cause (optional)',
+          hint: 'Disease, predator, unknown...',
+        ),
+        const SizedBox(height: 18),
+        AppButton.primary(onPressed: _submit, child: const Text('Record loss')),
+      ],
+    );
+  }
+
+  void _submit() {
+    final double quantity =
+        double.tryParse(_quantityController.text.trim()) ?? 0;
+    if (quantity <= 0) {
+      context.showSnackBar('Enter a valid headcount', isError: true);
+      return;
+    }
+    if (quantity > widget.livestock.count) {
+      context.showSnackBar(
+          'Only ${widget.livestock.count} head are in this group',
+          isError: true);
+      return;
+    }
+    Navigator.of(context).pop(
+      _RecordLossDraft(
+        quantity: quantity,
+        cause: _causeController.text.trim(),
+      ),
+    );
+  }
+}
+
+class _RecordLossDraft {
+  const _RecordLossDraft({
+    required this.quantity,
+    required this.cause,
+  });
+
+  final double quantity;
+  final String cause;
 }
 
 class _SheetShell extends StatelessWidget {
