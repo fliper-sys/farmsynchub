@@ -969,7 +969,7 @@ class _ShareStatusButtonState extends State<_ShareStatusButton> {
 }
 
 class _MetaChip extends StatelessWidget {
-  const _MetaChip({required this.text, this.emphasizedColor});
+  const _MetaChip({required this.text, this.emphasizedColor, this.onTap});
 
   final String text;
 
@@ -977,21 +977,29 @@ class _MetaChip extends StatelessWidget {
   /// default neutral pill - used for a single standout status chip.
   final Color? emphasizedColor;
 
+  /// When set, the chip becomes tappable - used to jump straight to the
+  /// section this chip is summarizing (e.g. overdue count -> care tasks).
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
     final Color? emphasized = emphasizedColor;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: emphasized ?? Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        text,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: emphasized != null ? Colors.white : null,
-              fontWeight: emphasized != null ? FontWeight.w700 : null,
-            ),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: emphasized ?? Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          text,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: emphasized != null ? Colors.white : null,
+                fontWeight: emphasized != null ? FontWeight.w700 : null,
+              ),
+        ),
       ),
     );
   }
