@@ -23,6 +23,7 @@ import '../../../providers/operations_hub_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
+import '../../common/widgets/responsive_card_grid.dart';
 import 'product_detail_screen.dart';
 import 'sales_information_screen.dart';
 import '../sales/sales_desk_screen.dart';
@@ -358,19 +359,21 @@ class _ProductsTabState extends ConsumerState<_ProductsTab> {
         if (filtered.isEmpty)
           const _EmptyState(message: 'No products found. Create the first product card to start selling stock.')
         else
-          ...filtered.map(
-            (InventoryItem item) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _ProductCard(
-                item: item,
-                farmName: _farmName(item.farmId),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => ProductDetailScreen(productId: item.id),
+          ResponsiveCardGrid(
+            minTileWidth: 360,
+            children: filtered
+                .map(
+                  (InventoryItem item) => _ProductCard(
+                    item: item,
+                    farmName: _farmName(item.farmId),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ProductDetailScreen(productId: item.id),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ),
+                )
+                .toList(growable: false),
           ),
       ],
     );
@@ -846,11 +849,12 @@ class _ExpensesTabState extends ConsumerState<_ExpensesTab> {
         if (expenses.isEmpty)
           const _EmptyState(message: 'No expenses found for this farm.')
         else
-          ...expenses.map(
-            (Transaction item) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _TransactionCard(transaction: item, showDelete: false),
-            ),
+          ResponsiveCardGrid(
+            minTileWidth: 360,
+            children: expenses
+                .map((Transaction item) =>
+                    _TransactionCard(transaction: item, showDelete: false))
+                .toList(growable: false),
           ),
       ],
     );
@@ -968,11 +972,12 @@ class _ProcurementTabState extends ConsumerState<_ProcurementTab> {
         if (procurement.isEmpty)
           const _EmptyState(message: 'No procurement history for this farm.')
         else
-          ...procurement.map(
-            (Transaction item) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _TransactionCard(transaction: item, showDelete: false),
-            ),
+          ResponsiveCardGrid(
+            minTileWidth: 360,
+            children: procurement
+                .map((Transaction item) =>
+                    _TransactionCard(transaction: item, showDelete: false))
+                .toList(growable: false),
           ),
       ],
     );

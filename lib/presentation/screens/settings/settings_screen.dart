@@ -484,7 +484,7 @@ class SettingsScreen extends ConsumerWidget {
               const Expanded(
                 child: SoftInfoChip(
                   label: 'Version',
-                  value: '1.0.0',
+                  value: '1.0.13',
                   color: Color(0xFFFFEBD0),
                 ),
               ),

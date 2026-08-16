@@ -11,11 +11,14 @@ import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/widget_image_capture.dart';
 import '../../../data/services/crop_advice_catalog.dart';
 import '../../../domain/models/crop.dart';
+import '../../../domain/models/crop_harvest_record.dart';
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/farm_activity.dart';
+import '../../../domain/models/transaction.dart';
 import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/crop_provider.dart';
 import '../../../providers/farm_provider.dart';
+import '../../../providers/finance_provider.dart';
 import '../../../providers/operations_hub_provider.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_button.dart';
@@ -196,10 +199,15 @@ class _CropDetailScreenState extends ConsumerState<CropDetailScreen> {
         .length;
     final double costPerHa =
         crop.areaHa <= 0 ? 0 : crop.totalInputCost / crop.areaHa;
-    final double targetYieldPerHa =
-        crop.areaHa <= 0 ? 0 : crop.targetYieldKg / crop.areaHa;
+    final bool hasActualYield = crop.actualYieldKg > 0;
+    final double yieldPerHa = crop.areaHa <= 0
+        ? 0
+        : (hasActualYield ? crop.actualYieldKg : crop.targetYieldKg) /
+            crop.areaHa;
+    final double referenceYieldKg =
+        hasActualYield ? crop.actualYieldKg : crop.targetYieldKg;
     final double inputCostPerTargetKg =
-        crop.targetYieldKg <= 0 ? 0 : crop.totalInputCost / crop.targetYieldKg;
+        referenceYieldKg <= 0 ? 0 : crop.totalInputCost / referenceYieldKg;
     final String cropWorkStatus = _cropWorkStatus(
       crop: crop,
       overdueTasks: overdueTasks,
@@ -420,6 +428,7 @@ class _CropDetailScreenState extends ConsumerState<CropDetailScreen> {
                             ? 'Protected crop'
                             : 'Open-field crop',
                         tint: const Color(0xFFDFF1FF),
+                        icon: Icons.crop_square_rounded,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -431,6 +440,7 @@ class _CropDetailScreenState extends ConsumerState<CropDetailScreen> {
                             : 'Not set',
                         note: 'Cycle target',
                         tint: const Color(0xFFFFEBD0),
+                        icon: Icons.grass_rounded,
                       ),
                     ),
                   ],
@@ -445,6 +455,7 @@ class _CropDetailScreenState extends ConsumerState<CropDetailScreen> {
                             CurrencyUtils.formatCurrency(crop.totalInputCost),
                         note: '${crop.inputRecords.length} records',
                         tint: const Color(0xFFEDE8FF),
+                        icon: Icons.shopping_basket_rounded,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -454,6 +465,7 @@ class _CropDetailScreenState extends ConsumerState<CropDetailScreen> {
                         value: '${crop.openTaskCount}',
                         note: '${crop.todoItems.length} total reminders',
                         tint: const Color(0xFFE8F4D8),
+                        icon: Icons.checklist_rounded,
                       ),
                     ),
                   ],
@@ -482,17 +494,21 @@ class _CropDetailScreenState extends ConsumerState<CropDetailScreen> {
                             : CurrencyUtils.formatCurrency(costPerHa),
                         note: '${crop.inputRecords.length} input records',
                         tint: const Color(0xFFEDE8FF),
+                        icon: Icons.payments_rounded,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: _MetricCard(
                         title: 'Yield / ha',
-                        value: crop.targetYieldKg <= 0 || crop.areaHa <= 0
+                        value: referenceYieldKg <= 0 || crop.areaHa <= 0
                             ? 'Not set'
-                            : '${targetYieldPerHa.toStringAsFixed(0)} kg',
-                        note: 'Target density',
+                            : '${yieldPerHa.toStringAsFixed(0)} kg',
+                        note: hasActualYield
+                            ? 'Actual harvest'
+                            : 'Target density',
                         tint: const Color(0xFFE8F4D8),
+                        icon: Icons.eco_rounded,
                       ),
                     ),
                   ],
@@ -509,6 +525,7 @@ class _CropDetailScreenState extends ConsumerState<CropDetailScreen> {
                                 inputCostPerTargetKg),
                         note: 'Against target yield',
                         tint: const Color(0xFFFFEBD0),
+                        icon: Icons.scale_rounded,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -519,6 +536,7 @@ class _CropDetailScreenState extends ConsumerState<CropDetailScreen> {
                             '${crop.inputRecords.length + crop.todoItems.length}',
                         note: 'Inputs plus reminders',
                         tint: const Color(0xFFDFF1FF),
+                        icon: Icons.folder_copy_rounded,
                       ),
                     ),
                   ],
@@ -736,20 +754,59 @@ class _CropDetailScreenState extends ConsumerState<CropDetailScreen> {
           productName: crop.name,
           unit: draft.unit,
           deltaQuantity: quantityHa,
-          unitPrice: 0,
+          unitPrice: draft.unitPrice,
           costPrice: crop.areaHa > 0 ? crop.totalInputCost / crop.areaHa : 0,
         );
+    final CropHarvestRecord harvestRecord = CropHarvestRecord(
+      id: const Uuid().v4(),
+      cropId: crop.id,
+      harvestedAt: now,
+      quantity: draft.quantity,
+      unit: draft.unit,
+      unitPrice: draft.unitPrice,
+    );
     await ref.read(cropsProvider.notifier).updateCrop(
           crop.copyWith(
             status: CropStatus.harvested,
             currentStage: CropStage.fruiting,
             updatedAt: now,
             isSynced: false,
+            harvestRecords: <CropHarvestRecord>[
+              harvestRecord,
+              ...crop.harvestRecords,
+            ],
+            // Append rather than overwrite - a harvest note used to wipe out
+            // every prior intelligence note on the crop.
             intelligenceNotes:
-                '${crop.name} harvested in ${draft.quantityLabel}.',
+                '[${now.day}/${now.month}] ${crop.name} harvested: ${draft.quantityLabel}.\n${crop.intelligenceNotes}',
             lastIntelligenceSyncAt: now,
           ),
         );
+    if (draft.unitPrice > 0) {
+      await ref.read(transactionsProvider.notifier).addTransaction(
+            Transaction(
+              id: const Uuid().v4(),
+              farmId: crop.farmId,
+              type: TransactionType.income,
+              category: TransactionCategory.cropSale,
+              amount: harvestRecord.totalValue,
+              description: '${crop.name} harvest (${draft.quantityLabel})',
+              transactionDate: now,
+              linkedEntityId: crop.id,
+              createdAt: now,
+              updatedAt: now,
+              isSynced: true,
+              recordKind: TransactionRecordKind.sale,
+              partyType: TransactionPartyType.internal,
+              productName: crop.name,
+              quantity: draft.quantity,
+              unit: draft.unit,
+              unitPrice: draft.unitPrice,
+              receiptNumber: 'HV-${now.millisecondsSinceEpoch}',
+              notes: 'Auto-recorded when the harvest was logged.',
+            ),
+          );
+    }
     final List<Farm> farms = ref.read(farmsProvider).valueOrNull ?? <Farm>[];
     Farm? farm;
     for (final Farm item in farms) {
@@ -1034,11 +1091,13 @@ class _HarvestSheet extends StatefulWidget {
 class _HarvestSheetState extends State<_HarvestSheet> {
   final TextEditingController _quantityController =
       TextEditingController(text: '1');
+  final TextEditingController _unitPriceController = TextEditingController();
   String _unit = 'kg';
 
   @override
   void dispose() {
     _quantityController.dispose();
+    _unitPriceController.dispose();
     super.dispose();
   }
 
@@ -1077,15 +1136,28 @@ class _HarvestSheetState extends State<_HarvestSheet> {
               },
               decoration: const InputDecoration(labelText: 'Unit'),
             ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _unitPriceController,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Sale price per unit (optional)',
+                hintText: 'Leave blank if not sold yet',
+              ),
+            ),
             const SizedBox(height: 18),
             AppButton.primary(
               onPressed: () {
                 final double quantity =
                     double.tryParse(_quantityController.text.trim()) ?? 0;
+                final double unitPrice =
+                    double.tryParse(_unitPriceController.text.trim()) ?? 0;
                 Navigator.of(context).pop(
                   _HarvestDraft(
                     quantity: quantity,
                     unit: _unit,
+                    unitPrice: unitPrice,
                   ),
                 );
               },
@@ -1102,10 +1174,12 @@ class _HarvestDraft {
   const _HarvestDraft({
     required this.quantity,
     required this.unit,
+    this.unitPrice = 0,
   });
 
   final double quantity;
   final String unit;
+  final double unitPrice;
 
   String get quantityLabel =>
       '${quantity.toStringAsFixed(quantity >= 10 ? 0 : 1)} $unit';
@@ -1117,12 +1191,14 @@ class _MetricCard extends StatelessWidget {
     required this.value,
     required this.note,
     required this.tint,
+    required this.icon,
   });
 
   final String title;
   final String value;
   final String note;
   final Color tint;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
@@ -1131,6 +1207,7 @@ class _MetricCard extends StatelessWidget {
     final Color markerColor = isDark
         ? Color.alphaBlend(tint.withOpacity(0.24), theme.colorScheme.surface)
         : tint;
+    final Color iconColor = isDark ? theme.colorScheme.onSurface : Colors.black87;
 
     return AppCard(
       color: theme.colorScheme.surfaceContainerHighest,
@@ -1149,6 +1226,7 @@ class _MetricCard extends StatelessWidget {
                     color:
                         isDark ? tint.withOpacity(0.44) : Colors.transparent),
               ),
+              child: Icon(icon, color: iconColor, size: 22),
             ),
             const SizedBox(height: 12),
             Text(title),

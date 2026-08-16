@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/services/gemini_service.dart';
+import '../../../core/utils/currency_utils.dart';
+import '../../../domain/models/ai_topic.dart';
 import '../../../domain/models/crop.dart';
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/livestock.dart';
@@ -331,11 +333,89 @@ class _AiRecommendationsWidgetState
   }
 
   void _openAiAdvisor(BuildContext context) {
+    final AiTopic topic =
+        widget.crop != null ? AiTopic.cropManagement : AiTopic.animalHealth;
+    final String prompt = widget.crop != null
+        ? _cropContextPrompt(widget.crop!)
+        : _livestockContextPrompt(widget.livestock!);
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (BuildContext context) => const AiAdvisorScreen(),
+        builder: (BuildContext context) => AiAdvisorScreen(
+          initialTopic: topic,
+          contextPrompt: prompt,
+        ),
       ),
     );
+  }
+
+  String _cropContextPrompt(Crop crop) {
+    final StringBuffer buffer = StringBuffer();
+    buffer.writeln(
+        'Give me advice specific to this exact crop record, not general farming tips:');
+    buffer.writeln(
+        '- Crop: ${crop.name}${crop.variety.isEmpty ? '' : ' (${crop.variety})'}');
+    buffer.writeln(
+        '- Stage: ${_stageLabel(crop.currentStage)}, day ${crop.daysSincePlanting} of ${crop.cycleLengthDays}');
+    buffer.writeln('- Area: ${crop.landSizeLabel}');
+    buffer.writeln('- Days to harvest: ${crop.daysToHarvest}');
+    buffer.writeln(
+        '- Input spend so far: ${CurrencyUtils.formatCurrency(crop.totalInputCost)}');
+    if (crop.targetYieldKg > 0) {
+      buffer.writeln(
+          '- Target yield: ${crop.targetYieldKg.toStringAsFixed(0)} kg');
+    }
+    if (crop.actualYieldKg > 0) {
+      buffer.writeln(
+          '- Actual harvested so far: ${crop.actualYieldKg.toStringAsFixed(0)} kg');
+    }
+    if (crop.intelligenceNotes.trim().isNotEmpty) {
+      buffer.writeln(
+          '- Recent notes: ${crop.intelligenceNotes.split('\n').take(3).join('; ')}');
+    }
+    buffer.write('What should I focus on this week for this specific crop?');
+    return buffer.toString();
+  }
+
+  String _livestockContextPrompt(Livestock livestock) {
+    final StringBuffer buffer = StringBuffer();
+    buffer.writeln(
+        'Give me advice specific to this exact livestock group record, not general tips:');
+    buffer.writeln(
+        '- Group: ${_livestockLabel(livestock.species)}${livestock.breed.isEmpty ? '' : ' (${livestock.breed})'}, ${livestock.count} head');
+    buffer.writeln('- Purpose: ${livestock.purpose.name}');
+    buffer.writeln(
+        '- Growth stage: ${livestock.growthStage.name}, average age ${livestock.averageAgeMonths} months');
+    buffer.writeln(
+        '- Health score: ${livestock.healthScore}%, vaccination coverage: ${livestock.vaccinationStatus}%');
+    if (livestock.averageWeightKg > 0) {
+      buffer.writeln(
+          '- Average weight: ${livestock.averageWeightKg.toStringAsFixed(1)} kg');
+    }
+    if (livestock.mortalityCount > 0) {
+      buffer.writeln('- Mortality recorded: ${livestock.mortalityCount}');
+    }
+    if (livestock.intelligenceNotes.trim().isNotEmpty) {
+      buffer.writeln(
+          '- Recent notes: ${livestock.intelligenceNotes.split('\n').take(3).join('; ')}');
+    }
+    buffer.write(
+        'What should I focus on this week for this specific group?');
+    return buffer.toString();
+  }
+
+  String _stageLabel(CropStage stage) {
+    switch (stage) {
+      case CropStage.seeding:
+        return 'Seeding';
+      case CropStage.germination:
+        return 'Germination';
+      case CropStage.vegetative:
+        return 'Vegetative';
+      case CropStage.flowering:
+        return 'Flowering';
+      case CropStage.fruiting:
+        return 'Fruiting';
+    }
   }
 
   String _livestockLabel(LivestockSpecies species) {

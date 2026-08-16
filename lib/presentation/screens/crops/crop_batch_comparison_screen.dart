@@ -62,7 +62,8 @@ class _CropBatchComparisonScreenState
               children: <Widget>[
                 if (selected.length >= 2)
                   Expanded(
-                    child: _ComparisonTable(crops: selected, farmById: farmById),
+                    child:
+                        _ComparisonTable(crops: selected, farmById: farmById),
                   )
                 else ...<Widget>[
                   Padding(
@@ -76,7 +77,8 @@ class _CropBatchComparisonScreenState
                         ),
                         isDense: true,
                       ),
-                      onChanged: (String value) => setState(() => _query = value),
+                      onChanged: (String value) =>
+                          setState(() => _query = value),
                     ),
                   ),
                   Padding(
@@ -86,7 +88,9 @@ class _CropBatchComparisonScreenState
                       child: Text(
                         'Select at least 2 batches to compare (${_selectedIds.length} selected)',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                             ),
                       ),
                     ),
@@ -108,11 +112,13 @@ class _CropBatchComparisonScreenState
                               _selectedIds.remove(crop.id);
                             }
                           }),
-                          title: Text('${crop.name}${crop.variety.isEmpty ? '' : ' · ${crop.variety}'}'),
+                          title: Text(
+                              '${crop.name}${crop.variety.isEmpty ? '' : ' · ${crop.variety}'}'),
                           subtitle: Text(
                             '${farm?.name ?? 'Unknown farm'} · ${crop.landSizeLabel} · planted ${_shortDate(crop.plantingDate)}',
                           ),
-                          secondary: Text(_stageEmoji(crop.currentStage), style: const TextStyle(fontSize: 20)),
+                          secondary: Text(_stageEmoji(crop.currentStage),
+                              style: const TextStyle(fontSize: 20)),
                         );
                       },
                     ),
@@ -125,8 +131,18 @@ class _CropBatchComparisonScreenState
 
   String _shortDate(DateTime date) {
     const List<String> months = <String>[
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
@@ -164,7 +180,8 @@ class _ComparisonTable extends StatelessWidget {
       _MetricRow('Farm', (Crop c) => farmById[c.farmId]?.name ?? 'Unknown'),
       _MetricRow('Land size', (Crop c) => c.landSizeLabel),
       _MetricRow('Planted', (Crop c) => _shortDate(c.plantingDate)),
-      _MetricRow('Days since planting', (Crop c) => '${c.daysSincePlanting} days'),
+      _MetricRow(
+          'Days since planting', (Crop c) => '${c.daysSincePlanting} days'),
       _MetricRow(
         'Days to harvest',
         (Crop c) => c.status == CropStatus.harvested
@@ -175,8 +192,10 @@ class _ComparisonTable extends StatelessWidget {
       ),
       _MetricRow('Stage', (Crop c) => _stageLabel(c.currentStage)),
       _MetricRow('Status', (Crop c) => _statusLabel(c.status)),
-      _MetricRow('Progress', (Crop c) => '${(c.growthProgress * 100).round()}%'),
-      _MetricRow('Input cost', (Crop c) => CurrencyUtils.formatCurrency(c.totalInputCost)),
+      _MetricRow(
+          'Progress', (Crop c) => '${(c.growthProgress * 100).round()}%'),
+      _MetricRow('Input cost',
+          (Crop c) => CurrencyUtils.formatCurrency(c.totalInputCost)),
       _MetricRow(
         'Cost / ha',
         (Crop c) => c.areaHa > 0
@@ -185,94 +204,108 @@ class _ComparisonTable extends StatelessWidget {
       ),
       _MetricRow(
         'Target yield',
-        (Crop c) => c.targetYieldKg > 0 ? '${c.targetYieldKg.toStringAsFixed(0)} kg' : '—',
+        (Crop c) => c.targetYieldKg > 0
+            ? '${c.targetYieldKg.toStringAsFixed(0)} kg'
+            : '—',
       ),
       _MetricRow('Open tasks', (Crop c) => '${c.openTaskCount}'),
     ];
 
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          SizedBox(
-            width: _labelWidth,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const SizedBox(height: _rowHeight + 12),
-                for (final _MetricRow row in rows)
-                  SizedBox(
-                    height: _rowHeight,
-                    child: Text(
-                      row.label,
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
+      child: SingleChildScrollView(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            SizedBox(
+              width: _labelWidth,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  for (final Crop crop in crops)
-                    Container(
-                      width: _columnWidth,
-                      margin: const EdgeInsets.only(right: 10),
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          SizedBox(
-                            height: _rowHeight + 12,
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                '${crop.name}${crop.variety.isEmpty ? '' : '\n${crop.variety}'}',
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.titleSmall
-                                    ?.copyWith(fontWeight: FontWeight.w800),
-                              ),
-                            ),
-                          ),
-                          for (final _MetricRow row in rows)
-                            SizedBox(
-                              height: _rowHeight,
-                              child: Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  row.valueFor(crop),
-                                  style: theme.textTheme.bodyMedium
-                                      ?.copyWith(fontWeight: FontWeight.w600),
-                                ),
-                              ),
-                            ),
-                        ],
+                  const SizedBox(height: _rowHeight + 12),
+                  for (final _MetricRow row in rows)
+                    SizedBox(
+                      height: _rowHeight,
+                      child: Text(
+                        row.label,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                 ],
               ),
             ),
-          ),
-        ],
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: <Widget>[
+                    for (final Crop crop in crops)
+                      Container(
+                        width: _columnWidth,
+                        margin: const EdgeInsets.only(right: 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            SizedBox(
+                              height: _rowHeight + 12,
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  '${crop.name}${crop.variety.isEmpty ? '' : '\n${crop.variety}'}',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w800),
+                                ),
+                              ),
+                            ),
+                            for (final _MetricRow row in rows)
+                              SizedBox(
+                                height: _rowHeight,
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    row.valueFor(crop),
+                                    style: theme.textTheme.bodyMedium
+                                        ?.copyWith(fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   String _shortDate(DateTime date) {
     const List<String> months = <String>[
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }

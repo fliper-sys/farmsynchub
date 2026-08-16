@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/extensions/context_extensions.dart';
+import '../../../core/services/feed_calculator_service.dart';
 import '../../../core/services/report_file_saver.dart';
 import '../../../core/services/report_file_saver_base.dart';
 import '../../../core/services/report_share_service.dart';
@@ -426,6 +427,7 @@ class LivestockDetailScreen extends ConsumerWidget {
                   note:
                       '${livestock.maleCount} male • ${livestock.femaleCount} female',
                   tint: const Color(0xFFDFF1FF),
+                  icon: Icons.pets_rounded,
                 ),
               ),
               const SizedBox(width: 12),
@@ -436,6 +438,7 @@ class LivestockDetailScreen extends ConsumerWidget {
                   value: _purposeLabel(livestock.purpose),
                   note: _housingLabel(livestock.housingLocation),
                   tint: const Color(0xFFE8F4D8),
+                  icon: Icons.flag_rounded,
                 ),
               ),
             ],
@@ -450,6 +453,7 @@ class LivestockDetailScreen extends ConsumerWidget {
                   value: '${livestock.healthScore}%',
                   note: '${livestock.vaccinationStatus}% vaccinated',
                   tint: const Color(0xFFFFEBD0),
+                  icon: Icons.favorite_rounded,
                 ),
               ),
               const SizedBox(width: 12),
@@ -459,6 +463,7 @@ class LivestockDetailScreen extends ConsumerWidget {
                   value: CurrencyUtils.formatCurrency(livestock.estimatedValue),
                   note: '${livestock.mortalityCount} mortality recorded',
                   tint: const Color(0xFFEDE8FF),
+                  icon: Icons.account_balance_wallet_rounded,
                 ),
               ),
             ],
@@ -483,6 +488,7 @@ class LivestockDetailScreen extends ConsumerWidget {
                   note:
                       '${livestock.dailyFeedKg.toStringAsFixed(1)} kg per head',
                   tint: const Color(0xFFE8F4D8),
+                  icon: Icons.grass_rounded,
                 ),
               ),
               const SizedBox(width: 12),
@@ -494,6 +500,7 @@ class LivestockDetailScreen extends ConsumerWidget {
                   note:
                       '${livestock.dailyWaterLitres.toStringAsFixed(1)} L per head',
                   tint: const Color(0xFFDFF1FF),
+                  icon: Icons.water_drop_rounded,
                 ),
               ),
             ],
@@ -517,6 +524,7 @@ class LivestockDetailScreen extends ConsumerWidget {
                       ha: 'Kimar rayuwa da aka kiyasta',
                       fr: 'Valeur vivante estimee'),
                   tint: const Color(0xFFFFEBD0),
+                  icon: Icons.payments_rounded,
                 ),
               ),
               const SizedBox(width: 12),
@@ -532,6 +540,7 @@ class LivestockDetailScreen extends ConsumerWidget {
                       : CurrencyUtils.formatCurrency(inputCostPerHead),
                   note: '${livestock.inputRecords.length} input records',
                   tint: const Color(0xFFEDE8FF),
+                  icon: Icons.shopping_basket_rounded,
                 ),
               ),
             ],
@@ -541,16 +550,17 @@ class LivestockDetailScreen extends ConsumerWidget {
               title: language.tr(
                   en: 'Feeding Plan',
                   ha: 'Tsarin Ciyarwa',
-                  fr: 'Plan d\'alimentation'),
-              action: TextButton.icon(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => FeedLogScreen(livestockId: livestock!.id),
-                  ),
-                ),
-                icon: const Icon(Icons.calendar_month_rounded, size: 18),
-                label: Text(language.tr(en: 'Feed log', ha: 'Tarihin ciyarwa', fr: 'Journal d\'alimentation')),
-              )),
+                  fr: 'Plan d\'alimentation')),
+          _TodayFeedingCard(
+            livestock: livestock,
+            onMarkFed: () => _markFedToday(context, ref, livestock!),
+            onOpenFeedLog: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => FeedLogScreen(livestockId: livestock!.id),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           Container(key: _feedingPlanKey, child: FeedingPlanWidget(livestock: livestock)),
           const SizedBox(height: 18),
           SoftSectionTitle(
@@ -832,17 +842,21 @@ class _MetricCard extends StatelessWidget {
     required this.value,
     required this.note,
     required this.tint,
+    required this.icon,
   });
 
   final String title;
   final String value;
   final String note;
   final Color tint;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
     return AppCard(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      color: theme.colorScheme.surfaceContainerHighest,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -855,6 +869,9 @@ class _MetricCard extends StatelessWidget {
                 color: tint,
                 borderRadius: BorderRadius.circular(14),
               ),
+              child: Icon(icon,
+                  color: isDark ? theme.colorScheme.onSurface : Colors.black87,
+                  size: 22),
             ),
             const SizedBox(height: 12),
             Text(title),
@@ -1003,6 +1020,8 @@ class _ProductionLogCard extends StatelessWidget {
             if (record.feedKg > 0)
               'Feed ${record.feedKg.toStringAsFixed(1)} kg',
             if (record.eggCount > 0) '${record.eggCount} ${record.eggUnit}',
+            if (record.soldCount > 0) '${record.soldCount} sold',
+            if (record.lossCount > 0) '${record.lossCount} lost',
             if (record.notes.isNotEmpty) record.notes,
           ].join(' · '),
         ),
@@ -1046,6 +1065,130 @@ class _InputCard extends StatelessWidget {
         title: Text(item.name),
         subtitle: Text('${item.quantity} ${item.unit} • ${item.category.name}'),
         trailing: Text(CurrencyUtils.formatCurrency(item.totalCost)),
+      ),
+    );
+  }
+}
+
+Future<void> _markFedToday(
+  BuildContext context,
+  WidgetRef ref,
+  Livestock livestock,
+) async {
+  final DateTime now = DateTime.now();
+  final double feedPerAnimal = FeedCalculatorService.feedPerAnimalKg(
+    livestock.species,
+    livestock.growthStage,
+    livestock.averageAgeMonths,
+    livestock.purpose,
+    actualWeightKg: livestock.averageWeightKg,
+  );
+  final LivestockProductionRecord record = LivestockProductionRecord(
+    id: const Uuid().v4(),
+    period: LivestockRecordPeriod.daily,
+    recordedAt: now,
+    createdAt: now,
+    updatedAt: now,
+    feedKg: feedPerAnimal * livestock.count,
+    notes: 'Marked fed from livestock detail',
+  );
+  await ref.read(livestockProvider.notifier).updateLivestock(
+        livestock.copyWith(
+          productionLogs: <LivestockProductionRecord>[
+            ...livestock.productionLogs,
+            record,
+          ],
+          updatedAt: now,
+          isSynced: false,
+        ),
+      );
+  if (context.mounted) {
+    context.showSnackBar('Marked fed for today.');
+  }
+}
+
+class _TodayFeedingCard extends StatelessWidget {
+  const _TodayFeedingCard({
+    required this.livestock,
+    required this.onMarkFed,
+    required this.onOpenFeedLog,
+  });
+
+  final Livestock livestock;
+  final VoidCallback onMarkFed;
+  final VoidCallback onOpenFeedLog;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool fed = livestock.wasFedToday;
+    return AppCard(
+      color: fed
+          ? theme.colorScheme.primaryContainer.withOpacity(0.4)
+          : theme.colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: fed
+                        ? Colors.green.withOpacity(0.18)
+                        : theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    fed ? Icons.check_circle_rounded : Icons.restaurant_rounded,
+                    color: fed ? Colors.green : theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        fed ? 'Fed today' : 'Not fed yet today',
+                        style: theme.textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Daily entries keep feed cost and health tracking accurate - log today\'s feeding before you finish farm rounds.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            height: 1.4),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: <Widget>[
+                if (!fed)
+                  Expanded(
+                    child: AppButton.primary(
+                        onPressed: onMarkFed, child: const Text('Mark fed')),
+                  ),
+                if (!fed) const SizedBox(width: 10),
+                Expanded(
+                  child: AppButton.secondary(
+                    onPressed: onOpenFeedLog,
+                    child: const Text('Open feed log & reminder'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

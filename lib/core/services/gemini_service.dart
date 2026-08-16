@@ -19,12 +19,15 @@ import '../../domain/models/chat_message.dart';
 import '../../domain/models/livestock.dart';
 import '../../domain/models/transaction.dart';
 
-// Gemini 1.5 models were retired on 2025-09-24 (Firebase AI Logic rejects
-// every request against them) - this was the actual root cause of "AI never
-// works" reports, not the App Check/network issues fixed earlier.
+// Gemini 1.5 models were retired on 2025-09-24, and gemini-2.5-flash was
+// retired after that too - Google keeps sunsetting dated model IDs, which
+// was the actual root cause of repeated "AI never works" reports. Using the
+// "-latest" alias instead of a dated version lets Google repoint it to
+// whatever their current flash-tier model is, so this stops expiring.
+// Override via --dart-define=FIREBASE_AI_MODEL=... if this alias ever moves.
 const String _kFirebaseAiModelName = String.fromEnvironment(
   'FIREBASE_AI_MODEL',
-  defaultValue: 'gemini-2.5-flash',
+  defaultValue: 'gemini-flash-latest',
 );
 const int _kMaxHistoryTurns = 6;
 const Duration _kCacheTtl = Duration(hours: 6);
@@ -287,7 +290,7 @@ class GeminiService {
           temperature: 0.35,
           topK: 32,
           topP: 0.9,
-          maxOutputTokens: 900,
+          maxOutputTokens: 1536,
         ),
         safetySettings: <SafetySetting>[
           SafetySetting(HarmCategory.harassment, HarmBlockThreshold.medium, null),
@@ -328,7 +331,7 @@ class GeminiService {
             )),
           ],
           temperature: 0.35,
-          maxOutputTokens: 900,
+          maxOutputTokens: 1536,
         );
         if (insight.isNotEmpty) {
           return insight;
@@ -365,7 +368,7 @@ class GeminiService {
           temperature: 0.35,
           topK: 32,
           topP: 0.9,
-          maxOutputTokens: 900,
+          maxOutputTokens: 1536,
         ),
         safetySettings: <SafetySetting>[
           SafetySetting(HarmCategory.harassment, HarmBlockThreshold.medium, null),
@@ -402,7 +405,7 @@ class GeminiService {
             )),
           ],
           temperature: 0.35,
-          maxOutputTokens: 900,
+          maxOutputTokens: 1536,
         );
         if (recap.isNotEmpty) {
           return recap;
@@ -529,6 +532,7 @@ Future estimate
             history: history,
             imageBytes: imageBytes,
           ),
+          maxOutputTokens: 2048,
         );
         if (text.isNotEmpty) {
           return text;
@@ -560,7 +564,10 @@ Future estimate
         temperature: 0.4,
         topK: 32,
         topP: 0.95,
-        maxOutputTokens: 700,
+        // Current Gemini models spend part of this budget on internal
+        // "thinking" tokens before producing visible text, so 700 was
+        // cutting real chat replies off mid-sentence.
+        maxOutputTokens: 2048,
       ),
       safetySettings: <SafetySetting>[
         SafetySetting(HarmCategory.harassment, HarmBlockThreshold.medium, null),

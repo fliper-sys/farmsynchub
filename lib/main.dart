@@ -32,7 +32,13 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+    // setPersistence() is only implemented on the web platform - calling it
+    // elsewhere throws and used to abort the rest of this block, silently
+    // skipping FCM registration, Firestore offline cache setup, and App
+    // Check activation on every native platform.
+    if (kIsWeb) {
+      await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+    }
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
     _configureFirestoreOfflineCache();
     unawaited(_initializeCloudServices());

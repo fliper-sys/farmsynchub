@@ -69,8 +69,12 @@ class WeightGainChartWidget extends StatelessWidget {
             child: _WeightChart(
               logs: logs,
               maxWeight: _calculateMaxWeight(logs, stageTargets),
-              matureWeightKg: _defaultBaseWeight(),
-              maturityDays: _maturityDays(),
+              matureWeightKg: livestock.averageWeightKg > 0
+                  ? livestock.averageWeightKg
+                  : _defaultBaseWeight(),
+              maturityDays: livestock.targetMaturityMonths > 0
+                  ? livestock.targetMaturityMonths * 30
+                  : _maturityDays(),
               referenceDate: logs.isNotEmpty ? logs.first.recordedAt : livestock.createdAt,
               theme: theme,
             ),
