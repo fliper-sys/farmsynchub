@@ -100,7 +100,6 @@ class LearningState {
         return sharedItems.isNotEmpty;
     }
   }
-
   Set<LearningAward> get unlockedAwards =>
       LearningAward.values.where(hasAward).toSet();
 
