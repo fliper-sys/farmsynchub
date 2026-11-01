@@ -63,12 +63,15 @@ class _LessonCompleteScreenState extends ConsumerState<LessonCompleteScreen> {
   }
 
   Future<void> _record() async {
-    // Certificate, XP, streak and achievements are all paid out by the
-    // learning provider, which hands the engagement record the result.
+    // Keep certificate and completion tracking in the learning provider.
+    await ref.read(learningProvider.notifier).completeLesson(
+          widget.lessonId,
+          lessonTitle: widget.lessonTitle,
+        );
+    // XP, streak and achievements are tracked by the engagement provider.
     final LessonReward reward =
-        await ref.read(learningProvider.notifier).completeLesson(
-              widget.lessonId,
-              lessonTitle: widget.lessonTitle,
+        await ref.read(engagementProvider.notifier).recordLessonComplete(
+              lessonId: widget.lessonId,
               correctAnswers: widget.correctAnswers,
               totalQuestions: widget.totalQuestions,
             );
@@ -117,7 +120,7 @@ class _LessonCompleteScreenState extends ConsumerState<LessonCompleteScreen> {
                 padding: const EdgeInsets.fromLTRB(22, 24, 22, 12),
                 child: Column(
                   children: <Widget>[
-                    LottieOrIcon(
+                    const LottieOrIcon(
                       asset: LottieAssets.trophy,
                       fallbackIcon: Icons.emoji_events_rounded,
                       fallbackColor: EngagementColors.gold,
