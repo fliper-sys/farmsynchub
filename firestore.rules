@@ -2,6 +2,28 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Learning activity events written by the offline-first learning sync
+    // (lib/providers/firebase_learning_sync.dart). A signed-in learner can
+    // read and create only their own events; events are immutable.
+    //
+    // NOTE: Firestore rules are additive. While the catch-all rule below
+    // stays in place it already grants access to everything, so this block
+    // only starts to restrict anything once that catch-all is replaced by
+    // per-collection rules.
+    match /users/{userId}/learningEvents/{eventId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.uid == userId
+        && request.resource.data.eventId == eventId;
+      // Permit an exact retry if the client lost the acknowledgement, but
+      // never permit changing the contents of an existing event.
+      allow update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data == resource.data;
+      allow delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if true;
     }

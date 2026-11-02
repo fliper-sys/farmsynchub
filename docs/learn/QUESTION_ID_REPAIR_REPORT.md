@@ -1,0 +1,78 @@
+# Question ID repair report
+
+- Lessons checked: 383
+- Question records checked: 2034
+- Duplicate ID values before repair: 49
+- Extra duplicate occurrences renamed: 67
+- Duplicate question IDs after repair: 0
+- Existing first-occurrence IDs preserved: yes
+- Saved reviewed/correct/skipped progress migrated by `lessonId::questionId`: yes
+
+## Renamed keys
+- `extra-062::cc-1` → `extra-062::extra-062-cc-1`
+- `extra-062::cc-2` → `extra-062::extra-062-cc-2`
+- `extra-062::cc-3` → `extra-062::extra-062-cc-3`
+- `extra-074::dr-1` → `extra-074::extra-074-dr-1`
+- `extra-091::dr-1` → `extra-091::extra-091-dr-1`
+- `extra-074::dr-2` → `extra-074::extra-074-dr-2`
+- `extra-091::dr-2` → `extra-091::extra-091-dr-2`
+- `extra-074::dr-3` → `extra-074::extra-074-dr-3`
+- `extra-091::dr-3` → `extra-091::extra-091-dr-3`
+- `extra-066::fc-1` → `extra-066::extra-066-fc-1`
+- `extra-066::fc-2` → `extra-066::extra-066-fc-2`
+- `extra-066::fc-3` → `extra-066::extra-066-fc-3`
+- `extra-086::fs-1` → `extra-086::extra-086-fs-1`
+- `extra-099::fs-1` → `extra-099::extra-099-fs-1`
+- `extra-086::fs-2` → `extra-086::extra-086-fs-2`
+- `extra-099::fs-2` → `extra-099::extra-099-fs-2`
+- `extra-086::fs-3` → `extra-086::extra-086-fs-3`
+- `extra-099::fs-3` → `extra-099::extra-099-fs-3`
+- `extra-033::graft-1` → `extra-033::extra-033-graft-1`
+- `extra-033::graft-2` → `extra-033::extra-033-graft-2`
+- `extra-033::graft-3` → `extra-033::extra-033-graft-3`
+- `inventory-stock-control-advanced::inventory-stock-control-1` → `inventory-stock-control-advanced::inventory-stock-control-advanced-inventory-stock-control-1`
+- `inventory-stock-control-advanced::inventory-stock-control-2` → `inventory-stock-control-advanced::inventory-stock-control-advanced-inventory-stock-control-2`
+- `inventory-stock-control-advanced::inventory-stock-control-3` → `inventory-stock-control-advanced::inventory-stock-control-advanced-inventory-stock-control-3`
+- `inventory-stock-control-advanced::inventory-stock-control-4` → `inventory-stock-control-advanced::inventory-stock-control-advanced-inventory-stock-control-4`
+- `inventory-stock-control-advanced::inventory-stock-control-5` → `inventory-stock-control-advanced::inventory-stock-control-advanced-inventory-stock-control-5`
+- `livestock-body-condition-review::livestock-body-condition-1` → `livestock-body-condition-review::livestock-body-condition-review-livestock-body-condition-1`
+- `livestock-body-condition-review::livestock-body-condition-2` → `livestock-body-condition-review::livestock-body-condition-review-livestock-body-condition-2`
+- `livestock-body-condition-review::livestock-body-condition-3` → `livestock-body-condition-review::livestock-body-condition-review-livestock-body-condition-3`
+- `livestock-body-condition-review::livestock-body-condition-4` → `livestock-body-condition-review::livestock-body-condition-review-livestock-body-condition-4`
+- `livestock-body-condition-review::livestock-body-condition-5` → `livestock-body-condition-review::livestock-body-condition-review-livestock-body-condition-5`
+- `extra-014::nursery-1` → `extra-014::extra-014-nursery-1`
+- `extra-014::nursery-2` → `extra-014::extra-014-nursery-2`
+- `extra-014::nursery-3` → `extra-014::extra-014-nursery-3`
+- `extra-079::pc-1` → `extra-079::extra-079-pc-1`
+- `extra-093::pc-1` → `extra-093::extra-093-pc-1`
+- `extra-079::pc-2` → `extra-079::extra-079-pc-2`
+- `extra-093::pc-2` → `extra-093::extra-093-pc-2`
+- `extra-079::pc-3` → `extra-079::extra-079-pc-3`
+- `extra-093::pc-3` → `extra-093::extra-093-pc-3`
+- `extra-097::ps-1` → `extra-097::extra-097-ps-1`
+- `extra-097::ps-2` → `extra-097::extra-097-ps-2`
+- `extra-097::ps-3` → `extra-097::extra-097-ps-3`
+- `extra-087::pt-1` → `extra-087::extra-087-pt-1`
+- `extra-087::pt-2` → `extra-087::extra-087-pt-2`
+- `extra-087::pt-3` → `extra-087::extra-087-pt-3`
+- `extra-052::sc-1` → `extra-052::extra-052-sc-1`
+- `extra-069::sc-1` → `extra-069::extra-069-sc-1`
+- `extra-095::sc-1` → `extra-095::extra-095-sc-1`
+- `extra-052::sc-2` → `extra-052::extra-052-sc-2`
+- `extra-069::sc-2` → `extra-069::extra-069-sc-2`
+- `extra-095::sc-2` → `extra-095::extra-095-sc-2`
+- `extra-052::sc-3` → `extra-052::extra-052-sc-3`
+- `extra-069::sc-3` → `extra-069::extra-069-sc-3`
+- `extra-095::sc-3` → `extra-095::extra-095-sc-3`
+- `extra-083::ss-1` → `extra-083::extra-083-ss-1`
+- `extra-083::ss-2` → `extra-083::extra-083-ss-2`
+- `extra-083::ss-3` → `extra-083::extra-083-ss-3`
+- `extra-084::st-1` → `extra-084::extra-084-st-1`
+- `extra-084::st-2` → `extra-084::extra-084-st-2`
+- `extra-084::st-3` → `extra-084::extra-084-st-3`
+- `extra-059::tc-1` → `extra-059::extra-059-tc-1`
+- `extra-096::tc-1` → `extra-096::extra-096-tc-1`
+- `extra-059::tc-2` → `extra-059::extra-059-tc-2`
+- `extra-096::tc-2` → `extra-096::extra-096-tc-2`
+- `extra-059::tc-3` → `extra-059::extra-059-tc-3`
+- `extra-096::tc-3` → `extra-096::extra-096-tc-3`
