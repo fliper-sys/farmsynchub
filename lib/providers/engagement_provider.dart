@@ -1,11 +1,15 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_preferences_provider.dart';
+import 'firebase_learning_sync.dart';
 
 // ---------------------------------------------------------------------------
 // Date helpers. Everything is keyed by the learner's LOCAL calendar day.
@@ -198,25 +202,42 @@ class DayActivity {
     this.xp = 0,
     this.lessons = 0,
     this.awards = const <String>[],
+    this.cloud = false,
   });
 
   final int xp;
   final int lessons;
 
+  /// True when the cloud already knows about this day (it came from, or was
+  /// queued to, the cloud). A cloud-known day counts as a learning day even
+  /// if its XP detail is not available on this device yet, so history from
+  /// older app versions or another phone still keeps the streak alive.
+  final bool cloud;
+
   /// Achievement ids unlocked on this day.
   final List<String> awards;
 
-  bool get hasActivity => xp > 0 || lessons > 0;
+  bool get hasActivity => xp > 0 || lessons > 0 || cloud;
 
-  DayActivity copyWith({int? xp, int? lessons, List<String>? awards}) =>
+  DayActivity copyWith({
+    int? xp,
+    int? lessons,
+    List<String>? awards,
+    bool? cloud,
+  }) =>
       DayActivity(
         xp: xp ?? this.xp,
         lessons: lessons ?? this.lessons,
         awards: awards ?? this.awards,
+        cloud: cloud ?? this.cloud,
       );
 
-  Map<String, dynamic> toJson() =>
-      <String, dynamic>{'xp': xp, 'lessons': lessons, 'awards': awards};
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'xp': xp,
+        'lessons': lessons,
+        'awards': awards,
+        'cloud': cloud,
+      };
 
   factory DayActivity.fromJson(Map<String, dynamic> json) => DayActivity(
         xp: (json['xp'] as num?)?.toInt() ?? 0,
@@ -224,6 +245,7 @@ class DayActivity {
         awards: ((json['awards'] as List<dynamic>?) ?? const <dynamic>[])
             .whereType<String>()
             .toList(),
+        cloud: json['cloud'] == true,
       );
 }
 
@@ -284,6 +306,9 @@ class EngagementState {
     this.restorationsUsed = 0,
     this.freezeItems = 0,
     this.gems = 0,
+    this.joinedChallenges = const <String>{},
+    this.claimedChallenges = const <String>{},
+    this.lastSeenMs = 0,
     this.isLoaded = false,
   });
 
@@ -310,7 +335,22 @@ class EngagementState {
   /// Streak freezes owned (each protects one missed day automatically).
   final int freezeItems;
   final int gems;
+
+  /// Weekly challenge ids the learner joined / already collected.
+  final Set<String> joinedChallenges;
+  final Set<String> claimedChallenges;
+
+  /// Latest moment the app has ever trusted (epoch ms). The clock can never
+  /// run behind this, so turning the phone clock back cannot re-open a past
+  /// day or restore a lost streak.
+  final int lastSeenMs;
   final bool isLoaded;
+
+  /// The device time, never earlier than [lastSeenMs].
+  DateTime trusted(DateTime raw) {
+    if (raw.millisecondsSinceEpoch >= lastSeenMs) return raw;
+    return DateTime.fromMillisecondsSinceEpoch(lastSeenMs);
+  }
 
   int get lessonsCompleted => rewardedLessons.length;
 
@@ -462,6 +502,9 @@ class EngagementState {
     int? restorationsUsed,
     int? freezeItems,
     int? gems,
+    Set<String>? joinedChallenges,
+    Set<String>? claimedChallenges,
+    int? lastSeenMs,
     bool? isLoaded,
   }) =>
       EngagementState(
@@ -474,6 +517,9 @@ class EngagementState {
         restorationsUsed: restorationsUsed ?? this.restorationsUsed,
         freezeItems: freezeItems ?? this.freezeItems,
         gems: gems ?? this.gems,
+        joinedChallenges: joinedChallenges ?? this.joinedChallenges,
+        claimedChallenges: claimedChallenges ?? this.claimedChallenges,
+        lastSeenMs: lastSeenMs ?? this.lastSeenMs,
         isLoaded: isLoaded ?? this.isLoaded,
       );
 }
@@ -532,70 +578,221 @@ class _Prep {
 }
 
 // ---------------------------------------------------------------------------
+// Weekly streak challenge
+// ---------------------------------------------------------------------------
+
+/// "Learn on [goalDays] of the 7 days this week" - a Monday-to-Sunday
+/// challenge derived purely from the calendar, so every device (and every
+/// reinstall) agrees on it without any server round trip. Progress is never
+/// stored as a counter: it is counted from the verified learning days, so it
+/// cannot be edited, double counted or drift between devices.
+class StreakChallenge {
+  const StreakChallenge({
+    required this.id,
+    required this.start,
+    required this.end,
+  });
+
+  static const int goalDays = 5;
+  static const int rewardXp = 60;
+  static const int rewardGems = 40;
+
+  final String id;
+
+  /// Monday 00:00 (local).
+  final DateTime start;
+
+  /// The following Monday 00:00 (local). The challenge ends at this moment.
+  final DateTime end;
+
+  static StreakChallenge forDate(DateTime now) {
+    final DateTime today = dateOnly(now);
+    final DateTime monday = addDays(today, -(today.weekday - 1));
+    return StreakChallenge(
+      id: 'week-${dayKey(monday)}',
+      start: monday,
+      end: addDays(monday, 7),
+    );
+  }
+
+  List<DateTime> get days =>
+      <DateTime>[for (int i = 0; i < 7; i++) addDays(start, i)];
+
+  Duration remaining(DateTime now) {
+    final Duration left = end.difference(now);
+    return left.isNegative ? Duration.zero : left;
+  }
+
+  int daysDone(EngagementState s) {
+    int count = 0;
+    for (final DateTime d in days) {
+      if (s.hasActivityOn(d)) count++;
+    }
+    return count > 7 ? 7 : count;
+  }
+
+  bool isComplete(EngagementState s) => daysDone(s) >= goalDays;
+}
+
+// ---------------------------------------------------------------------------
 // Notifier
 // ---------------------------------------------------------------------------
 
+/// Single source of truth for XP, streaks, freezes, achievements and the
+/// weekly challenge.
+///
+/// Offline first: every change is written to this device first and the
+/// streak is always computed from the local record, so it is correct with no
+/// signal. When the learner is signed in, each change is also queued in the
+/// learning sync outbox. Cloud history is only ever MERGED into the local
+/// record (days are unioned, totals take the larger value) - a sync can add
+/// to progress but never lower or rewrite it.
 final engagementProvider =
     NotifierProvider<EngagementNotifier, EngagementState>(
         EngagementNotifier.new);
 
 class EngagementNotifier extends Notifier<EngagementState> {
-  static const String _storageKey = 'engagement.v1';
+  static const String _legacyKey = 'engagement.v1';
   static const int _gemsPerAchievement = 10;
+  static const int _maxDayXp = 2000;
+  static const int _maxDayLessons = 200;
 
   late Future<void> _ready;
   bool _canPersist = false;
   Future<void> _pendingWrites = Future<void>.value();
+  String? _loadedUid;
+  String _loadedKey = 'engagement.v2.guest';
+  StreamSubscription<User?>? _authSub;
+
+  String? _currentUid() {
+    try {
+      return FirebaseAuth.instance.currentUser?.uid;
+    } catch (_) {
+      return null; // Firebase not initialised (tests, early start-up).
+    }
+  }
 
   @override
   EngagementState build() {
     _ready = _load();
+    unawaited(_watchAccount());
+    ref.onDispose(() => _authSub?.cancel());
     return const EngagementState();
   }
+
+  Future<void> _watchAccount() async {
+    await _ready;
+    try {
+      _authSub = FirebaseAuth.instance.authStateChanges().listen((User? user) {
+        if (user?.uid != _loadedUid) unawaited(_switchAccount());
+      });
+    } catch (error) {
+      debugPrint('EngagementNotifier: not watching account changes: $error');
+    }
+  }
+
+  Future<void> _switchAccount() async {
+    // Finish writing the previous account's progress before changing scope.
+    await _pendingWrites;
+    _canPersist = false;
+    state = const EngagementState();
+    _ready = _load();
+    await _ready;
+  }
+
+  /// The current time, never earlier than the latest time already seen. The
+  /// ratchet is stored with the progress, so rewinding the phone clock cannot
+  /// reopen yesterday, replay a missed day or undo a lost streak.
+  DateTime _tick([DateTime? override]) {
+    final DateTime t = state.trusted(override ?? DateTime.now());
+    if (t.millisecondsSinceEpoch > state.lastSeenMs) {
+      state = state.copyWith(lastSeenMs: t.millisecondsSinceEpoch);
+    }
+    return t;
+  }
+
+  /// Time for display (countdowns, the banner). Same ratchet, no write.
+  DateTime trustedNow() => state.trusted(DateTime.now());
+
+  EngagementState _decode(String raw) {
+    final Object? decoded = jsonDecode(raw);
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('engagement data is not a map');
+    }
+    final Map<String, DayActivity> days = <String, DayActivity>{};
+    final Object? rawDays = decoded['days'];
+    if (rawDays is Map<String, dynamic>) {
+      rawDays.forEach((String key, Object? value) {
+        if (value is Map<String, dynamic>) {
+          days[key] = DayActivity.fromJson(value);
+        }
+      });
+    }
+    Set<String> readSet(String key) =>
+        ((decoded[key] as List<dynamic>?) ?? const <dynamic>[])
+            .whereType<String>()
+            .toSet();
+    return EngagementState(
+      totalXp: (decoded['totalXp'] as num?)?.toInt() ?? 0,
+      days: days,
+      unlocked: readSet('unlocked'),
+      rewardedLessons: readSet('rewardedLessons'),
+      perfectLessons: (decoded['perfectLessons'] as num?)?.toInt() ?? 0,
+      frozenDays: readSet('frozenDays'),
+      restorationsUsed: (decoded['restorationsUsed'] as num?)?.toInt() ?? 0,
+      freezeItems: (decoded['freezeItems'] as num?)?.toInt() ?? 0,
+      gems: (decoded['gems'] as num?)?.toInt() ?? 0,
+      joinedChallenges: readSet('joinedChallenges'),
+      claimedChallenges: readSet('claimedChallenges'),
+      lastSeenMs: (decoded['lastSeenMs'] as num?)?.toInt() ?? 0,
+      isLoaded: true,
+    );
+  }
+
+  String _encode(EngagementState s) => jsonEncode(<String, dynamic>{
+        'totalXp': s.totalXp,
+        'days': s.days.map((String k, DayActivity v) =>
+            MapEntry<String, dynamic>(k, v.toJson())),
+        'unlocked': s.unlocked.toList(),
+        'rewardedLessons': s.rewardedLessons.toList(),
+        'perfectLessons': s.perfectLessons,
+        'frozenDays': s.frozenDays.toList(),
+        'restorationsUsed': s.restorationsUsed,
+        'freezeItems': s.freezeItems,
+        'gems': s.gems,
+        'joinedChallenges': s.joinedChallenges.toList(),
+        'claimedChallenges': s.claimedChallenges.toList(),
+        'lastSeenMs': s.lastSeenMs,
+      });
 
   Future<void> _load() async {
     try {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
-      final String? raw = prefs.getString(_storageKey);
+      _loadedUid = _currentUid();
+      _loadedKey = 'engagement.v2.${_loadedUid ?? 'guest'}';
+      String? raw = prefs.getString(_loadedKey);
+      if (raw == null) {
+        // One-time move of the original un-scoped record to this account.
+        final String? legacy = prefs.getString(_legacyKey);
+        if (legacy != null) {
+          raw = legacy;
+          await prefs.setString(_loadedKey, legacy);
+          await prefs.remove(_legacyKey);
+        }
+      }
       if (raw == null) {
         state = state.copyWith(isLoaded: true);
         _canPersist = true;
         return;
       }
-      final Object? decoded = jsonDecode(raw);
-      if (decoded is! Map<String, dynamic>) {
-        throw const FormatException('engagement data is not a map');
-      }
-      final Map<String, DayActivity> days = <String, DayActivity>{};
-      final Object? rawDays = decoded['days'];
-      if (rawDays is Map<String, dynamic>) {
-        rawDays.forEach((String key, Object? value) {
-          if (value is Map<String, dynamic>) {
-            days[key] = DayActivity.fromJson(value);
-          }
-        });
-      }
-      Set<String> readSet(String key) =>
-          ((decoded[key] as List<dynamic>?) ?? const <dynamic>[])
-              .whereType<String>()
-              .toSet();
-      state = EngagementState(
-        totalXp: (decoded['totalXp'] as num?)?.toInt() ?? 0,
-        days: days,
-        unlocked: readSet('unlocked'),
-        rewardedLessons: readSet('rewardedLessons'),
-        perfectLessons: (decoded['perfectLessons'] as num?)?.toInt() ?? 0,
-        frozenDays: readSet('frozenDays'),
-        restorationsUsed: (decoded['restorationsUsed'] as num?)?.toInt() ?? 0,
-        freezeItems: (decoded['freezeItems'] as num?)?.toInt() ?? 0,
-        gems: (decoded['gems'] as num?)?.toInt() ?? 0,
-        isLoaded: true,
-      );
+      state = _decode(raw);
       _canPersist = true;
       // A freeze may need to cover days missed while the app was closed.
-      if (_autoUseFreezes(DateTime.now()) > 0) {
+      final DateTime t = _tick();
+      if (_autoUseFreezes(t) > 0) {
         await _persist();
       }
+      unawaited(_pushUnsynced());
     } catch (error) {
       // Never write after a failed read: it could erase recoverable data.
       debugPrint('EngagementNotifier: failed to load: $error');
@@ -605,30 +802,195 @@ class EngagementNotifier extends Notifier<EngagementState> {
 
   Future<void> _persist() {
     if (!_canPersist) return Future<void>.value();
+    final String key = _loadedKey;
     _pendingWrites = _pendingWrites.then((_) async {
       try {
         final SharedPreferences prefs = await SharedPreferences.getInstance();
-        final EngagementState s = state;
-        await prefs.setString(
-          _storageKey,
-          jsonEncode(<String, dynamic>{
-            'totalXp': s.totalXp,
-            'days': s.days.map((String k, DayActivity v) =>
-                MapEntry<String, dynamic>(k, v.toJson())),
-            'unlocked': s.unlocked.toList(),
-            'rewardedLessons': s.rewardedLessons.toList(),
-            'perfectLessons': s.perfectLessons,
-            'frozenDays': s.frozenDays.toList(),
-            'restorationsUsed': s.restorationsUsed,
-            'freezeItems': s.freezeItems,
-            'gems': s.gems,
-          }),
-        );
+        await prefs.setString(key, _encode(state));
       } catch (error) {
         debugPrint('EngagementNotifier: failed to save: $error');
       }
     });
     return _pendingWrites;
+  }
+
+  // -------------------------------------------------------------------------
+  // Cloud sync (merge only - local stays authoritative)
+  // -------------------------------------------------------------------------
+
+  /// Queues one day for cloud sync. Returns without marking anything when
+  /// the learner is signed out; those days are pushed after the next sign-in.
+  Future<void> _emitDay(String key) async {
+    if (_currentUid() == null || !_canPersist) return;
+    final DayActivity? day = state.days[key];
+    if (day == null || !day.hasActivity) return;
+    final List<String> recentFrozen = state.frozenDays.toList()..sort();
+    try {
+      await FirebaseLearningSync.instance
+          .record('engagementDay', <String, dynamic>{
+        'entityId': key,
+        'activityDate': key,
+        'xp': day.xp,
+        'lessons': day.lessons,
+        'awards': day.awards,
+        'totalXp': state.totalXp,
+        'gems': state.gems,
+        'restorationsUsed': state.restorationsUsed,
+        'freezeItems': state.freezeItems,
+        'frozenDays': recentFrozen.length > 14
+            ? recentFrozen.sublist(recentFrozen.length - 14)
+            : recentFrozen,
+      });
+    } catch (error) {
+      debugPrint('EngagementNotifier: could not queue day $key: $error');
+      return;
+    }
+    if (!day.cloud) {
+      state = state.copyWith(
+        days: <String, DayActivity>{
+          ...state.days,
+          key: (state.days[key] ?? day).copyWith(cloud: true),
+        },
+      );
+      await _persist();
+    }
+  }
+
+  /// Sends days earned while signed out (or before this version) to the cloud.
+  Future<void> _pushUnsynced() async {
+    await _ready;
+    if (_currentUid() == null) return;
+    final List<String> pending = state.days.entries
+        .where((MapEntry<String, DayActivity> e) =>
+            !e.value.cloud && e.value.hasActivity)
+        .map((MapEntry<String, DayActivity> e) => e.key)
+        .toList()
+      ..sort();
+    final List<String> recent =
+        pending.length > 60 ? pending.sublist(pending.length - 60) : pending;
+    for (final String key in recent) {
+      await _emitDay(key);
+    }
+  }
+
+  Future<void> _emitEvent(String type, String id) async {
+    if (_currentUid() == null) return;
+    try {
+      await FirebaseLearningSync.instance
+          .record(type, <String, dynamic>{'entityId': id});
+    } catch (error) {
+      debugPrint('EngagementNotifier: could not queue $type: $error');
+    }
+  }
+
+  /// Folds cloud history into the local record. Safe to call repeatedly with
+  /// the same events: days are unioned, totals only ever go up, and future
+  /// dated days (beyond one day of timezone slack) are ignored.
+  Future<void> mergeRemote(List<Map<String, dynamic>> events) async {
+    await _ready;
+    if (events.isEmpty || !_canPersist) return;
+    final DateTime now = _tick();
+    final DateTime limit = addDays(dateOnly(now), 1);
+    final bool fresh = state.days.isEmpty;
+
+    final Map<String, DayActivity> days = <String, DayActivity>{...state.days};
+    final Set<String> frozen = <String>{...state.frozenDays};
+    final Set<String> unlocked = <String>{...state.unlocked};
+    final Set<String> rewarded = <String>{...state.rewardedLessons};
+    final Set<String> joined = <String>{...state.joinedChallenges};
+    final Set<String> claimed = <String>{...state.claimedChallenges};
+    int totalXp = state.totalXp;
+    int gems = state.gems;
+    Map<String, dynamic>? latest;
+    String latestAt = '';
+
+    bool dayOk(Object? value) {
+      if (value is! String) return false;
+      final DateTime? d = parseDayKey(value);
+      return d != null && !d.isAfter(limit);
+    }
+
+    int clampInt(Object? v, int max) {
+      final int n = (v as num?)?.toInt() ?? 0;
+      return n < 0 ? 0 : (n > max ? max : n);
+    }
+
+    for (final Map<String, dynamic> event in events) {
+      final String type = event['type']?.toString() ?? '';
+      final String id = event['entityId']?.toString() ?? '';
+      final Object? date = event['activityDate'];
+
+      if (type == 'engagementDay' && dayOk(date)) {
+        final String key = date as String;
+        final DayActivity? cur = days[key];
+        days[key] = DayActivity(
+          xp: math.max(cur?.xp ?? 0, clampInt(event['xp'], _maxDayXp)),
+          lessons: math.max(
+              cur?.lessons ?? 0, clampInt(event['lessons'], _maxDayLessons)),
+          awards: <String>{
+            ...?cur?.awards,
+            ...((event['awards'] as List<dynamic>?) ?? const <dynamic>[])
+                .whereType<String>(),
+          }.toList(),
+          cloud: true,
+        );
+        totalXp = math.max(totalXp, clampInt(event['totalXp'], 1000000));
+        gems = math.max(gems, clampInt(event['gems'], 1000000));
+        for (final Object? f
+            in (event['frozenDays'] as List<dynamic>?) ?? const <dynamic>[]) {
+          if (dayOk(f)) frozen.add(f as String);
+        }
+        for (final String award
+            in ((event['awards'] as List<dynamic>?) ?? const <dynamic>[])
+                .whereType<String>()) {
+          if (Achievements.byId(award) != null) unlocked.add(award);
+        }
+        final String at = event['occurredAt']?.toString() ?? '';
+        if (at.compareTo(latestAt) >= 0) {
+          latestAt = at;
+          latest = event;
+        }
+      } else if ((type == 'lessonCompleted' ||
+              type == 'practiceCompleted' ||
+              type == 'questionAnswered') &&
+          dayOk(date)) {
+        // Activity recorded by the learning module (older app versions, or
+        // another device): it keeps the day, even without XP detail.
+        final String key = date as String;
+        final DayActivity? cur = days[key];
+        days[key] = cur == null
+            ? const DayActivity(cloud: true)
+            : (cur.cloud ? cur : cur.copyWith(cloud: true));
+      }
+
+      if (type == 'lessonCompleted' && id.isNotEmpty) rewarded.add(id);
+      if (type == 'challengeJoined' && id.startsWith('week-')) joined.add(id);
+      if (type == 'challengeClaimed' && id.startsWith('week-')) {
+        joined.add(id);
+        claimed.add(id);
+      }
+    }
+
+    state = state.copyWith(
+      days: days,
+      frozenDays: frozen,
+      unlocked: unlocked,
+      rewardedLessons: rewarded,
+      joinedChallenges: joined,
+      claimedChallenges: claimed,
+      totalXp: totalXp,
+      gems: gems,
+      // Only a brand-new device adopts the cloud's allowance counters; an
+      // existing local record keeps its own.
+      restorationsUsed: (fresh && latest != null)
+          ? clampInt(latest['restorationsUsed'], EngagementState.maxRestorations)
+          : state.restorationsUsed,
+      freezeItems: (fresh && latest != null)
+          ? clampInt(latest['freezeItems'], EngagementState.maxFreezes)
+          : state.freezeItems,
+    );
+    await _persist();
+    await _pushUnsynced();
   }
 
   /// Uses owned streak freezes to bridge days missed since the last learned
@@ -723,7 +1085,7 @@ class EngagementNotifier extends Notifier<EngagementState> {
     DateTime? now,
   }) async {
     await _ready;
-    final DateTime t = now ?? DateTime.now();
+    final DateTime t = _tick(now);
     final _Prep prep = _beginActivity(t);
     final int streakBefore = state.streakInfo(t).count;
     final bool firstTime = !state.rewardedLessons.contains(lessonId);
@@ -754,6 +1116,7 @@ class EngagementNotifier extends Notifier<EngagementState> {
     final int bonus =
         unlocked.fold<int>(0, (int sum, AchievementDef d) => sum + d.bonusXp);
     await _persist();
+    await _emitDay(key);
 
     return LessonReward(
       xpEarned: xp,
@@ -776,7 +1139,7 @@ class EngagementNotifier extends Notifier<EngagementState> {
   Future<List<AchievementDef>> awardXp(int xp, {DateTime? now}) async {
     await _ready;
     if (xp <= 0) return const <AchievementDef>[];
-    final DateTime t = now ?? DateTime.now();
+    final DateTime t = _tick(now);
     _beginActivity(t);
     final String key = dayKey(t);
     final DayActivity day = state.days[key] ?? const DayActivity();
@@ -789,7 +1152,42 @@ class EngagementNotifier extends Notifier<EngagementState> {
     );
     final List<AchievementDef> unlocked = _unlockAchievements(t);
     await _persist();
+    await _emitDay(key);
     return unlocked;
+  }
+
+  /// Joins this week's streak challenge. Returns false if already joined.
+  Future<bool> joinChallenge({DateTime? now}) async {
+    await _ready;
+    final StreakChallenge challenge = StreakChallenge.forDate(_tick(now));
+    if (state.joinedChallenges.contains(challenge.id)) return false;
+    state = state.copyWith(
+      joinedChallenges: <String>{...state.joinedChallenges, challenge.id},
+    );
+    await _persist();
+    await _emitEvent('challengeJoined', challenge.id);
+    return true;
+  }
+
+  /// Collects this week's reward once the goal is reached. The reward is
+  /// paid straight to the totals (it is not a learning day, so it can never
+  /// extend a streak by itself). Returns false if there is nothing to claim.
+  Future<bool> claimChallenge({DateTime? now}) async {
+    await _ready;
+    final StreakChallenge challenge = StreakChallenge.forDate(_tick(now));
+    if (!state.joinedChallenges.contains(challenge.id) ||
+        state.claimedChallenges.contains(challenge.id) ||
+        !challenge.isComplete(state)) {
+      return false;
+    }
+    state = state.copyWith(
+      claimedChallenges: <String>{...state.claimedChallenges, challenge.id},
+      totalXp: state.totalXp + StreakChallenge.rewardXp,
+      gems: state.gems + StreakChallenge.rewardGems,
+    );
+    await _persist();
+    await _emitEvent('challengeClaimed', challenge.id);
+    return true;
   }
 
   /// Buys one streak freeze with gems. Returns false if the learner can't

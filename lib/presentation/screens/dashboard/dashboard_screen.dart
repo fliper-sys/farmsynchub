@@ -24,6 +24,7 @@ import '../../../providers/theme_provider.dart';
 import '../../../providers/user_profile_provider.dart';
 import '../crops/crop_detail_screen.dart';
 import '../livestock/livestock_detail_screen.dart';
+import 'streak_challenge_banner.dart';
 import 'widgets/activity_feed.dart';
 import 'widgets/weather_pill.dart';
 
@@ -181,6 +182,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                       activeFocus: activeFocus,
                       onMeasurements: () => context.go('/farms'),
                     ),
+                    const SizedBox(height: 14),
+                    const StreakChallengeBanner(),
                     const SizedBox(height: 14),
                     _TodayTasksCard(
                       farm: activeFarm,

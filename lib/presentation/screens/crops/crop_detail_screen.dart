@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -23,6 +24,7 @@ import '../../../providers/operations_hub_provider.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/crop_calendar_schedule_widget.dart';
+import '../../common/widgets/detail_ui.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/growth_timeline_widget.dart';
 import '../../common/widgets/photo_journal_widget.dart';
@@ -253,59 +255,181 @@ class _CropDetailScreenState extends ConsumerState<CropDetailScreen> {
         heroIcon: Icons.spa_rounded,
         heroVariant: FarmArtworkVariant.crops,
         heroBadge: '${(progress * 100).round()}% through cycle',
+        showHero: false,
         sections: <Widget>[
-          Container(
-            key: _growthCycleKey,
+          FadeInUp(
             child: RepaintBoundary(
               key: _shareBoundaryKey,
-              child: AppCard(
+              child: DetailHeroCard(
+                leading: crop.profileImageBase64.isNotEmpty
+                    ? Image.memory(
+                        base64Decode(crop.profileImageBase64),
+                        fit: BoxFit.cover,
+                      )
+                    : const Center(
+                        child: Icon(Icons.spa_rounded,
+                            color: Colors.white, size: 36),
+                      ),
+                title: crop.name,
+                subtitle:
+                    '${crop.variety} · ${farm?.name ?? 'Unknown farm'} · ${_stageLabel(crop.currentStage)}',
+                statusLabel: cropWorkStatus,
+                statusColor: overdueTasks > 0
+                    ? const Color(0xFFFF8A80)
+                    : priorityTasks > 0
+                        ? const Color(0xFFFFD54F)
+                        : const Color(0xFF8CF0B0),
+                ringValue: progress,
+                ringText: '${(progress * 100).round()}%',
+                ringCaption:
+                    language.tr(en: 'of cycle', ha: 'na zagaye', fr: 'du cycle'),
+                ringColor: const Color(0xFF8CF0B0),
+                stats: <HeroStat>[
+                  HeroStat(
+                    icon: Icons.crop_square_rounded,
+                    label: language.tr(en: 'Area', ha: 'Fadi', fr: 'Surface'),
+                    value: '${crop.areaHa.toStringAsFixed(2)} ha',
+                  ),
+                  HeroStat(
+                    icon: Icons.event_available_rounded,
+                    label: language.tr(
+                        en: 'Harvest', ha: 'Girbi', fr: 'Récolte'),
+                    value: crop.daysToHarvest >= 0
+                        ? '${crop.daysToHarvest} days'
+                        : language.tr(en: 'Open now', ha: 'A bude', fr: 'Ouverte'),
+                  ),
+                  HeroStat(
+                    icon: Icons.grass_rounded,
+                    label: language.tr(
+                        en: hasActualYield ? 'Harvested' : 'Target',
+                        ha: 'Amfani',
+                        fr: hasActualYield ? 'Récolté' : 'Objectif'),
+                    value: referenceYieldKg > 0
+                        ? '${referenceYieldKg.toStringAsFixed(0)} kg'
+                        : language.tr(en: 'Not set', ha: 'Ba a saita', fr: 'Non défini'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          FadeInUp(
+            index: 1,
+            child: _buildCropAttention(
+              language: language,
+              crop: crop,
+              overdueTasks: overdueTasks,
+              priorityTasks: priorityTasks,
+              hasActualYield: hasActualYield,
+              advice: _stageAdvice(crop.currentStage),
+            ),
+          ),
+          const SizedBox(height: 14),
+          FadeInUp(
+            index: 2,
+            child: QuickActionRow(
+              actions: <QuickAction>[
+                QuickAction(
+                  icon: Icons.agriculture_rounded,
+                  label: language.tr(
+                      en: 'Record harvest', ha: 'Rubuta girbi', fr: 'Récolte'),
+                  highlight: !hasActualYield && crop.daysToHarvest <= 7,
+                  onTap: () => _openHarvestSheet(context, ref, crop!),
+                ),
+                QuickAction(
+                  icon: Icons.checklist_rounded,
+                  label: language.tr(
+                      en: 'Field tasks', ha: 'Ayyukan gona', fr: 'Tâches'),
+                  highlight: overdueTasks > 0,
+                  onTap: () => _jump(_fieldTasksKey),
+                ),
+                QuickAction(
+                  icon: Icons.inventory_2_rounded,
+                  label: language.tr(
+                      en: 'Inputs', ha: 'Kayan aiki', fr: 'Intrants'),
+                  onTap: () => _jump(_recentInputsKey),
+                ),
+                QuickAction(
+                  icon: Icons.calendar_month_rounded,
+                  label: language.tr(
+                      en: 'Calendar', ha: 'Kalanda', fr: 'Calendrier'),
+                  onTap: () => _jump(_calendarScheduleKey),
+                ),
+                QuickAction(
+                  icon: Icons.photo_camera_rounded,
+                  label: language.tr(en: 'Photos', ha: 'Hotuna', fr: 'Photos'),
+                  onTap: () => _jump(_photoJournalKey),
+                ),
+                QuickAction(
+                  icon: Icons.auto_awesome_rounded,
+                  label: language.tr(en: 'Ask AI', ha: 'AI', fr: 'IA'),
+                  onTap: () => _jump(_aiRecommendationsKey),
+                ),
+                QuickAction(
+                  icon: Icons.autorenew_rounded,
+                  label: language.tr(
+                      en: 'Renew crop', ha: 'Sabunta', fr: 'Renouveler'),
+                  onTap: () => _renewCrop(context, ref, crop!),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          SectionJumpBar(sections: _mappedSections(language)),
+          const SizedBox(height: 18),
+          Container(
+            key: _growthCycleKey,
+            child: AppCard(
               color: theme.colorScheme.surfaceContainerHighest,
               child: Padding(
                 padding: const EdgeInsets.all(18),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            language.tr(
-                                en: 'Growth cycle',
-                                ha: 'Zagayen girma',
-                                fr: 'Cycle de croissance'),
-                            style: theme.textTheme.titleLarge,
-                          ),
-                        ),
-                        _Pill(
-                            text: _stageLabel(crop.currentStage),
-                            color: const Color(0xFFE8F4D8)),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 10,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    const SizedBox(height: 10),
                     Text(
-                      'Day ${crop.daysSincePlanting.clamp(0, crop.cycleLengthDays)} of ${crop.cycleLengthDays} planned days. ${crop.daysToHarvest >= 0 ? '${crop.daysToHarvest} days to harvest.' : 'Harvest window is open.'}',
-                      style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+                      language.tr(
+                          en: 'Growth cycle',
+                          ha: 'Zagayen girma',
+                          fr: 'Cycle de croissance'),
+                      style: theme.textTheme.titleLarge,
                     ),
                     const SizedBox(height: 16),
-                    ...cycle.map(
-                      (_CyclePoint point) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _CycleListTile(
-                          title: point.title,
-                          subtitle: point.subtitle,
-                          isActive: point.isActive,
-                        ),
-                      ),
+                    StageStepper(
+                      steps: <StageStep>[
+                        for (int i = 0; i < cycle.length; i++)
+                          StageStep(
+                            label: cycle[i].title,
+                            icon: _cropStageIcon(i),
+                          ),
+                      ],
+                      currentIndex: cycle.lastIndexWhere(
+                                  (_CyclePoint p) => p.isActive) <
+                              0
+                          ? 0
+                          : cycle.lastIndexWhere((_CyclePoint p) => p.isActive),
+                      progressInStage: ((progress * (cycle.length - 1)) -
+                              (cycle.lastIndexWhere(
+                                          (_CyclePoint p) => p.isActive) <
+                                      0
+                                  ? 0
+                                  : cycle.lastIndexWhere(
+                                      (_CyclePoint p) => p.isActive)))
+                          .clamp(0.0, 1.0)
+                          .toDouble(),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Day ${crop.daysSincePlanting.clamp(0, crop.cycleLengthDays)} of ${crop.cycleLengthDays} planned days. ${crop.daysToHarvest >= 0 ? '${crop.daysToHarvest} days to harvest.' : 'Harvest window is open.'}',
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w700, height: 1.5),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _stageAdvice(crop.currentStage),
+                      style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
                     ),
                   ],
                 ),
-              ),
               ),
             ),
           ),
@@ -687,6 +811,92 @@ class _CropDetailScreenState extends ConsumerState<CropDetailScreen> {
     ); // end of Scaffold
   }
 
+  void _jump(GlobalKey key) {
+    final BuildContext? target = key.currentContext;
+    if (target == null) return;
+    Scrollable.ensureVisible(
+      target,
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeInOutCubic,
+      alignment: 0.06,
+    );
+  }
+
+  Widget _buildCropAttention({
+    required AppLanguage language,
+    required Crop crop,
+    required int overdueTasks,
+    required int priorityTasks,
+    required bool hasActualYield,
+    required String advice,
+  }) {
+    if (overdueTasks > 0) {
+      return AttentionBanner(
+        level: AttentionLevel.urgent,
+        title:
+            '$overdueTasks overdue field ${overdueTasks == 1 ? 'task' : 'tasks'}',
+        message: 'Late scouting, watering or feeding can cost yield. Catch up first.',
+        actions: <AttentionAction>[
+          AttentionAction(
+              label: language.tr(
+                  en: 'View tasks', ha: 'Duba ayyuka', fr: 'Voir tâches'),
+              onTap: () => _jump(_fieldTasksKey)),
+        ],
+      );
+    }
+    if (!hasActualYield && crop.daysToHarvest < 0) {
+      return AttentionBanner(
+        level: AttentionLevel.urgent,
+        title: language.tr(
+            en: 'Harvest window is open',
+            ha: 'Lokacin girbi ya yi',
+            fr: 'La fenêtre de récolte est ouverte'),
+        message: 'Harvest on time to protect quality and price, then record it here.',
+        actions: <AttentionAction>[
+          AttentionAction(
+              label: language.tr(
+                  en: 'Record harvest', ha: 'Rubuta girbi', fr: 'Enregistrer'),
+              onTap: () => _openHarvestSheet(context, ref, crop)),
+        ],
+      );
+    }
+    if (!hasActualYield && crop.daysToHarvest <= 7) {
+      return AttentionBanner(
+        level: AttentionLevel.notice,
+        title: 'Harvest in ${crop.daysToHarvest} days',
+        message: 'Prepare labour, storage and transport before the window opens.',
+        actions: <AttentionAction>[
+          AttentionAction(
+              label: language.tr(
+                  en: 'Open calendar', ha: 'Bude kalanda', fr: 'Calendrier'),
+              onTap: () => _jump(_calendarScheduleKey)),
+        ],
+      );
+    }
+    if (priorityTasks > 0) {
+      return AttentionBanner(
+        level: AttentionLevel.notice,
+        title:
+            '$priorityTasks high-priority ${priorityTasks == 1 ? 'task' : 'tasks'}',
+        message: 'Plan these for today.',
+        actions: <AttentionAction>[
+          AttentionAction(
+              label: language.tr(
+                  en: 'View tasks', ha: 'Duba ayyuka', fr: 'Voir tâches'),
+              onTap: () => _jump(_fieldTasksKey)),
+        ],
+      );
+    }
+    return AttentionBanner(
+      level: AttentionLevel.good,
+      title: language.tr(
+          en: 'Crop is on track',
+          ha: 'Amfanin gona yana tafiya daidai',
+          fr: 'La culture est en bonne voie'),
+      message: advice,
+    );
+  }
+
   Future<void> _toggleFavorite(Crop crop) async {
     await ref.read(cropsProvider.notifier).updateCrop(
           crop.copyWith(
@@ -912,6 +1122,17 @@ List<_CyclePoint> _buildCropCycle(CropStage currentStage) {
         ),
       )
       .toList(growable: false);
+}
+
+IconData _cropStageIcon(int index) {
+  const List<IconData> icons = <IconData>[
+    Icons.grain_rounded,
+    Icons.spa_rounded,
+    Icons.eco_rounded,
+    Icons.local_florist_rounded,
+    Icons.apple_rounded,
+  ];
+  return icons[index.clamp(0, icons.length - 1).toInt()];
 }
 
 String _stageLabel(CropStage stage) {
