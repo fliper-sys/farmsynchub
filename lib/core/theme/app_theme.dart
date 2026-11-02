@@ -166,6 +166,21 @@ abstract final class AppTheme {
           ? AppColors.surfaceLight
           : AppColors.darkPrimaryBackground,
       textTheme: textTheme,
+      // Smoother, more modern motion and feedback across the whole app.
+      splashFactory: InkSparkle.splashFactory,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: <TargetPlatform, PageTransitionsBuilder>{
+          TargetPlatform.android: ZoomPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
       cardTheme: CardThemeData(
         color: brightness == Brightness.light
             ? AppColors.surfaceLightCard

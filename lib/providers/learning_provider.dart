@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'engagement_provider.dart';
 import 'firebase_learning_sync.dart';
 
 class CertificateRecord {
@@ -80,34 +81,9 @@ class LearningState {
   /// qualifying learning action. Dates are captured before any cloud sync.
   final Set<String> activeDays;
 
-  int get currentStreak {
-    if (activeDays.isEmpty) return 0;
-    final Set<DateTime> days = activeDays.map(_dateOnly).toSet();
-    DateTime cursor = _dateOnly(DateTime.now());
-    if (!days.contains(cursor)) cursor = cursor.subtract(const Duration(days: 1));
-    if (!days.contains(cursor)) return 0;
-    int count = 0;
-    while (days.contains(cursor)) {
-      count++;
-      cursor = cursor.subtract(const Duration(days: 1));
-    }
-    return count;
-  }
-
-  int get longestStreak {
-    if (activeDays.isEmpty) return 0;
-    final List<DateTime> days = activeDays.map(_dateOnly).toList()..sort();
-    int best = 1;
-    int run = 1;
-    for (int i = 1; i < days.length; i++) {
-      final int gap = days[i].difference(days[i - 1]).inDays;
-      if (gap == 1) { run++; } else if (gap > 1) { run = 1; }
-      if (run > best) best = run;
-    }
-    return best;
-  }
-
-  static DateTime _dateOnly(DateTime date) => DateTime.utc(date.year, date.month, date.day);
+  // Streaks are NOT computed here. `engagementProvider` is the single source
+  // of truth (it also knows about freezes, restorations and the clock guard);
+  // `activeDays` is only the activity log that is synced to the cloud.
 
   /// False until saved progress has been read from disk.
   final bool isLoaded;
@@ -414,6 +390,9 @@ class LearningNotifier extends Notifier<LearningState> {
       _reviewedQuestionsKey, _correctQuestionsKey, _skippedQuestionsKey,
       _skippedLessonsKey, _earnedCertificatesKey, _learnerNameKey, _activeDaysKey,
     });
+    // The same cloud history feeds the engagement record, which owns the
+    // streak. It is merged in (never replaced), so offline progress stays.
+    await ref.read(engagementProvider.notifier).mergeRemote(ordered);
   }
 
   Future<void> _load() async {
@@ -574,7 +553,16 @@ class LearningNotifier extends Notifier<LearningState> {
     return date;
   }
 
-  Future<void> completeLesson(String lessonId, {String? lessonTitle}) async {
+  /// Marks a lesson complete, issues its certificate and pays XP / streak
+  /// credit through the engagement record. [correctAnswers] and
+  /// [totalQuestions] default to what the learner actually answered in this
+  /// lesson. Returns the reward so the caller can celebrate it.
+  Future<LessonReward> completeLesson(
+    String lessonId, {
+    String? lessonTitle,
+    int? correctAnswers,
+    int? totalQuestions,
+  }) async {
     await _ready;
     final Set<String> completedLessons = <String>{
       ...state.completedLessons,
@@ -615,6 +603,17 @@ class LearningNotifier extends Notifier<LearningState> {
       _skippedLessonsKey,
       _earnedCertificatesKey,
     });
+
+    final String prefix = '$lessonId::';
+    final int answered =
+        state.reviewedQuestions.where((String k) => k.startsWith(prefix)).length;
+    final int right =
+        state.correctQuestions.where((String k) => k.startsWith(prefix)).length;
+    return ref.read(engagementProvider.notifier).recordLessonComplete(
+          lessonId: lessonId,
+          correctAnswers: correctAnswers ?? right,
+          totalQuestions: totalQuestions ?? answered,
+        );
   }
 
   Future<void> completePractice(String practiceId) =>
@@ -623,6 +622,7 @@ class LearningNotifier extends Notifier<LearningState> {
   Future<void> setPracticeCompleted(String practiceId, bool completed) async {
     await _ready;
     final Set<String> practices = <String>{...state.completedPractices};
+    final bool firstTime = completed && !practices.contains(practiceId);
     if (completed) {
       practices.add(practiceId);
     } else {
@@ -635,6 +635,9 @@ class LearningNotifier extends Notifier<LearningState> {
       <String, dynamic>{'entityId': practiceId, if (activityDate != null) 'activityDate': activityDate},
     );
     await _persist(<String>{_completedPracticesKey});
+    if (firstTime) {
+      await ref.read(engagementProvider.notifier).awardXp(5);
+    }
   }
 
   Future<void> markShared(String itemId) async {
@@ -655,6 +658,7 @@ class LearningNotifier extends Notifier<LearningState> {
   }) async {
     await _ready;
     final String key = '$lessonId::$questionId';
+    final bool firstAnswer = !state.reviewedQuestions.contains(key);
     state = state.copyWith(
       reviewedQuestions: <String>{...state.reviewedQuestions, key},
       correctQuestions: correct
@@ -674,6 +678,10 @@ class LearningNotifier extends Notifier<LearningState> {
       _skippedQuestionsKey,
       _skippedLessonsKey,
     });
+    // Answering a question for the first time keeps the streak alive (1 XP).
+    if (firstAnswer) {
+      await ref.read(engagementProvider.notifier).awardXp(1);
+    }
   }
 
   /// Marks a question as skipped. Skipping never counts as progress.
