@@ -1967,7 +1967,7 @@ LearningLesson? findLearningLessonById(String id) {
   return null;
 }
 
-final List<LearningLesson> _learningLessons = <LearningLesson>[
+final List<LearningLesson> _baseLearningLessons = <LearningLesson>[
   const LearningLesson(
     id: 'soil-moisture',
     title: 'Managing soil moisture',
@@ -13554,7 +13554,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
     tint: Color(0xFFE8F4D8),
     track: AppStrings.weatherForecast,
     difficulty: 'Intermediate',
-    icon: Icons.rainy_rounded,
+    icon: Icons.grain_rounded,
     imageAsset: AppAssets.uiGallery01,
     overview: "A rain gauge provides a local measurement of rainfall at one location. It does not represent every part of a large or varied farm. Gauge placement, reading time, blockage and overflow affect accuracy. Pair rainfall readings with soil observations because the same rainfall can produce different infiltration and runoff under different soils and land cover. By the end of this lesson, you should be able to describe the purpose of measure rainfall and observe runoff, prepare the work safely, carry it out in a consistent sequence, identify an observable result, and decide what to adjust using dated records. Adapt rates, timing, varieties, equipment and legal requirements to the crop or species, site conditions and current local extension guidance.",
     steps: <String>[
@@ -17366,8 +17366,11 @@ const List<LearningTrack> _learningTracks = <LearningTrack>[
     color: Color(0xFFEDE8FF),
     summary: 'Digital records, data quality, performance indicators, backups and traceability.',
   ),
+  ];
+
+const List<LearningLesson> _additionalLearningLessons = <LearningLesson>[
   // Third academy expansion: additional crop, livestock, business and resilience lessons.
-  const LearningLesson(
+  LearningLesson(
     id: 'onion-curing',
     title: 'Onion production and bulb curing',
     subtitle: 'Practical field guide: curing.',
@@ -33336,6 +33339,11 @@ const List<LearningTrack> _learningTracks = <LearningTrack>[
       "Phone camera for repeatable observations",
     ],
   ),
+];
+
+final List<LearningLesson> _learningLessons = <LearningLesson>[
+  ..._baseLearningLessons,
+  ..._additionalLearningLessons,
 ];
 
 const List<PracticeActivity> _practiceActivities = <PracticeActivity>[

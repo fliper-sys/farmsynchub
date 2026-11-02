@@ -63,15 +63,12 @@ class _LessonCompleteScreenState extends ConsumerState<LessonCompleteScreen> {
   }
 
   Future<void> _record() async {
-    // Keep certificate and completion tracking in the learning provider.
-    await ref.read(learningProvider.notifier).completeLesson(
-          widget.lessonId,
-          lessonTitle: widget.lessonTitle,
-        );
-    // XP, streak and achievements are tracked by the engagement provider.
+    // Certificate, XP, streak and achievements are all paid out by the
+    // learning provider, which hands the engagement record the result.
     final LessonReward reward =
-        await ref.read(engagementProvider.notifier).recordLessonComplete(
-              lessonId: widget.lessonId,
+        await ref.read(learningProvider.notifier).completeLesson(
+              widget.lessonId,
+              lessonTitle: widget.lessonTitle,
               correctAnswers: widget.correctAnswers,
               totalQuestions: widget.totalQuestions,
             );
