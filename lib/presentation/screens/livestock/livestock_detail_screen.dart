@@ -113,107 +113,107 @@ class LivestockDetailScreen extends ConsumerWidget {
     // equality, so these stay stable across rebuilds even though this is a
     // stateless ConsumerWidget (a plain GlobalKey() here would be recreated
     // on every rebuild and would never match the mounted section widgets).
-    final GlobalKey _workFocusKey = GlobalObjectKey('workFocus_$livestockId');
-    final GlobalKey _growthCycleKey =
+    final GlobalKey workFocusKey = GlobalObjectKey('workFocus_$livestockId');
+    final GlobalKey growthCycleKey =
         GlobalObjectKey('growthCycle_$livestockId');
-    final GlobalKey _groupProfileKey =
+    final GlobalKey groupProfileKey =
         GlobalObjectKey('groupProfile_$livestockId');
-    final GlobalKey _operatingRatiosKey =
+    final GlobalKey operatingRatiosKey =
         GlobalObjectKey('operatingRatios_$livestockId');
-    final GlobalKey _feedingPlanKey =
+    final GlobalKey feedingPlanKey =
         GlobalObjectKey('feedingPlan_$livestockId');
-    final GlobalKey _vaccinationKey =
+    final GlobalKey vaccinationKey =
         GlobalObjectKey('vaccination_$livestockId');
-    final GlobalKey _productionLogKey =
+    final GlobalKey productionLogKey =
         GlobalObjectKey('productionLog_$livestockId');
-    final GlobalKey _weightGainKey =
+    final GlobalKey weightGainKey =
         GlobalObjectKey('weightGain_$livestockId');
-    final GlobalKey _photoJournalKey =
+    final GlobalKey photoJournalKey =
         GlobalObjectKey('photoJournal_$livestockId');
-    final GlobalKey _careTasksKey = GlobalObjectKey('careTasks_$livestockId');
-    final GlobalKey _recentInputsKey =
+    final GlobalKey careTasksKey = GlobalObjectKey('careTasks_$livestockId');
+    final GlobalKey recentInputsKey =
         GlobalObjectKey('recentInputs_$livestockId');
-    final GlobalKey _aiRecommendationsKey =
+    final GlobalKey aiRecommendationsKey =
         GlobalObjectKey('aiRecommendations_$livestockId');
 
     final List<SectionEntry> sections = <SectionEntry>[
       SectionEntry(
           title: language.tr(
               en: 'Work focus', ha: 'Manufar aiki', fr: 'Priorites de travail'),
-          sectionKey: _workFocusKey,
+          sectionKey: workFocusKey,
           icon: Icons.assignment),
       SectionEntry(
           title: language.tr(
               en: 'Growth cycle',
               ha: 'Zagayen girma',
               fr: 'Cycle de croissance'),
-          sectionKey: _growthCycleKey,
+          sectionKey: growthCycleKey,
           icon: Icons.timeline),
       SectionEntry(
           title: language.tr(
               en: 'Group profile',
               ha: 'Bayanin kungiya',
               fr: 'Profil du groupe'),
-          sectionKey: _groupProfileKey,
+          sectionKey: groupProfileKey,
           icon: Icons.group),
       SectionEntry(
           title: language.tr(
               en: 'Operating ratios',
               ha: 'Ma\'aunin aiki',
               fr: 'Ratios operationnels'),
-          sectionKey: _operatingRatiosKey,
+          sectionKey: operatingRatiosKey,
           icon: Icons.bar_chart),
       SectionEntry(
           title: language.tr(
               en: 'Feeding Plan',
               ha: 'Tsarin Ciyarwa',
               fr: 'Plan d\'alimentation'),
-          sectionKey: _feedingPlanKey,
+          sectionKey: feedingPlanKey,
           icon: Icons.restaurant),
       SectionEntry(
           title: language.tr(
               en: 'Vaccination & Health',
               ha: 'Alurar Riga Kafi & Lafiya',
               fr: 'Vaccination et sante'),
-          sectionKey: _vaccinationKey,
+          sectionKey: vaccinationKey,
           icon: Icons.health_and_safety),
       SectionEntry(
           title: language.tr(
               en: 'Production log',
               ha: 'Tarihin samarwa',
               fr: 'Journal de production'),
-          sectionKey: _productionLogKey,
+          sectionKey: productionLogKey,
           icon: Icons.fact_check),
       SectionEntry(
           title: language.tr(
               en: 'Weight Gain Chart',
               ha: 'Ginshikin Kara Nauyi',
               fr: 'Graphique de prise de poids'),
-          sectionKey: _weightGainKey,
+          sectionKey: weightGainKey,
           icon: Icons.show_chart),
       SectionEntry(
           title: language.tr(
               en: 'Photo Journal', ha: 'Littafin Hoto', fr: 'Journal photo'),
-          sectionKey: _photoJournalKey,
+          sectionKey: photoJournalKey,
           icon: Icons.photo_library),
       SectionEntry(
           title: language.tr(
               en: 'Care tasks', ha: 'Ayyukan kulawa', fr: 'Taches de soins'),
-          sectionKey: _careTasksKey,
+          sectionKey: careTasksKey,
           icon: Icons.task_alt),
       SectionEntry(
           title: language.tr(
               en: 'Recent inputs',
               ha: 'Kayan da aka yi amfani da su kwanan nan',
               fr: 'Intrants recents'),
-          sectionKey: _recentInputsKey,
+          sectionKey: recentInputsKey,
           icon: Icons.inventory_2),
       SectionEntry(
           title: language.tr(
               en: 'AI Recommendations',
               ha: 'Shawarwarin AI',
               fr: 'Recommandations IA'),
-          sectionKey: _aiRecommendationsKey,
+          sectionKey: aiRecommendationsKey,
           icon: Icons.auto_awesome),
     ];
 
@@ -336,6 +336,45 @@ class LivestockDetailScreen extends ConsumerWidget {
               vaccinationKey: _vaccinationKey,
             ),
           ),
+          const SizedBox(height: 18),
+          SoftSectionTitle(
+              title: language.tr(
+                  en: 'Work focus',
+                  ha: 'Manufar aiki',
+                  fr: 'Priorites de travail')),
+          Container(
+            key: workFocusKey,
+            child: AppCard(
+              color: theme.colorScheme.surfaceContainerHighest,
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: <Widget>[
+                    _MetaChip(
+                      text: livestockWorkStatus,
+                      emphasizedColor:
+                          _workStatusColor(overdueTasks, priorityTasks),
+                      onTap: () => _scrollToKey(context, careTasksKey),
+                    ),
+                    _MetaChip(
+                      text: '$overdueTasks overdue',
+                      onTap: () => _scrollToKey(context, careTasksKey),
+                    ),
+                    _MetaChip(
+                      text: '$priorityTasks high priority',
+                      onTap: () => _scrollToKey(context, careTasksKey),
+                    ),
+                    _MetaChip(
+                      text: '${livestock.openTaskCount} open reminders',
+                      onTap: () => _scrollToKey(context, careTasksKey),
+                    ),
+                    _MetaChip(
+                      text: logs.isEmpty
+                          ? 'No production logs'
+                          : '${logs.length} production logs',
+                      onTap: () => _scrollToKey(context, productionLogKey),
           const SizedBox(height: 14),
           FadeInUp(
             index: 2,
@@ -393,7 +432,7 @@ class LivestockDetailScreen extends ConsumerWidget {
           const SizedBox(height: 18),
           Container(key: _workFocusKey, height: 0),
           Container(
-            key: _growthCycleKey,
+            key: growthCycleKey,
             child: AppCard(
               color: theme.colorScheme.surfaceContainerHighest,
               child: Padding(
@@ -449,7 +488,7 @@ class LivestockDetailScreen extends ConsumerWidget {
                   ha: 'Bayanin kungiya',
                   fr: 'Profil du groupe')),
           Container(
-            key: _groupProfileKey,
+            key: groupProfileKey,
             child: Row(
             children: <Widget>[
               Expanded(
@@ -508,7 +547,7 @@ class LivestockDetailScreen extends ConsumerWidget {
                   ha: 'Ma\'aunin aiki',
                   fr: 'Ratios operationnels')),
           Container(
-            key: _operatingRatiosKey,
+            key: operatingRatiosKey,
             child: Row(
             children: <Widget>[
               Expanded(
@@ -594,21 +633,21 @@ class LivestockDetailScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Container(key: _feedingPlanKey, child: FeedingPlanWidget(livestock: livestock)),
+          Container(key: feedingPlanKey, child: FeedingPlanWidget(livestock: livestock)),
           const SizedBox(height: 18),
           SoftSectionTitle(
               title: language.tr(
                   en: 'Vaccination & Health',
                   ha: 'Alurar Riga Kafi & Lafiya',
                   fr: 'Vaccination et sante')),
-          Container(key: _vaccinationKey, child: VaccinationCalendarWidget(livestock: livestock)),
+          Container(key: vaccinationKey, child: VaccinationCalendarWidget(livestock: livestock)),
           const SizedBox(height: 18),
           SoftSectionTitle(
               title: language.tr(
                   en: 'Production log',
                   ha: 'Tarihin samarwa',
                   fr: 'Journal de production')),
-          Container(key: _productionLogKey, height: 0),
+          Container(key: productionLogKey, height: 0),
           if (logs.isEmpty)
             _InfoCard(
               message: language.tr(
@@ -644,7 +683,7 @@ class LivestockDetailScreen extends ConsumerWidget {
                   ha: 'Ginshikin Kara Nauyi',
                   fr: 'Graphique de prise de poids')),
           Container(
-              key: _weightGainKey,
+              key: weightGainKey,
               child: WeightGainChartWidget(livestock: livestock)),
           const SizedBox(height: 18),
           SoftSectionTitle(
@@ -653,7 +692,7 @@ class LivestockDetailScreen extends ConsumerWidget {
                   ha: 'Littafin Hoto',
                   fr: 'Journal photo')),
           Container(
-              key: _photoJournalKey,
+              key: photoJournalKey,
               child: PhotoJournalWidget(livestock: livestock)),
           const SizedBox(height: 18),
           SoftSectionTitle(
@@ -661,7 +700,7 @@ class LivestockDetailScreen extends ConsumerWidget {
                   en: 'Care tasks',
                   ha: 'Ayyukan kulawa',
                   fr: 'Taches de soins')),
-          Container(key: _careTasksKey, height: 0),
+          Container(key: careTasksKey, height: 0),
           if (openTasks.isEmpty)
             _InfoCard(
               message: language.tr(
@@ -683,7 +722,7 @@ class LivestockDetailScreen extends ConsumerWidget {
                   en: 'Recent inputs',
                   ha: 'Kayan da aka yi amfani da su kwanan nan',
                   fr: 'Intrants recents')),
-          Container(key: _recentInputsKey, height: 0),
+          Container(key: recentInputsKey, height: 0),
           if (livestock.inputRecords.isEmpty)
             _InfoCard(
               message: language.tr(
@@ -706,7 +745,7 @@ class LivestockDetailScreen extends ConsumerWidget {
                   ha: 'Shawarwarin AI',
                   fr: 'Recommandations IA')),
           Container(
-              key: _aiRecommendationsKey,
+              key: aiRecommendationsKey,
               child: AiRecommendationsWidget(livestock: livestock)),
         ],
       ),

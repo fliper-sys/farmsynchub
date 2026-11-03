@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lottie/lottie.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_assets.dart';
@@ -623,14 +624,12 @@ class LearnLessonDetailScreen extends ConsumerWidget {
                               .read(learningProvider)
                               .certificateForLesson(lesson.id);
                           if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                  content: Text(language.tr(
-                                      en: 'Lesson completed. Award progress updated.',
-                                      ha: 'An kammala darasi. An sabunta ci gaban kyauta.',
-                                      fr: 'Lecon terminee. Progression des recompenses mise a jour.'))),
+                            await showDialog<void>(
+                              context: context,
+                              builder: (_) =>
+                                  _LessonCompletionDialog(language: language),
                             );
-                            if (record != null) {
+                            if (context.mounted && record != null) {
                               Navigator.of(context).push(
                                 MaterialPageRoute<void>(
                                   builder: (_) => LessonCertificateScreen(
@@ -944,6 +943,50 @@ class LearnPracticeDetailScreen extends ConsumerWidget {
   }
 }
 
+class _LessonCompletionDialog extends StatelessWidget {
+  const _LessonCompletionDialog({required this.language});
+
+  final AppLanguage language;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(language.tr(
+        en: 'Lesson completed!',
+        ha: 'An kammala darasi!',
+        fr: 'Lecon terminee !',
+      )),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Lottie.asset(
+            'assets/Confetti.json',
+            width: 200,
+            height: 112,
+            fit: BoxFit.contain,
+            repeat: false,
+          ),
+          Text(language.tr(
+            en: 'Award progress updated. Keep up the great work!',
+            ha: 'An sabunta ci gaban kyaututtuka. Ci gaba da kokari!',
+            fr: 'Progression des recompenses mise a jour. Continuez ainsi !',
+          )),
+        ],
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(language.tr(
+            en: 'Continue',
+            ha: 'Ci gaba',
+            fr: 'Continuer',
+          )),
+        ),
+      ],
+    );
+  }
+}
+
 class _AwardsBoard extends StatelessWidget {
   const _AwardsBoard({required this.language, required this.learning});
 
@@ -961,8 +1004,8 @@ class _AwardsBoard extends StatelessWidget {
             ha: 'Kammala darasi daya',
             fr: 'Terminer une lecon'),
         unlocked: learning.completedLessons.isNotEmpty,
-        icon: Icons.school_rounded,
         tint: const Color(0xFFDFF1FF),
+        trophyAsset: 'assets/Trophy.json',
       ),
       _AwardData(
         title: language.tr(
@@ -974,8 +1017,8 @@ class _AwardsBoard extends StatelessWidget {
             ha: 'Kammala darussa uku',
             fr: 'Terminer trois lecons'),
         unlocked: learning.completedLessons.length >= 3,
-        icon: Icons.workspace_premium_rounded,
         tint: const Color(0xFFE8F4D8),
+        trophyAsset: 'assets/Trophy1.json',
       ),
       _AwardData(
         title: language.tr(
@@ -985,8 +1028,8 @@ class _AwardsBoard extends StatelessWidget {
             ha: 'Kammala atisaye biyu',
             fr: 'Terminer deux exercices'),
         unlocked: learning.completedPractices.length >= 2,
-        icon: Icons.fact_check_rounded,
         tint: const Color(0xFFFFEBCF),
+        trophyAsset: 'assets/Trophy2.json',
       ),
       _AwardData(
         title: language.tr(
@@ -998,8 +1041,8 @@ class _AwardsBoard extends StatelessWidget {
             ha: 'Raba jagora daya',
             fr: 'Partager un guide'),
         unlocked: learning.sharedItems.isNotEmpty,
-        icon: Icons.groups_rounded,
         tint: const Color(0xFFEDE8FF),
+        trophyAsset: 'assets/Trophy.json',
       ),
     ];
 
@@ -1043,12 +1086,16 @@ class _AwardCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: theme.colorScheme.outlineVariant),
                   ),
-                  child: Icon(
-                    award.unlocked ? award.icon : Icons.lock_outline_rounded,
-                    color: award.unlocked
-                        ? AppColors.primary
-                        : theme.colorScheme.onSurfaceVariant,
-                  ),
+                  child: award.unlocked
+                      ? Lottie.asset(
+                          award.trophyAsset,
+                          fit: BoxFit.contain,
+                          repeat: true,
+                        )
+                      : Icon(
+                          Icons.lock_outline_rounded,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                 ),
                 const Spacer(),
                 Icon(
@@ -1848,15 +1895,15 @@ class _AwardData {
     required this.title,
     required this.detail,
     required this.unlocked,
-    required this.icon,
     required this.tint,
+    required this.trophyAsset,
   });
 
   final String title;
   final String detail;
   final bool unlocked;
-  final IconData icon;
   final Color tint;
+  final String trophyAsset;
 }
 
 class LearningLesson {

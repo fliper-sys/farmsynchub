@@ -716,6 +716,51 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
         .set(data, SetOptions(merge: true));
   }
 
+  Future<Map<String, bool>> getNotificationReadStates(String userId) async {
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('notification_read_states')
+        .get();
+    return <String, bool>{
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> document
+          in snapshot.docs)
+        document.id: document.data()['isRead'] as bool? ?? false,
+    };
+  }
+
+  Future<void> saveNotificationReadStates(
+    String userId,
+    Map<String, bool> readStates,
+  ) async {
+    if (userId.isEmpty || readStates.isEmpty) {
+      return;
+    }
+
+    final List<MapEntry<String, bool>> entries = readStates.entries.toList();
+    for (int offset = 0; offset < entries.length; offset += 500) {
+      final WriteBatch batch = _firestore.batch();
+      final List<MapEntry<String, bool>> chunk =
+          entries.skip(offset).take(500).toList(growable: false);
+      for (final MapEntry<String, bool> entry in chunk) {
+        final DocumentReference<Map<String, dynamic>> document = _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('notification_read_states')
+            .doc(entry.key);
+        batch.set(
+          document,
+          <String, dynamic>{
+            'isRead': entry.value,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      }
+      await batch.commit();
+    }
+  }
+
   Future<void> sendBroadcastNotification({
     required String title,
     required String message,

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
@@ -22,11 +23,12 @@ final notificationsProvider =
 class NotificationsNotifier extends StateNotifier<List<Notification>> {
   NotificationsNotifier(this._firebaseService, this._currentUserId)
       : super([]) {
-    _loadNotifications();
+    _initialLoad = _loadNotifications();
   }
 
   final FirebaseService _firebaseService;
   final String? _currentUserId;
+  late final Future<void> _initialLoad;
   static const String _notificationsKey = 'notifications';
   static const String _remoteCollection = 'app_notifications';
   final _uuid = const Uuid();
@@ -52,6 +54,8 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
         .toList();
     final List<Notification> remoteNotifications =
         await _loadRemoteNotifications();
+    final Map<String, bool> remoteReadStates =
+        await _loadRemoteNotificationReadStates();
     if (!mounted) {
       return;
     }
@@ -64,10 +68,21 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
     for (final Notification remoteNotification in remoteNotifications) {
       final Notification? existing = merged[remoteNotification.id];
       if (existing != null) {
-        merged[remoteNotification.id] =
-            remoteNotification.copyWith(isRead: existing.isRead);
+        merged[remoteNotification.id] = remoteNotification.copyWith(
+          isRead: remoteReadStates[remoteNotification.id] ?? existing.isRead,
+        );
       } else {
-        merged[remoteNotification.id] = remoteNotification;
+        merged[remoteNotification.id] = remoteNotification.copyWith(
+          isRead: remoteReadStates[remoteNotification.id] ??
+              remoteNotification.isRead,
+        );
+      }
+    }
+
+    for (final MapEntry<String, bool> readState in remoteReadStates.entries) {
+      final Notification? existing = merged[readState.key];
+      if (existing != null) {
+        merged[readState.key] = existing.copyWith(isRead: readState.value);
       }
     }
 
@@ -82,7 +97,10 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
     }
   }
 
-  Future<void> refresh() => _loadNotifications();
+  Future<void> refresh() async {
+    await _initialLoad;
+    await _loadNotifications();
+  }
 
   Future<List<Notification>> _loadRemoteNotifications() async {
     try {
@@ -93,8 +111,25 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
           .where((Notification notification) =>
               _shouldShowRemoteNotification(notification))
           .toList(growable: false);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('[Notifications] Remote notifications unavailable: $error');
+      debugPrintStack(stackTrace: stackTrace);
       return <Notification>[];
+    }
+  }
+
+  Future<Map<String, bool>> _loadRemoteNotificationReadStates() async {
+    final String? userId = _currentUserId ?? _firebaseService.currentUser?.uid;
+    if (userId == null || userId.isEmpty) {
+      return <String, bool>{};
+    }
+
+    try {
+      return await _firebaseService.getNotificationReadStates(userId);
+    } catch (error, stackTrace) {
+      debugPrint('[Notifications] Remote read states unavailable: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      return <String, bool>{};
     }
   }
 
@@ -191,44 +226,75 @@ class NotificationsNotifier extends StateNotifier<List<Notification>> {
   }
 
   /// Marks a notification as read.
-  void markAsRead(String notificationId) {
-    state = state.map((notification) {
-      if (notification.id == notificationId) {
-        return notification.copyWith(isRead: true);
-      }
-      return notification;
-    }).toList();
-    _saveNotifications();
-  }
+  Future<void> markAsRead(String notificationId) =>
+      _setReadState(notificationId, true);
 
   /// Marks a notification as unread.
-  void markAsUnread(String notificationId) {
-    state = state.map((notification) {
-      if (notification.id == notificationId) {
-        return notification.copyWith(isRead: false);
-      }
-      return notification;
-    }).toList();
-    _saveNotifications();
-  }
+  Future<void> markAsUnread(String notificationId) =>
+      _setReadState(notificationId, false);
 
   /// Toggles a notification read state.
-  void toggleRead(String notificationId) {
-    state = state.map((notification) {
+  Future<void> toggleRead(String notificationId) async {
+    final Notification? notification = _notificationById(notificationId);
+    if (notification != null) {
+      await _setReadState(notificationId, !notification.isRead);
+    }
+  }
+
+  Future<void> _setReadState(String notificationId, bool isRead) async {
+    final Notification? notification = _notificationById(notificationId);
+    if (notification == null || notification.isRead == isRead) {
+      return;
+    }
+
+    state = state
+        .map((Notification item) =>
+            item.id == notificationId ? item.copyWith(isRead: isRead) : item)
+        .toList(growable: false);
+    await _persistReadStates(<String, bool>{notificationId: isRead});
+  }
+
+  Notification? _notificationById(String notificationId) {
+    for (final Notification notification in state) {
       if (notification.id == notificationId) {
-        return notification.copyWith(isRead: !notification.isRead);
+        return notification;
       }
-      return notification;
-    }).toList();
-    _saveNotifications();
+    }
+    return null;
   }
 
   /// Marks all notifications as read.
-  void markAllAsRead() {
+  Future<void> markAllAsRead() async {
+    final List<Notification> unreadNotifications = state
+        .where((Notification notification) => !notification.isRead)
+        .toList(growable: false);
+    if (unreadNotifications.isEmpty) {
+      return;
+    }
+
     state = state
-        .map((notification) => notification.copyWith(isRead: true))
-        .toList();
-    _saveNotifications();
+        .map((Notification notification) => notification.copyWith(isRead: true))
+        .toList(growable: false);
+    await _persistReadStates(<String, bool>{
+      for (final Notification notification in unreadNotifications)
+        notification.id: true,
+    });
+  }
+
+  Future<void> _persistReadStates(Map<String, bool> readStates) async {
+    await _saveNotifications();
+
+    final String? userId = _currentUserId ?? _firebaseService.currentUser?.uid;
+    if (userId == null || userId.isEmpty || readStates.isEmpty) {
+      return;
+    }
+
+    try {
+      await _firebaseService.saveNotificationReadStates(userId, readStates);
+    } catch (error, stackTrace) {
+      debugPrint('[Notifications] Remote read-state save failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
   }
 
   /// Removes a notification.

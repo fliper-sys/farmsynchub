@@ -87,7 +87,7 @@ class WeightGainChartWidget extends StatelessWidget {
             children: <Widget>[
               _LegendDot(color: theme.colorScheme.primary, label: 'Recorded weight'),
               const SizedBox(width: 16),
-              _LegendDot(
+              const _LegendDot(
                 color: Colors.orange,
                 label: 'Expected growth',
               ),
@@ -185,7 +185,7 @@ class WeightGainChartWidget extends StatelessWidget {
   }
 
   List<_GrowthStageTarget> _buildStageTargets() {
-    final List<AnimalGrowthStage> stages = AnimalGrowthStage.values;
+    const List<AnimalGrowthStage> stages = AnimalGrowthStage.values;
     final List<_GrowthStageTarget> targets = <_GrowthStageTarget>[];
     final double baseWeight = livestock.averageWeightKg > 0
         ? livestock.averageWeightKg
@@ -401,10 +401,10 @@ class _WeightChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final double paddingLeft = 40;
-    final double paddingRight = 16;
-    final double paddingTop = 8;
-    final double paddingBottom = 24;
+    const double paddingLeft = 40;
+    const double paddingRight = 16;
+    const double paddingTop = 8;
+    const double paddingBottom = 24;
     final double chartWidth = size.width - paddingLeft - paddingRight;
     final double chartHeight = size.height - paddingTop - paddingBottom;
 
