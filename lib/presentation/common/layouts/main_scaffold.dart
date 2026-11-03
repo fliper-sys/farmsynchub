@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -10,8 +11,12 @@ import '../../../core/constants/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/models/user_profile.dart';
 import '../../../providers/app_preferences_provider.dart';
+import '../../../providers/engagement_provider.dart';
+import '../../../providers/learning_provider.dart';
 import '../../../providers/sync_provider.dart';
 import '../../../providers/user_profile_provider.dart';
+import '../../screens/learn/engagement_widgets.dart';
+import '../../screens/learn/streak_calendar_screen.dart';
 
 /// Connection state used for the app-wide sync indicator.
 enum SyncStatus {
@@ -83,6 +88,15 @@ class MainScaffold extends ConsumerWidget {
     final SyncOverview syncOverview = ref.watch(syncOverviewProvider);
     final AppLanguage language = ref.watch(appLanguageProvider);
     final UserProfile? profile = ref.watch(userProfileProvider).valueOrNull;
+    // Watching the learning record at the shell starts the offline-first
+    // cloud sync as soon as the app opens, not only when Learn is visited.
+    ref.watch(learningProvider.select((LearningState s) => s.isLoaded));
+    final EngagementState engagement = ref.watch(engagementProvider);
+    final DateTime nowTrusted = engagement.trusted(DateTime.now());
+    final StreakInfo streakInfo = engagement.streakInfo(nowTrusted);
+    final bool streakAtRisk = streakInfo.count > 0 &&
+        (streakInfo.status == StreakStatus.alive ||
+            streakInfo.status == StreakStatus.frozen);
     final double screenWidth = MediaQuery.sizeOf(context).width;
     final bool isCompactNavigation = screenWidth < 420;
     final List<NavigationDestination> destinations = <NavigationDestination>[
@@ -145,7 +159,9 @@ class MainScaffold extends ConsumerWidget {
                   isSyncing: syncOverview.isSyncing,
                   onTap: () => _showSyncSheet(context, ref, syncOverview),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
+                _StreakPill(info: streakInfo, atRisk: streakAtRisk),
+                const SizedBox(width: 8),
                 _ProfileAvatarButton(
                   profile: profile,
                   onTap: () => context.go('/profile'),
@@ -173,7 +189,9 @@ class MainScaffold extends ConsumerWidget {
               currentIndex: currentIndex,
               destinations: destinations,
               isCompact: isCompactNavigation,
+              badgedIndex: streakAtRisk ? 0 : null,
               onDestinationSelected: (int index) {
+                if (index != currentIndex) HapticFeedback.selectionClick();
                 final String featureKey = _featureKeyForIndex(index);
                 if (profile?.restrictedFeatures.contains(featureKey) == true) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -347,6 +365,7 @@ class _PremiumBottomNavigation extends StatelessWidget {
     required this.destinations,
     required this.onDestinationSelected,
     required this.isCompact,
+    this.badgedIndex,
   });
 
   final int currentIndex;
@@ -354,29 +373,33 @@ class _PremiumBottomNavigation extends StatelessWidget {
   final ValueChanged<int> onDestinationSelected;
   final bool isCompact;
 
+  /// Tab that shows a small attention dot (Home, when the streak needs a
+  /// lesson today).
+  final int? badgedIndex;
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final double height = isCompact ? 86 : 88;
+    const double height = 72;
+    final int count = destinations.length;
 
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(30),
+          borderRadius: BorderRadius.circular(32),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child: Container(
               height: height,
-              padding: EdgeInsets.symmetric(
-                  horizontal: isCompact ? 8 : 12, vertical: 10),
+              padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: isDark
-                    ? AppColors.darkBottomNavigation.withOpacity(0.90)
-                    : Colors.white.withOpacity(0.90),
-                borderRadius: BorderRadius.circular(30),
+                    ? AppColors.darkBottomNavigation.withOpacity(0.92)
+                    : Colors.white.withOpacity(0.94),
+                borderRadius: BorderRadius.circular(32),
                 border: Border.all(
                   color: isDark
                       ? AppColors.darkBorder
@@ -385,30 +408,70 @@ class _PremiumBottomNavigation extends StatelessWidget {
                 boxShadow: <BoxShadow>[
                   BoxShadow(
                     color: isDark
-                        ? AppColors.premiumGreen.withOpacity(0.12)
-                        : AppColors.primary.withOpacity(0.10),
-                    blurRadius: 34,
-                    offset: const Offset(0, 18),
+                        ? Colors.black.withOpacity(0.45)
+                        : const Color(0xFF0B3D2D).withOpacity(0.14),
+                    blurRadius: 30,
+                    offset: const Offset(0, 14),
                   ),
                 ],
               ),
-              child: Row(
-                children:
-                    List<Widget>.generate(destinations.length, (int index) {
-                  final NavigationDestination destination = destinations[index];
-                  final bool selected = index == currentIndex;
-                  return Expanded(
-                    child: _PremiumNavItem(
-                      selected: selected,
-                      label: destination.label,
-                      icon: selected
-                          ? (destination.selectedIcon ?? destination.icon)
-                          : destination.icon,
-                      isCompact: isCompact,
-                      onTap: () => onDestinationSelected(index),
-                    ),
+              child: LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints box) {
+                  final double slot = box.maxWidth / count;
+                  return Stack(
+                    children: <Widget>[
+                      // One pill that glides to the selected tab.
+                      AnimatedPositioned(
+                        duration: const Duration(milliseconds: 380),
+                        curve: Curves.easeOutBack,
+                        left: slot * currentIndex,
+                        top: 0,
+                        bottom: 0,
+                        width: slot,
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 2),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(26),
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: <Color>[
+                                Color(0xFF0E5A41),
+                                Color(0xFF0B3D2D),
+                              ],
+                            ),
+                            boxShadow: <BoxShadow>[
+                              BoxShadow(
+                                color: AppColors.premiumGreen.withOpacity(0.35),
+                                blurRadius: 16,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Row(
+                        children: List<Widget>.generate(count, (int index) {
+                          final NavigationDestination destination =
+                              destinations[index];
+                          final bool selected = index == currentIndex;
+                          return Expanded(
+                            child: _PremiumNavItem(
+                              selected: selected,
+                              label: destination.label,
+                              badge: badgedIndex == index && !selected,
+                              icon: selected
+                                  ? (destination.selectedIcon ??
+                                      destination.icon)
+                                  : destination.icon,
+                              onTap: () => onDestinationSelected(index),
+                            ),
+                          );
+                        }),
+                      ),
+                    ],
                   );
-                }),
+                },
               ),
             ),
           ),
@@ -424,14 +487,14 @@ class _PremiumNavItem extends StatelessWidget {
     required this.label,
     required this.icon,
     required this.onTap,
-    required this.isCompact,
+    this.badge = false,
   });
 
   final bool selected;
   final String label;
   final Widget icon;
   final VoidCallback onTap;
-  final bool isCompact;
+  final bool badge;
 
   @override
   Widget build(BuildContext context) {
@@ -440,70 +503,221 @@ class _PremiumNavItem extends StatelessWidget {
     final Color inactive =
         isDark ? const Color(0xFF9CA3AF) : theme.colorScheme.onSurfaceVariant;
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeOutCubic,
-        margin: const EdgeInsets.symmetric(horizontal: 2),
-        padding: EdgeInsets.symmetric(
-            horizontal: selected && !isCompact ? 10 : 6,
-            vertical: isCompact ? 6 : 8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: selected
-              ? const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: <Color>[
-                    Color(0xFF0B3D2D),
-                    Color(0xFF102A26),
-                  ],
-                )
-              : null,
-          boxShadow: selected
-              ? <BoxShadow>[
-                  BoxShadow(
-                    color: AppColors.premiumGreen.withOpacity(0.28),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ]
-              : null,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Stack(
+          alignment: Alignment.center,
           children: <Widget>[
-            AnimatedScale(
-              scale: selected ? 1.12 : 1,
-              duration: const Duration(milliseconds: 260),
-              curve: Curves.easeOutCubic,
-              child: IconTheme(
-                data: IconThemeData(
-                  color: selected ? AppColors.premiumGreen : inactive,
-                  size: 24,
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                AnimatedScale(
+                  scale: selected ? 1.12 : 1,
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeOutBack,
+                  child: IconTheme(
+                    data: IconThemeData(
+                      color: selected ? AppColors.premiumGreen : inactive,
+                      size: 24,
+                    ),
+                    child: icon,
+                  ),
                 ),
-                child: icon,
-              ),
+                // The label unfolds only for the active tab, so seven tabs
+                // still fit on a small phone.
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeOutCubic,
+                  child: selected
+                      ? Padding(
+                          padding: const EdgeInsets.only(top: 3),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              label,
+                              maxLines: 1,
+                              style: theme.textTheme.labelSmall!.copyWith(
+                                color: AppColors.premiumGreen,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 10.5,
+                              ),
+                            ),
+                          ),
+                        )
+                      : const SizedBox(width: 0, height: 0),
+                ),
+              ],
             ),
-            const SizedBox(height: 5),
-            AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 260),
-              curve: Curves.easeOutCubic,
-              style: theme.textTheme.labelSmall!.copyWith(
-                color: selected ? AppColors.premiumGreen : inactive,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                fontSize: selected ? 11.5 : 11,
+            if (badge)
+              const Positioned(
+                top: 10,
+                right: 10,
+                child: _AttentionDot(),
               ),
-              child: Text(
-                isCompact && !selected ? '' : label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Small pulsing orange dot used to say "something needs you here".
+class _AttentionDot extends StatefulWidget {
+  const _AttentionDot();
+
+  @override
+  State<_AttentionDot> createState() => _AttentionDotState();
+}
+
+class _AttentionDotState extends State<_AttentionDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (BuildContext context, Widget? child) => Container(
+        width: 9,
+        height: 9,
+        decoration: BoxDecoration(
+          color: const Color(0xFFFF9600),
+          shape: BoxShape.circle,
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: const Color(0xFFFF9600).withOpacity(0.6 * _c.value),
+              blurRadius: 8,
+              spreadRadius: 2 * _c.value,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Flame + streak count in the top bar. Warm and pulsing while the streak
+/// still needs a lesson today; ice blue when frozen; grey when there is none.
+/// Tap opens the streak calendar.
+class _StreakPill extends StatefulWidget {
+  const _StreakPill({required this.info, required this.atRisk});
+
+  final StreakInfo info;
+  final bool atRisk;
+
+  @override
+  State<_StreakPill> createState() => _StreakPillState();
+}
+
+class _StreakPillState extends State<_StreakPill>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1200),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(covariant _StreakPill old) {
+    super.didUpdateWidget(old);
+    _sync();
+  }
+
+  void _sync() {
+    final bool still = MediaQuery.of(context).disableAnimations;
+    if (widget.atRisk && !still) {
+      if (!_c.isAnimating) _c.repeat(reverse: true);
+    } else {
+      _c.stop();
+      _c.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final StreakStatus status = widget.info.status;
+    final bool frozen = status == StreakStatus.frozen;
+    final bool lit =
+        status == StreakStatus.doneToday || status == StreakStatus.alive;
+    final Color color = lit
+        ? EngagementColors.fire
+        : frozen
+            ? EngagementColors.ice
+            : EngagementColors.grayText;
+    return Semantics(
+      button: true,
+      label: '${widget.info.count} day learning streak',
+      child: GestureDetector(
+        onTap: () => Navigator.of(context)
+            .push(fluidRoute<void>(const StreakCalendarScreen())),
+        child: AnimatedBuilder(
+          animation: _c,
+          builder: (BuildContext context, Widget? child) => Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(99),
+              border: Border.all(color: color.withOpacity(0.35 + 0.35 * _c.value)),
+              boxShadow: widget.atRisk
+                  ? <BoxShadow>[
+                      BoxShadow(
+                        color: color.withOpacity(0.35 * _c.value),
+                        blurRadius: 12,
+                      ),
+                    ]
+                  : const <BoxShadow>[],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Transform.scale(
+                  scale: 1 + 0.15 * _c.value,
+                  child: Icon(
+                    frozen
+                        ? Icons.ac_unit_rounded
+                        : Icons.local_fire_department_rounded,
+                    color: color,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 3),
+                Text(
+                  '${widget.info.count}',
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

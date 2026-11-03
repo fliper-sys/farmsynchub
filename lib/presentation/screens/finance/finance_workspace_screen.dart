@@ -757,6 +757,9 @@ class _SalesTabState extends ConsumerState<_SalesTab> {
           unit: sale.unit,
           deltaQuantity: sale.quantity,
           unitPrice: sale.unitPrice,
+          type: StockMovementType.adjustment,
+          note: 'Sale ${sale.receiptNumber} deleted - stock restored',
+          linkedEntityId: sale.id,
         );
     await ref.read(transactionsProvider.notifier).deleteTransaction(sale.id);
     if (!mounted) return;
