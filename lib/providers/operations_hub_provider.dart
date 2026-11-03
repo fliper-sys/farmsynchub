@@ -119,12 +119,12 @@ final operationsHubProvider =
 
 class OperationsHubNotifier extends StateNotifier<OperationsHubState> {
   OperationsHubNotifier(
-      this._remoteStore, this._inventoryRepository, this._ledger)
+      this._remoteStore, this._inventoryRepository, [this._ledger])
       : super(const OperationsHubState()) {
     _load();
   }
 
-  final StockLedgerNotifier _ledger;
+  final StockLedgerNotifier? _ledger;
 
   final OperationsHubRemoteStore _remoteStore;
   final InventoryRepository _inventoryRepository;
@@ -255,7 +255,9 @@ class OperationsHubNotifier extends StateNotifier<OperationsHubState> {
     double? unitValue,
     double? balanceAfter,
   }) {
-    return _ledger.record(
+    final StockLedgerNotifier? ledger = _ledger;
+    if (ledger == null) return Future<void>.value();
+    return ledger.record(
       StockMovement(
         id: const Uuid().v4(),
         itemId: item.id,
