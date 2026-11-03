@@ -2,14 +2,17 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 import '../data/remote/operations_hub_remote_store.dart';
 import '../data/repositories/firestore_inventory_repository.dart';
 import '../data/repositories/inventory_repository.dart';
 import '../domain/models/inventory_item.dart';
 import 'auth_provider.dart';
+import 'stock_ledger_provider.dart';
 
 export '../domain/models/inventory_item.dart';
+export '../domain/models/stock_movement.dart';
 
 enum BusinessPartnerType {
   customer,
@@ -110,14 +113,18 @@ final operationsHubProvider =
   return OperationsHubNotifier(
     ref.watch(firebaseServiceProvider),
     ref.watch(inventoryRepositoryProvider),
+    ref.watch(stockLedgerProvider.notifier),
   );
 });
 
 class OperationsHubNotifier extends StateNotifier<OperationsHubState> {
-  OperationsHubNotifier(this._remoteStore, this._inventoryRepository)
+  OperationsHubNotifier(
+      this._remoteStore, this._inventoryRepository, this._ledger)
       : super(const OperationsHubState()) {
     _load();
   }
+
+  final StockLedgerNotifier _ledger;
 
   final OperationsHubRemoteStore _remoteStore;
   final InventoryRepository _inventoryRepository;
@@ -227,6 +234,189 @@ class OperationsHubNotifier extends StateNotifier<OperationsHubState> {
     }
     state = state.copyWith(inventory: next);
     await _inventoryRepository.insert(item);
+    if (index < 0 && item.availableQuantity > 0) {
+      await _log(
+        item,
+        StockMovementType.opening,
+        item.availableQuantity,
+        note: 'Stock added',
+        unitValue: item.costPrice > 0 ? item.costPrice : item.unitPrice,
+      );
+    }
+  }
+
+  Future<void> _log(
+    InventoryItem item,
+    StockMovementType type,
+    double signedQuantity, {
+    String note = '',
+    String linkedEntityId = '',
+    String linkedEntityLabel = '',
+    double? unitValue,
+    double? balanceAfter,
+  }) {
+    return _ledger.record(
+      StockMovement(
+        id: const Uuid().v4(),
+        itemId: item.id,
+        farmId: item.farmId,
+        itemName: item.name,
+        unit: item.unit,
+        type: type,
+        quantity: signedQuantity,
+        balanceAfter: balanceAfter ?? item.availableQuantity,
+        createdAt: DateTime.now(),
+        unitValue: unitValue ?? item.costPrice,
+        note: note,
+        linkedEntityId: linkedEntityId,
+        linkedEntityLabel: linkedEntityLabel,
+      ),
+    );
+  }
+
+  InventoryItem? _byId(String id) {
+    for (final InventoryItem item in state.inventory) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
+
+  /// Takes [quantity] out of stock because it was used (fed, sprayed,
+  /// planted ...). Refuses when there is not enough left, so stock can never
+  /// go negative. Returns false when nothing was recorded.
+  Future<bool> recordUsage({
+    required String itemId,
+    required double quantity,
+    String note = '',
+    String linkedEntityId = '',
+    String linkedEntityLabel = '',
+    StockMovementType type = StockMovementType.usage,
+  }) async {
+    final InventoryItem? item = _byId(itemId);
+    if (item == null || quantity <= 0 || quantity > item.availableQuantity) {
+      return false;
+    }
+    final InventoryItem next = item.copyWith(
+      availableQuantity: item.availableQuantity - quantity,
+      updatedAt: DateTime.now(),
+    );
+    await updateInventoryItem(next);
+    await _log(
+      next,
+      type,
+      -quantity,
+      note: note,
+      linkedEntityId: linkedEntityId,
+      linkedEntityLabel: linkedEntityLabel,
+    );
+    return true;
+  }
+
+  /// Adds bought stock and keeps a weighted-average cost, so margins stay
+  /// honest when prices change between purchases.
+  Future<bool> restock({
+    required String itemId,
+    required double quantity,
+    double? unitCost,
+    String note = '',
+    String linkedEntityId = '',
+    String linkedEntityLabel = '',
+  }) async {
+    final InventoryItem? item = _byId(itemId);
+    if (item == null || quantity <= 0) return false;
+    final double paid = (unitCost != null && unitCost > 0)
+        ? unitCost
+        : (item.costPrice > 0 ? item.costPrice : item.unitPrice);
+    final double total = item.availableQuantity + quantity;
+    final double oldCost = item.costPrice > 0 ? item.costPrice : paid;
+    final double avgCost =
+        total <= 0 ? paid : ((item.availableQuantity * oldCost) + (quantity * paid)) / total;
+    final InventoryItem next = item.copyWith(
+      availableQuantity: total,
+      costPrice: avgCost,
+      updatedAt: DateTime.now(),
+    );
+    await updateInventoryItem(next);
+    await _log(
+      next,
+      StockMovementType.purchase,
+      quantity,
+      note: note,
+      unitValue: paid,
+      linkedEntityId: linkedEntityId,
+      linkedEntityLabel: linkedEntityLabel,
+    );
+    return true;
+  }
+
+  /// Stock-take: sets the real counted quantity and logs the difference.
+  Future<bool> setCount({
+    required String itemId,
+    required double counted,
+    String note = '',
+  }) async {
+    final InventoryItem? item = _byId(itemId);
+    if (item == null || counted < 0) return false;
+    final double delta = counted - item.availableQuantity;
+    if (delta == 0) return true;
+    final InventoryItem next = item.copyWith(
+      availableQuantity: counted,
+      updatedAt: DateTime.now(),
+    );
+    await updateInventoryItem(next);
+    await _log(
+      next,
+      StockMovementType.adjustment,
+      delta,
+      note: note.isEmpty ? 'Counted ${counted.toStringAsFixed(1)} ${item.unit}' : note,
+    );
+    return true;
+  }
+
+  /// Takes feed (or any item whose category/name contains [keyword]) for one
+  /// farm out of stock, oldest-expiry first. Returns how much was actually
+  /// deducted, which can be less than [quantity] when stock runs short.
+  Future<double> consumeByKeyword({
+    required String farmId,
+    required String keyword,
+    required double quantity,
+    String note = '',
+    String linkedEntityId = '',
+    String linkedEntityLabel = '',
+  }) async {
+    if (quantity <= 0) return 0;
+    final String key = keyword.toLowerCase();
+    final List<InventoryItem> pool = state.inventory
+        .where((InventoryItem i) =>
+            i.farmId == farmId &&
+            i.availableQuantity > 0 &&
+            (i.category.toLowerCase().contains(key) ||
+                i.name.toLowerCase().contains(key)))
+        .toList()
+      ..sort((InventoryItem a, InventoryItem b) {
+        final DateTime ax = a.expiryDate ?? DateTime(9999);
+        final DateTime bx = b.expiryDate ?? DateTime(9999);
+        return ax.compareTo(bx);
+      });
+    double remaining = quantity;
+    double taken = 0;
+    for (final InventoryItem item in pool) {
+      if (remaining <= 0) break;
+      final double take =
+          item.availableQuantity < remaining ? item.availableQuantity : remaining;
+      final bool ok = await recordUsage(
+        itemId: item.id,
+        quantity: take,
+        note: note,
+        linkedEntityId: linkedEntityId,
+        linkedEntityLabel: linkedEntityLabel,
+      );
+      if (ok) {
+        remaining -= take;
+        taken += take;
+      }
+    }
+    return taken;
   }
 
   Future<void> updateInventoryItem(InventoryItem item) async {
@@ -245,13 +435,20 @@ class OperationsHubNotifier extends StateNotifier<OperationsHubState> {
     await _inventoryRepository.delete(itemId);
   }
 
-  Future<void> adjustInventoryQuantity({
+  /// Legacy entry point used by harvest, egg collection, procurement and the
+  /// sales screens. Applies [deltaQuantity] (never below zero), writes a
+  /// ledger row, and returns the change that was actually applied.
+  Future<double> adjustInventoryQuantity({
     required String farmId,
     required String productName,
     required String unit,
     required double deltaQuantity,
     required double unitPrice,
     double? costPrice,
+    StockMovementType? type,
+    String note = '',
+    String linkedEntityId = '',
+    String linkedEntityLabel = '',
   }) async {
     final String normalizedName = productName.trim().toLowerCase();
     final int index = state.inventory.indexWhere(
@@ -261,39 +458,66 @@ class OperationsHubNotifier extends StateNotifier<OperationsHubState> {
           item.unit.trim().toLowerCase() == unit.trim().toLowerCase(),
     );
     final DateTime now = DateTime.now();
+    final StockMovementType kind = type ??
+        (deltaQuantity >= 0
+            ? StockMovementType.purchase
+            : StockMovementType.sale);
     if (index == -1) {
       if (deltaQuantity <= 0) {
-        return;
+        return 0;
       }
-      await addInventoryItem(
-        InventoryItem(
-          id: '${farmId}_${normalizedName}_$unit',
-          farmId: farmId,
-          name: productName.trim(),
-          category: 'Farm produce',
-          unit: unit.trim(),
-          availableQuantity: deltaQuantity,
-          unitPrice: unitPrice,
-          createdAt: now,
-          updatedAt: now,
-          costPrice: costPrice ?? unitPrice,
-          emoji: _emojiForProductName(productName),
-        ),
+      final InventoryItem created = InventoryItem(
+        id: '${farmId}_${normalizedName}_$unit',
+        farmId: farmId,
+        name: productName.trim(),
+        category: 'Farm produce',
+        unit: unit.trim(),
+        availableQuantity: deltaQuantity,
+        unitPrice: unitPrice,
+        createdAt: now,
+        updatedAt: now,
+        costPrice: costPrice ?? unitPrice,
+        emoji: _emojiForProductName(productName),
       );
-      return;
+      // addInventoryItem would log an "opening" row; log the real reason.
+      final List<InventoryItem> next = <InventoryItem>[created, ...state.inventory];
+      state = state.copyWith(inventory: next);
+      await _inventoryRepository.insert(created);
+      await _log(
+        created,
+        kind,
+        deltaQuantity,
+        note: note,
+        linkedEntityId: linkedEntityId,
+        linkedEntityLabel: linkedEntityLabel,
+        unitValue: created.costPrice,
+      );
+      return deltaQuantity;
     }
 
     final InventoryItem current = state.inventory[index];
     final double nextQuantity =
         (current.availableQuantity + deltaQuantity).clamp(0, 999999).toDouble();
-    await updateInventoryItem(
-      current.copyWith(
-        availableQuantity: nextQuantity,
-        unitPrice: unitPrice == 0 ? current.unitPrice : unitPrice,
-        costPrice: costPrice ?? current.costPrice,
-        updatedAt: now,
-      ),
+    final double applied = nextQuantity - current.availableQuantity;
+    final InventoryItem updated = current.copyWith(
+      availableQuantity: nextQuantity,
+      unitPrice: unitPrice == 0 ? current.unitPrice : unitPrice,
+      costPrice: costPrice ?? current.costPrice,
+      updatedAt: now,
     );
+    await updateInventoryItem(updated);
+    if (applied != 0) {
+      await _log(
+        updated,
+        kind,
+        applied,
+        note: note,
+        linkedEntityId: linkedEntityId,
+        linkedEntityLabel: linkedEntityLabel,
+        unitValue: kind == StockMovementType.sale ? unitPrice : updated.costPrice,
+      );
+    }
+    return applied;
   }
 
   String _emojiForProductName(String name) {
