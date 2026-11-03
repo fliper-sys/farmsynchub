@@ -55,6 +55,8 @@ import 'presentation/screens/finance/expense_tracking_screen.dart';
 import 'presentation/screens/finance/sales_information_screen.dart';
 import 'presentation/screens/sales/sales_desk_screen.dart';
 import 'presentation/screens/procurement/procurement_screen.dart';
+import 'presentation/screens/inventory/inventory_screen.dart';
+import 'presentation/screens/inventory/for_sale_screen.dart';
 import 'presentation/screens/news/news_screen.dart';
 import 'presentation/screens/schedule/schedule_screen.dart';
 import 'presentation/screens/profile/profile_screen.dart';
@@ -906,6 +908,16 @@ final GoRouter _router = GoRouter(
             ? const LearnScreen()
             : LearnLessonDetailScreen(lesson: lesson);
       },
+      redirect: _authRedirect,
+    ),
+    GoRoute(
+      path: InventoryScreen.routeName,
+      builder: (context, state) => const InventoryScreen(),
+      redirect: _authRedirect,
+    ),
+    GoRoute(
+      path: ForSaleScreen.routeName,
+      builder: (context, state) => const ForSaleScreen(),
       redirect: _authRedirect,
     ),
     GoRoute(

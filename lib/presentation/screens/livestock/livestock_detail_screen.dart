@@ -18,6 +18,7 @@ import '../../../domain/models/livestock.dart';
 import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/livestock_provider.dart';
+import '../../../providers/operations_hub_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
@@ -1343,8 +1344,28 @@ Future<void> _markFedToday(
           isSynced: false,
         ),
       );
+  // Take the feed out of stock so "left" stays true.
+  final double needed = feedPerAnimal * livestock.count;
+  final double taken =
+      await ref.read(operationsHubProvider.notifier).consumeByKeyword(
+            farmId: livestock.farmId,
+            keyword: 'feed',
+            quantity: needed,
+            note: 'Daily feeding of ${livestock.count} animals',
+            linkedEntityId: livestock.id,
+            linkedEntityLabel: _speciesLabel(livestock.species),
+          );
   if (context.mounted) {
-    context.showSnackBar('Marked fed for today.');
+    if (needed <= 0 || taken <= 0) {
+      context.showSnackBar(
+          'Marked fed for today. No feed stock found to deduct - add feed in Inventory.');
+    } else if (taken + 0.001 < needed) {
+      context.showSnackBar(
+          'Marked fed. Feed stock ran short: ${taken.toStringAsFixed(1)} of ${needed.toStringAsFixed(1)} kg deducted.');
+    } else {
+      context.showSnackBar(
+          'Marked fed. ${taken.toStringAsFixed(1)} kg deducted from feed stock.');
+    }
   }
 }
 

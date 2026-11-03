@@ -9,7 +9,6 @@ import '../../../core/services/report_file_saver.dart';
 import '../../../core/services/report_file_saver_base.dart';
 import '../../../core/services/report_share_service.dart';
 import '../../../core/services/sales_receipt_report_service.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/date_utils.dart' as app_date;
 import '../../../core/utils/widget_image_capture.dart';
@@ -24,7 +23,7 @@ import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
-import '../../common/widgets/responsive_card_grid.dart';
+import '../../common/widgets/finance_ui.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
 
 class SalesDeskScreen extends ConsumerStatefulWidget {
@@ -52,6 +51,7 @@ class _SalesDeskScreenState extends ConsumerState<SalesDeskScreen> {
   String? _selectedFarmId;
   String? _selectedCustomerId;
   String? _activeReceiptNumber;
+  String _category = 'All';
 
   @override
   void dispose() {
@@ -80,6 +80,7 @@ class _SalesDeskScreenState extends ConsumerState<SalesDeskScreen> {
     final List<InventoryItem> filteredProducts =
         inventory.where((InventoryItem item) {
       final String query = _searchController.text.trim().toLowerCase();
+      if (_category != 'All' && item.category != _category) return false;
       if (query.isEmpty) return true;
       final String haystack =
           '${item.name} ${item.category} ${item.unit} ${item.emoji}'
@@ -105,141 +106,232 @@ class _SalesDeskScreenState extends ConsumerState<SalesDeskScreen> {
             .cast<BusinessPartner?>()
             .firstOrNull;
 
-    return SoftScreenScaffold(
-      heroTitle: language.tr(
-          en: 'Sales desk', ha: 'Tebur Talla', fr: 'Bureau des ventes'),
-      heroSubtitle: language.tr(
-        en: 'Search stock, build carts, override prices per line, link customers, and issue branded receipts from one flow.',
-        ha: 'Nemi kaya, gina keken sayayya, canza farashi kowanne layi, hada abokan ciniki, kuma ka bayar da rasit a wuri daya.',
-        fr: 'Recherchez le stock, constituez des paniers, ajustez les prix par ligne, liez des clients et emettez des recus depuis un seul flux.',
-      ),
+    final ThemeData theme = Theme.of(context);
+    final List<String> categories = <String>[
+      'All',
+      ...(inventory.map((InventoryItem i) => i.category).toSet().toList()
+        ..sort()),
+    ];
+    final String activeCategory =
+        categories.contains(_category) ? _category : 'All';
+    final double todayRevenue = recentSales
+        .where((Transaction sale) =>
+            app_date.DateUtils.isToday(sale.transactionDate))
+        .fold<double>(0, (double sum, Transaction sale) => sum + sale.amount);
+    final int lowCount = inventory
+        .where((InventoryItem i) => stockLevelOf(i) != StockLevel.ok)
+        .length;
+
+    final Widget body = SoftScreenScaffold(
+      heroTitle: 'Sales desk',
+      heroSubtitle: '',
       heroIcon: Icons.point_of_sale_rounded,
       heroVariant: FarmArtworkVariant.dashboard,
-      heroBadge:
-          '${_cart.length} items - ${CurrencyUtils.formatCurrency(totals.total)}',
-      onBack: () => Navigator.of(context).canPop()
-          ? Navigator.of(context).pop()
-          : context.go('/finance'),
+      showHero: false,
       showArtwork: false,
       sections: <Widget>[
-        _SalesOverviewCard(
-          language: language,
-          farms: farms,
-          inventoryCount: inventory.length,
-          customerCount: customers.length,
-          receiptsCount: recentReceipts.length,
-          todayRevenue: recentSales
-              .where((Transaction sale) =>
-                  app_date.DateUtils.isToday(sale.transactionDate))
-              .fold<double>(
-                  0, (double sum, Transaction sale) => sum + sale.amount),
-        ),
-        const SizedBox(height: 18),
-        AppCard(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: Text('Sales desk controls',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w800)),
+        Row(
+          children: <Widget>[
+            IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              onPressed: () => Navigator.of(context).canPop()
+                  ? Navigator.of(context).pop()
+                  : context.go('/finance'),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    language.tr(
+                        en: 'Sell', ha: 'Sayarwa', fr: 'Vendre'),
+                    style: theme.textTheme.headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.w900),
+                  ),
+                  Text(
+                    language.tr(
+                      en: 'Tap a product to add it. Your cart is at the bottom.',
+                      ha: 'Danna kaya don kara shi. Keken yana kasa.',
+                      fr: 'Touchez un produit pour l\'ajouter. Le panier est en bas.',
                     ),
-                    AppButton.secondary(
-                      onPressed: farms.isEmpty ? null : _openProductSheet,
-                      child: const Text('Add product'),
-                    ),
-                    const SizedBox(width: 12),
-                    AppButton.secondary(
-                      onPressed: () => _openCustomerSheet(context),
-                      child: const Text('Add customer'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                _FarmSelector(
-                  farms: farms,
-                  selectedFarmId: selectedFarmId,
-                  onChanged: (String value) => setState(() {
-                    _selectedFarmId = value;
-                    _cart.clear();
-                    _selectedCustomerId = null;
-                  }),
-                ),
-                const SizedBox(height: 12),
-                AppTextField(
-                  controller: _searchController,
-                  label: 'Search catalog',
-                  hint: 'Search by product, category, or unit',
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: 12),
-                _CustomerSelector(
-                  customers: customers,
-                  customerSearchController: _customerSearchController,
-                  selectedCustomerId: _selectedCustomerId,
-                  onChanged: (String? value) =>
-                      setState(() => _selectedCustomerId = value),
-                  onAddCustomer: () => _openCustomerSheet(context),
-                  onSearchChanged: () => setState(() {}),
-                ),
-                if (selectedCustomer != null) ...<Widget>[
-                  const SizedBox(height: 12),
-                  _CustomerDetailPill(customer: selectedCustomer),
+                    style: theme.textTheme.bodySmall,
+                  ),
                 ],
+              ),
+            ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.add_circle_outline_rounded),
+              tooltip: 'Add',
+              onSelected: (String v) {
+                if (v == 'product') {
+                  if (farms.isNotEmpty) _openProductSheet();
+                } else {
+                  _openCustomerSheet(context);
+                }
+              },
+              itemBuilder: (BuildContext context) =>
+                  const <PopupMenuEntry<String>>[
+                PopupMenuItem<String>(
+                    value: 'product', child: Text('Add product')),
+                PopupMenuItem<String>(
+                    value: 'customer', child: Text('Add customer')),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const FinanceNavBar(current: FinanceSection.sell),
+        const SizedBox(height: 14),
+        MetricStrip(
+          stats: <MetricStat>[
+            MetricStat(
+              icon: Icons.payments_rounded,
+              label: 'Sold today',
+              value: CurrencyUtils.formatCurrency(todayRevenue),
+            ),
+            MetricStat(
+              icon: Icons.receipt_rounded,
+              label: 'Receipts',
+              value: '${recentReceipts.length}',
+              color: const Color(0xFF0EA5A4),
+            ),
+            MetricStat(
+              icon: Icons.inventory_2_rounded,
+              label: 'Products',
+              value: '${inventory.length}',
+              color: const Color(0xFF8B5CF6),
+            ),
+            MetricStat(
+              icon: Icons.warning_amber_rounded,
+              label: 'Low / out',
+              value: '$lowCount',
+              color: lowCount > 0
+                  ? const Color(0xFFD99A1E)
+                  : const Color(0xFF2E9E5B),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        if (farms.length > 1) ...<Widget>[
+          _FarmSelector(
+            farms: farms,
+            selectedFarmId: selectedFarmId,
+            onChanged: (String value) => setState(() {
+              _selectedFarmId = value;
+              _cart.clear();
+              _selectedCustomerId = null;
+              _category = 'All';
+            }),
+          ),
+          const SizedBox(height: 12),
+        ],
+        TextField(
+          controller: _searchController,
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            hintText: 'Search products',
+            prefixIcon: const Icon(Icons.search_rounded),
+            suffixIcon: _searchController.text.isEmpty
+                ? null
+                : IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => setState(_searchController.clear),
+                  ),
+            filled: true,
+            fillColor: theme.colorScheme.surfaceContainerHighest,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 40,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: categories.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (BuildContext context, int i) => ChoiceChip(
+              label: Text(categories[i]),
+              selected: categories[i] == activeCategory,
+              onSelected: (_) => setState(() => _category = categories[i]),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        GestureDetector(
+          onTap: () => _pickCustomer(customers),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: theme.colorScheme.outlineVariant),
+            ),
+            child: Row(
+              children: <Widget>[
+                Icon(Icons.person_rounded, color: theme.colorScheme.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    selectedCustomer == null
+                        ? 'Selling to: Walk-in customer'
+                        : 'Selling to: ${selectedCustomer.name}',
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const Icon(Icons.unfold_more_rounded, size: 20),
               ],
             ),
           ),
         ),
-        const SizedBox(height: 18),
-        LayoutBuilder(
-          builder: (BuildContext context, BoxConstraints constraints) {
-            final bool isWide = constraints.maxWidth > 980;
-            final Widget catalog = _ProductCatalogCard(
-              language: language,
-              products: filteredProducts,
-              farmNameResolver: _farmName,
-              onAddToCart: _addToCart,
-              onOpenProduct: _openProductDetails,
-            );
-            final Widget cart = _CartCard(
-              language: language,
-              cart: _cart,
-              productResolver: _productById,
-              totals: totals,
-              notesController: _notesController,
-              onUpdateLine: _updateCartLine,
-              onEditLine: _editCartLine,
-              onRemoveLine: _removeCartLine,
-              onCheckout: _cart.isEmpty || _isCheckingOut
-                  ? null
-                  : () => _checkout(context),
-            );
-            if (isWide) {
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        const SizedBox(height: 16),
+        if (filteredProducts.isEmpty)
+          AppCard(
+            color: theme.colorScheme.surfaceContainerHighest,
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
                 children: <Widget>[
-                  Expanded(flex: 3, child: catalog),
-                  const SizedBox(width: 18),
-                  Expanded(flex: 2, child: cart),
+                  const Text('🧺', style: TextStyle(fontSize: 40)),
+                  const SizedBox(height: 8),
+                  Text(
+                    inventory.isEmpty
+                        ? 'No products yet. Add one, or record a harvest to stock it.'
+                        : 'Nothing matches that search.',
+                    textAlign: TextAlign.center,
+                  ),
+                  if (inventory.isEmpty && farms.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: _openProductSheet,
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Add product'),
+                    ),
+                  ],
                 ],
-              );
-            }
-            return Column(
-              children: <Widget>[
-                catalog,
-                const SizedBox(height: 18),
-                cart,
-              ],
-            );
-          },
-        ),
+              ),
+            ),
+          )
+        else
+          AdaptiveTileGrid(
+            children: <Widget>[
+              for (int i = 0; i < filteredProducts.length; i++)
+                ProductTile(
+                  key: ValueKey<String>(filteredProducts[i].id),
+                  item: filteredProducts[i],
+                  index: i,
+                  subtitle: filteredProducts[i].category,
+                  inCart: _cart[filteredProducts[i].id]?.quantity ?? 0,
+                  onAdd: () => _addToCart(filteredProducts[i]),
+                  onRemoveOne: () => _removeOne(filteredProducts[i]),
+                  onOpen: () => _openProductDetails(filteredProducts[i]),
+                ),
+            ],
+          ),
         const SizedBox(height: 18),
         _RecentReceiptsCard(
           language: language,
@@ -315,6 +407,16 @@ class _SalesDeskScreenState extends ConsumerState<SalesDeskScreen> {
         ),
       ],
     );
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: body,
+      bottomNavigationBar: CartBar(
+        itemCount: _cart.length,
+        total: totals.total,
+        onOpen: _openCart,
+      ),
+    );
   }
 
   String _ensureFarmSelected(List<Farm> farms) {
@@ -349,7 +451,55 @@ class _SalesDeskScreenState extends ConsumerState<SalesDeskScreen> {
     return 'Unknown farm';
   }
 
+  void _removeOne(InventoryItem item) {
+    final _CartLineDraft? line = _cart[item.id];
+    if (line == null) return;
+    setState(() {
+      if (line.quantity - 1 <= 0) {
+        _cart.remove(item.id);
+      } else {
+        _cart[item.id] = line.copyWith(quantity: line.quantity - 1);
+      }
+    });
+  }
+
+  Future<void> _pickCustomer(List<BusinessPartner> customers) async {
+    final String? picked = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CustomerPickerSheet(
+        customers: customers,
+        selectedId: _selectedCustomerId,
+      ),
+    );
+    if (picked == null || !mounted) return;
+    if (picked == '__new__') {
+      await _openCustomerSheet(context);
+      return;
+    }
+    setState(() => _selectedCustomerId = picked.isEmpty ? null : picked);
+  }
+
+  Future<void> _openCart() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CartSheet(owner: this),
+    );
+  }
+
   void _addToCart(InventoryItem item) {
+    final double already = _cart[item.id]?.quantity ?? 0;
+    if (already + 1 > item.availableQuantity) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(
+                'Only ${formatQty(item.availableQuantity)} ${item.unit} of ${item.name} left.')),
+      );
+      return;
+    }
     setState(() {
       final _CartLineDraft current = _cart[item.id] ??
           _CartLineDraft(quantity: 0, unitPrice: item.unitPrice);
@@ -507,6 +657,9 @@ class _SalesDeskScreenState extends ConsumerState<SalesDeskScreen> {
               deltaQuantity: -line.quantity,
               unitPrice: line.unitPrice,
               costPrice: product.costPrice,
+              type: StockMovementType.sale,
+              note: 'Sales desk receipt $receiptNumber',
+              linkedEntityId: receiptNumber,
             );
       }
 
@@ -938,94 +1091,6 @@ class _SalesReceiptScreenState extends ConsumerState<SalesReceiptScreen> {
   }
 }
 
-class _SalesOverviewCard extends StatelessWidget {
-  const _SalesOverviewCard({
-    required this.language,
-    required this.farms,
-    required this.inventoryCount,
-    required this.customerCount,
-    required this.receiptsCount,
-    required this.todayRevenue,
-  });
-
-  final AppLanguage language;
-  final List<Farm> farms;
-  final int inventoryCount;
-  final int customerCount;
-  final int receiptsCount;
-  final double todayRevenue;
-
-  @override
-  Widget build(BuildContext context) {
-    return ResponsiveCardGrid(
-      minTileWidth: 160,
-      maxColumns: 5,
-      spacing: 12,
-      runSpacing: 12,
-      children: <Widget>[
-        _MetricCard(
-            label: language.tr(en: 'Farms', ha: 'Gonaki', fr: 'Fermes'),
-            value: farms.length.toString(),
-            icon: Icons.agriculture_rounded),
-        _MetricCard(
-            label:
-                language.tr(en: 'Products', ha: 'Kayayyaki', fr: 'Produits'),
-            value: inventoryCount.toString(),
-            icon: Icons.inventory_2_rounded),
-        _MetricCard(
-            label: language.tr(
-                en: 'Customers', ha: 'Abokan ciniki', fr: 'Clients'),
-            value: customerCount.toString(),
-            icon: Icons.people_alt_rounded),
-        _MetricCard(
-            label: language.tr(en: 'Receipts', ha: 'Rasitoci', fr: 'Recus'),
-            value: receiptsCount.toString(),
-            icon: Icons.receipt_long_rounded),
-        _MetricCard(
-            label: language.tr(en: 'Today', ha: 'Yau', fr: 'Aujourd\'hui'),
-            value: CurrencyUtils.formatCompactCurrency(todayRevenue),
-            icon: Icons.trending_up_rounded),
-      ],
-    );
-  }
-}
-
-class _MetricCard extends StatelessWidget {
-  const _MetricCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-
-  final String label;
-  final String value;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Icon(icon, color: AppColors.primary),
-            const SizedBox(height: 12),
-            Text(label, style: Theme.of(context).textTheme.labelMedium),
-            const SizedBox(height: 6),
-            Text(value,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w800)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _FarmSelector extends StatelessWidget {
   const _FarmSelector({
     required this.farms,
@@ -1060,416 +1125,6 @@ class _FarmSelector extends StatelessWidget {
   }
 }
 
-class _CustomerSelector extends StatelessWidget {
-  const _CustomerSelector({
-    required this.customers,
-    required this.customerSearchController,
-    required this.selectedCustomerId,
-    required this.onChanged,
-    required this.onAddCustomer,
-    required this.onSearchChanged,
-  });
-
-  final List<BusinessPartner> customers;
-  final TextEditingController customerSearchController;
-  final String? selectedCustomerId;
-  final ValueChanged<String?> onChanged;
-  final VoidCallback onAddCustomer;
-  final VoidCallback onSearchChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final String query = customerSearchController.text.trim().toLowerCase();
-    final List<BusinessPartner> filtered =
-        customers.where((BusinessPartner partner) {
-      final String haystack =
-          '${partner.name} ${partner.email} ${partner.phone}'.toLowerCase();
-      return query.isEmpty || haystack.contains(query);
-    }).toList(growable: false);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: AppTextField(
-                controller: customerSearchController,
-                label: 'Link customer',
-                hint: 'Search existing customer',
-                onChanged: (_) => onSearchChanged(),
-              ),
-            ),
-            const SizedBox(width: 12),
-            AppButton.secondary(
-              onPressed: onAddCustomer,
-              child: const Text('New customer'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        DropdownButtonFormField<String?>(
-          value: filtered.any(
-                  (BusinessPartner partner) => partner.id == selectedCustomerId)
-              ? selectedCustomerId
-              : null,
-          decoration: const InputDecoration(
-            labelText: 'Selected customer',
-            border: OutlineInputBorder(),
-          ),
-          items: <DropdownMenuItem<String?>>[
-            const DropdownMenuItem<String?>(
-                value: null, child: Text('Walk-in customer')),
-            ...filtered.map(
-              (BusinessPartner partner) => DropdownMenuItem<String?>(
-                value: partner.id,
-                child: Text(
-                    '${partner.name}${partner.phone.isEmpty ? '' : ' • ${partner.phone}'}'),
-              ),
-            ),
-          ],
-          onChanged: onChanged,
-        ),
-      ],
-    );
-  }
-}
-
-class _CustomerDetailPill extends StatelessWidget {
-  const _CustomerDetailPill({required this.customer});
-
-  final BusinessPartner customer;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEAF4FF),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: <Widget>[
-          const Icon(Icons.person_rounded),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              customer.email.isEmpty
-                  ? customer.phone.isEmpty
-                      ? customer.name
-                      : '${customer.name} • ${customer.phone}'
-                  : '${customer.name} • ${customer.email}',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProductCatalogCard extends StatelessWidget {
-  const _ProductCatalogCard({
-    required this.language,
-    required this.products,
-    required this.farmNameResolver,
-    required this.onAddToCart,
-    required this.onOpenProduct,
-  });
-
-  final AppLanguage language;
-  final List<InventoryItem> products;
-  final String Function(String farmId) farmNameResolver;
-  final void Function(InventoryItem item) onAddToCart;
-  final void Function(InventoryItem item) onOpenProduct;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-                language.tr(
-                    en: 'Product catalog',
-                    ha: 'Jerin Kayayyaki',
-                    fr: 'Catalogue de produits'),
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
-            Text(
-              language.tr(
-                en: 'Tap a product to open details or add it straight into the cart.',
-                ha: 'Danna kaya domin bude bayani ko ka kara shi kai tsaye a cikin keken sayayya.',
-                fr: 'Touchez un produit pour voir les details ou l\'ajouter directement au panier.',
-              ),
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 14),
-            if (products.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                child: Text(
-                  language.tr(
-                    en: 'No products match the current farm or search query.',
-                    ha: 'Babu kayan da suka dace da gonar yanzu ko binciken da aka yi.',
-                    fr: 'Aucun produit ne correspond a la ferme actuelle ou a la recherche.',
-                  ),
-                ),
-              )
-            else
-              ...products.map(
-                (InventoryItem item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: AppCard(
-                    color: Theme.of(context).colorScheme.surface,
-                    child: ListTile(
-                      leading: Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE8F4D8),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(item.emoji,
-                            style: const TextStyle(fontSize: 22)),
-                      ),
-                      title: Text(item.name,
-                          style: const TextStyle(fontWeight: FontWeight.w700)),
-                      subtitle: Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text(
-                          '${item.category} • ${farmNameResolver(item.farmId)}\n${item.availableQuantity.toStringAsFixed(2)} ${item.unit} available • Sell ${CurrencyUtils.formatCurrency(item.unitPrice)}',
-                        ),
-                      ),
-                      isThreeLine: true,
-                      trailing: Wrap(
-                        spacing: 8,
-                        children: <Widget>[
-                          IconButton(
-                            tooltip: language.tr(
-                                en: 'Open product',
-                                ha: 'Bude Kaya',
-                                fr: 'Ouvrir le produit'),
-                            onPressed: () => onOpenProduct(item),
-                            icon: const Icon(Icons.open_in_new_rounded),
-                          ),
-                          IconButton(
-                            tooltip: language.tr(
-                                en: 'Add to cart',
-                                ha: 'Kara zuwa Keken Sayayya',
-                                fr: 'Ajouter au panier'),
-                            onPressed: () => onAddToCart(item),
-                            icon: const Icon(Icons.add_shopping_cart_rounded),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CartCard extends StatelessWidget {
-  const _CartCard({
-    required this.language,
-    required this.cart,
-    required this.productResolver,
-    required this.totals,
-    required this.notesController,
-    required this.onUpdateLine,
-    required this.onEditLine,
-    required this.onRemoveLine,
-    required this.onCheckout,
-  });
-
-  final AppLanguage language;
-  final Map<String, _CartLineDraft> cart;
-  final InventoryItem? Function(String id) productResolver;
-  final _CheckoutTotals totals;
-  final TextEditingController notesController;
-  final void Function(InventoryItem item, _CartLineDraft draft) onUpdateLine;
-  final Future<void> Function(InventoryItem item) onEditLine;
-  final void Function(String productId) onRemoveLine;
-  final VoidCallback? onCheckout;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: Text(
-                      language.tr(
-                          en: 'Cart', ha: 'Keken Sayayya', fr: 'Panier'),
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w800)),
-                ),
-                Text('${cart.length} lines',
-                    style: Theme.of(context).textTheme.labelMedium),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (cart.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                child: Text(
-                  language.tr(
-                    en: 'Your cart is empty. Add products from the catalog.',
-                    ha: 'Keken sayayyarka babu kome. Kara kayayyaki daga jerin kaya.',
-                    fr: 'Votre panier est vide. Ajoutez des produits depuis le catalogue.',
-                  ),
-                ),
-              )
-            else
-              ...cart.entries.map((MapEntry<String, _CartLineDraft> entry) {
-                final InventoryItem? item = productResolver(entry.key);
-                if (item == null) {
-                  return const SizedBox.shrink();
-                }
-                final _CartLineDraft draft = entry.value;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE4E8DF)),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Row(
-                            children: <Widget>[
-                              Expanded(
-                                child: Text(item.name,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w800)),
-                              ),
-                              IconButton(
-                                onPressed: () => onRemoveLine(entry.key),
-                                icon: const Icon(Icons.delete_outline_rounded),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: <Widget>[
-                              _Pill(
-                                  text:
-                                      '${draft.quantity.toStringAsFixed(2)} ${item.unit}'),
-                              _Pill(
-                                  text:
-                                      'Price ${CurrencyUtils.formatCurrency(draft.unitPrice)}'),
-                              _Pill(
-                                  text:
-                                      'Total ${CurrencyUtils.formatCurrency(draft.quantity * draft.unitPrice)}'),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: <Widget>[
-                              _StepperButton(
-                                icon: Icons.remove_rounded,
-                                onPressed: () {
-                                  final double next = draft.quantity - 1;
-                                  if (next <= 0) {
-                                    onRemoveLine(entry.key);
-                                    return;
-                                  }
-                                  final void Function(
-                                          InventoryItem, _CartLineDraft)
-                                      updateLine = onUpdateLine;
-                                  updateLine(
-                                      item, draft.copyWith(quantity: next));
-                                },
-                              ),
-                              const SizedBox(width: 10),
-                              _StepperButton(
-                                icon: Icons.add_rounded,
-                                onPressed: () {
-                                  final void Function(
-                                          InventoryItem, _CartLineDraft)
-                                      updateLine = onUpdateLine;
-                                  updateLine(
-                                      item,
-                                      draft.copyWith(
-                                          quantity: draft.quantity + 1));
-                                },
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: AppButton.secondary(
-                                  onPressed: () => onEditLine(item),
-                                  child: Text(language.tr(
-                                      en: 'Edit price',
-                                      ha: 'Gyara Farashi',
-                                      fr: 'Modifier le prix')),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            const SizedBox(height: 8),
-            AppTextField(
-              controller: notesController,
-              label: language.tr(
-                  en: 'Receipt notes',
-                  ha: 'Bayanin Rasit',
-                  fr: 'Notes du recu'),
-              hint: language.tr(
-                  en: 'Delivery note, payment note, or special instructions',
-                  ha: 'Bayanin isarwa, biya, ko wasu umarni na musamman',
-                  fr: 'Note de livraison, de paiement ou instructions speciales'),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 14),
-            _TotalsPanel(language: language, totals: totals),
-            const SizedBox(height: 14),
-            AppButton.primary(
-              onPressed: onCheckout,
-              child: Text(language.tr(
-                  en: 'Complete checkout',
-                  ha: 'Kammala Biya',
-                  fr: 'Finaliser la commande')),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _TotalsPanel extends StatelessWidget {
   const _TotalsPanel({required this.language, required this.totals});
 
@@ -1481,7 +1136,7 @@ class _TotalsPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FBF5),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -1819,28 +1474,10 @@ class _StepperButton extends StatelessWidget {
         height: 40,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFDCE5D6)),
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         child: Icon(icon, size: 18),
       ),
-    );
-  }
-}
-
-class _Pill extends StatelessWidget {
-  const _Pill({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEAF4FF),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(text, style: Theme.of(context).textTheme.labelMedium),
     );
   }
 }
@@ -2256,6 +1893,385 @@ class _ProductDetailsPreview extends StatelessWidget {
                 Text('Sell ${CurrencyUtils.formatCurrency(item.unitPrice)}'),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CartSheet extends StatefulWidget {
+  const _CartSheet({required this.owner});
+
+  final _SalesDeskScreenState owner;
+
+  @override
+  State<_CartSheet> createState() => _CartSheetState();
+}
+
+class _CartSheetState extends State<_CartSheet> {
+  _SalesDeskScreenState get owner => widget.owner;
+
+  void _refresh() {
+    if (!mounted) return;
+    setState(() {});
+    if (owner._cart.isEmpty) Navigator.of(context).maybePop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final AppLanguage language = owner.ref.read(appLanguageProvider);
+    final _CheckoutTotals totals = owner._checkoutTotals();
+    final List<BusinessPartner> customers = owner.ref
+        .read(operationsHubProvider)
+        .partners
+        .where((BusinessPartner p) => p.type == BusinessPartnerType.customer)
+        .toList(growable: false);
+    BusinessPartner? customer;
+    for (final BusinessPartner p in customers) {
+      if (p.id == owner._selectedCustomerId) customer = p;
+    }
+    final List<MapEntry<String, _CartLineDraft>> lines =
+        owner._cart.entries.toList(growable: false);
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.92),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const SizedBox(height: 10),
+              Container(
+                width: 44,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 12, 4),
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        language.tr(
+                            en: 'Your cart',
+                            ha: 'Keken Sayayya',
+                            fr: 'Votre panier'),
+                        style: theme.textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        owner.setState(owner._cart.clear);
+                        _refresh();
+                      },
+                      child: const Text('Clear'),
+                    ),
+                  ],
+                ),
+              ),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                  children: <Widget>[
+                    for (final MapEntry<String, _CartLineDraft> e in lines)
+                      _line(context, e.key, e.value),
+                    const SizedBox(height: 4),
+                    GestureDetector(
+                      onTap: () async {
+                        await owner._pickCustomer(customers);
+                        if (mounted) setState(() {});
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          children: <Widget>[
+                            Icon(Icons.person_rounded,
+                                color: theme.colorScheme.primary),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                customer == null
+                                    ? 'Walk-in customer'
+                                    : customer.name,
+                                style: theme.textTheme.titleSmall
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            Text('Change',
+                                style: TextStyle(
+                                    color: theme.colorScheme.primary,
+                                    fontWeight: FontWeight.w800)),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    AppTextField(
+                      controller: owner._notesController,
+                      label: language.tr(
+                          en: 'Receipt notes',
+                          ha: 'Bayanin Rasit',
+                          fr: 'Notes du recu'),
+                      hint: language.tr(
+                          en: 'Delivery or payment note (optional)',
+                          ha: 'Bayanin isarwa ko biya (na zabi)',
+                          fr: 'Note de livraison ou de paiement (facultatif)'),
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 12),
+                    _TotalsPanel(language: language, totals: totals),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18)),
+                    ),
+                    onPressed: owner._cart.isEmpty || owner._isCheckingOut
+                        ? null
+                        : () async {
+                            final BuildContext deskContext = owner.context;
+                            Navigator.of(context).pop();
+                            await owner._checkout(deskContext);
+                          },
+                    icon: const Icon(Icons.check_circle_rounded),
+                    label: Text(
+                      '${language.tr(en: 'Complete sale', ha: 'Kammala Sayarwa', fr: 'Finaliser la vente')} - ${CurrencyUtils.formatCurrency(totals.total)}',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w900, fontSize: 16),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _line(BuildContext context, String id, _CartLineDraft draft) {
+    final ThemeData theme = Theme.of(context);
+    final InventoryItem? item = owner._productById(id);
+    if (item == null) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: groupColor(item.group).withOpacity(0.18),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            alignment: Alignment.center,
+            child: Text(item.emoji, style: const TextStyle(fontSize: 24)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(item.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w800)),
+                GestureDetector(
+                  onTap: () async {
+                    await owner._editCartLine(item);
+                    if (mounted) setState(() {});
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Text(
+                      '${CurrencyUtils.formatCurrency(draft.unitPrice)} / ${item.unit}  ✎',
+                      style: TextStyle(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12),
+                    ),
+                  ),
+                ),
+                Text(
+                  CurrencyUtils.formatCurrency(
+                      draft.quantity * draft.unitPrice),
+                  style: theme.textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w900),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            children: <Widget>[
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  _StepperButton(
+                    icon: Icons.remove_rounded,
+                    onPressed: () {
+                      owner._removeOne(item);
+                      _refresh();
+                    },
+                  ),
+                  SizedBox(
+                    width: 40,
+                    child: Text(
+                      formatQty(draft.quantity),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w900, fontSize: 16),
+                    ),
+                  ),
+                  _StepperButton(
+                    icon: Icons.add_rounded,
+                    onPressed: () {
+                      owner._addToCart(item);
+                      _refresh();
+                    },
+                  ),
+                ],
+              ),
+              TextButton(
+                style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact),
+                onPressed: () {
+                  owner._removeCartLine(id);
+                  _refresh();
+                },
+                child: const Text('Remove'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CustomerPickerSheet extends StatefulWidget {
+  const _CustomerPickerSheet({
+    required this.customers,
+    required this.selectedId,
+  });
+
+  final List<BusinessPartner> customers;
+  final String? selectedId;
+
+  @override
+  State<_CustomerPickerSheet> createState() => _CustomerPickerSheetState();
+}
+
+class _CustomerPickerSheetState extends State<_CustomerPickerSheet> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final String q = _query.trim().toLowerCase();
+    final List<BusinessPartner> shown = widget.customers
+        .where((BusinessPartner p) =>
+            q.isEmpty ||
+            '${p.name} ${p.phone} ${p.email}'.toLowerCase().contains(q))
+        .toList(growable: false);
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.75),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text('Who is buying?',
+                  style: theme.textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w900)),
+              const SizedBox(height: 12),
+              TextField(
+                onChanged: (String v) => setState(() => _query = v),
+                decoration: InputDecoration(
+                  hintText: 'Search customers',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  filled: true,
+                  fillColor: theme.colorScheme.surfaceContainerHighest,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: <Widget>[
+                    ListTile(
+                      leading: const Icon(Icons.directions_walk_rounded),
+                      title: const Text('Walk-in customer'),
+                      trailing: widget.selectedId == null
+                          ? const Icon(Icons.check_circle_rounded)
+                          : null,
+                      onTap: () => Navigator.of(context).pop(''),
+                    ),
+                    for (final BusinessPartner p in shown)
+                      ListTile(
+                        leading: CircleAvatar(
+                          child: Text(
+                              p.name.isEmpty ? '?' : p.name[0].toUpperCase()),
+                        ),
+                        title: Text(p.name),
+                        subtitle: p.phone.isEmpty ? null : Text(p.phone),
+                        trailing: widget.selectedId == p.id
+                            ? const Icon(Icons.check_circle_rounded)
+                            : null,
+                        onTap: () => Navigator.of(context).pop(p.id),
+                      ),
+                    ListTile(
+                      leading: const Icon(Icons.person_add_alt_1_rounded),
+                      title: const Text('New customer'),
+                      onTap: () => Navigator.of(context).pop('__new__'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

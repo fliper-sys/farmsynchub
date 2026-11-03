@@ -31,6 +31,7 @@ import '../sales/sales_desk_screen.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
+import '../../common/widgets/finance_ui.dart';
 import '../../common/widgets/responsive_card_grid.dart';
 
 class FinanceScreen extends ConsumerStatefulWidget {
@@ -125,7 +126,14 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                     : () => _exportReport(snapshot, transactions),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
+
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: FinanceNavBar(current: FinanceSection.overview),
+              ),
+
+              const SizedBox(height: 20),
 
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -156,7 +164,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                           language: language,
                           inventory: inventory,
                           procurementOrders: procurementOrders,
-                          onManage: () => context.go('/procurement'),
+                          onManage: () => context.push('/inventory'),
                         ),
                       ],
                     ),
@@ -271,6 +279,12 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
         break;
       case _QuickAddAction.manageContacts:
         await _openContactsList(context);
+        break;
+      case _QuickAddAction.useStock:
+        context.push('/inventory');
+        break;
+      case _QuickAddAction.readyToSell:
+        context.push('/for-sale');
         break;
     }
   }
@@ -490,6 +504,39 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       return;
     }
 
+    if (draft.recordKind == TransactionRecordKind.sale &&
+        draft.productName.trim().isNotEmpty) {
+      InventoryItem? match;
+      for (final InventoryItem i in ref.read(operationsHubProvider).inventory) {
+        if (i.farmId == draft.farmId &&
+            i.name.trim().toLowerCase() ==
+                draft.productName.trim().toLowerCase() &&
+            i.unit.trim().toLowerCase() == draft.unit.trim().toLowerCase()) {
+          match = i;
+        }
+      }
+      final InventoryItem? found = match;
+      if (found != null && draft.quantity > found.availableQuantity) {
+        final bool? go = await showDialog<bool>(
+          context: context,
+          builder: (BuildContext ctx) => AlertDialog(
+            title: const Text('Not enough stock'),
+            content: Text(
+                'You only have ${found.availableQuantity.toStringAsFixed(found.availableQuantity % 1 == 0 ? 0 : 1)} ${found.unit} of ${found.name}, but this sale is for ${draft.quantity.toStringAsFixed(draft.quantity % 1 == 0 ? 0 : 1)}. Record it anyway? Stock will drop to zero.'),
+            actions: <Widget>[
+              TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text('Go back')),
+              FilledButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: const Text('Record anyway')),
+            ],
+          ),
+        );
+        if (go != true || !context.mounted) return;
+      }
+    }
+
     final DateTime now = DateTime.now();
     final Transaction transaction = Transaction(
       id: const Uuid().v4(),
@@ -529,6 +576,11 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
             unit: draft.unit,
             deltaQuantity: delta,
             unitPrice: draft.unitPrice,
+            type: delta < 0
+                ? StockMovementType.sale
+                : StockMovementType.purchase,
+            note: 'Recorded from Finance (${transaction.receiptNumber})',
+            linkedEntityId: transaction.receiptNumber,
           );
     }
     if (!context.mounted) {
@@ -3006,7 +3058,14 @@ class _InventorySheetState extends State<_InventorySheet> {
   }
 }
 
-enum _QuickAddAction { transaction, inventory, contact, manageContacts }
+enum _QuickAddAction {
+  transaction,
+  inventory,
+  contact,
+  manageContacts,
+  useStock,
+  readyToSell,
+}
 
 class _QuickAddMenu extends StatelessWidget {
   const _QuickAddMenu({required this.hasFarms});
@@ -3049,6 +3108,19 @@ class _QuickAddMenu extends StatelessWidget {
               subtitle: hasFarms ? null : const Text('Add a farm first'),
               onTap: () =>
                   Navigator.of(context).pop(_QuickAddAction.inventory),
+            ),
+            ListTile(
+              leading: const Icon(Icons.remove_circle_outline_rounded),
+              title: const Text('Record stock usage'),
+              subtitle: const Text('Feed, seed, chemicals used'),
+              onTap: () => Navigator.of(context).pop(_QuickAddAction.useStock),
+            ),
+            ListTile(
+              leading: const Icon(Icons.storefront_rounded),
+              title: const Text('Ready to sell'),
+              subtitle: const Text('Harvest and animals for sale'),
+              onTap: () =>
+                  Navigator.of(context).pop(_QuickAddAction.readyToSell),
             ),
             ListTile(
               leading: const Icon(Icons.person_add_alt_1_rounded),

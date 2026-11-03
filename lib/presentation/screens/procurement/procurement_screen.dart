@@ -22,6 +22,7 @@ import '../../../providers/procurement_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
+import '../../common/widgets/finance_ui.dart';
 import '../../common/widgets/responsive_card_grid.dart';
 
 class ProcurementScreen extends ConsumerStatefulWidget {
@@ -123,6 +124,8 @@ class _ProcurementScreenState extends ConsumerState<ProcurementScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: <Widget>[
+          const FinanceNavBar(current: FinanceSection.buy),
+          const SizedBox(height: 14),
           AppCard(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
             child: Padding(
@@ -468,6 +471,11 @@ class _TrackedOrdersSection extends ConsumerWidget {
           unit: order.unit,
           deltaQuantity: order.quantity,
           unitPrice: order.unitPrice,
+          costPrice: order.unitPrice,
+          type: StockMovementType.purchase,
+          note: 'Order delivered from ${order.providerName}',
+          linkedEntityId: order.id,
+          linkedEntityLabel: order.providerName,
         );
     await ref.read(procurementOrdersProvider.notifier).updateOrder(
           order.copyWith(

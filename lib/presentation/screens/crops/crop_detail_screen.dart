@@ -966,6 +966,10 @@ class _CropDetailScreenState extends ConsumerState<CropDetailScreen> {
           deltaQuantity: quantityHa,
           unitPrice: draft.unitPrice,
           costPrice: crop.areaHa > 0 ? crop.totalInputCost / crop.areaHa : 0,
+          type: StockMovementType.harvest,
+          note: 'Harvest recorded',
+          linkedEntityId: crop.id,
+          linkedEntityLabel: crop.name,
         );
     final CropHarvestRecord harvestRecord = CropHarvestRecord(
       id: const Uuid().v4(),
