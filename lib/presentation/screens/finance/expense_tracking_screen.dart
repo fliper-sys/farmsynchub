@@ -16,6 +16,7 @@ import '../../../providers/finance_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
+import '../../common/widgets/finance_ui.dart';
 
 class ExpenseTrackingScreen extends ConsumerStatefulWidget {
   const ExpenseTrackingScreen({super.key});
@@ -103,6 +104,8 @@ class _ExpenseTrackingScreenState extends ConsumerState<ExpenseTrackingScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: <Widget>[
+          const FinanceNavBar(current: FinanceSection.expenses),
+          const SizedBox(height: 14),
           AppCard(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
             child: Padding(

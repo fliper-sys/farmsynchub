@@ -16,6 +16,7 @@ class SoftScreenScaffold extends StatelessWidget {
     this.trailing,
     this.onBack,
     this.showArtwork = true,
+    this.showHero = true,
     this.scrollController,
   });
 
@@ -28,6 +29,10 @@ class SoftScreenScaffold extends StatelessWidget {
   final Widget? trailing;
   final VoidCallback? onBack;
   final bool showArtwork;
+
+  /// Set false when the screen draws its own summary header (the crop and
+  /// livestock detail screens), to skip the large generic hero card.
+  final bool showHero;
   final ScrollController? scrollController;
 
   @override
@@ -67,6 +72,7 @@ class SoftScreenScaffold extends StatelessWidget {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
+                  if (showHero)
                   AppCard(
                     color: scheme.surfaceContainerHighest,
                     child: Padding(
@@ -256,7 +262,7 @@ class SoftScreenScaffold extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 18),
+                  if (showHero) const SizedBox(height: 18),
                   ...sections,
                 ],
               );

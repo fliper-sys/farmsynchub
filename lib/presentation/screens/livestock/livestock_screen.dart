@@ -592,6 +592,10 @@ class LivestockScreen extends ConsumerWidget {
           deltaQuantity: quantity,
           unitPrice: draft.unitPrice,
           costPrice: draft.costPrice,
+          type: StockMovementType.production,
+          note: 'Egg collection',
+          linkedEntityId: livestock.id,
+          linkedEntityLabel: _speciesLabel(livestock.species),
         );
 
     final List<LivestockProductionRecord> logs = <LivestockProductionRecord>[
@@ -658,6 +662,10 @@ class LivestockScreen extends ConsumerWidget {
           unit: 'head',
           deltaQuantity: sold.toDouble(),
           unitPrice: draft.unitPrice,
+          type: StockMovementType.transferIn,
+          note: 'Moved from herd to sale stock',
+          linkedEntityId: livestock.id,
+          linkedEntityLabel: _speciesLabel(livestock.species),
         );
 
     final DateTime now = DateTime.now();
@@ -683,7 +691,7 @@ class LivestockScreen extends ConsumerWidget {
                 updatedAt: now,
                 soldCount: sold,
                 notes:
-                    'Sold at ${CurrencyUtils.formatCurrency(draft.unitPrice)}/head',
+                    'Moved to sale stock at ${CurrencyUtils.formatCurrency(draft.unitPrice)}/head',
               ),
               ...livestock.productionLogs,
             ],
@@ -692,36 +700,12 @@ class LivestockScreen extends ConsumerWidget {
           ),
         );
 
-    if (draft.unitPrice > 0) {
-      await ref.read(transactionsProvider.notifier).addTransaction(
-            Transaction(
-              id: const Uuid().v4(),
-              farmId: livestock.farmId,
-              type: TransactionType.income,
-              category: TransactionCategory.livestockSale,
-              amount: sold * draft.unitPrice,
-              description:
-                  '${_speciesLabel(livestock.species)} sale ($sold head)',
-              transactionDate: now,
-              linkedEntityId: livestock.id,
-              createdAt: now,
-              updatedAt: now,
-              isSynced: true,
-              recordKind: TransactionRecordKind.sale,
-              partyType: TransactionPartyType.internal,
-              productName: '${_speciesLabel(livestock.species)} (${livestock.breed})',
-              quantity: sold.toDouble(),
-              unit: 'head',
-              unitPrice: draft.unitPrice,
-              receiptNumber: 'LV-${now.millisecondsSinceEpoch}',
-              notes: 'Auto-recorded when marked ready for sale.',
-            ),
-          );
-    }
+    // Income is booked when the animals are actually sold (Ready to sell /
+    // Sales desk), not here - booking it now as well would count it twice.
 
     if (context.mounted) {
       context.showSnackBar(
-          'Herd updated, stock added to inventory, and sale recorded.');
+          'Herd updated and animals moved to sale stock. Record the sale in Ready to sell.');
     }
   }
 

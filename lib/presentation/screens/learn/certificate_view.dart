@@ -4,6 +4,11 @@ import '../../../providers/app_preferences_provider.dart';
 
 /// A reusable certificate visual widget. Keep it self-contained so it can
 /// be embedded in a RepaintBoundary for image export.
+///
+/// The certificate is always drawn at [designWidth] x [designHeight] logical
+/// pixels. On small screens, scale it with a FittedBox rather than letting
+/// layout squeeze it. It also always uses a fixed light palette so a shared
+/// image looks the same no matter which theme the sender uses.
 class CertificateView extends StatelessWidget {
   const CertificateView({
     super.key,
@@ -14,50 +19,99 @@ class CertificateView extends StatelessWidget {
     this.issuerName = 'FarmSync',
   });
 
+  static const double designWidth = 1200;
+  static const double designHeight = 800;
+
   final AppLanguage language;
   final String recipientName;
   final String lessonTitle;
   final DateTime date;
   final String issuerName;
 
+  static const List<String> _monthsEn = <String>[
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+
+  static const List<String> _monthsFr = <String>[
+    'janvier',
+    'février',
+    'mars',
+    'avril',
+    'mai',
+    'juin',
+    'juillet',
+    'août',
+    'septembre',
+    'octobre',
+    'novembre',
+    'décembre',
+  ];
+
+  static const List<String> _monthsHa = <String>[
+    'Janairu',
+    'Fabrairu',
+    'Maris',
+    'Afrilu',
+    'Mayu',
+    'Yuni',
+    'Yuli',
+    'Agusta',
+    'Satumba',
+    'Oktoba',
+    'Nuwamba',
+    'Disamba',
+  ];
+
+  String _formatDate() {
+    final DateTime local = date.toLocal();
+    final int index = local.month - 1;
+    final String month = language.tr(
+      en: _monthsEn[index],
+      ha: _monthsHa[index],
+      fr: _monthsFr[index],
+    );
+    return '${local.day} $month ${local.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final bool isDark = theme.brightness == Brightness.dark;
-    final Color surface = isDark ? const Color(0xFF10261C) : Colors.white;
-    final Color frameStart =
-        isDark ? const Color(0xFF143E2C) : theme.colorScheme.primary;
-    final Color frameEnd =
-        isDark ? const Color(0xFF1E6A4A) : theme.colorScheme.primaryContainer;
-    final Color titleColor =
-        isDark ? const Color(0xFFF2F7EC) : theme.colorScheme.onSurface;
-    final Color subtitleColor =
-        isDark ? const Color(0xFFD4E6DA) : theme.colorScheme.onSurfaceVariant;
-    final Color accent =
-        isDark ? const Color(0xFF7FC8A1) : theme.colorScheme.primary;
-    final Color chipBackground =
-        isDark ? const Color(0xFF183728) : const Color(0xFFF2F7EC);
-    final Color ringColor =
-        isDark ? const Color(0xFF315E48) : const Color(0xFFE3EADB);
-    final TextTheme t = theme.textTheme;
+    final ColorScheme scheme = ColorScheme.fromSeed(
+      seedColor: Theme.of(context).colorScheme.primary,
+      brightness: Brightness.light,
+    );
+    final TextTheme t = Theme.of(context).textTheme;
+    const Color surface = Colors.white;
+    final Color frameStart = scheme.primary;
+    final Color frameEnd = scheme.primaryContainer;
+    final Color titleColor = scheme.onSurface;
+    final Color subtitleColor = scheme.onSurfaceVariant;
+    final Color accent = scheme.primary;
+    const Color chipBackground = Color(0xFFF2F7EC);
+    const Color ringColor = Color(0xFFE3EADB);
+
     return Container(
       padding: const EdgeInsets.all(24),
-      width: 1200,
-      height: 800,
+      width: designWidth,
+      height: designHeight,
+      // Square outer frame and no shadow: the exported PNG has clean edges
+      // instead of transparent corners and a clipped shadow.
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [frameStart, frameEnd],
+          colors: <Color>[frameStart, frameEnd],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(
-            blurRadius: 26,
-            color: isDark ? Colors.black54 : Colors.black26,
-            offset: const Offset(0, 12),
-          ),
-        ],
       ),
       child: Container(
         decoration: BoxDecoration(
@@ -82,15 +136,19 @@ class CertificateView extends StatelessWidget {
                       border: Border.all(color: ringColor),
                     ),
                     padding: const EdgeInsets.all(14),
-                    child: Image.asset('assets/app/appicon.png',
-                        fit: BoxFit.contain),
+                    child: Image.asset(
+                      'assets/app/appicon.png',
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) =>
+                          Icon(Icons.agriculture_rounded, size: 56, color: accent),
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Text(
                     language.tr(
                         en: 'Certificate of Completion',
                         ha: 'Takardar Shaidar Kammalawa',
-                        fr: 'Certificat d\'achevement'),
+                        fr: 'Certificat d’achèvement'),
                     textAlign: TextAlign.center,
                     style: t.displaySmall?.copyWith(
                       fontWeight: FontWeight.w800,
@@ -102,16 +160,21 @@ class CertificateView extends StatelessWidget {
                     language.tr(
                         en: 'This certificate is proudly presented to',
                         ha: 'Ana bayar da wannan takardar shaida cikin farin ciki ga',
-                        fr: 'Ce certificat est fierement remis a'),
+                        fr: 'Ce certificat est fièrement remis à'),
                     style: t.bodyLarge?.copyWith(color: subtitleColor),
                   ),
                   const SizedBox(height: 18),
-                  Text(
-                    recipientName,
-                    textAlign: TextAlign.center,
-                    style: t.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: titleColor,
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 900),
+                    child: Text(
+                      recipientName,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: t.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: titleColor,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 18),
@@ -121,9 +184,11 @@ class CertificateView extends StatelessWidget {
                       language.tr(
                         en: 'For successfully completing the lesson:\n"$lessonTitle"',
                         ha: 'Saboda kammala darasin nan cikin nasara:\n"$lessonTitle"',
-                        fr: 'Pour avoir termine avec succes la lecon :\n« $lessonTitle »',
+                        fr: 'Pour avoir terminé avec succès la leçon :\n« $lessonTitle »',
                       ),
                       textAlign: TextAlign.center,
+                      maxLines: 5,
+                      overflow: TextOverflow.ellipsis,
                       style: t.bodyLarge?.copyWith(
                         height: 1.5,
                         color: subtitleColor,
@@ -132,18 +197,20 @@ class CertificateView extends StatelessWidget {
                   ),
                   const SizedBox(height: 18),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     decoration: BoxDecoration(
                       color: chipBackground,
                       borderRadius: BorderRadius.circular(999),
                       border: Border.all(color: ringColor),
                     ),
                     child: Text(
+                      // Describes what the certificate is, without claiming an
+                      // external verification that does not exist.
                       language.tr(
-                          en: 'FarmSync Learn • Verified by progress tracking',
-                          ha: 'FarmSync Koyo • An Tabbatar da Ci Gaba',
-                          fr: 'FarmSync Apprentissage • Verifie par le suivi de progression'),
+                          en: 'FarmSync Learn • Lesson completed in the app',
+                          ha: 'FarmSync Koyo • An kammala darasi a manhaja',
+                          fr: 'FarmSync Apprentissage • Leçon terminée dans l’application'),
                       style: t.labelLarge?.copyWith(
                         color: accent,
                         fontWeight: FontWeight.w700,
@@ -164,7 +231,7 @@ class CertificateView extends StatelessWidget {
                             language.tr(
                                 en: 'Issued by',
                                 ha: 'An Bayar Daga',
-                                fr: 'Delivre par'),
+                                fr: 'Délivré par'),
                             style:
                                 t.labelLarge?.copyWith(color: subtitleColor)),
                         const SizedBox(height: 6),
@@ -185,7 +252,7 @@ class CertificateView extends StatelessWidget {
                                 t.labelLarge?.copyWith(color: subtitleColor)),
                         const SizedBox(height: 6),
                         Text(
-                          date.toLocal().toIso8601String().split('T').first,
+                          _formatDate(),
                           style: t.titleMedium?.copyWith(color: titleColor),
                         ),
                       ],
