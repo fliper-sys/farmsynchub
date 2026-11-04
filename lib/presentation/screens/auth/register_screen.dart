@@ -235,8 +235,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final String name = _nameController.text.trim();
     final String email = _emailController.text.trim();
     final String phone = _phoneController.text.trim();
-    final String password = _passwordController.text.trim();
-    final String confirmPassword = _confirmPasswordController.text.trim();
+    final String password = _passwordController.text;
+    final String confirmPassword = _confirmPasswordController.text;
 
     final String? nameError = Validators.combine(
       <String? Function(String?)>[

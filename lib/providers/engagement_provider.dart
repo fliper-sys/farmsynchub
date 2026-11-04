@@ -201,12 +201,14 @@ class DayActivity {
   const DayActivity({
     this.xp = 0,
     this.lessons = 0,
+    this.activityCount = 0,
     this.awards = const <String>[],
     this.cloud = false,
   });
 
   final int xp;
   final int lessons;
+  final int activityCount;
 
   /// True when the cloud already knows about this day (it came from, or was
   /// queued to, the cloud). A cloud-known day counts as a learning day even
@@ -217,17 +219,19 @@ class DayActivity {
   /// Achievement ids unlocked on this day.
   final List<String> awards;
 
-  bool get hasActivity => xp > 0 || lessons > 0 || cloud;
+  bool get hasActivity => xp > 0 || lessons > 0 || activityCount > 0 || cloud;
 
   DayActivity copyWith({
     int? xp,
     int? lessons,
+    int? activityCount,
     List<String>? awards,
     bool? cloud,
   }) =>
       DayActivity(
         xp: xp ?? this.xp,
         lessons: lessons ?? this.lessons,
+        activityCount: activityCount ?? this.activityCount,
         awards: awards ?? this.awards,
         cloud: cloud ?? this.cloud,
       );
@@ -235,6 +239,7 @@ class DayActivity {
   Map<String, dynamic> toJson() => <String, dynamic>{
         'xp': xp,
         'lessons': lessons,
+        'activityCount': activityCount,
         'awards': awards,
         'cloud': cloud,
       };
@@ -242,6 +247,7 @@ class DayActivity {
   factory DayActivity.fromJson(Map<String, dynamic> json) => DayActivity(
         xp: (json['xp'] as num?)?.toInt() ?? 0,
         lessons: (json['lessons'] as num?)?.toInt() ?? 0,
+        activityCount: (json['activityCount'] as num?)?.toInt() ?? 0,
         awards: ((json['awards'] as List<dynamic>?) ?? const <dynamic>[])
             .whereType<String>()
             .toList(),
@@ -832,6 +838,7 @@ class EngagementNotifier extends Notifier<EngagementState> {
         'activityDate': key,
         'xp': day.xp,
         'lessons': day.lessons,
+        'activityCount': day.activityCount,
         'awards': day.awards,
         'totalXp': state.totalXp,
         'gems': state.gems,
@@ -927,6 +934,8 @@ class EngagementNotifier extends Notifier<EngagementState> {
           xp: math.max(cur?.xp ?? 0, clampInt(event['xp'], _maxDayXp)),
           lessons: math.max(
               cur?.lessons ?? 0, clampInt(event['lessons'], _maxDayLessons)),
+          activityCount: math.max(cur?.activityCount ?? 0,
+              clampInt(event['activityCount'], _maxDayLessons)),
           awards: <String>{
             ...?cur?.awards,
             ...((event['awards'] as List<dynamic>?) ?? const <dynamic>[])
@@ -1154,6 +1163,23 @@ class EngagementNotifier extends Notifier<EngagementState> {
     await _persist();
     await _emitDay(key);
     return unlocked;
+  }
+
+  /// Records a qualifying learning action without awarding repeat XP.
+  Future<void> recordActivity({DateTime? now}) async {
+    await _ready;
+    final DateTime t = _tick(now);
+    _beginActivity(t);
+    final String key = dayKey(t);
+    final DayActivity day = state.days[key] ?? const DayActivity();
+    state = state.copyWith(
+      days: <String, DayActivity>{
+        ...state.days,
+        key: day.copyWith(activityCount: day.activityCount + 1),
+      },
+    );
+    await _persist();
+    await _emitDay(key);
   }
 
   /// Joins this week's streak challenge. Returns false if already joined.

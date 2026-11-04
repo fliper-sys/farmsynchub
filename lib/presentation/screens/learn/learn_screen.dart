@@ -8,6 +8,7 @@ import '../../../core/constants/app_assets.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../providers/app_preferences_provider.dart';
+import '../../screens/learn/engagement_widgets.dart';
 import '../../../providers/learning_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
@@ -15,6 +16,7 @@ import '../../common/widgets/app_text_field.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
 import 'lesson_certificate_screen.dart';
+import 'streak_freeze_sheet.dart';
 import 'video_player_screen.dart';
 
 class LearnScreen extends ConsumerStatefulWidget {
@@ -121,6 +123,10 @@ class _LearnScreenState extends ConsumerState<LearnScreen> {
               ),
             ),
           ),
+          const SizedBox(height: 18),
+          const StreakHero(),
+          const SizedBox(height: 14),
+          const WeekStrip(),
           const SizedBox(height: 18),
           SoftSectionTitle(
               title: language.tr(
@@ -2014,7 +2020,7 @@ LearningLesson? findLearningLessonById(String id) {
   return null;
 }
 
-final List<LearningLesson> _learningLessons = <LearningLesson>[
+final List<LearningLesson> _baseLearningLessons = <LearningLesson>[
   const LearningLesson(
     id: 'soil-moisture',
     title: 'Managing soil moisture',
@@ -13601,7 +13607,7 @@ final List<LearningLesson> _learningLessons = <LearningLesson>[
     tint: Color(0xFFE8F4D8),
     track: AppStrings.weatherForecast,
     difficulty: 'Intermediate',
-    icon: Icons.rainy_rounded,
+    icon: Icons.cloud_rounded,
     imageAsset: AppAssets.uiGallery01,
     overview: "A rain gauge provides a local measurement of rainfall at one location. It does not represent every part of a large or varied farm. Gauge placement, reading time, blockage and overflow affect accuracy. Pair rainfall readings with soil observations because the same rainfall can produce different infiltration and runoff under different soils and land cover. By the end of this lesson, you should be able to describe the purpose of measure rainfall and observe runoff, prepare the work safely, carry it out in a consistent sequence, identify an observable result, and decide what to adjust using dated records. Adapt rates, timing, varieties, equipment and legal requirements to the crop or species, site conditions and current local extension guidance.",
     steps: <String>[
@@ -17413,6 +17419,9 @@ const List<LearningTrack> _learningTracks = <LearningTrack>[
     color: Color(0xFFEDE8FF),
     summary: 'Digital records, data quality, performance indicators, backups and traceability.',
   ),
+];
+
+final List<LearningLesson> _additionalLearningLessons = <LearningLesson>[
   // Third academy expansion: additional crop, livestock, business and resilience lessons.
   const LearningLesson(
     id: 'onion-curing',
@@ -33383,6 +33392,11 @@ const List<LearningTrack> _learningTracks = <LearningTrack>[
       "Phone camera for repeatable observations",
     ],
   ),
+];
+
+final List<LearningLesson> _learningLessons = <LearningLesson>[
+  ..._baseLearningLessons,
+  ..._additionalLearningLessons,
 ];
 
 const List<PracticeActivity> _practiceActivities = <PracticeActivity>[
