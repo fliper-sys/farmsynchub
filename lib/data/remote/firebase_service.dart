@@ -106,10 +106,15 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
     required String email,
     required String password,
   }) async {
-    return _auth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+    try {
+      return await _auth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+    } on FirebaseAuthException catch (error) {
+      debugPrint('[Auth] Firebase email sign-in failed: ${error.code}');
+      rethrow;
+    }
   }
 
   /// Sign in with Google using the native imperative popup flow.

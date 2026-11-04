@@ -332,8 +332,8 @@ class LivestockDetailScreen extends ConsumerWidget {
               lv: lv,
               overdueTasks: overdueTasks,
               priorityTasks: priorityTasks,
-              careTasksKey: _careTasksKey,
-              vaccinationKey: _vaccinationKey,
+              careTasksKey: careTasksKey,
+              vaccinationKey: vaccinationKey,
             ),
           ),
           const SizedBox(height: 18),
@@ -375,6 +375,12 @@ class LivestockDetailScreen extends ConsumerWidget {
                           ? 'No production logs'
                           : '${logs.length} production logs',
                       onTap: () => _scrollToKey(context, productionLogKey),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: 14),
           FadeInUp(
             index: 2,
@@ -388,7 +394,7 @@ class LivestockDetailScreen extends ConsumerWidget {
                   highlight: !lv.wasFedToday,
                   done: lv.wasFedToday,
                   onTap: () => lv.wasFedToday
-                      ? _scrollToKey(context, _feedingPlanKey)
+                      ? _scrollToKey(context, feedingPlanKey)
                       : _markFedToday(context, ref, lv),
                 ),
                 QuickAction(
@@ -412,17 +418,17 @@ class LivestockDetailScreen extends ConsumerWidget {
                   label: language.tr(
                       en: 'Care tasks', ha: 'Ayyuka', fr: 'Tâches'),
                   highlight: overdueTasks > 0,
-                  onTap: () => _scrollToKey(context, _careTasksKey),
+                  onTap: () => _scrollToKey(context, careTasksKey),
                 ),
                 QuickAction(
                   icon: Icons.photo_camera_rounded,
                   label: language.tr(en: 'Photos', ha: 'Hotuna', fr: 'Photos'),
-                  onTap: () => _scrollToKey(context, _photoJournalKey),
+                  onTap: () => _scrollToKey(context, photoJournalKey),
                 ),
                 QuickAction(
                   icon: Icons.auto_awesome_rounded,
                   label: language.tr(en: 'Ask AI', ha: 'AI', fr: 'IA'),
-                  onTap: () => _scrollToKey(context, _aiRecommendationsKey),
+                  onTap: () => _scrollToKey(context, aiRecommendationsKey),
                 ),
               ],
             ),
@@ -430,7 +436,7 @@ class LivestockDetailScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           SectionJumpBar(sections: sections),
           const SizedBox(height: 18),
-          Container(key: _workFocusKey, height: 0),
+          Container(key: workFocusKey, height: 0),
           Container(
             key: growthCycleKey,
             child: AppCard(
