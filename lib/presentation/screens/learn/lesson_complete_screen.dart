@@ -71,6 +71,7 @@ class _LessonCompleteScreenState extends ConsumerState<LessonCompleteScreen> {
               lessonTitle: widget.lessonTitle,
               correctAnswers: widget.correctAnswers,
               totalQuestions: widget.totalQuestions,
+              requiredQuestions: widget.totalQuestions,
             );
     if (!mounted) return;
     setState(() => _reward = reward);

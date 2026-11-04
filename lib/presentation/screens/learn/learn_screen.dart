@@ -13,7 +13,9 @@ import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
+import 'engagement_widgets.dart';
 import 'lesson_certificate_screen.dart';
+import 'lesson_flow_screen.dart';
 import 'video_player_screen.dart';
 
 class LearnScreen extends ConsumerStatefulWidget {
@@ -610,45 +612,18 @@ class LearnLessonDetailScreen extends ConsumerWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: AppButton.primary(
-                  onPressed: completed
-                      ? null
-                      : () async {
-                          await ref
-                              .read(learningProvider.notifier)
-                              .completeLesson(
-                                lesson.id,
-                                lessonTitle: lesson.title,
-                              );
-                          final CertificateRecord? record = ref
-                              .read(learningProvider)
-                              .certificateForLesson(lesson.id);
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                  content: Text(language.tr(
-                                      en: 'Lesson completed. Award progress updated.',
-                                      ha: 'An kammala darasi. An sabunta ci gaban kyauta.',
-                                      fr: 'Lecon terminee. Progression des recompenses mise a jour.'))),
-                            );
-                            if (record != null) {
-                              Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => LessonCertificateScreen(
-                                    record: record,
-                                    recipientName: 'FarmSync learner',
-                                  ),
-                                ),
-                              );
-                            }
-                          }
-                        },
+                  onPressed: () => Navigator.of(context).push(
+                    fluidRoute<void>(LessonFlowScreen(lesson: lesson)),
+                  ),
                   child: Text(completed
                       ? language.tr(
-                          en: 'Completed', ha: 'An Kammala', fr: 'Termine')
+                          en: 'Review lesson',
+                          ha: 'Sake duba darasi',
+                          fr: 'Revoir la lecon')
                       : language.tr(
-                          en: 'Mark complete',
-                          ha: 'Alama an Kammala',
-                          fr: 'Marquer comme termine')),
+                          en: 'Start lesson',
+                          ha: 'Fara darasi',
+                          fr: 'Commencer la lecon')),
                 ),
               ),
             ],

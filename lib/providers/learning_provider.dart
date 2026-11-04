@@ -562,8 +562,23 @@ class LearningNotifier extends Notifier<LearningState> {
     String? lessonTitle,
     int? correctAnswers,
     int? totalQuestions,
+    int? requiredQuestions,
   }) async {
     await _ready;
+    // Skipped questions never count: a lesson only pays out and keeps the
+    // streak when every one of its questions was actually answered.
+    if (requiredQuestions != null && requiredQuestions > 0) {
+      final String gatePrefix = '$lessonId::';
+      final int answeredCount = state.reviewedQuestions
+          .where((String k) => k.startsWith(gatePrefix))
+          .length;
+      if (answeredCount < requiredQuestions) {
+        final int now = ref
+            .read(engagementProvider.notifier)
+            .trustedStreakCount();
+        return LessonReward.notEarned(streakBefore: now, streakAfter: now);
+      }
+    }
     final Set<String> completedLessons = <String>{
       ...state.completedLessons,
       lessonId,

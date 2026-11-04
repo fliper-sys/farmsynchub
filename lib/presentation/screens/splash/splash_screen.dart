@@ -49,11 +49,16 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   }
 
   Future<void> _handleNavigation() async {
-    await Future<void>.delayed(const Duration(milliseconds: 4300));
+    // Show the brand for a short, fixed moment while the real start-up work
+    // (prefs, onboarding flag, auth) runs in parallel, instead of waiting a
+    // fixed 4+ seconds before even starting it.
+    final Future<void> minimumSplash =
+        Future<void>.delayed(const Duration(milliseconds: 1400));
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final String? adminSessionEmail = prefs.getString('admin_session_email');
     final bool hasCompletedOnboarding = await OnboardingPreferences.isCompleted();
     final FirebaseService firebaseService = FirebaseService();
+    await minimumSplash;
     if (!mounted) {
       return;
     }
@@ -75,9 +80,10 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     User? user = firebaseService.currentUser;
     if (user == null) {
       try {
+        // The first event is the restored session (or null when signed
+        // out), so a signed-out user no longer waits the full timeout.
         user = await firebaseService.authStateChanges
-            .where((User? authUser) => authUser != null)
-            .timeout(const Duration(seconds: 5))
+            .timeout(const Duration(seconds: 2))
             .first;
       } catch (_) {
         user = firebaseService.currentUser;

@@ -541,6 +541,22 @@ class LessonReward {
     this.freezesUsed = 0,
   });
 
+  /// Nothing was earned: the lesson was not finished properly (for example
+  /// questions were skipped), so no XP, gems or streak credit is paid.
+  const LessonReward.notEarned({this.streakBefore = 0, this.streakAfter = 0})
+      : xpEarned = 0,
+        bonusXp = 0,
+        newAchievements = const <AchievementDef>[],
+        firstTime = false,
+        gemsEarned = 0,
+        restored = false,
+        restorationsLeft = EngagementState.maxRestorations,
+        streakReset = false,
+        lostStreak = 0,
+        freezesUsed = 0;
+
+  bool get wasEarned => xpEarned > 0 || bonusXp > 0;
+
   final int xpEarned;
   final int bonusXp;
   final int streakBefore;
@@ -713,6 +729,9 @@ class EngagementNotifier extends Notifier<EngagementState> {
 
   /// Time for display (countdowns, the banner). Same ratchet, no write.
   DateTime trustedNow() => state.trusted(DateTime.now());
+
+  /// The current streak length right now, without changing anything.
+  int trustedStreakCount() => state.currentStreak(trustedNow());
 
   EngagementState _decode(String raw) {
     final Object? decoded = jsonDecode(raw);
