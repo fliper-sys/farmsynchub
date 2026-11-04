@@ -10,6 +10,7 @@ import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/farm_provider.dart';
 import '../../common/widgets/app_card.dart';
+import '../../common/widgets/detail_ui.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_progress_bar.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
@@ -104,11 +105,72 @@ class _FarmTasksScreenState extends ConsumerState<FarmTasksScreen> {
         ),
         heroIcon: Icons.checklist_rounded,
         heroVariant: FarmArtworkVariant.field,
-        heroBadge: '${stats.total - stats.completed} open tasks',
-        trailing: _AddTaskButton(
-          onTap: () => _openFarmPicker(context, language, allFarms),
-        ),
+        showHero: false,
+        showArtwork: false,
         sections: <Widget>[
+          FadeInUp(
+            child: Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(28),
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: <Color>[Color(0xFF0E5A41), Color(0xFF2E9E5B)],
+                ),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: const Color(0xFF0E5A41).withOpacity(0.35),
+                    blurRadius: 24,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: <Widget>[
+                  ProgressRing(
+                    value: stats.completionRate,
+                    color: const Color(0xFFFFC800),
+                    centerText:
+                        '${(stats.completionRate * 100).round()}%',
+                    caption: 'done',
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        const Text('Task center',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900)),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${stats.total - stats.completed} open  ·  ${stats.overdueCount} overdue  ·  ${stats.completed} done',
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(0.85),
+                              fontSize: 13),
+                        ),
+                        const SizedBox(height: 10),
+                        FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFFFFC800),
+                            foregroundColor: const Color(0xFF3A1F00),
+                          ),
+                          onPressed: () =>
+                              _openFarmPicker(context, language, allFarms),
+                          icon: const Icon(Icons.add_task_rounded),
+                          label: const Text('New task'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -389,31 +451,6 @@ class _FarmTasksScreenState extends ConsumerState<FarmTasksScreen> {
           ),
         );
       },
-    );
-  }
-}
-
-class _AddTaskButton extends StatelessWidget {
-  const _AddTaskButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(18),
-          border:
-              Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-        ),
-        child: const Icon(Icons.add_rounded),
-      ),
     );
   }
 }
