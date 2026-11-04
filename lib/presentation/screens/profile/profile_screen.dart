@@ -11,6 +11,7 @@ import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/user_profile_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
+import '../../common/widgets/brand_title.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
 
@@ -83,6 +84,8 @@ class ProfileScreen extends ConsumerWidget {
         ],
       ),
       sections: <Widget>[
+        const Center(child: BrandTitle(large: true)),
+        const SizedBox(height: 16),
         if (!isProfileComplete) ...<Widget>[
           AppCard(
             color: theme.colorScheme.surfaceContainerHighest,

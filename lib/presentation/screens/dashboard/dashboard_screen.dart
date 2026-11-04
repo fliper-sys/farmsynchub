@@ -24,6 +24,7 @@ import '../../../providers/theme_provider.dart';
 import '../../../providers/user_profile_provider.dart';
 import '../crops/crop_detail_screen.dart';
 import '../livestock/livestock_detail_screen.dart';
+import '../../common/widgets/brand_title.dart';
 import 'streak_challenge_banner.dart';
 import 'widgets/activity_feed.dart';
 import 'widgets/weather_pill.dart';
@@ -120,7 +121,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       appBar: AppBar(
         backgroundColor: theme.scaffoldBackgroundColor,
         foregroundColor: theme.colorScheme.onSurface,
-        title: Text(language.tr(en: 'Home', ha: 'Gida', fr: 'Accueil')),
+        title: const BrandTitle(),
         actions: <Widget>[
           _SyncHeaderIcon(
             pendingCount: sync.pendingCount,
