@@ -6,6 +6,7 @@ import '../../../core/constants/app_assets.dart';
 import '../../../core/services/onboarding_preferences.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../common/widgets/app_button.dart';
+import '../../common/widgets/brand_title.dart';
 
 /// Theme-aware onboarding carousel for the first app launch.
 class OnboardingScreen extends StatefulWidget {
@@ -57,6 +58,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         OnboardingChipData(label: 'Insights', assetPath: AppAssets.uiGallery10),
         OnboardingChipData(label: 'Harvest', assetPath: AppAssets.uiGallery01),
       ],
+    ),
+    OnboardingPageData(
+      title: 'Built for the field, works offline',
+      subtitle:
+          'Record harvests, feeding, sales and stock with no signal. Everything syncs the moment you are back online - and daily learning streaks keep you growing.',
+      animationAsset: AppAssets.onboardingSuccessAnimation,
+      accentColor: Color(0xFFE0724A),
+      chips: <OnboardingChipData>[
+        OnboardingChipData(label: 'Offline first', assetPath: AppAssets.uiGallery02),
+        OnboardingChipData(label: 'Daily streaks', assetPath: AppAssets.uiGallery03),
+      ],
       isLastPage: true,
     ),
   ];
@@ -74,7 +86,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final bool isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      body: DecoratedBox(
+      body: AnimatedContainer(
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeOut,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -86,9 +100,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     AppColors.darkPrimaryBackground,
                   ]
                 : const <Color>[
-                    Color(0xFFFFFBF2),
-                    Color(0xFFEFF8EA),
-                    Color(0xFFE4F1DD),
+                    Color.alphaBlend(
+                        _pages[_currentPage].accentColor.withOpacity(0.18),
+                        const Color(0xFFFFFBF2)),
+                    const Color(0xFFEFF8EA),
+                    Color.alphaBlend(
+                        _pages[_currentPage].accentColor.withOpacity(0.12),
+                        const Color(0xFFE4F1DD)),
                   ],
           ),
         ),
@@ -99,39 +117,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 padding: const EdgeInsets.fromLTRB(22, 16, 22, 8),
                 child: Row(
                   children: <Widget>[
-                    Container(
-                      width: 42,
-                      height: 42,
-                      padding: const EdgeInsets.all(7),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? AppColors.darkElevatedCard
-                            : scheme.surface.withOpacity(0.88),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                            color: isDark
-                                ? AppColors.darkBorder
-                                : scheme.outlineVariant),
-                        boxShadow: isDark
-                            ? <BoxShadow>[
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.35),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: Image.asset(AppAssets.appIcon),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'FarmSync Hub',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: isDark ? Colors.white : AppColors.primary,
-                          fontWeight: FontWeight.w800,
-                        ),
+                    const Expanded(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: BrandTitle(),
                       ),
                     ),
                     TextButton(
@@ -148,7 +137,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   onPageChanged: (int page) =>
                       setState(() => _currentPage = page),
                   itemBuilder: (BuildContext context, int index) {
-                    return _OnboardingPage(data: _pages[index]);
+                    return AnimatedBuilder(
+                      animation: _pageController,
+                      builder: (BuildContext context, Widget? child) {
+                        double delta = 0;
+                        if (_pageController.hasClients &&
+                            _pageController.position.haveDimensions) {
+                          delta = (_pageController.page ?? index.toDouble()) -
+                              index;
+                        }
+                        final double d = delta.abs().clamp(0.0, 1.0).toDouble();
+                        return Opacity(
+                          opacity: 1 - d * 0.6,
+                          child: Transform.translate(
+                            offset: Offset(-delta * 40, 0),
+                            child: Transform.scale(
+                                scale: 1 - d * 0.06, child: child),
+                          ),
+                        );
+                      },
+                      child: _OnboardingPage(data: _pages[index]),
+                    );
                   },
                 ),
               ),
@@ -289,7 +298,19 @@ class _BottomControls extends StatelessWidget {
                   flex: 2,
                   child: AppButton.primary(
                     onPressed: isCompleting ? null : onNext,
-                    child: Text(isLastPage ? 'Enter FarmSync' : 'Next'),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Text(isLastPage ? 'Get started' : 'Next'),
+                        const SizedBox(width: 8),
+                        Icon(
+                            isLastPage
+                                ? Icons.rocket_launch_rounded
+                                : Icons.arrow_forward_rounded,
+                            size: 18),
+                      ],
+                    ),
                   ),
                 ),
               ],
