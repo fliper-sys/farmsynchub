@@ -447,6 +447,7 @@ class LivestockDetailScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           SectionJumpBar(sections: sections),
           const SizedBox(height: 18),
+          Container(key: workFocusKey, height: 0),
           Container(
             key: growthCycleKey,
             child: AppCard(

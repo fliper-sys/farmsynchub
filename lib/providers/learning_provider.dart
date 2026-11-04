@@ -626,6 +626,8 @@ class LearningNotifier extends Notifier<LearningState> {
     await _persist(<String>{_completedPracticesKey});
     if (firstTime) {
       await ref.read(engagementProvider.notifier).awardXp(5);
+    } else if (completed) {
+      await ref.read(engagementProvider.notifier).recordActivity();
     }
   }
 
@@ -667,9 +669,11 @@ class LearningNotifier extends Notifier<LearningState> {
       _skippedQuestionsKey,
       _skippedLessonsKey,
     });
-    // Answering a question for the first time keeps the streak alive (1 XP).
+    // First answers earn XP; later answers still keep the daily streak alive.
     if (firstAnswer) {
       await ref.read(engagementProvider.notifier).awardXp(1);
+    } else {
+      await ref.read(engagementProvider.notifier).recordActivity();
     }
   }
 
