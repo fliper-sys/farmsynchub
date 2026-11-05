@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/extensions/context_extensions.dart';
+import '../../../core/services/farm_planning.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_utils.dart';
@@ -28,8 +28,10 @@ import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
+import '../../common/wizard/guided_wizard_screen.dart' show openWizard;
 import '../schedule/schedule_screen.dart';
 import 'farm_detail_screen.dart';
+import 'farm_wizard_screen.dart';
 
 class FarmsScreen extends ConsumerWidget {
   const FarmsScreen({super.key});
@@ -441,12 +443,17 @@ class FarmsScreen extends ConsumerWidget {
     WidgetRef ref, {
     Farm? farm,
   }) async {
-    final FarmDraft? draft = await showModalBottomSheet<FarmDraft>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext context) => _FarmFormSheet(initialFarm: farm),
-    );
+    // New farms use the guided, step-by-step wizard; editing an existing farm
+    // keeps the compact single-sheet form.
+    final FarmDraft? draft = farm == null
+        ? await openWizard<FarmDraft>(context, const FarmWizardScreen())
+        : await showModalBottomSheet<FarmDraft>(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (BuildContext context) =>
+                _FarmFormSheet(initialFarm: farm),
+          );
 
     if (draft == null) {
       return;
@@ -1162,56 +1169,17 @@ class _FarmFormSheetState extends State<_FarmFormSheet> {
     );
   }
 
-  double _suggestedCropCapacity(double sizeHa, FarmType farmType) {
-    if (sizeHa <= 0) {
-      return 0;
-    }
-    final double factor = switch (farmType) {
-      FarmType.crop => 0.8,
-      FarmType.livestock => 0.0,
-      FarmType.greenhouse => 0.25,
-      FarmType.combined => 0.55,
-    };
-    return sizeHa * factor;
-  }
+  double _suggestedCropCapacity(double sizeHa, FarmType farmType) =>
+      FarmPlanning.suggestedCropCapacity(sizeHa, farmType);
 
-  int _suggestedLivestockCapacity(double sizeHa, FarmType farmType) {
-    if (sizeHa <= 0) {
-      return 0;
-    }
-    final double factor = switch (farmType) {
-      FarmType.crop => 0.0,
-      FarmType.livestock => 18,
-      FarmType.greenhouse => 0.0,
-      FarmType.combined => 10,
-    };
-    return (sizeHa * factor).round();
-  }
+  int _suggestedLivestockCapacity(double sizeHa, FarmType farmType) =>
+      FarmPlanning.suggestedLivestockCapacity(sizeHa, farmType);
 
-  double _suggestedGreenhouseArea(double sizeHa, FarmType farmType) {
-    if (sizeHa <= 0) {
-      return 0;
-    }
-    final double factor = switch (farmType) {
-      FarmType.crop => 0.0,
-      FarmType.livestock => 0.0,
-      FarmType.greenhouse => 0.18,
-      FarmType.combined => 0.12,
-    };
-    return sizeHa * factor;
-  }
+  double _suggestedGreenhouseArea(double sizeHa, FarmType farmType) =>
+      FarmPlanning.suggestedGreenhouseArea(sizeHa, farmType);
 
-  int _suggestedGreenhouseUnits(double sizeHa, FarmType farmType) {
-    if (sizeHa <= 0) {
-      return 0;
-    }
-    return switch (farmType) {
-      FarmType.crop => 0,
-      FarmType.livestock => 0,
-      FarmType.greenhouse => math.max(1, (sizeHa / 0.2).floor()),
-      FarmType.combined => math.max(1, (sizeHa / 0.35).floor()),
-    };
-  }
+  int _suggestedGreenhouseUnits(double sizeHa, FarmType farmType) =>
+      FarmPlanning.suggestedGreenhouseUnits(sizeHa, farmType);
 
   void _submit() {
     final String? nameError = Validators.combine(

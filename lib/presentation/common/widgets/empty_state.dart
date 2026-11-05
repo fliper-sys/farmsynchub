@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/app_colors.dart';
+
 /// Empty state widget with icon, title, subtitle, and action button.
+///
+/// An empty list is often a new user's first impression of a screen, so it
+/// should say what the screen is for and what to do next (pass [action]).
 class EmptyState extends StatelessWidget {
   const EmptyState({
     super.key,
@@ -19,34 +24,41 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final Color accent = AppColors.primaryForeground(theme.brightness);
+
     return Padding(
       padding: padding,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            size: 64,
-            color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5),
+        children: <Widget>[
+          Container(
+            width: 96,
+            height: 96,
+            decoration: BoxDecoration(
+              color: accent.withOpacity(0.10),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 44, color: accent),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           Text(
             title,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface,
-              fontWeight: FontWeight.w600,
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: theme.colorScheme.onSurface,
             ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           Text(
             subtitle,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.5,
             ),
             textAlign: TextAlign.center,
           ),
-          if (action != null) ...[
+          if (action != null) ...<Widget>[
             const SizedBox(height: 24),
             action!,
           ],
