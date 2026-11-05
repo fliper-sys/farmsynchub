@@ -26,6 +26,7 @@ import '../crops/crop_detail_screen.dart';
 import '../livestock/livestock_detail_screen.dart';
 import 'streak_challenge_banner.dart';
 import 'widgets/activity_feed.dart';
+import 'widgets/latest_news_carousel.dart';
 import 'widgets/weather_pill.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -200,6 +201,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                       onViewAll: () => context.go('/farm-tasks'),
                     ),
                     const SizedBox(height: 14),
+                    const LatestNewsCarousel(),
                     _HarvestReadinessCard(
                       items: HarvestReadinessService.all(
                           crops: crops, livestock: livestock),
