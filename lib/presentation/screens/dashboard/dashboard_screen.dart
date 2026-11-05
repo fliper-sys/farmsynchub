@@ -111,7 +111,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         ? currentUser!.displayName!.trim()
         : profile?.fullName.trim().isNotEmpty == true
             ? profile!.fullName.trim()
-            : 'Love Bari';
+            : language.tr(en: 'Farmer', ha: 'Manomi', fr: 'Agriculteur');
     final String activeFocus = activeFarm?.name ??
         (crops.isNotEmpty ? crops.first.name : 'Add your first farm');
 
@@ -158,14 +158,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 : null,
           ),
           _HeaderIcon(
-              icon: Icons.school_outlined, onTap: () => context.go('/learn')),
+              icon: Icons.school_outlined,
+              tooltip: language.tr(en: 'Learn', ha: 'Koyo', fr: 'Apprendre'),
+              onTap: () => context.go('/learn')),
           _HeaderIcon(
             icon: Icons.notifications_none_rounded,
+            tooltip: language.tr(
+                en: 'Notifications', ha: 'Sanarwa', fr: 'Notifications'),
             badge: unread,
             onTap: () => context.go('/notifications'),
           ),
           _HeaderIcon(
               icon: Icons.auto_awesome_rounded,
+              tooltip: language.tr(
+                  en: 'AI Advisor',
+                  ha: 'Mai ba da shawara',
+                  fr: 'Conseiller IA'),
               onTap: () => context.go('/ai-advisor')),
           const SizedBox(width: 6),
         ],
@@ -269,21 +277,61 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     const SizedBox(height: 14),
                     _ManagementGrid(
                       actions: <_ManagementAction>[
-                        _ManagementAction(Icons.eco_rounded, 'Crops',
-                            '${crops.length} crop records', '/crops'),
-                        _ManagementAction(Icons.pets_rounded, 'Livestock',
-                            '${livestock.length} groups', '/livestock'),
-                        const _ManagementAction(Icons.inventory_2_rounded,
-                            'Inventory', 'Stock & supplies', '/finance'),
-                        const _ManagementAction(
+                        _ManagementAction(
+                            Icons.agriculture_rounded,
+                            language.tr(
+                                en: 'Farms', ha: 'Gonaki', fr: 'Fermes'),
+                            '${farms.length} locations',
+                            '/farms'),
+                        _ManagementAction(
+                            Icons.eco_rounded,
+                            language.tr(
+                                en: 'Crops',
+                                ha: 'Amfanin gona',
+                                fr: 'Cultures'),
+                            '${crops.length} crop records',
+                            '/crops'),
+                        _ManagementAction(
+                            Icons.pets_rounded,
+                            language.tr(
+                                en: 'Livestock', ha: 'Dabbobi', fr: 'Bétail'),
+                            '${livestock.length} groups',
+                            '/livestock'),
+                        _ManagementAction(
+                            Icons.inventory_2_rounded,
+                            language.tr(en: 'Inventory', fr: 'Stock'),
+                            'Stock & supplies',
+                            '/inventory'),
+                        _ManagementAction(
                             Icons.account_balance_wallet_rounded,
-                            'Finance',
-                            'Sales & expenses',
+                            language.tr(
+                                en: 'Finance', ha: 'Kudi', fr: 'Finance'),
+                            'Income & expenses',
                             '/finance'),
-                        _ManagementAction(Icons.agriculture_rounded, 'Farms',
-                            '${farms.length} locations', '/farms'),
-                        const _ManagementAction(Icons.cloud_queue_rounded,
-                            'Weather', 'Live readings', '/farms'),
+                        _ManagementAction(
+                            Icons.point_of_sale_rounded,
+                            language.tr(
+                                en: 'Sales desk',
+                                ha: 'Tebur Tallace-tallace',
+                                fr: 'Bureau des ventes'),
+                            'Record sales, share receipts',
+                            '/sales'),
+                        _ManagementAction(
+                            Icons.checklist_rounded,
+                            language.tr(
+                                en: 'Farm tasks',
+                                ha: 'Ayyukan gona',
+                                fr: 'Tâches'),
+                            'Today and this week',
+                            '/farm-tasks'),
+                        _ManagementAction(
+                            Icons.trending_up_rounded,
+                            language.tr(
+                                en: 'Market trends',
+                                ha: 'Yanayin kasuwa',
+                                fr: 'Marché'),
+                            'Current prices',
+                            '/market-trends'),
                       ],
                     ),
                     const SizedBox(height: 18),
@@ -1125,11 +1173,16 @@ class _HeaderIcon extends StatelessWidget {
   const _HeaderIcon({
     required this.icon,
     required this.onTap,
+    required this.tooltip,
     this.badge = 0,
   });
 
   final IconData icon;
   final VoidCallback onTap;
+
+  /// Spoken by screen readers and shown on long-press, so an icon-only
+  /// button always says what it does.
+  final String tooltip;
   final int badge;
 
   @override
@@ -1138,6 +1191,7 @@ class _HeaderIcon extends StatelessWidget {
       clipBehavior: Clip.none,
       children: <Widget>[
         IconButton(
+          tooltip: tooltip,
           onPressed: onTap,
           icon: Icon(icon, color: Theme.of(context).colorScheme.onSurface),
         ),
