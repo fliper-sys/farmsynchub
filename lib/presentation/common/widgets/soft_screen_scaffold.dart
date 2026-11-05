@@ -57,8 +57,8 @@ class SoftScreenScaffold extends StatelessWidget {
                   scheme.surface,
                 ]
               : <Color>[
-                  scheme.surface,
-                  scheme.surfaceContainerLow,
+                  const Color(0xFFFFFBF2),
+                  const Color(0xFFF1F8EE),
                 ],
         ),
       ),
