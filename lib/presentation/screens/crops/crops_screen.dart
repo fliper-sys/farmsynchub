@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/extensions/context_extensions.dart';
+import '../../../core/services/crop_planning.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/services/farm_notification_service.dart';
@@ -26,9 +27,11 @@ import '../../common/widgets/app_text_field.dart';
 import '../../common/widgets/entity_card_pieces.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
+import '../../common/wizard/guided_wizard_screen.dart' show openWizard;
 import '../schedule/schedule_screen.dart';
 import 'crop_batch_comparison_screen.dart';
 import 'crop_detail_screen.dart';
+import 'crop_wizard_screen.dart';
 
 class CropsScreen extends ConsumerWidget {
   const CropsScreen({super.key});
@@ -361,15 +364,18 @@ class CropsScreen extends ConsumerWidget {
     required List<Farm> farms,
     Crop? crop,
   }) async {
-    final CropDraft? draft = await showModalBottomSheet<CropDraft>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext context) => _CropFormSheet(
-        farms: farms,
-        initialCrop: crop,
-      ),
-    );
+    // New crops use the guided wizard; editing keeps the compact form sheet.
+    final CropDraft? draft = crop == null
+        ? await openWizard<CropDraft>(context, CropWizardScreen(farms: farms))
+        : await showModalBottomSheet<CropDraft>(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (BuildContext context) => _CropFormSheet(
+              farms: farms,
+              initialCrop: crop,
+            ),
+          );
 
     if (draft == null) {
       return;
@@ -1125,32 +1131,8 @@ class _CropFormSheetState extends State<_CropFormSheet> {
     CropAdviceProfile? profile,
     CropStage stage,
     bool protectedEnvironment,
-  ) {
-    final String key = profile?.name.toLowerCase().trim() ?? '';
-    final Map<String, int> baseCycleDays = <String, int>{
-      'maize': 110,
-      'rice': 120,
-      'sorghum': 110,
-      'millet': 90,
-      'wheat': 125,
-      'cassava': 360,
-      'yam': 270,
-      'sweet potato': 120,
-      'potato': 100,
-      'bean': 70,
-      'cowpea': 75,
-      'groundnut': 110,
-      'soybean': 100,
-      'tomato': 110,
-      'pepper': 150,
-      'onion': 150,
-      'okra': 65,
-      'cabbage': 90,
-    };
-    final int base = baseCycleDays[key] ?? 90;
-    final int protectedBonus = protectedEnvironment ? -7 : 0;
-    return (base + protectedBonus).clamp(45, 540);
-  }
+  ) =>
+      CropPlanning.suggestedCycleDays(profile, stage, protectedEnvironment);
 
   int _stageOffsetDays(CropStage stage) {
     switch (stage) {
@@ -1172,39 +1154,9 @@ class _CropFormSheetState extends State<_CropFormSheet> {
     double areaHa,
     CropStage stage,
     bool protectedEnvironment,
-  ) {
-    final String key = profile?.name.toLowerCase().trim() ?? '';
-    final Map<String, double> yieldPerHa = <String, double>{
-      'maize': 4200,
-      'rice': 5200,
-      'sorghum': 2600,
-      'millet': 1800,
-      'wheat': 3500,
-      'cassava': 24000,
-      'yam': 12000,
-      'sweet potato': 15000,
-      'potato': 17000,
-      'bean': 1200,
-      'cowpea': 1000,
-      'groundnut': 1700,
-      'soybean': 2400,
-      'tomato': 22000,
-      'pepper': 13000,
-      'onion': 20000,
-      'okra': 8500,
-      'cabbage': 28000,
-    };
-    final double base = yieldPerHa[key] ?? 2500;
-    final double stageFactor = switch (stage) {
-      CropStage.seeding => 1.0,
-      CropStage.germination => 0.98,
-      CropStage.vegetative => 1.0,
-      CropStage.flowering => 0.96,
-      CropStage.fruiting => 0.92,
-    };
-    final double environmentFactor = protectedEnvironment ? 1.1 : 1.0;
-    return areaHa * base * stageFactor * environmentFactor;
-  }
+  ) =>
+      CropPlanning.suggestedYieldKg(
+          profile, areaHa, stage, protectedEnvironment);
 
   void _submit() {
     final String? nameError =
