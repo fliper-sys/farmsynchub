@@ -310,16 +310,18 @@ abstract final class AppDestinations {
     frHint: 'Langue, thème et notifications',
   );
 
-  /// The five primary tabs of the bottom bar, in order.
+  /// The seven primary tabs of the bottom bar, in order.
   ///
-  /// Five is the most a phone bar can show with a readable label under every
-  /// icon. Everything else lives in [menuGroups].
+  /// On narrow phones the bar slides sideways so every tab keeps a readable
+  /// label. Everything else lives in [menuGroups].
   static const List<AppDestination> tabs = <AppDestination>[
     home,
     farms,
     crops,
     livestock,
     finance,
+    news,
+    profile,
   ];
 
   /// Every destination, grouped for the side menu.
