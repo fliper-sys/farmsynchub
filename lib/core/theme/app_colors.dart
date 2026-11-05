@@ -38,6 +38,20 @@ abstract final class AppColors {
   static const Color darkMutedText = Color(0xFF737F76);
   static const Color darkBorder = Color(0x17EDEFEC);
 
+  /// Deep green for text and icons that sit on LIGHT surfaces. The bright
+  /// brand green is only about 2:1 against white, which is hard to read; this
+  /// is about 5:1 and still clearly the same family.
+  static const Color primaryDeep = Color(0xFF0B7F4D);
+
+  /// Label color to put ON the bright brand green (buttons, FAB, chips).
+  /// White on that green is only about 2:1; this near-black green is about 9:1.
+  static const Color onPrimaryBrand = Color(0xFF06281A);
+
+  /// Green to use when green is the *text or icon* color: bright on dark
+  /// surfaces, deep on light surfaces.
+  static Color primaryForeground(Brightness brightness) =>
+      brightness == Brightness.dark ? premiumGreen : primaryDeep;
+
   /// Deep botanical green used as the primary brand color.
   static const Color primary = premiumGreen;
 

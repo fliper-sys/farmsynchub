@@ -40,6 +40,12 @@ class SoftScreenScaffold extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final ColorScheme scheme = theme.colorScheme;
     final bool isDark = theme.brightness == Brightness.dark;
+    // Green used as text/icon color: deep on light surfaces so it is readable.
+    final Color accent = AppColors.primaryForeground(theme.brightness);
+    // Soft green fill for icon tiles and badges; a translucent tint in dark
+    // mode instead of a pale pastel that would glow on a near-black screen.
+    final Color softFill =
+        isDark ? AppColors.primary.withOpacity(0.16) : AppColors.surfaceSoft;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -52,9 +58,11 @@ class SoftScreenScaffold extends StatelessWidget {
                   const Color(0xFF102219),
                   scheme.surface,
                 ]
+              // Matches the app's neutral light scaffold instead of the old
+              // cream tint, so tab pages and detail pages look like one app.
               : <Color>[
-                  const Color(0xFFFFFBF2),
-                  const Color(0xFFF1F8EE),
+                  scheme.surface,
+                  scheme.surfaceContainerLow,
                 ],
         ),
       ),
@@ -174,14 +182,17 @@ class SoftScreenScaffold extends StatelessWidget {
                               ],
                             ] else ...<Widget>[
                               if (onBack != null) ...<Widget>[
-                                IconButton(
-                                  icon: const Icon(Icons.arrow_back_rounded),
-                                  color: isDark
-                                      ? theme.colorScheme.onSurface
-                                      : AppColors.primary,
-                                  onPressed: onBack,
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: IconButton(
+                                    icon: const Icon(Icons.arrow_back_rounded),
+                                    color: isDark
+                                        ? theme.colorScheme.onSurface
+                                        : accent,
+                                    onPressed: onBack,
+                                  ),
                                 ),
-                                const SizedBox(width: 12),
+                                const SizedBox(height: 10),
                               ],
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -190,13 +201,10 @@ class SoftScreenScaffold extends StatelessWidget {
                                     width: 56,
                                     height: 56,
                                     decoration: BoxDecoration(
-                                      color: isDark
-                                          ? scheme.primary.withOpacity(0.18)
-                                          : AppColors.surfaceSoft,
+                                      color: softFill,
                                       borderRadius: BorderRadius.circular(20),
                                     ),
-                                    child:
-                                        Icon(heroIcon, color: scheme.primary),
+                                    child: Icon(heroIcon, color: accent),
                                   ),
                                   const SizedBox(width: 14),
                                   Expanded(
@@ -209,10 +217,7 @@ class SoftScreenScaffold extends StatelessWidget {
                                             padding: const EdgeInsets.symmetric(
                                                 horizontal: 12, vertical: 7),
                                             decoration: BoxDecoration(
-                                              color: isDark
-                                                  ? scheme.primary
-                                                      .withOpacity(0.18)
-                                                  : AppColors.surfaceSoft,
+                                              color: softFill,
                                               borderRadius:
                                                   BorderRadius.circular(999),
                                             ),
@@ -220,19 +225,19 @@ class SoftScreenScaffold extends StatelessWidget {
                                               heroBadge!,
                                               style: theme.textTheme.labelMedium
                                                   ?.copyWith(
-                                                color: AppColors.primaryMid,
+                                                color: accent,
                                                 fontWeight: FontWeight.w700,
                                               ),
                                             ),
                                           ),
-                                          const SizedBox(height: 12),
+                                          const SizedBox(height: 10),
                                         ],
                                         Text(
                                           heroTitle,
                                           style: theme.textTheme.headlineSmall
                                               ?.copyWith(
                                             fontSize: titleSize,
-                                            color: AppColors.primary,
+                                            color: accent,
                                           ),
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
@@ -345,9 +350,7 @@ class SoftSectionTitle extends StatelessWidget {
               title,
               style: titleStyle ??
                   theme.textTheme.titleLarge?.copyWith(
-                    color: theme.brightness == Brightness.dark
-                        ? theme.colorScheme.onSurface
-                        : AppColors.primary,
+                    color: AppColors.primaryForeground(theme.brightness),
                   ),
             ),
           ),
