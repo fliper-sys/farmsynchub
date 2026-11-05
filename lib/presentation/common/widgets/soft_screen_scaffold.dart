@@ -138,6 +138,17 @@ class SoftScreenScaffold extends StatelessWidget {
                                               fontWeight: FontWeight.w700,
                                             ),
                                           ),
+                                          const SizedBox(height: 10),
+                                        ],
+                                        Text(
+                                          heroTitle,
+                                          style: theme.textTheme.headlineSmall
+                                              ?.copyWith(
+                                            fontSize: titleSize,
+                                            color: AppColors.primary,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                         const SizedBox(height: 10),
                                       ],
@@ -160,11 +171,16 @@ class SoftScreenScaffold extends StatelessWidget {
                                           color: theme
                                               .colorScheme.onSurfaceVariant,
                                         ),
-                                        maxLines: compact ? 4 : 3,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
+                                ],
+                              ),
+                              if (trailing != null) ...<Widget>[
+                                const SizedBox(height: 16),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: trailing!,
                                 ),
                               ],
                             ),
@@ -222,6 +238,17 @@ class SoftScreenScaffold extends StatelessWidget {
                                               fontWeight: FontWeight.w700,
                                             ),
                                           ),
+                                          const SizedBox(height: 12),
+                                        ],
+                                        Text(
+                                          heroTitle,
+                                          style: theme.textTheme.headlineSmall
+                                              ?.copyWith(
+                                            fontSize: titleSize,
+                                            color: AppColors.primary,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                         const SizedBox(height: 12),
                                       ],
@@ -244,40 +271,73 @@ class SoftScreenScaffold extends StatelessWidget {
                                           color: theme
                                               .colorScheme.onSurfaceVariant,
                                         ),
-                                        maxLines: compact ? 4 : 3,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                if (trailing != null) ...<Widget>[
-                                  const SizedBox(width: 12),
-                                  trailing!,
+                                  if (trailing != null) ...<Widget>[
+                                    const SizedBox(width: 12),
+                                    trailing!,
+                                  ],
                                 ],
-                              ],
-                            ),
+                              ),
+                            ],
+                            if (showArtwork) ...<Widget>[
+                              const SizedBox(height: 18),
+                              FarmSceneArtwork(
+                                height: artworkHeight,
+                                variant: heroVariant,
+                                borderRadius:
+                                    const BorderRadius.all(Radius.circular(28)),
+                              ),
+                            ],
                           ],
-                          if (showArtwork) ...<Widget>[
-                            const SizedBox(height: 18),
-                            FarmSceneArtwork(
-                              height: artworkHeight,
-                              variant: heroVariant,
-                              borderRadius:
-                                  const BorderRadius.all(Radius.circular(28)),
-                            ),
-                          ],
-                        ],
+                        ),
                       ),
                     ),
-                  ),
                   if (showHero) const SizedBox(height: 18),
-                  ...sections,
+                  for (int index = 0; index < sections.length; index++)
+                    _SectionEntrance(
+                      key: ValueKey<String>('soft-section-$index'),
+                      index: index,
+                      child: sections[index],
+                    ),
                 ],
               );
             },
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SectionEntrance extends StatelessWidget {
+  const _SectionEntrance({
+    super.key,
+    required this.index,
+    required this.child,
+  });
+
+  final int index;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final int stagger = (index * 28).clamp(0, 220).toInt();
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: Duration(milliseconds: 300 + stagger),
+      curve: Curves.easeOutCubic,
+      child: child,
+      builder: (BuildContext context, double value, Widget? child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 12 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
     );
   }
 }

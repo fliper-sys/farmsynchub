@@ -17,7 +17,8 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with TickerProviderStateMixin {
   late final AnimationController _introController;
   late final AnimationController _pulseController;
   late final Animation<double> _fade;
@@ -36,11 +37,13 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
       duration: const Duration(milliseconds: 1500),
     )..repeat(reverse: true);
 
-    _fade = CurvedAnimation(parent: _introController, curve: Curves.easeOutCubic);
+    _fade =
+        CurvedAnimation(parent: _introController, curve: Curves.easeOutCubic);
     _slide = Tween<Offset>(
       begin: const Offset(0, 0.05),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _introController, curve: Curves.easeOutCubic));
+    ).animate(
+        CurvedAnimation(parent: _introController, curve: Curves.easeOutCubic));
     _pulse = Tween<double>(begin: 0.96, end: 1.02).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
@@ -49,10 +52,17 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   }
 
   Future<void> _handleNavigation() async {
-    await Future<void>.delayed(const Duration(milliseconds: 4300));
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    // Keep only enough time for the branded entrance to feel intentional.
+    // The previous multi-second hold made even returning users wait on startup.
+    final List<Object?> readiness =
+        await Future.wait<Object?>(<Future<Object?>>[
+      SharedPreferences.getInstance(),
+      OnboardingPreferences.isCompleted(),
+      Future<void>.delayed(const Duration(milliseconds: 700)),
+    ]);
+    final SharedPreferences prefs = readiness[0]! as SharedPreferences;
+    final bool hasCompletedOnboarding = readiness[1]! as bool;
     final String? adminSessionEmail = prefs.getString('admin_session_email');
-    final bool hasCompletedOnboarding = await OnboardingPreferences.isCompleted();
     final FirebaseService firebaseService = FirebaseService();
     if (!mounted) {
       return;
@@ -75,9 +85,10 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     User? user = firebaseService.currentUser;
     if (user == null) {
       try {
+        // The first auth event also resolves a signed-out session. Filtering
+        // null values here used to wait for a non-existent login for five seconds.
         user = await firebaseService.authStateChanges
-            .where((User? authUser) => authUser != null)
-            .timeout(const Duration(seconds: 5))
+            .timeout(const Duration(seconds: 3))
             .first;
       } catch (_) {
         user = firebaseService.currentUser;
@@ -95,7 +106,8 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     if (!mounted) {
       return;
     }
-    final bool shouldVerify = user.email?.isNotEmpty == true && !user.emailVerified;
+    final bool shouldVerify =
+        user.email?.isNotEmpty == true && !user.emailVerified;
     context.go(shouldVerify ? '/verify-email' : '/post-auth');
   }
 
@@ -161,7 +173,8 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.22),
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.white.withOpacity(0.34)),
+                              border: Border.all(
+                                  color: Colors.white.withOpacity(0.34)),
                             ),
                             child: Image.asset(AppAssets.appIcon),
                           ),
@@ -176,15 +189,18 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.18),
                               borderRadius: BorderRadius.circular(999),
-                              border: Border.all(color: Colors.white.withOpacity(0.26)),
+                              border: Border.all(
+                                  color: Colors.white.withOpacity(0.26)),
                             ),
                             child: Text(
                               'Nigeria',
-                              style: theme.textTheme.labelMedium?.copyWith(color: Colors.white),
+                              style: theme.textTheme.labelMedium
+                                  ?.copyWith(color: Colors.white),
                             ),
                           ),
                         ],
@@ -199,7 +215,8 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                             decoration: BoxDecoration(
                               color: Colors.black.withOpacity(0.40),
                               borderRadius: BorderRadius.circular(38),
-                              border: Border.all(color: Colors.white.withOpacity(0.18)),
+                              border: Border.all(
+                                  color: Colors.white.withOpacity(0.18)),
                               boxShadow: <BoxShadow>[
                                 BoxShadow(
                                   color: Colors.black.withOpacity(0.32),
@@ -211,7 +228,8 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: <Widget>[
-                                Image.asset(AppAssets.appIcon, width: 58, height: 58),
+                                Image.asset(AppAssets.appIcon,
+                                    width: 58, height: 58),
                                 const SizedBox(height: 26),
                                 Text(
                                   'Your smart farm companion',
