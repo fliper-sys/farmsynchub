@@ -73,203 +73,249 @@ class SoftScreenScaffold extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   if (showHero)
-                  AppCard(
-                    color: scheme.surfaceContainerHighest,
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          if (compact) ...<Widget>[
-                            if (onBack != null) ...<Widget>[
-                              Align(
-                                alignment: Alignment.topLeft,
-                                child: IconButton(
+                    AppCard(
+                      color: scheme.surfaceContainerHighest,
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            if (compact) ...<Widget>[
+                              if (onBack != null) ...<Widget>[
+                                Align(
+                                  alignment: Alignment.topLeft,
+                                  child: IconButton(
+                                    icon: const Icon(Icons.arrow_back_rounded),
+                                    color: isDark
+                                        ? theme.colorScheme.onSurface
+                                        : AppColors.primary,
+                                    onPressed: onBack,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                              ],
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Container(
+                                    width: 56,
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      color: isDark
+                                          ? scheme.primary.withOpacity(0.18)
+                                          : AppColors.surfaceSoft,
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child:
+                                        Icon(heroIcon, color: scheme.primary),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: <Widget>[
+                                        if (heroBadge != null) ...<Widget>[
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 7),
+                                            decoration: BoxDecoration(
+                                              color: isDark
+                                                  ? scheme.primary
+                                                      .withOpacity(0.18)
+                                                  : AppColors.surfaceSoft,
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                            ),
+                                            child: Text(
+                                              heroBadge!,
+                                              style: theme.textTheme.labelMedium
+                                                  ?.copyWith(
+                                                color: AppColors.primaryMid,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 10),
+                                        ],
+                                        Text(
+                                          heroTitle,
+                                          style: theme.textTheme.headlineSmall
+                                              ?.copyWith(
+                                            fontSize: titleSize,
+                                            color: AppColors.primary,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          heroSubtitle,
+                                          style: theme.textTheme.bodyMedium
+                                              ?.copyWith(
+                                            height: 1.6,
+                                            color: theme
+                                                .colorScheme.onSurfaceVariant,
+                                          ),
+                                          maxLines: compact ? 4 : 3,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (trailing != null) ...<Widget>[
+                                const SizedBox(height: 16),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: trailing!,
+                                ),
+                              ],
+                            ] else ...<Widget>[
+                              if (onBack != null) ...<Widget>[
+                                IconButton(
                                   icon: const Icon(Icons.arrow_back_rounded),
                                   color: isDark
                                       ? theme.colorScheme.onSurface
                                       : AppColors.primary,
                                   onPressed: onBack,
                                 ),
-                              ),
-                              const SizedBox(height: 10),
-                            ],
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Container(
-                                  width: 56,
-                                  height: 56,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.surfaceSoft,
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child:
-                                      Icon(heroIcon, color: AppColors.primary),
-                                ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: <Widget>[
-                                      if (heroBadge != null) ...<Widget>[
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 7),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.surfaceSoft,
-                                            borderRadius:
-                                                BorderRadius.circular(999),
-                                          ),
-                                          child: Text(
-                                            heroBadge!,
-                                            style: theme.textTheme.labelMedium
-                                                ?.copyWith(
-                                              color: AppColors.primaryMid,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 10),
-                                      ],
-                                      Text(
-                                        heroTitle,
-                                        style: theme.textTheme.headlineSmall
-                                            ?.copyWith(
-                                          fontSize: titleSize,
-                                          color: AppColors.primary,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        heroSubtitle,
-                                        style: theme.textTheme.bodyMedium
-                                            ?.copyWith(
-                                          height: 1.6,
-                                          color: theme
-                                              .colorScheme.onSurfaceVariant,
-                                        ),
-                                        maxLines: compact ? 4 : 3,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                                const SizedBox(width: 12),
                               ],
-                            ),
-                            if (trailing != null) ...<Widget>[
-                              const SizedBox(height: 16),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: trailing!,
-                              ),
-                            ],
-                          ] else ...<Widget>[
-                            if (onBack != null) ...<Widget>[
-                              IconButton(
-                                icon: const Icon(Icons.arrow_back_rounded),
-                                color: isDark
-                                    ? theme.colorScheme.onSurface
-                                    : AppColors.primary,
-                                onPressed: onBack,
-                              ),
-                              const SizedBox(width: 12),
-                            ],
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Container(
-                                  width: 56,
-                                  height: 56,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.surfaceSoft,
-                                    borderRadius: BorderRadius.circular(20),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Container(
+                                    width: 56,
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      color: isDark
+                                          ? scheme.primary.withOpacity(0.18)
+                                          : AppColors.surfaceSoft,
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child:
+                                        Icon(heroIcon, color: scheme.primary),
                                   ),
-                                  child:
-                                      Icon(heroIcon, color: AppColors.primary),
-                                ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: <Widget>[
-                                      if (heroBadge != null) ...<Widget>[
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 7),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.surfaceSoft,
-                                            borderRadius:
-                                                BorderRadius.circular(999),
-                                          ),
-                                          child: Text(
-                                            heroBadge!,
-                                            style: theme.textTheme.labelMedium
-                                                ?.copyWith(
-                                              color: AppColors.primaryMid,
-                                              fontWeight: FontWeight.w700,
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: <Widget>[
+                                        if (heroBadge != null) ...<Widget>[
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 7),
+                                            decoration: BoxDecoration(
+                                              color: isDark
+                                                  ? scheme.primary
+                                                      .withOpacity(0.18)
+                                                  : AppColors.surfaceSoft,
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                            ),
+                                            child: Text(
+                                              heroBadge!,
+                                              style: theme.textTheme.labelMedium
+                                                  ?.copyWith(
+                                                color: AppColors.primaryMid,
+                                                fontWeight: FontWeight.w700,
+                                              ),
                                             ),
                                           ),
+                                          const SizedBox(height: 12),
+                                        ],
+                                        Text(
+                                          heroTitle,
+                                          style: theme.textTheme.headlineSmall
+                                              ?.copyWith(
+                                            fontSize: titleSize,
+                                            color: AppColors.primary,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                        const SizedBox(height: 12),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          heroSubtitle,
+                                          style: theme.textTheme.bodyMedium
+                                              ?.copyWith(
+                                            height: 1.6,
+                                            color: theme
+                                                .colorScheme.onSurfaceVariant,
+                                          ),
+                                          maxLines: compact ? 4 : 3,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                       ],
-                                      Text(
-                                        heroTitle,
-                                        style: theme.textTheme.headlineSmall
-                                            ?.copyWith(
-                                          fontSize: titleSize,
-                                          color: AppColors.primary,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        heroSubtitle,
-                                        style: theme.textTheme.bodyMedium
-                                            ?.copyWith(
-                                          height: 1.6,
-                                          color: theme
-                                              .colorScheme.onSurfaceVariant,
-                                        ),
-                                        maxLines: compact ? 4 : 3,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
+                                    ),
                                   ),
-                                ),
-                                if (trailing != null) ...<Widget>[
-                                  const SizedBox(width: 12),
-                                  trailing!,
+                                  if (trailing != null) ...<Widget>[
+                                    const SizedBox(width: 12),
+                                    trailing!,
+                                  ],
                                 ],
-                              ],
-                            ),
+                              ),
+                            ],
+                            if (showArtwork) ...<Widget>[
+                              const SizedBox(height: 18),
+                              FarmSceneArtwork(
+                                height: artworkHeight,
+                                variant: heroVariant,
+                                borderRadius:
+                                    const BorderRadius.all(Radius.circular(28)),
+                              ),
+                            ],
                           ],
-                          if (showArtwork) ...<Widget>[
-                            const SizedBox(height: 18),
-                            FarmSceneArtwork(
-                              height: artworkHeight,
-                              variant: heroVariant,
-                              borderRadius:
-                                  const BorderRadius.all(Radius.circular(28)),
-                            ),
-                          ],
-                        ],
+                        ),
                       ),
                     ),
-                  ),
                   if (showHero) const SizedBox(height: 18),
-                  ...sections,
+                  for (int index = 0; index < sections.length; index++)
+                    _SectionEntrance(
+                      key: ValueKey<String>('soft-section-$index'),
+                      index: index,
+                      child: sections[index],
+                    ),
                 ],
               );
             },
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SectionEntrance extends StatelessWidget {
+  const _SectionEntrance({
+    super.key,
+    required this.index,
+    required this.child,
+  });
+
+  final int index;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final int stagger = (index * 28).clamp(0, 220).toInt();
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: Duration(milliseconds: 300 + stagger),
+      curve: Curves.easeOutCubic,
+      child: child,
+      builder: (BuildContext context, double value, Widget? child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 12 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
     );
   }
 }

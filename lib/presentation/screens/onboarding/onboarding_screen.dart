@@ -127,10 +127,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'FarmSync Hub',
-                        style: theme.textTheme.titleMedium?.copyWith(
+                        'FarmSyncHub',
+                        style: theme.textTheme.titleLarge?.copyWith(
                           color: isDark ? Colors.white : AppColors.primary,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w400,
+                          letterSpacing: -0.35,
                         ),
                       ),
                     ),

@@ -120,7 +120,34 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       appBar: AppBar(
         backgroundColor: theme.scaffoldBackgroundColor,
         foregroundColor: theme.colorScheme.onSurface,
-        title: Text(language.tr(en: 'Home', ha: 'Gida', fr: 'Accueil')),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.asset(
+                'assets/appicon.png',
+                width: 34,
+                height: 34,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Icon(
+                  Icons.eco_rounded,
+                  size: 30,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'FarmSyncHub',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.35,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ],
+        ),
         actions: <Widget>[
           _SyncHeaderIcon(
             pendingCount: sync.pendingCount,
@@ -248,12 +275,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                             '${livestock.length} groups', '/livestock'),
                         const _ManagementAction(Icons.inventory_2_rounded,
                             'Inventory', 'Stock & supplies', '/finance'),
-                        const _ManagementAction(Icons.account_balance_wallet_rounded,
-                            'Finance', 'Sales & expenses', '/finance'),
+                        const _ManagementAction(
+                            Icons.account_balance_wallet_rounded,
+                            'Finance',
+                            'Sales & expenses',
+                            '/finance'),
                         _ManagementAction(Icons.agriculture_rounded, 'Farms',
                             '${farms.length} locations', '/farms'),
-                        const _ManagementAction(Icons.cloud_queue_rounded, 'Weather',
-                            'Live readings', '/farms'),
+                        const _ManagementAction(Icons.cloud_queue_rounded,
+                            'Weather', 'Live readings', '/farms'),
                       ],
                     ),
                     const SizedBox(height: 18),
@@ -320,9 +350,11 @@ Farm? _mostRecentlyActiveFarm({
   }
 
   Farm mostRecent = farms.first;
-  DateTime mostRecentAt = lastActivityByFarmId[mostRecent.id] ?? mostRecent.updatedAt;
+  DateTime mostRecentAt =
+      lastActivityByFarmId[mostRecent.id] ?? mostRecent.updatedAt;
   for (final Farm farm in farms) {
-    final DateTime candidateAt = lastActivityByFarmId[farm.id] ?? farm.updatedAt;
+    final DateTime candidateAt =
+        lastActivityByFarmId[farm.id] ?? farm.updatedAt;
     if (candidateAt.isAfter(mostRecentAt)) {
       mostRecent = farm;
       mostRecentAt = candidateAt;
@@ -723,8 +755,8 @@ class _HeroSummaryCardState extends State<_HeroSummaryCard>
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant),
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                     ),
                   ],
                 ),
@@ -736,8 +768,8 @@ class _HeroSummaryCardState extends State<_HeroSummaryCard>
                 child: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.surface
-                        .withOpacity(theme.brightness == Brightness.dark ? 0.5 : 0.7),
+                    color: theme.colorScheme.surface.withOpacity(
+                        theme.brightness == Brightness.dark ? 0.5 : 0.7),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: theme.colorScheme.outlineVariant),
                   ),
