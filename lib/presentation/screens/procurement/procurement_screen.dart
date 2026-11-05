@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:farmsynchub/core/services/report_file_saver_base.dart'
     show ReportFileSaver;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
@@ -22,6 +23,7 @@ import '../../../providers/procurement_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
+import '../../common/widgets/detail_ui.dart';
 import '../../common/widgets/finance_ui.dart';
 import '../../common/widgets/responsive_card_grid.dart';
 
@@ -92,6 +94,19 @@ class _ProcurementScreenState extends ConsumerState<ProcurementScreen> {
         .toSet()
         .length;
 
+    final Map<String, double> bySupplier = <String, double>{};
+    for (final Transaction t in procurement) {
+      final String name = t.counterpartyName.trim().isEmpty
+          ? 'Unknown supplier'
+          : t.counterpartyName.trim();
+      bySupplier.update(name, (double v) => v + t.amount,
+          ifAbsent: () => t.amount);
+    }
+    final List<MapEntry<String, double>> supplierSpend =
+        bySupplier.entries.toList()
+          ..sort((MapEntry<String, double> a, MapEntry<String, double> b) =>
+              b.value.compareTo(a.value));
+
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -126,84 +141,89 @@ class _ProcurementScreenState extends ConsumerState<ProcurementScreen> {
         children: <Widget>[
           const FinanceNavBar(current: FinanceSection.buy),
           const SizedBox(height: 14),
-          AppCard(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: Padding(
-              padding: const EdgeInsets.all(18),
+          FadeInUp(
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(28),
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: <Color>[Color(0xFF5B3A9E), Color(0xFF8B5CF6)],
+                ),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: const Color(0xFF5B3A9E).withOpacity(0.35),
+                    blurRadius: 24,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                      language.tr(
-                          en: 'Procurement management',
-                          ha: 'Gudanar da Sayayya',
-                          fr: 'Gestion des approvisionnements'),
-                      style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  Text(
                     language.tr(
-                      en: 'Track supplier history, compare purchasing costs, and open the full workspace when you need to add a new procurement entry.',
-                      ha: 'Bin diddigin tarihin masu bayar da kaya, kwatanta farashin sayayya, kuma ka bude cikakken wurin aiki idan kana bukatar kara sabon shigarwar sayayya.',
-                      fr: 'Suivez l\'historique des fournisseurs, comparez les couts d\'achat et ouvrez l\'espace de travail complet pour ajouter une nouvelle entree d\'approvisionnement.',
+                        en: 'Total spent on buying',
+                        ha: 'Jimillar kashewa wajen saye',
+                        fr: 'Total depense en achats'),
+                    style: TextStyle(
+                        color: Colors.white.withOpacity(0.85), fontSize: 13),
+                  ),
+                  const SizedBox(height: 4),
+                  TweenAnimationBuilder<double>(
+                    tween: Tween<double>(begin: 0, end: totalSpend),
+                    duration: const Duration(milliseconds: 900),
+                    curve: Curves.easeOutCubic,
+                    builder: (BuildContext context, double v, Widget? c) =>
+                        Text(
+                      CurrencyUtils.formatCurrency(v),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.w900),
                     ),
                   ),
                   const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
+                  Row(
                     children: <Widget>[
-                      _MetricChip(
-                          label: language.tr(
-                              en: 'Entries', ha: 'Shigarwa', fr: 'Entrees'),
-                          value: procurement.length.toString()),
-                      _MetricChip(
-                          label: language.tr(
-                              en: 'Suppliers',
-                              ha: 'Masu bayar da kaya',
-                              fr: 'Fournisseurs'),
-                          value: supplierCount.toString()),
-                      _MetricChip(
-                          label: language.tr(
-                              en: 'Spend', ha: 'Kashewa', fr: 'Depenses'),
-                          value:
-                              CurrencyUtils.formatCompactCurrency(totalSpend)),
-                      _MetricChip(
-                          label: language.tr(
-                              en: 'Average', ha: 'Matsakaici', fr: 'Moyenne'),
-                          value: CurrencyUtils.formatCompactCurrency(
-                              averageSpend)),
+                      _heroStat('Orders', '${procurement.length}'),
+                      _heroStat('Suppliers', '$supplierCount'),
+                      _heroStat('Average',
+                          CurrencyUtils.formatCompactCurrency(averageSpend)),
                     ],
                   ),
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
+                  const SizedBox(height: 16),
+                  Row(
                     children: <Widget>[
-                      AppButton.primary(
-                        onPressed: farms.isEmpty
-                            ? null
-                            : () => _openAddOrderSheet(context, farms),
-                        child: Text(language.tr(
-                            en: 'Add order',
-                            ha: 'Kara Oda',
-                            fr: 'Ajouter une commande')),
+                      Expanded(
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFFFFC800),
+                            foregroundColor: const Color(0xFF3A1F00),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          onPressed: farms.isEmpty
+                              ? null
+                              : () {
+                                  HapticFeedback.lightImpact();
+                                  _openAddOrderSheet(context, farms);
+                                },
+                          icon: const Icon(Icons.add_shopping_cart_rounded),
+                          label: Text(language.tr(
+                              en: 'New purchase',
+                              ha: 'Sabon Sayayya',
+                              fr: 'Nouvel achat')),
+                        ),
                       ),
-                      AppButton.secondary(
-                        onPressed: () => context.go('/finance'),
-                        child: Text(language.tr(
-                            en: 'Open workspace',
-                            ha: 'Bude Wurin Aiki',
-                            fr: 'Ouvrir l\'espace de travail')),
-                      ),
-                      AppButton.secondary(
+                      const SizedBox(width: 10),
+                      IconButton.filledTonal(
+                        tooltip: 'Share PDF',
                         onPressed: procurement.isEmpty || _isExporting
                             ? null
                             : () => _exportHistory(
                                 context, farms, procurement, totalSpend),
-                        child: Text(language.tr(
-                            en: 'Share PDF',
-                            ha: 'Raba PDF',
-                            fr: 'Partager le PDF')),
+                        icon: const Icon(Icons.picture_as_pdf_rounded),
                       ),
                     ],
                   ),
@@ -211,70 +231,73 @@ class _ProcurementScreenState extends ConsumerState<ProcurementScreen> {
               ),
             ),
           ),
+          if (supplierSpend.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 16),
+            _SupplierBars(spend: supplierSpend),
+          ],
           const SizedBox(height: 16),
           _TrackedOrdersSection(farmId: _farmId),
           const SizedBox(height: 16),
           if (operations.inventory.isNotEmpty) ...<Widget>[
-            AppCard(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                        language.tr(
-                            en: 'Stock-ready products',
-                            ha: 'Kayan da suke a shirye',
-                            fr: 'Produits prets en stock'),
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 8),
-                    Text(
-                        language.tr(
-                          en: 'These products are available for procurement documentation and stock updates from the shared operations catalog.',
-                          ha: 'Wadannan kayayyaki suna samuwa domin takardun sayayya da sabunta kaya daga jerin ayyukan da aka raba.',
-                          fr: 'Ces produits sont disponibles pour la documentation d\'approvisionnement et les mises a jour de stock depuis le catalogue partage.',
+            Text(
+                language.tr(
+                    en: 'Running low? Restock these',
+                    ha: 'Kaya na raguwa? Sake saye',
+                    fr: 'Stock bas ? Reapprovisionnez'),
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w900)),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 92,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: (operations.inventory
+                        .where((InventoryItem item) =>
+                            _farmId.isEmpty || item.farmId == _farmId)
+                        .toList()
+                      ..sort((InventoryItem a, InventoryItem b) =>
+                          stockLevelOf(a)
+                              .index
+                              .compareTo(stockLevelOf(b).index)))
+                    .take(10)
+                    .map(
+                      (InventoryItem item) => Container(
+                        width: 150,
+                        margin: const EdgeInsets.only(right: 10),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                              color: stockLevelColor(stockLevelOf(item))
+                                  .withOpacity(0.5)),
                         ),
-                        style: Theme.of(context).textTheme.bodyMedium),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: operations.inventory
-                          .where((InventoryItem item) =>
-                              _farmId.isEmpty || item.farmId == _farmId)
-                          .take(6)
-                          .map(
-                            (InventoryItem item) => Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.surface,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: <Widget>[
-                                  Text('${item.emoji} ${item.name}',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.copyWith(
-                                              fontWeight: FontWeight.w700)),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                      '${item.availableQuantity.toStringAsFixed(0)} ${item.unit} • ${CurrencyUtils.formatCurrency(item.unitPrice)}'),
-                                ],
-                              ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: <Widget>[
+                            Text('${item.emoji} ${item.name}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 6),
+                            Text(
+                              '${formatQty(item.availableQuantity)} ${item.unit} left',
+                              style: TextStyle(
+                                  color: stockLevelColor(stockLevelOf(item)),
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 12),
                             ),
-                          )
-                          .toList(growable: false),
-                    ),
-                  ],
-                ),
+                          ],
+                        ),
+                      ),
+                    )
+                    .toList(growable: false),
               ),
             ),
             const SizedBox(height: 16),
@@ -310,6 +333,7 @@ class _ProcurementScreenState extends ConsumerState<ProcurementScreen> {
             ResponsiveCardGrid(
               minTileWidth: 360,
               children: procurement
+                  .take(60)
                   .map(
                     (Transaction transaction) => _HistoryCard(
                       title: transaction.productName.isEmpty
@@ -347,6 +371,22 @@ class _ProcurementScreenState extends ConsumerState<ProcurementScreen> {
       ),
     );
   }
+
+  Widget _heroStat(String label, String value) => Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(value,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18)),
+            Text(label,
+                style: TextStyle(
+                    color: Colors.white.withOpacity(0.8), fontSize: 12)),
+          ],
+        ),
+      );
 
   Future<void> _exportHistory(
     BuildContext context,
@@ -1027,37 +1067,6 @@ class _FarmDropdown extends StatelessWidget {
   }
 }
 
-class _MetricChip extends StatelessWidget {
-  const _MetricChip({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Text(label, style: Theme.of(context).textTheme.labelSmall),
-          const SizedBox(height: 4),
-          Text(value,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w700)),
-        ],
-      ),
-    );
-  }
-}
-
 class _HistoryCard extends StatelessWidget {
   const _HistoryCard({
     required this.title,
@@ -1073,18 +1082,111 @@ class _HistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        title: Text(title),
-        subtitle: Text('$subtitle\n$meta'),
-        isThreeLine: true,
-        trailing: Text(amount,
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w700)),
+    final ThemeData theme = Theme.of(context);
+    return FadeInUp(
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Row(
+          children: <Widget>[
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: const Color(0xFF8B5CF6).withOpacity(0.16),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.shopping_bag_rounded,
+                  color: Color(0xFF8B5CF6)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w900)),
+                  Text(subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall),
+                  const SizedBox(height: 2),
+                  Text(meta,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(amount,
+                style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: theme.colorScheme.primary)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Horizontal bars: who the money went to.
+class _SupplierBars extends StatelessWidget {
+  const _SupplierBars({required this.spend});
+
+  final List<MapEntry<String, double>> spend;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final List<MapEntry<String, double>> top = spend.take(5).toList();
+    final double max = top.first.value <= 0 ? 1 : top.first.value;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text('Where the money went',
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w900)),
+          const SizedBox(height: 12),
+          for (final MapEntry<String, double> e in top)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(e.key,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w700)),
+                      ),
+                      Text(CurrencyUtils.formatCompactCurrency(e.value),
+                          style: const TextStyle(fontWeight: FontWeight.w900)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  StockLevelBar(
+                      value: e.value / max, color: const Color(0xFF8B5CF6)),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
