@@ -1,0 +1,98 @@
+        sections: <Widget>[
+          AppCard(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: AppTextField(
+                controller: _searchController,
+                label: language.tr(en: 'Search lessons', ha: 'Nemi darussa', fr: 'Rechercher des lecons'),
+                hint: language.tr(en: 'Search by topic or skill', ha: 'Nemi batu ko kwarewa', fr: 'Rechercher un sujet ou une competence'),
+                prefix: const Icon(Icons.search_rounded),
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          const StreakHero(),
+          const SizedBox(height: 10),
+          const WeekStrip(),
+          const SizedBox(height: 16),
+          Row(children: <Widget>[
+            Expanded(child: SoftInfoChip(label: AppStrings.lessons, value: '${lessons.length}', color: const Color(0xFFDFF1FF))),
+            const SizedBox(width: 8),
+            Expanded(child: SoftInfoChip(label: AppStrings.progress, value: '${(progress * 100).round()}%', color: const Color(0xFFE8F4D8))),
+            const SizedBox(width: 8),
+            Expanded(child: SoftInfoChip(label: language.tr(en: 'Awards', ha: 'Kyaututtuka', fr: 'Recompenses'), value: '${learning.awardCount}', color: const Color(0xFFFFEBCF))),
+          ]),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              minHeight: 8,
+              value: progress.clamp(0.0, 1.0).toDouble(),
+              backgroundColor: theme.colorScheme.surfaceContainerHighest,
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryMid),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Wrap(spacing: 8, runSpacing: 8, children: <Widget>[
+            ChoiceChip(label: Text(language.tr(en: 'Lessons', ha: 'Darussa', fr: 'Lecons')), selected: _selectedSection == 0, onSelected: (_) => setState(() => _selectedSection = 0)),
+            ChoiceChip(label: Text(language.tr(en: 'Tracks', ha: 'Hanyoyi', fr: 'Parcours')), selected: _selectedSection == 1, onSelected: (_) => setState(() => _selectedSection = 1)),
+            ChoiceChip(label: Text(language.tr(en: 'Practice', ha: 'Atisaye', fr: 'Exercices')), selected: _selectedSection == 2, onSelected: (_) => setState(() => _selectedSection = 2)),
+          ]),
+          const SizedBox(height: 14),
+          if (_selectedSection == 0) ...<Widget>[
+            SoftSectionTitle(
+              title: query.isEmpty ? language.tr(en: 'Continue learning', ha: 'Ci gaba da koyo', fr: 'Continuer a apprendre') : language.tr(en: 'Search results', ha: 'Sakamakon bincike', fr: 'Resultats de recherche'),
+              action: Text(language.tr(en: '$completedLessons completed', ha: '$completedLessons an kammala', fr: '$completedLessons terminees'), style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary)),
+            ),
+            if (lessons.isEmpty)
+              AppCard(child: Padding(padding: const EdgeInsets.all(18), child: Text(language.tr(en: 'No lessons match your search. Try another keyword or clear the search.', ha: 'Babu darasin da ya dace. Gwada wata kalma ko share binciken.', fr: 'Aucune lecon ne correspond. Essayez un autre mot ou effacez la recherche.')))),
+            ...lessons.map((LearningLesson lesson) {
+              final bool completed = learning.completedLessons.contains(lesson.id);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _LessonCard(
+                  language: language,
+                  lesson: lesson,
+                  completed: completed,
+                  progress: _lessonProgress(learning, lesson),
+                  onTap: () => _openPage(context, LearnLessonDetailScreen(lesson: lesson)),
+                  onShare: () => _shareText(ref, lesson.id, lesson.shareText),
+                ),
+              );
+            }),
+          ],
+          if (_selectedSection == 1) ...<Widget>[
+            SoftSectionTitle(title: language.tr(en: 'Choose a learning track', ha: 'Zabi hanyar koyo', fr: 'Choisir un parcours')),
+            GridView.count(
+              crossAxisCount: MediaQuery.sizeOf(context).width >= 600 ? 3 : 2,
+              shrinkWrap: true,
+              childAspectRatio: 1.15,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              children: _learningTracks.map((LearningTrack track) => _TopicCard(
+                track: track,
+                completedCount: lessons.where((LearningLesson lesson) => lesson.track == track.title && learning.completedLessons.contains(lesson.id)).length,
+                onTap: () => _openPage(context, LearnTrackDetailScreen(track: track, lessons: lessons.where((LearningLesson lesson) => lesson.track == track.title).toList())),
+              )).toList(),
+            ),
+          ],
+          if (_selectedSection == 2) ...<Widget>[
+            SoftSectionTitle(
+              title: language.tr(en: 'Practice activities', ha: 'Ayyukan atisaye', fr: 'Activites pratiques'),
+              action: Text(language.tr(en: '$completedPractices done', ha: '$completedPractices an kammala', fr: '$completedPractices terminees'), style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary)),
+            ),
+            ...activities.map((PracticeActivity activity) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _PracticeCard(
+                language: language,
+                activity: activity,
+                completed: learning.completedPractices.contains(activity.id),
+                onTap: () => _openPage(context, LearnPracticeDetailScreen(activity: activity)),
+                onShare: () => _shareText(ref, activity.id, activity.shareText),
+              ),
+            )),
+          ],
+        ],
