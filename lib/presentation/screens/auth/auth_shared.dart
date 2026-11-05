@@ -28,7 +28,8 @@ class AuthScaffold extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final ColorScheme scheme = theme.colorScheme;
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color inputSurface = isDark ? const Color(0xFF14241A) : const Color(0xFFE4EEE5);
+    final Color inputSurface =
+        isDark ? const Color(0xFF14241A) : const Color(0xFFE4EEE5);
     final ThemeData formTheme = theme.copyWith(
       colorScheme: scheme.copyWith(surface: inputSurface),
     );
@@ -70,16 +71,31 @@ class AuthScaffold extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 430),
-              child: _PhoneAuthPanel(
-                    title: title,
-                    subtitle: subtitle,
-                    badge: badge,
-                    onBrandTap: onBrandTap,
-                    footer: footer,
-                    scheme: scheme,
-                    isDark: isDark,
-                    formTheme: formTheme,
-                    child: child,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween<double>(begin: 0, end: 1),
+                    duration: const Duration(milliseconds: 680),
+                    curve: Curves.easeOutCubic,
+                    builder:
+                        (BuildContext context, double progress, Widget? panel) {
+                      return Opacity(
+                        opacity: progress,
+                        child: Transform.translate(
+                          offset: Offset(0, 18 * (1 - progress)),
+                          child: panel,
+                        ),
+                      );
+                    },
+                    child: _PhoneAuthPanel(
+                      title: title,
+                      subtitle: subtitle,
+                      badge: badge,
+                      onBrandTap: onBrandTap,
+                      footer: footer,
+                      scheme: scheme,
+                      isDark: isDark,
+                      formTheme: formTheme,
+                      child: child,
+                    ),
                   ),
                 ),
               ),
@@ -120,7 +136,8 @@ class _PhoneAuthPanel extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0B1510).withOpacity(0.96) : Colors.white,
+        color:
+            isDark ? const Color(0xFF0B1510).withOpacity(0.96) : Colors.white,
         borderRadius: BorderRadius.circular(38),
         boxShadow: <BoxShadow>[
           BoxShadow(
@@ -131,7 +148,7 @@ class _PhoneAuthPanel extends StatelessWidget {
         ],
       ),
       clipBehavior: Clip.antiAlias,
-        child: Stack(
+      child: Stack(
         children: <Widget>[
           Positioned(
             top: 0,
@@ -373,6 +390,33 @@ class AuthPrimaryButton extends StatelessWidget {
   }
 }
 
+class AuthDivider extends StatelessWidget {
+  const AuthDivider({super.key, this.label = 'OR CONTINUE WITH'});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color line = Theme.of(context).colorScheme.outlineVariant;
+    final TextStyle? textStyle =
+        Theme.of(context).textTheme.labelSmall?.copyWith(
+              letterSpacing: 1.1,
+              fontWeight: FontWeight.w700,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            );
+    return Row(
+      children: <Widget>[
+        Expanded(child: Divider(color: line, height: 1)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(label, style: textStyle),
+        ),
+        Expanded(child: Divider(color: line, height: 1)),
+      ],
+    );
+  }
+}
+
 class AuthSecondaryLinkRow extends StatelessWidget {
   const AuthSecondaryLinkRow({
     super.key,
@@ -427,7 +471,9 @@ class AuthInfoBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: theme.brightness == Brightness.dark ? color.withOpacity(0.16) : color,
+        color: theme.brightness == Brightness.dark
+            ? color.withOpacity(0.16)
+            : color,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
