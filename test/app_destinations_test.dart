@@ -4,22 +4,18 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('AppDestinations', () {
-    test('bottom bar has seven tabs, Home first, News and Profile included', () {
-      expect(AppDestinations.tabs.length, 7);
+    test('bottom bar has five tabs, Home first', () {
+      expect(AppDestinations.tabs.length, 5);
       expect(AppDestinations.tabs.first.route, '/dashboard');
-      expect(AppDestinations.tabs[5].route, '/news');
-      expect(AppDestinations.tabs[6].route, '/profile');
     });
 
     test('tabIndexForPath maps tab routes and ignores other pages', () {
       expect(AppDestinations.tabIndexForPath('/dashboard'), 0);
       expect(AppDestinations.tabIndexForPath('/crops'), 2);
       expect(AppDestinations.tabIndexForPath('/finance'), 4);
-      expect(AppDestinations.tabIndexForPath('/news'), 5);
-      expect(AppDestinations.tabIndexForPath('/profile'), 6);
       // Pages reached from the menu must not light up a tab.
-      expect(AppDestinations.tabIndexForPath('/settings'), -1);
-      expect(AppDestinations.tabIndexForPath('/learn'), -1);
+      expect(AppDestinations.tabIndexForPath('/news'), -1);
+      expect(AppDestinations.tabIndexForPath('/profile'), -1);
       expect(AppDestinations.tabIndexForPath('/unknown'), -1);
     });
 

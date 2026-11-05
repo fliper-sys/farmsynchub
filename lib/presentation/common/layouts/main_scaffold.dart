@@ -52,7 +52,7 @@ class MainScaffold extends ConsumerWidget {
   });
 
   /// The active bottom-bar tab, or -1 when the page on screen is not one of
-  /// the tabs (for example Settings or Learn), so no tab looks selected.
+  /// the tabs (for example News or Profile), so no tab looks selected.
   final int currentIndex;
 
   /// The content rendered above the bottom navigation.
@@ -107,8 +107,7 @@ class MainScaffold extends ConsumerWidget {
             streakInfo.status == StreakStatus.frozen);
     final double screenWidth = MediaQuery.sizeOf(context).width;
     final bool isCompactNavigation = screenWidth < 420;
-    // Seven labelled tabs (the bar slides on narrow phones); every other
-    // screen is reachable from the menu.
+    // Five labelled tabs; every other screen is reachable from the menu.
     final List<NavigationDestination> destinations = AppDestinations.tabs
         .map(
           (AppDestination destination) => NavigationDestination(
@@ -171,7 +170,8 @@ class MainScaffold extends ConsumerWidget {
               badgedIndex: streakAtRisk ? 0 : null,
               onDestinationSelected: (int index) {
                 if (index != currentIndex) HapticFeedback.selectionClick();
-                final String featureKey = AppDestinations.tabs[index].featureKey;
+                final String featureKey =
+                    AppDestinations.tabs[index].featureKey;
                 if (profile?.restrictedFeatures.contains(featureKey) == true) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -319,7 +319,7 @@ class MainScaffold extends ConsumerWidget {
   }
 }
 
-class _PremiumBottomNavigation extends StatefulWidget {
+class _PremiumBottomNavigation extends StatelessWidget {
   const _PremiumBottomNavigation({
     required this.currentIndex,
     required this.destinations,
@@ -338,64 +338,11 @@ class _PremiumBottomNavigation extends StatefulWidget {
   final int? badgedIndex;
 
   @override
-  State<_PremiumBottomNavigation> createState() =>
-      _PremiumBottomNavigationState();
-}
-
-class _PremiumBottomNavigationState extends State<_PremiumBottomNavigation> {
-  /// Narrowest a tab may get before the bar starts sliding sideways.
-  static const double _minEvenSlot = 58;
-
-  /// Tabs visible at once while sliding. The half tab at the edge is the
-  /// visual hint that the bar scrolls.
-  static const double _visibleWhenSliding = 5.5;
-
-  final ScrollController _scroll = ScrollController();
-  int? _revealedIndex;
-
-  @override
-  void dispose() {
-    _scroll.dispose();
-    super.dispose();
-  }
-
-  /// Slides the bar so the selected tab is centred (instantly the first time,
-  /// smoothly afterwards).
-  void _reveal(double slot, double viewport) {
-    final int index = widget.currentIndex;
-    if (index < 0 || index == _revealedIndex) {
-      return;
-    }
-    final bool first = _revealedIndex == null;
-    _revealedIndex = index;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scroll.hasClients) {
-        return;
-      }
-      final double target = (slot * index + slot / 2 - viewport / 2)
-          .clamp(0.0, _scroll.position.maxScrollExtent)
-          .toDouble();
-      if (first) {
-        _scroll.jumpTo(target);
-      } else {
-        _scroll.animateTo(
-          target,
-          duration: const Duration(milliseconds: 320),
-          curve: Curves.easeOutCubic,
-        );
-      }
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
     const double height = 72;
-    final int count = widget.destinations.length;
-    final Color barColor = isDark
-        ? AppColors.darkBottomNavigation.withOpacity(0.92)
-        : Colors.white.withOpacity(0.94);
+    final int count = destinations.length;
 
     return SafeArea(
       top: false,
@@ -409,7 +356,9 @@ class _PremiumBottomNavigationState extends State<_PremiumBottomNavigation> {
               height: height,
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: barColor,
+                color: isDark
+                    ? AppColors.darkBottomNavigation.withOpacity(0.92)
+                    : Colors.white.withOpacity(0.94),
                 borderRadius: BorderRadius.circular(32),
                 border: Border.all(
                   color: isDark
@@ -428,156 +377,66 @@ class _PremiumBottomNavigationState extends State<_PremiumBottomNavigation> {
               ),
               child: LayoutBuilder(
                 builder: (BuildContext context, BoxConstraints box) {
-                  final double evenSlot = box.maxWidth / count;
-                  // Wide enough: all tabs share the width. Otherwise each tab
-                  // keeps a readable size and the bar slides.
-                  final bool sliding = evenSlot < _minEvenSlot;
-                  final double slot =
-                      sliding ? box.maxWidth / _visibleWhenSliding : evenSlot;
-                  _reveal(slot, box.maxWidth);
-
+                  final double slot = box.maxWidth / count;
                   return Stack(
                     children: <Widget>[
-                      SingleChildScrollView(
-                        controller: _scroll,
-                        scrollDirection: Axis.horizontal,
-                        physics: sliding
-                            ? const BouncingScrollPhysics()
-                            : const NeverScrollableScrollPhysics(),
-                        child: SizedBox(
-                          width: slot * count,
-                          child: Stack(
-                            children: <Widget>[
-                              // One pill that glides to the selected tab. It
-                              // is hidden on pages that are not a tab.
-                              if (widget.currentIndex >= 0)
-                                AnimatedPositioned(
-                                  duration: const Duration(milliseconds: 380),
-                                  curve: Curves.easeOutBack,
-                                  left: slot * widget.currentIndex,
-                                  top: 0,
-                                  bottom: 0,
-                                  width: slot,
-                                  child: Container(
-                                    margin: const EdgeInsets.symmetric(
-                                        horizontal: 2),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(26),
-                                      gradient: const LinearGradient(
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                        colors: <Color>[
-                                          Color(0xFF0E5A41),
-                                          Color(0xFF0B3D2D),
-                                        ],
-                                      ),
-                                      boxShadow: <BoxShadow>[
-                                        BoxShadow(
-                                          color: AppColors.premiumGreen
-                                              .withOpacity(0.35),
-                                          blurRadius: 16,
-                                          offset: const Offset(0, 6),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              Row(
-                                children:
-                                    List<Widget>.generate(count, (int index) {
-                                  final NavigationDestination destination =
-                                      widget.destinations[index];
-                                  final bool selected =
-                                      index == widget.currentIndex;
-                                  return SizedBox(
-                                    width: slot,
-                                    child: _PremiumNavItem(
-                                      selected: selected,
-                                      label: destination.label,
-                                      badge: widget.badgedIndex == index &&
-                                          !selected,
-                                      icon: selected
-                                          ? (destination.selectedIcon ??
-                                              destination.icon)
-                                          : destination.icon,
-                                      onTap: () =>
-                                          widget.onDestinationSelected(index),
-                                    ),
-                                  );
-                                }),
+                      // One pill that glides to the selected tab. It is hidden
+                      // on pages that are not one of the tabs.
+                      if (currentIndex >= 0)
+                        AnimatedPositioned(
+                          duration: const Duration(milliseconds: 380),
+                          curve: Curves.easeOutBack,
+                          left: slot * currentIndex,
+                          top: 0,
+                          bottom: 0,
+                          width: slot,
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 2),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(26),
+                              gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: <Color>[
+                                  Color(0xFF0E5A41),
+                                  Color(0xFF0B3D2D),
+                                ],
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      if (sliding)
-                        Positioned.fill(
-                          child: IgnorePointer(
-                            child: ListenableBuilder(
-                              listenable: _scroll,
-                              builder: (BuildContext context, Widget? child) {
-                                final bool ready = _scroll.hasClients &&
-                                    _scroll.position.haveDimensions;
-                                final bool canLeft =
-                                    ready && _scroll.offset > 2;
-                                final bool canRight = !ready ||
-                                    _scroll.offset <
-                                        _scroll.position.maxScrollExtent - 2;
-                                return Row(
-                                  children: <Widget>[
-                                    _EdgeFade(
-                                      color: barColor,
-                                      visible: canLeft,
-                                      fromLeft: true,
-                                    ),
-                                    const Spacer(),
-                                    _EdgeFade(
-                                      color: barColor,
-                                      visible: canRight,
-                                      fromLeft: false,
-                                    ),
-                                  ],
-                                );
-                              },
+                              boxShadow: <BoxShadow>[
+                                BoxShadow(
+                                  color:
+                                      AppColors.premiumGreen.withOpacity(0.35),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
                             ),
                           ),
                         ),
+                      Row(
+                        children: List<Widget>.generate(count, (int index) {
+                          final NavigationDestination destination =
+                              destinations[index];
+                          final bool selected = index == currentIndex;
+                          return Expanded(
+                            child: _PremiumNavItem(
+                              selected: selected,
+                              label: destination.label,
+                              badge: badgedIndex == index && !selected,
+                              icon: selected
+                                  ? (destination.selectedIcon ??
+                                      destination.icon)
+                                  : destination.icon,
+                              onTap: () => onDestinationSelected(index),
+                            ),
+                          );
+                        }),
+                      ),
                     ],
                   );
                 },
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Soft fade at the edge of the sliding bar that says "more this way".
-class _EdgeFade extends StatelessWidget {
-  const _EdgeFade({
-    required this.color,
-    required this.visible,
-    required this.fromLeft,
-  });
-
-  final Color color;
-  final bool visible;
-  final bool fromLeft;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedOpacity(
-      opacity: visible ? 1 : 0,
-      duration: const Duration(milliseconds: 160),
-      child: Container(
-        width: 22,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: fromLeft ? Alignment.centerLeft : Alignment.centerRight,
-            end: fromLeft ? Alignment.centerRight : Alignment.centerLeft,
-            colors: <Color>[color, color.withOpacity(0)],
           ),
         ),
       ),
@@ -645,7 +504,8 @@ class _PremiumNavItem extends StatelessWidget {
                       maxLines: 1,
                       style: theme.textTheme.labelSmall!.copyWith(
                         color: selected ? AppColors.premiumGreen : inactive,
-                        fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                        fontWeight:
+                            selected ? FontWeight.w800 : FontWeight.w600,
                         fontSize: 10.5,
                       ),
                     ),
@@ -782,7 +642,8 @@ class _StreakPillState extends State<_StreakPill>
             decoration: BoxDecoration(
               color: color.withOpacity(0.14),
               borderRadius: BorderRadius.circular(99),
-              border: Border.all(color: color.withOpacity(0.35 + 0.35 * _c.value)),
+              border:
+                  Border.all(color: color.withOpacity(0.35 + 0.35 * _c.value)),
               boxShadow: widget.atRisk
                   ? <BoxShadow>[
                       BoxShadow(
