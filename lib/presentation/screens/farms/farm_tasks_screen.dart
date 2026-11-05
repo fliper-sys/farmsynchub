@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -242,7 +243,7 @@ class _FarmTasksScreenState extends ConsumerState<FarmTasksScreen> {
                   const SizedBox(height: 12),
                   SoftProgressBar(
                       progress: stats.completionRate,
-                      tint: const Color(0xFFE5F5D8)),
+                      tint: Theme.of(context).colorScheme.primary.withOpacity(0.25)),
                   const SizedBox(height: 10),
                   Text(
                     language.tr(
@@ -259,7 +260,7 @@ class _FarmTasksScreenState extends ConsumerState<FarmTasksScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFEBD0),
+                        color: const Color(0xFFE0524A).withOpacity(0.15),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
@@ -273,7 +274,7 @@ class _FarmTasksScreenState extends ConsumerState<FarmTasksScreen> {
                             .labelMedium
                             ?.copyWith(
                                 fontWeight: FontWeight.w700,
-                                color: const Color(0xFF284231)),
+                                color: const Color(0xFFE0524A)),
                       ),
                     ),
                   ],
@@ -521,42 +522,181 @@ class _FarmTaskRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final FarmWorkspaceTask task = entry.task;
+    final DateTime now = DateTime.now();
+    final bool done = task.isCompleted;
+    final bool overdue = !done && task.dueAt.isBefore(now);
+    final bool today = !done &&
+        !overdue &&
+        task.dueAt.year == now.year &&
+        task.dueAt.month == now.month &&
+        task.dueAt.day == now.day;
+    const Color red = Color(0xFFE0524A);
+    const Color amber = Color(0xFFD99A1E);
+    const Color green = Color(0xFF2E9E5B);
+    final Color accent = done
+        ? green
+        : overdue
+            ? red
+            : today
+                ? amber
+                : theme.colorScheme.primary;
+    final String dueText = overdue
+        ? 'Overdue · ${app_date.DateUtils.formatDateTime(task.dueAt)}'
+        : today
+            ? 'Today · ${app_date.DateUtils.formatDateTime(task.dueAt)}'
+            : app_date.DateUtils.formatDateTime(task.dueAt);
+    final String initials = task.assigneeName.trim().isEmpty
+        ? ''
+        : task.assigneeName
+            .trim()
+            .split(RegExp(r'\s+'))
+            .take(2)
+            .map((String p) => p[0].toUpperCase())
+            .join();
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: warm
-              ? const Color(0xFFFFEBD0).withOpacity(0.35)
-              : theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-              color: theme.colorScheme.outlineVariant.withOpacity(0.35)),
-        ),
-        child: Row(
-          children: <Widget>[
-            Checkbox(value: task.isCompleted, onChanged: (_) => onToggle()),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(task.title,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${entry.farm.name} • ${app_date.DateUtils.formatDateTime(task.dueAt)}${task.assigneeName.isNotEmpty ? ' • ${task.assigneeName}' : ''}',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                  ),
-                ],
-              ),
+    Widget chip(String text, Color c, {IconData? icon}) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+          decoration: BoxDecoration(
+            color: c.withOpacity(0.14),
+            borderRadius: BorderRadius.circular(99),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              if (icon != null) ...<Widget>[
+                Icon(icon, size: 12, color: c),
+                const SizedBox(width: 4),
+              ],
+              Text(text,
+                  style: TextStyle(
+                      color: c, fontSize: 11, fontWeight: FontWeight.w800)),
+            ],
+          ),
+        );
+
+    return FadeInUp(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          padding: const EdgeInsets.fromLTRB(8, 12, 14, 12),
+          decoration: BoxDecoration(
+            color: done
+                ? theme.colorScheme.surface.withOpacity(0.7)
+                : theme.colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(20),
+            border: Border(
+              left: BorderSide(color: accent, width: 5),
+              top: BorderSide(color: theme.colorScheme.outlineVariant),
+              right: BorderSide(color: theme.colorScheme.outlineVariant),
+              bottom: BorderSide(color: theme.colorScheme.outlineVariant),
             ),
-            const Icon(Icons.chevron_right_rounded),
-          ],
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  onToggle();
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeOutBack,
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: done ? green : Colors.transparent,
+                      border: Border.all(
+                          color: done ? green : accent, width: 2),
+                    ),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      transitionBuilder: (Widget c, Animation<double> a) =>
+                          ScaleTransition(scale: a, child: c),
+                      child: done
+                          ? const Icon(Icons.check_rounded,
+                              key: ValueKey<bool>(true),
+                              size: 18,
+                              color: Colors.white)
+                          : const SizedBox.shrink(key: ValueKey<bool>(false)),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      task.title,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        decoration: done ? TextDecoration.lineThrough : null,
+                        color: done ? theme.colorScheme.onSurfaceVariant : null,
+                      ),
+                    ),
+                    if (task.details.trim().isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 2),
+                      Text(task.details.trim(),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall),
+                    ],
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: <Widget>[
+                        chip(dueText, accent,
+                            icon: overdue
+                                ? Icons.warning_amber_rounded
+                                : Icons.schedule_rounded),
+                        chip(entry.farm.name,
+                            theme.colorScheme.onSurfaceVariant,
+                            icon: Icons.agriculture_rounded),
+                        if (!done && task.status != FarmTaskStatus.open)
+                          chip(
+                              task.statusLabel,
+                              task.status == FarmTaskStatus.blocked
+                                  ? red
+                                  : const Color(0xFF8B5CF6)),
+                        if (initials.isNotEmpty)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              CircleAvatar(
+                                radius: 11,
+                                backgroundColor:
+                                    theme.colorScheme.primary.withOpacity(0.2),
+                                child: Text(initials,
+                                    style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w900,
+                                        color: theme.colorScheme.primary)),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(task.assigneeName,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                      fontWeight: FontWeight.w700)),
+                            ],
+                          )
+                        else
+                          chip('Unassigned', amber,
+                              icon: Icons.person_outline_rounded),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
