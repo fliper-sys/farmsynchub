@@ -27,6 +27,7 @@ import '../../../domain/models/notification.dart' as app_notification;
 import '../../../domain/models/transaction.dart';
 import '../../../domain/models/user_profile.dart';
 import '../../../providers/app_preferences_provider.dart';
+import 'farm_members_screen.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/crop_provider.dart';
 import '../../../providers/farm_provider.dart';
@@ -930,6 +931,19 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
                         )
                         .toList(),
                   ),
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.tonalIcon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => FarmMembersScreen(farmId: farm!.id),
+                ),
+              ),
+              icon: const Icon(Icons.groups_rounded),
+              label: const Text('Manage team'),
+            ),
           ),
           const SizedBox(height: 18),
           _CollapsibleSection(
