@@ -11,7 +11,6 @@ import '../../../core/services/report_file_saver.dart';
 import '../../../core/services/report_file_saver_base.dart';
 import '../../../core/services/report_share_service.dart';
 import '../../../core/services/schedule_report_service.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../domain/models/crop.dart';
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/farm_activity.dart';
@@ -19,6 +18,7 @@ import '../../../domain/models/livestock.dart';
 import '../../../providers/crop_provider.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/livestock_provider.dart';
+import '../../common/widgets/detail_ui.dart';
 import '../../common/widgets/todo_edit_sheet.dart';
 import '../farms/farm_detail_screen.dart';
 
@@ -637,6 +637,59 @@ class _ToggleSegment extends StatelessWidget {
   }
 }
 
+Color _sourceColor(_ScheduleSourceType type) {
+  switch (type) {
+    case _ScheduleSourceType.farm:
+      return const Color(0xFFE08A1E);
+    case _ScheduleSourceType.crop:
+      return const Color(0xFF2E9E5B);
+    case _ScheduleSourceType.livestock:
+      return const Color(0xFF3B82C4);
+  }
+}
+
+String _relativeLabel(DateTime due) {
+  final DateTime now = DateTime.now();
+  final DateTime today = DateTime(now.year, now.month, now.day);
+  final int days = DateTime(due.year, due.month, due.day).difference(today).inDays;
+  if (days < 0) return days == -1 ? '1 day overdue' : '${-days} days overdue';
+  if (days == 0) return 'Due today';
+  if (days == 1) return 'Tomorrow';
+  return 'In $days days';
+}
+
+class _SummaryPill extends StatelessWidget {
+  const _SummaryPill(this.value, this.label);
+
+  final int value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: <Widget>[
+          TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0, end: value.toDouble()),
+            duration: const Duration(milliseconds: 700),
+            curve: Curves.easeOutCubic,
+            builder: (BuildContext context, double v, Widget? c) => Text(
+              '${v.round()}',
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900),
+            ),
+          ),
+          Text(label,
+              style: TextStyle(
+                  color: Colors.white.withOpacity(0.85), fontSize: 12)),
+        ],
+      ),
+    );
+  }
+}
+
 class _ListView extends StatelessWidget {
   const _ListView({required this.entries});
 
@@ -681,14 +734,37 @@ class _ListView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
     if (entries.isEmpty) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            'No reminders scheduled yet. Add one from a crop, animal group, or farm.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium,
+          padding: const EdgeInsets.all(32),
+          child: FadeInUp(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Container(
+                  padding: const EdgeInsets.all(22),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.event_available_rounded,
+                      size: 44, color: theme.colorScheme.primary),
+                ),
+                const SizedBox(height: 18),
+                Text('You are all caught up',
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 6),
+                Text(
+                  'No reminders scheduled yet. Add one from a crop, animal group, or farm, or switch to the calendar and tap Add task.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -696,29 +772,88 @@ class _ListView extends StatelessWidget {
 
     final Map<String, List<_ScheduleEntry>> grouped =
         _groupByFriendlyLabel(entries, referenceDate: DateTime.now());
+    final int overdue = grouped['Overdue']?.length ?? 0;
+    final int today = grouped['Today']?.length ?? 0;
+    final int week = (grouped['Tomorrow']?.length ?? 0) +
+        (grouped['This week']?.length ?? 0);
 
+    int i = 0;
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
       children: <Widget>[
+        FadeInUp(
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: overdue > 0
+                    ? const <Color>[Color(0xFF8A2D1E), Color(0xFFD9622B)]
+                    : const <Color>[Color(0xFF0E5A41), Color(0xFF2E9E5B)],
+              ),
+            ),
+            child: Row(
+              children: <Widget>[
+                _SummaryPill(overdue, 'Overdue'),
+                _SummaryPill(today, 'Today'),
+                _SummaryPill(week, 'Next 7 days'),
+                _SummaryPill(entries.length, 'Open'),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
         for (final MapEntry<String, List<_ScheduleEntry>> group
             in grouped.entries) ...<Widget>[
           Padding(
-            padding: const EdgeInsets.only(bottom: 10, top: 6),
-            child: Text(
-              group.key,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: group.key == 'Overdue'
-                      ? Theme.of(context).colorScheme.error
-                      : null),
+            padding: const EdgeInsets.only(bottom: 10, top: 12),
+            child: Row(
+              children: <Widget>[
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: group.key == 'Overdue'
+                        ? theme.colorScheme.error
+                        : theme.colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  group.key,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: group.key == 'Overdue'
+                          ? theme.colorScheme.error
+                          : null),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text('${group.value.length}',
+                      style: theme.textTheme.labelSmall
+                          ?.copyWith(fontWeight: FontWeight.w800)),
+                ),
+              ],
             ),
           ),
           for (final _ScheduleEntry entry in group.value)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: _EntryTile(entry: entry),
+              child: FadeInUp(
+                index: (i++).clamp(0, 6),
+                child: _EntryTile(
+                    entry: entry, overdue: group.key == 'Overdue'),
+              ),
             ),
-          const SizedBox(height: 8),
         ],
       ],
     );
@@ -797,6 +932,14 @@ class _CalendarView extends StatelessWidget {
               onPressed: () => onMonthChanged(
                   DateTime(focusedMonth.year, focusedMonth.month + 1)),
             ),
+            IconButton(
+              tooltip: 'Jump to today',
+              icon: const Icon(Icons.today_rounded),
+              onPressed: () {
+                onMonthChanged(DateTime(today.year, today.month));
+                onDaySelected(todayKey);
+              },
+            ),
           ],
         ),
         Row(
@@ -828,13 +971,14 @@ class _CalendarView extends StatelessWidget {
             final bool inMonth = day.month == focusedMonth.month;
             final bool isToday = day == todayKey;
             final bool isSelected = selectedDay != null && day == selectedDay;
-            final int itemCount = byDay[day]?.length ?? 0;
             return Padding(
               padding: const EdgeInsets.all(2),
               child: InkWell(
                 onTap: () => onDaySelected(day),
                 borderRadius: BorderRadius.circular(12),
-                child: Container(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOut,
                   decoration: BoxDecoration(
                     color: isSelected
                         ? theme.colorScheme.primary
@@ -842,6 +986,10 @@ class _CalendarView extends StatelessWidget {
                             ? theme.colorScheme.primary.withOpacity(0.12)
                             : Colors.transparent,
                     borderRadius: BorderRadius.circular(12),
+                    border: isToday && !isSelected
+                        ? Border.all(
+                            color: theme.colorScheme.primary, width: 1.2)
+                        : null,
                   ),
                   alignment: Alignment.center,
                   child: Column(
@@ -850,8 +998,9 @@ class _CalendarView extends StatelessWidget {
                       Text(
                         '${day.day}',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          fontWeight:
-                              isToday || isSelected ? FontWeight.w800 : FontWeight.w500,
+                          fontWeight: isToday || isSelected
+                              ? FontWeight.w800
+                              : FontWeight.w500,
                           color: isSelected
                               ? theme.colorScheme.onPrimary
                               : inMonth
@@ -860,18 +1009,32 @@ class _CalendarView extends StatelessWidget {
                                       .withOpacity(0.4),
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      if (itemCount > 0)
-                        Container(
-                          width: 5,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isSelected
-                                ? theme.colorScheme.onPrimary
-                                : theme.colorScheme.tertiary,
-                          ),
+                      const SizedBox(height: 3),
+                      SizedBox(
+                        height: 5,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            for (final _ScheduleSourceType t
+                                in (byDay[day] ?? <_ScheduleEntry>[])
+                                    .map((_ScheduleEntry e) => e.sourceType)
+                                    .toSet()
+                                    .take(3))
+                              Container(
+                                width: 5,
+                                height: 5,
+                                margin:
+                                    const EdgeInsets.symmetric(horizontal: 1),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isSelected
+                                      ? theme.colorScheme.onPrimary
+                                      : _sourceColor(t),
+                                ),
+                              ),
+                          ],
                         ),
+                      ),
                     ],
                   ),
                 ),
@@ -908,11 +1071,19 @@ class _CalendarView extends StatelessWidget {
               ),
             )
           else
-            for (final _ScheduleEntry entry in selectedEntries)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _EntryTile(entry: entry),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              child: Column(
+                key: ValueKey<DateTime?>(selectedDay),
+                children: <Widget>[
+                  for (final _ScheduleEntry entry in selectedEntries)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _EntryTile(entry: entry),
+                    ),
+                ],
               ),
+            ),
           const SizedBox(height: 72),
         ],
       ],
@@ -1043,9 +1214,10 @@ class _EntityPickerSheet<T> extends StatelessWidget {
 }
 
 class _EntryTile extends StatelessWidget {
-  const _EntryTile({required this.entry});
+  const _EntryTile({required this.entry, this.overdue = false});
 
   final _ScheduleEntry entry;
+  final bool overdue;
 
   IconData get _sourceIcon {
     switch (entry.sourceType) {
@@ -1058,17 +1230,6 @@ class _EntryTile extends StatelessWidget {
     }
   }
 
-  Color _pastel() {
-    switch (entry.sourceType) {
-      case _ScheduleSourceType.farm:
-        return const Color(0xFFFFEBD0);
-      case _ScheduleSourceType.crop:
-        return const Color(0xFFE8F4D8);
-      case _ScheduleSourceType.livestock:
-        return const Color(0xFFDFF1FF);
-    }
-  }
-
   String _timeLabel() {
     final String hh = entry.dueDate.hour.toString().padLeft(2, '0');
     final String mm = entry.dueDate.minute.toString().padLeft(2, '0');
@@ -1078,63 +1239,88 @@ class _EntryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final bool isDark = theme.brightness == Brightness.dark;
-    final Color badgeColor = AppColors.chipBackgroundFor(
-      _pastel(),
-      isDark: isDark,
-      surface: theme.colorScheme.surface,
-    );
-    final Color badgeIconColor = AppColors.chipForegroundFor(
-      isDark: isDark,
-      onSurface: theme.colorScheme.onSurface,
-    );
+    final Color accent = overdue
+        ? theme.colorScheme.error
+        : _sourceColor(entry.sourceType);
     return Material(
       color: theme.colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: entry.onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
+        child: IntrinsicHeight(
           child: Row(
             children: <Widget>[
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: badgeColor,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(_sourceIcon, size: 20, color: badgeIconColor),
-              ),
-              const SizedBox(width: 12),
+              Container(width: 5, color: accent),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      entry.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${entry.sourceLabel} · ${_timeLabel()}',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ],
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
+                  child: Row(
+                    children: <Widget>[
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: accent.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(_sourceIcon, size: 21, color: accent),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              entry.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: <Widget>[
+                                Icon(Icons.schedule_rounded,
+                                    size: 13,
+                                    color: theme.colorScheme.onSurfaceVariant),
+                                const SizedBox(width: 4),
+                                Text(_timeLabel(),
+                                    style: theme.textTheme.bodySmall),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    _relativeLabel(entry.dueDate),
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                        color: accent,
+                                        fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              entry.sourceLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Delete reminder',
+                        icon: Icon(Icons.delete_outline_rounded,
+                            size: 20,
+                            color: theme.colorScheme.onSurfaceVariant),
+                        onPressed: entry.onDelete,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              IconButton(
-                tooltip: 'Delete reminder',
-                icon: Icon(Icons.delete_outline_rounded,
-                    size: 20, color: theme.colorScheme.onSurfaceVariant),
-                onPressed: entry.onDelete,
-                visualDensity: VisualDensity.compact,
-              ),
-              const Icon(Icons.chevron_right_rounded),
             ],
           ),
         ),
