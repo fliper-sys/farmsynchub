@@ -24,12 +24,16 @@ import '../../../providers/notification_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
+import '../../common/widgets/detail_ui.dart';
 import '../../common/widgets/entity_card_pieces.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
 import '../schedule/schedule_screen.dart';
 import 'livestock_batch_comparison_screen.dart';
 import 'livestock_detail_screen.dart';
+
+final StateProvider<String> _livestockFilterProvider =
+    StateProvider<String>((Ref ref) => 'all');
 
 class LivestockScreen extends ConsumerWidget {
   const LivestockScreen({super.key});
@@ -73,6 +77,17 @@ class LivestockScreen extends ConsumerWidget {
         0, (int sum, Livestock item) => sum + item.openTaskCount);
     final double inputSpend = livestock.fold<double>(
         0, (double sum, Livestock item) => sum + item.syncedInputCost);
+
+    final String livestockFilter = ref.watch(_livestockFilterProvider);
+    final List<LivestockSpecies> speciesPresent = livestock
+        .map((Livestock item) => item.species)
+        .toSet()
+        .toList(growable: false);
+    final List<Livestock> shownLivestock = livestockFilter == 'all'
+        ? livestock
+        : livestock
+            .where((Livestock item) => item.species.name == livestockFilter)
+            .toList(growable: false);
 
     return SoftScreenScaffold(
       heroTitle: language.tr(
@@ -134,6 +149,73 @@ class LivestockScreen extends ConsumerWidget {
           title: language.tr(
               en: 'Herd health', ha: 'Lafiyar garke', fr: 'Sante du troupeau'),
         ),
+        FadeInUp(
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(28),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: <Color>[Color(0xFF0E5A41), Color(0xFF2E9E5B)],
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: <Widget>[
+                    TweenAnimationBuilder<double>(
+                      tween: Tween<double>(
+                          begin: 0, end: animalCount.toDouble()),
+                      duration: const Duration(milliseconds: 800),
+                      curve: Curves.easeOutCubic,
+                      builder:
+                          (BuildContext context, double v, Widget? c) =>
+                              Text('${v.round()}',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 38,
+                                      fontWeight: FontWeight.w900,
+                                      height: 1)),
+                    ),
+                    const SizedBox(width: 8),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        language.tr(
+                            en: 'animals across ${livestock.length} groups',
+                            ha: 'dabbobi a rukunoni ${livestock.length}',
+                            fr: 'animaux dans ${livestock.length} groupes'),
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.85),
+                            fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _HerdBar(
+                  label: language.tr(
+                      en: 'Health score',
+                      ha: 'Ma\'aunin lafiya',
+                      fr: 'Score de sante'),
+                  percent: healthAverage,
+                ),
+                const SizedBox(height: 10),
+                _HerdBar(
+                  label: language.tr(
+                      en: 'Vaccinated',
+                      ha: 'An yiwa alurar riga kafi',
+                      fr: 'Vaccine'),
+                  percent: vaccinatedAverage,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
         Row(
           children: <Widget>[
             Expanded(
@@ -144,40 +226,6 @@ class LivestockScreen extends ConsumerWidget {
                     fr: 'Taches ouvertes'),
                 value: '$openTaskCount',
                 color: const Color(0xFFE9F4DB),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: SoftInfoChip(
-                label: language.tr(
-                    en: 'Vaccinated',
-                    ha: 'An yiwa alurar riga kafi',
-                    fr: 'Vaccine'),
-                value: '$vaccinatedAverage%',
-                color: const Color(0xFFDFF1FF),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: SoftInfoChip(
-                label: language.tr(
-                    en: 'Health score',
-                    ha: 'Ma\'aunin lafiya',
-                    fr: 'Score de sante'),
-                value: '$healthAverage%',
-                color: const Color(0xFFFFE9D0),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: SoftInfoChip(
-                label: language.tr(en: 'Animals', ha: 'Dabbobi', fr: 'Animaux'),
-                value: '$animalCount',
-                color: const Color(0xFFEDE8FF),
               ),
             ),
             const SizedBox(width: 10),
@@ -238,14 +286,45 @@ class LivestockScreen extends ConsumerWidget {
                 ? null
                 : () => _openLivestockSheet(context, ref, farms: eligibleFarms),
           )
-        else
+        else ...<Widget>[
+          if (speciesPresent.length > 1) ...<Widget>[
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: const Text('All'),
+                      selected: livestockFilter == 'all',
+                      onSelected: (_) => ref
+                          .read(_livestockFilterProvider.notifier)
+                          .state = 'all',
+                    ),
+                  ),
+                  for (final LivestockSpecies sp in speciesPresent)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(_labelForSpecies(sp)),
+                        selected: livestockFilter == sp.name,
+                        onSelected: (_) => ref
+                            .read(_livestockFilterProvider.notifier)
+                            .state = sp.name,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           ...<Livestock>[
-            ...livestock.where((Livestock item) => item.isFavorite),
-            ...livestock.where((Livestock item) => !item.isFavorite),
+            ...shownLivestock.where((Livestock item) => item.isFavorite),
+            ...shownLivestock.where((Livestock item) => !item.isFavorite),
           ].map(
             (Livestock item) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: _AnimalGroupCard(
+              child: FadeInUp(child: _AnimalGroupCard(
                 livestock: item,
                 farmName: farmById[item.farmId]?.name ?? 'Unknown farm',
                 onOpen: () => Navigator.of(context).push(
@@ -273,9 +352,10 @@ class LivestockScreen extends ConsumerWidget {
                     : null,
                 onToggleTask: (FarmTodoItem task) =>
                     _toggleLivestockTask(context, ref, item, task),
-              ),
+              )),
             ),
           ),
+        ],
       ],
     );
   }
@@ -1832,6 +1912,58 @@ class _LivestockFormSheetState extends State<_LivestockFormSheet> {
   }
 }
 
+Color _healthColor(int score) {
+  if (score >= 75) return const Color(0xFF2E9E5B);
+  if (score >= 50) return const Color(0xFFE08A1E);
+  return const Color(0xFFD9442B);
+}
+
+class _HerdBar extends StatelessWidget {
+  const _HerdBar({required this.label, required this.percent});
+
+  final String label;
+  final int percent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: <Widget>[
+            Text(label,
+                style: TextStyle(
+                    color: Colors.white.withOpacity(0.9), fontSize: 12)),
+            Text('$percent%',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(99),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween<double>(
+                begin: 0, end: (percent / 100).clamp(0.0, 1.0).toDouble()),
+            duration: const Duration(milliseconds: 800),
+            curve: Curves.easeOutCubic,
+            builder: (BuildContext context, double v, Widget? c) =>
+                LinearProgressIndicator(
+              value: v,
+              minHeight: 7,
+              backgroundColor: Colors.white.withOpacity(0.25),
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _AnimalGroupCard extends StatelessWidget {
   const _AnimalGroupCard({
     required this.livestock,
@@ -1983,12 +2115,56 @@ class _AnimalGroupCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: LinearProgressIndicator(
-                value: livestock.growthProgress,
-                minHeight: 4,
-              ),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween<double>(
+                          begin: 0,
+                          end: livestock.growthProgress
+                              .clamp(0.0, 1.0)
+                              .toDouble()),
+                      duration: const Duration(milliseconds: 800),
+                      curve: Curves.easeOutCubic,
+                      builder:
+                          (BuildContext context, double v, Widget? c) =>
+                              LinearProgressIndicator(
+                        value: v,
+                        minHeight: 7,
+                        backgroundColor:
+                            const Color(0xFF7A5BC4).withOpacity(0.15),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                            Color(0xFF7A5BC4)),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: _healthColor(livestock.healthScore)
+                        .withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(Icons.favorite_rounded,
+                          size: 12,
+                          color: _healthColor(livestock.healthScore)),
+                      const SizedBox(width: 4),
+                      Text('${livestock.healthScore}%',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: _healthColor(livestock.healthScore))),
+                    ],
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 10),
             EntityMetricChipRow(
