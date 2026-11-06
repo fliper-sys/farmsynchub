@@ -39,6 +39,7 @@ import '../../../providers/user_profile_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
+import '../../common/widgets/detail_ui.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_progress_bar.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
@@ -466,13 +467,45 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
         ),
         sections: <Widget>[
           if (farm.coverImageBase64.isNotEmpty) ...<Widget>[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(28),
-              child: Image.memory(
-                base64Decode(farm.coverImageBase64),
-                height: 220,
-                width: double.infinity,
-                fit: BoxFit.cover,
+            FadeInUp(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(28),
+                child: Stack(
+                  children: <Widget>[
+                    Image.memory(
+                      base64Decode(farm.coverImageBase64),
+                      height: 220,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: <Color>[
+                              Colors.transparent,
+                              Colors.black.withOpacity(0.55),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 16,
+                      right: 16,
+                      bottom: 14,
+                      child: Text(
+                        '${farm.ward} ward  ·  ${farm.sizeHa.toStringAsFixed(1)} ha',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 18),
@@ -487,36 +520,130 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           ),
           RepaintBoundary(
             key: _shareBoundaryKey,
-            child: AppCard(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
+            child: FadeInUp(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(28),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    _Tag(
-                        text: operatingStatus,
-                        color: _operatingStatusSolidColor(operatingStatus),
-                        emphasized: true),
-                    _Tag(
-                        text: '$urgentFarmTasks urgent farm tasks',
-                        color: const Color(0xFFFFEBD0)),
-                    _Tag(
-                        text: '$cropOpenTasks crop reminders',
-                        color: const Color(0xFFE5F5D8)),
-                    _Tag(
-                        text: '$livestockOpenTasks livestock reminders',
-                        color: const Color(0xFFDFF1FF)),
-                    _Tag(
-                        text: '$harvestReadyCount harvest windows',
-                        color: const Color(0xFFEDE8FF)),
-                    _Tag(
-                        text: '$healthWatchCount animal health watch',
-                        color: const Color(0xFFFFEBD0)),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: <Color>[
+                            _operatingStatusSolidColor(operatingStatus),
+                            Color.lerp(
+                                _operatingStatusSolidColor(operatingStatus),
+                                Colors.black,
+                                0.25)!,
+                          ],
+                        ),
+                      ),
+                      child: Row(
+                        children: <Widget>[
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              operatingStatus == 'Stable workflow'
+                                  ? Icons.check_circle_rounded
+                                  : Icons.flag_rounded,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  language.tr(
+                                      en: 'Farm status',
+                                      ha: 'Matsayin gona',
+                                      fr: 'Etat de la ferme'),
+                                  style: TextStyle(
+                                      color: Colors.white.withOpacity(0.85),
+                                      fontSize: 12),
+                                ),
+                                Text(
+                                  operatingStatus,
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w900),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        children: <Widget>[
+                          _FocusRow(
+                              icon: Icons.priority_high_rounded,
+                              color: const Color(0xFFE0685F),
+                              count: urgentFarmTasks,
+                              label: 'urgent farm tasks'),
+                          _FocusRow(
+                              icon: Icons.spa_rounded,
+                              color: const Color(0xFF2E9E5B),
+                              count: cropOpenTasks,
+                              label: 'crop reminders'),
+                          _FocusRow(
+                              icon: Icons.pets_rounded,
+                              color: const Color(0xFF3B82C4),
+                              count: livestockOpenTasks,
+                              label: 'livestock reminders'),
+                          _FocusRow(
+                              icon: Icons.agriculture_rounded,
+                              color: const Color(0xFF7A5BC4),
+                              count: harvestReadyCount,
+                              label: 'harvest windows'),
+                          _FocusRow(
+                              icon: Icons.favorite_rounded,
+                              color: const Color(0xFFE08A1E),
+                              count: healthWatchCount,
+                              label: 'animal health watch'),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 40,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: <Widget>[
+                for (final String id in (greenhousePlan == null
+                    ? _collapsibleSectionIds
+                        .where((String x) => x != 'greenhousePlanner')
+                        .toList()
+                    : _collapsibleSectionIds))
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ActionChip(
+                      label: Text(_localizedSectionTitle(language, id)),
+                      onPressed: () => _scrollToSection(id),
+                    ),
+                  ),
+              ],
             ),
           ),
           const SizedBox(height: 18),
@@ -4082,6 +4209,82 @@ class _QuickActionCard extends StatelessWidget {
   }
 }
 
+class _FocusRow extends StatelessWidget {
+  const _FocusRow({
+    required this.icon,
+    required this.color,
+    required this.count,
+    required this.label,
+  });
+
+  final IconData icon;
+  final Color color;
+  final int count;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool active = count > 0;
+    final Color c = active ? color : theme.colorScheme.onSurfaceVariant;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: c.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, size: 18, color: c),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(label,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                    color: active ? null : theme.colorScheme.onSurfaceVariant)),
+          ),
+          TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0, end: count.toDouble()),
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeOutCubic,
+            builder: (BuildContext context, double v, Widget? w) => Text(
+              '${v.round()}',
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w900, color: c),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Counts up the leading integer of values like "12", "3 ha" or "NGN 4.2k".
+class _AnimatedValue extends StatelessWidget {
+  const _AnimatedValue({required this.value, this.style});
+
+  final String value;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    final RegExpMatch? m = RegExp(r'^(\d+)$').firstMatch(value);
+    if (m == null) {
+      return Text(value, style: style, maxLines: 1, overflow: TextOverflow.ellipsis);
+    }
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: double.parse(m.group(1)!)),
+      duration: const Duration(milliseconds: 650),
+      curve: Curves.easeOutCubic,
+      builder: (BuildContext context, double v, Widget? w) =>
+          Text('${v.round()}', style: style),
+    );
+  }
+}
+
 class _FarmMetricCard extends StatelessWidget {
   const _FarmMetricCard({
     required this.title,
@@ -4126,12 +4329,21 @@ class _FarmMetricCard extends StatelessWidget {
                     color:
                         isDark ? tint.withOpacity(0.42) : Colors.transparent),
               ),
-              child: Icon(icon, color: iconForeground),
+              child: Icon(icon,
+                  color: isDark
+                      ? iconForeground
+                      : HSLColor.fromColor(tint)
+                          .withLightness(0.35)
+                          .withSaturation(0.55)
+                          .toColor()),
             ),
             const SizedBox(height: 14),
             Text(title, style: theme.textTheme.bodySmall),
             const SizedBox(height: 6),
-            Text(value, style: theme.textTheme.titleMedium),
+            _AnimatedValue(
+                value: value,
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 6),
             Text(note, style: theme.textTheme.bodySmall),
             if (progress != null) ...<Widget>[
