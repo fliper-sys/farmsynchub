@@ -15,6 +15,7 @@ import '../../../providers/user_profile_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
+import '../../common/widgets/detail_ui.dart';
 
 class NewsScreen extends ConsumerStatefulWidget {
   const NewsScreen({super.key});
@@ -88,6 +89,11 @@ class _NewsScreenState extends ConsumerState<NewsScreen>
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          dividerColor: Colors.transparent,
+          indicatorSize: TabBarIndicatorSize.label,
+          indicatorWeight: 3,
+          labelStyle: const TextStyle(fontWeight: FontWeight.w800),
           tabs: <Tab>[
             Tab(
                 text: language.tr(
@@ -290,101 +296,116 @@ class _NewsHeader extends StatelessWidget {
   final VoidCallback onCompose;
   final VoidCallback onCollapse;
 
+  Widget _stat(int value, String label) => Padding(
+        padding: const EdgeInsets.only(right: 22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0, end: value.toDouble()),
+              duration: const Duration(milliseconds: 700),
+              curve: Curves.easeOutCubic,
+              builder: (BuildContext context, double v, Widget? c) => Text(
+                '${v.round()}',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900),
+              ),
+            ),
+            Text(label,
+                style: TextStyle(
+                    color: Colors.white.withOpacity(0.85), fontSize: 12)),
+          ],
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      child: AppCard(
-        color: theme.colorScheme.surfaceContainerHighest,
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Expanded(
-                      child: Text(
-                          language.tr(
-                              en: 'Daily news',
-                              ha: 'Labaran Yau da Kullum',
-                              fr: 'Actualites quotidiennes'),
-                          style: theme.textTheme.headlineSmall)),
-                  IconButton(
-                    tooltip: language.tr(
-                        en: 'Hide summary',
-                        ha: 'Boye Takaitawa',
-                        fr: 'Masquer le resume'),
-                    onPressed: onCollapse,
-                    icon: const Icon(Icons.keyboard_arrow_up_rounded),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 8, 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(26),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: <Color>[Color(0xFF0E5A41), Color(0xFF2E9E5B)],
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                const Icon(Icons.newspaper_rounded,
+                    color: Colors.white, size: 22),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    language.tr(
+                        en: 'Daily news',
+                        ha: 'Labaran Yau da Kullum',
+                        fr: 'Actualites quotidiennes'),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900),
                   ),
-                  const SizedBox(width: 4),
-                  FilledButton.icon(
-                    onPressed: onCompose,
-                    icon: const Icon(Icons.edit_square, size: 18),
-                    label: Text(
-                        language.tr(en: 'Post', ha: 'Aika', fr: 'Publier')),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(
+                ),
+                IconButton(
+                  tooltip: language.tr(
+                      en: 'Hide summary',
+                      ha: 'Boye Takaitawa',
+                      fr: 'Masquer le resume'),
+                  onPressed: onCollapse,
+                  icon: const Icon(Icons.keyboard_arrow_up_rounded,
+                      color: Colors.white),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Text(
                 language.tr(
                   en: 'Share innovations, products, market updates, and farm stories. Follow other farmers for curated updates.',
                   ha: 'Raba sabbin dabaru, kayayyaki, sabuntawar kasuwa, da labaran gona. Bi wasu manoma domin samun sabuntawa masu tsari.',
                   fr: 'Partagez des innovations, des produits, des mises a jour du marche et des recits agricoles. Suivez d\'autres agriculteurs pour des mises a jour selectionnees.',
                 ),
-                style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+                style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 13,
+                    height: 1.4),
               ),
-              const SizedBox(height: 14),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: <Widget>[
-                  _MetricChip(
-                      label: language.tr(
-                          en: 'Posts', ha: 'Sakonni', fr: 'Publications'),
-                      value: '$postCount'),
-                  _MetricChip(
-                      label: language.tr(
-                          en: 'Following', ha: 'Ana Bi', fr: 'Abonnements'),
-                      value: '$followedCount'),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MetricChip extends StatelessWidget {
-  const _MetricChip({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final bool isDark = theme.brightness == Brightness.dark;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: isDark
-            ? theme.colorScheme.surface.withOpacity(0.72)
-            : theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Text(
-        '$label: $value',
-        style: theme.textTheme.labelLarge?.copyWith(
-          color: theme.colorScheme.onSurface,
-          fontWeight: FontWeight.w700,
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: <Widget>[
+                _stat(postCount,
+                    language.tr(en: 'Posts', ha: 'Sakonni', fr: 'Publications')),
+                _stat(
+                    followedCount,
+                    language.tr(
+                        en: 'Following', ha: 'Ana Bi', fr: 'Abonnements')),
+                const Spacer(),
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF0E5A41),
+                    ),
+                    onPressed: onCompose,
+                    icon: const Icon(Icons.edit_square, size: 18),
+                    label: Text(
+                        language.tr(en: 'Post', ha: 'Aika', fr: 'Publier')),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -764,19 +785,31 @@ class _NewsFeedList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
     if (posts.isEmpty) {
       return ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(32),
         children: <Widget>[
-          AppCard(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text(emptyMessage,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(height: 1.5)),
+          const SizedBox(height: 40),
+          FadeInUp(
+            child: Column(
+              children: <Widget>[
+                Container(
+                  padding: const EdgeInsets.all(22),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.forum_outlined,
+                      size: 42, color: theme.colorScheme.primary),
+                ),
+                const SizedBox(height: 18),
+                Text(emptyMessage,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                        height: 1.5,
+                        color: theme.colorScheme.onSurfaceVariant)),
+              ],
             ),
           ),
         ],
@@ -784,17 +817,20 @@ class _NewsFeedList extends StatelessWidget {
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
       itemCount: posts.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (_, __) => const SizedBox(height: 14),
       itemBuilder: (BuildContext context, int index) {
         final NewsPost post = posts[index];
-        return _NewsPostCard(
-          language: language,
-          post: post,
-          ref: ref,
-          followedAuthorIds: followedAuthorIds,
-          mineOnly: mineOnly,
+        return FadeInUp(
+          index: index.clamp(0, 5),
+          child: _NewsPostCard(
+            language: language,
+            post: post,
+            ref: ref,
+            followedAuthorIds: followedAuthorIds,
+            mineOnly: mineOnly,
+          ),
         );
       },
     );
@@ -898,61 +934,151 @@ class _NewsPostCard extends StatelessWidget {
         ref.read(newsFeedProvider.notifier).userForAuthor(post.authorId);
     final bool authorVerified = authorProfile?.isVerified == true;
 
-    return AppCard(
-      color: theme.colorScheme.surfaceContainerHighest,
+    final bool following = followedAuthorIds.contains(post.authorId);
+    final Color accent = post.isAdminPost
+        ? const Color(0xFFE08A1E)
+        : theme.colorScheme.primary;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(26),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => _openComments(context, ref, post),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            if (post.hasImage)
-              ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(28)),
-                child: Image.memory(
-                  base64Decode(post.coverImageBase64),
-                  width: double.infinity,
-                  height: 220,
-                  fit: BoxFit.cover,
-                ),
-              )
-            else
-              Container(
-                height: 190,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: <Color>[
-                      Theme.of(context).colorScheme.primaryContainer,
-                      Theme.of(context).colorScheme.tertiaryContainer,
-                    ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 8, 10),
+              child: Row(
+                children: <Widget>[
+                  Container(
+                    width: 40,
+                    height: 40,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: <Color>[
+                          accent,
+                          accent.withOpacity(0.6),
+                        ],
+                      ),
+                    ),
+                    child: Text(
+                      post.authorName.isNotEmpty
+                          ? post.authorName[0].toUpperCase()
+                          : 'F',
+                      style: const TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.w900),
+                    ),
                   ),
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(28)),
-                ),
-                padding: const EdgeInsets.all(18),
-                alignment: Alignment.bottomLeft,
-                child: Text(
-                  post.title,
-                  style: theme.textTheme.headlineSmall
-                      ?.copyWith(fontWeight: FontWeight.w800),
-                ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Row(
+                          children: <Widget>[
+                            Flexible(
+                              child: Text(post.authorName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.w800)),
+                            ),
+                            if (authorVerified) ...<Widget>[
+                              const SizedBox(width: 5),
+                              const Icon(Icons.verified_rounded,
+                                  size: 16, color: Color(0xFF2E9E5B)),
+                            ],
+                            if (post.isAdminPost) ...<Widget>[
+                              const SizedBox(width: 6),
+                              _Tag(
+                                  text: language.tr(
+                                      en: 'Admin', ha: 'Admin', fr: 'Admin'),
+                                  color: const Color(0xFFFFEBD0)),
+                            ],
+                          ],
+                        ),
+                        Text(
+                          '${_timeAgo(post.createdAt)}'
+                          '${post.location.isNotEmpty ? '  ·  ${post.location}' : ''}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (!mineOnly && !post.isAdminPost)
+                    FilledButton.tonal(
+                      style: FilledButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                      onPressed: () => ref
+                          .read(newsFeedProvider.notifier)
+                          .toggleFollow(post.authorId),
+                      child: Text(following
+                          ? language.tr(
+                              en: 'Following', ha: 'Ana Bi', fr: 'Suivi')
+                          : language.tr(en: 'Follow', ha: 'Bi', fr: 'Suivre')),
+                    ),
+                  if (canEdit)
+                    PopupMenuButton<String>(
+                      tooltip: language.tr(
+                          en: 'More', ha: 'Kari', fr: 'Plus'),
+                      onSelected: (String v) {
+                        if (v == 'edit') _editPost(context, ref, post);
+                        if (v == 'delete') _deletePost(context, ref, post);
+                      },
+                      itemBuilder: (BuildContext context) =>
+                          <PopupMenuEntry<String>>[
+                        PopupMenuItem<String>(
+                          value: 'edit',
+                          child: Text(language.tr(
+                              en: 'Edit', ha: 'Gyara', fr: 'Modifier')),
+                        ),
+                        PopupMenuItem<String>(
+                          value: 'delete',
+                          child: Text(language.tr(
+                              en: 'Delete', ha: 'Share', fr: 'Supprimer')),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+            if (post.hasImage)
+              Stack(
+                children: <Widget>[
+                  Image.memory(
+                    base64Decode(post.coverImageBase64),
+                    width: double.infinity,
+                    height: 210,
+                    fit: BoxFit.cover,
+                  ),
+                  Positioned(
+                    left: 12,
+                    top: 12,
+                    child: _CategoryBadge(post.category),
+                  ),
+                ],
               ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Wrap(
                     spacing: 8,
-                    runSpacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
+                    runSpacing: 6,
                     children: <Widget>[
-                      _Tag(text: post.category, color: const Color(0xFFE8F4D8)),
-                      if (post.isAdminPost)
-                        _Tag(
-                            text: language.tr(
-                                en: 'Admin', ha: 'Admin', fr: 'Admin'),
-                            color: const Color(0xFFFFEBD0)),
+                      if (!post.hasImage) _CategoryBadge(post.category),
                       if (post.isRepost)
                         _Tag(
                             text: language.tr(
@@ -969,124 +1095,58 @@ class _NewsPostCard extends StatelessWidget {
                             color: const Color(0xFFEDE8FF)),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   Text(post.title,
                       style: theme.textTheme.titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 8),
+                          ?.copyWith(fontWeight: FontWeight.w800, height: 1.2)),
+                  const SizedBox(height: 6),
                   Text(post.body,
+                      maxLines: 5,
+                      overflow: TextOverflow.ellipsis,
                       style:
                           theme.textTheme.bodyMedium?.copyWith(height: 1.45)),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: <Widget>[
-                      CircleAvatar(
-                        radius: 18,
-                        backgroundColor: theme.colorScheme.primaryContainer,
-                        child: Text(post.authorName.isNotEmpty
-                            ? post.authorName[0].toUpperCase()
-                            : 'F'),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Row(
-                              children: <Widget>[
-                                Flexible(
-                                  child: Text(post.authorName,
-                                      style: theme.textTheme.titleSmall
-                                          ?.copyWith(
-                                              fontWeight: FontWeight.w700)),
-                                ),
-                                if (authorVerified) ...<Widget>[
-                                  const SizedBox(width: 6),
-                                  const Icon(Icons.verified_rounded,
-                                      size: 16, color: Colors.green),
-                                ],
-                              ],
-                            ),
-                            Text(
-                              '${app_date.DateUtils.formatDate(post.createdAt)} ${post.authorWhatsapp.isNotEmpty ? ' | WhatsApp ${post.authorWhatsapp}' : ''}',
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (!mineOnly && !post.isAdminPost)
-                        IconButton(
-                          tooltip: followedAuthorIds.contains(post.authorId)
-                              ? language.tr(
-                                  en: 'Unfollow',
-                                  ha: 'Daina Bi',
-                                  fr: 'Ne plus suivre')
-                              : language.tr(
-                                  en: 'Follow', ha: 'Bi', fr: 'Suivre'),
-                          onPressed: () => ref
-                              .read(newsFeedProvider.notifier)
-                              .toggleFollow(post.authorId),
-                          icon: Icon(
-                            followedAuthorIds.contains(post.authorId)
-                                ? Icons.person_remove_alt_1_outlined
-                                : Icons.person_add_alt_1_outlined,
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: <Widget>[
-                      _ActionChip(
-                        icon: Icons.chat_bubble_outline_rounded,
-                        label: '${post.commentCount}',
-                        onTap: () => _openComments(context, ref, post),
-                      ),
-                      _ActionChip(
-                        icon: Icons.repeat_rounded,
-                        label: '${post.repostCount}',
-                        onTap: () => ref
-                            .read(newsFeedProvider.notifier)
-                            .repostPost(post),
-                      ),
-                      _ActionChip(
-                        icon: Icons.message_rounded,
-                        label: language.tr(
-                            en: 'Chat', ha: 'Tattaunawa', fr: 'Discuter'),
-                        onTap: post.authorWhatsapp.isEmpty
-                            ? null
-                            : () => _launchWhatsApp(
-                                post.authorWhatsapp, post.title),
-                      ),
-                      if (canEdit)
-                        _ActionChip(
-                          icon: Icons.edit_outlined,
-                          label: language.tr(
-                              en: 'Edit', ha: 'Gyara', fr: 'Modifier'),
-                          onTap: () => _editPost(context, ref, post),
-                        ),
-                      if (canEdit)
-                        _ActionChip(
-                          icon: Icons.delete_outline_rounded,
-                          label: language.tr(
-                              en: 'Delete', ha: 'Share', fr: 'Supprimer'),
-                          onTap: () => _deletePost(context, ref, post),
-                        ),
-                    ],
-                  ),
                   if (post.tags.isNotEmpty) ...<Widget>[
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     Wrap(
                       spacing: 8,
-                      runSpacing: 8,
                       children: post.tags
-                          .map((String tag) => _Tag(
-                              text: '#$tag', color: const Color(0xFFF3F3F3)))
+                          .map((String tag) => Text('#$tag',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                  color: accent,
+                                  fontWeight: FontWeight.w700)))
                           .toList(growable: false),
                     ),
                   ],
+                ],
+              ),
+            ),
+            Divider(
+                height: 1,
+                color: theme.colorScheme.outlineVariant.withOpacity(0.5)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              child: Row(
+                children: <Widget>[
+                  _PostAction(
+                    icon: Icons.chat_bubble_outline_rounded,
+                    label: '${post.commentCount}',
+                    onTap: () => _openComments(context, ref, post),
+                  ),
+                  _PostAction(
+                    icon: Icons.repeat_rounded,
+                    label: '${post.repostCount}',
+                    onTap: () =>
+                        ref.read(newsFeedProvider.notifier).repostPost(post),
+                  ),
+                  const Spacer(),
+                  if (post.authorWhatsapp.isNotEmpty)
+                    _PostAction(
+                      icon: Icons.message_rounded,
+                      label: language.tr(
+                          en: 'Chat', ha: 'Tattaunawa', fr: 'Discuter'),
+                      onTap: () =>
+                          _launchWhatsApp(post.authorWhatsapp, post.title),
+                    ),
                 ],
               ),
             ),
@@ -1094,6 +1154,15 @@ class _NewsPostCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static String _timeAgo(DateTime t) {
+    final Duration d = DateTime.now().difference(t);
+    if (d.inMinutes < 1) return 'just now';
+    if (d.inMinutes < 60) return '${d.inMinutes}m ago';
+    if (d.inHours < 24) return '${d.inHours}h ago';
+    if (d.inDays < 7) return '${d.inDays}d ago';
+    return app_date.DateUtils.formatDate(t);
   }
 
   Future<void> _editPost(
@@ -1183,10 +1252,23 @@ class _NewsPostCard extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
+                  Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 14),
+                    decoration: BoxDecoration(
+                      color: Theme.of(sheetContext)
+                          .colorScheme
+                          .outlineVariant,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
                   Text(
-                      language.tr(
-                          en: 'Comments', ha: 'Sharhi', fr: 'Commentaires'),
-                      style: Theme.of(sheetContext).textTheme.titleLarge),
+                      '${language.tr(en: 'Comments', ha: 'Sharhi', fr: 'Commentaires')} (${comments.length})',
+                      style: Theme.of(sheetContext)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w800)),
                   const SizedBox(height: 12),
                   if (comments.isEmpty)
                     Padding(
@@ -1197,7 +1279,13 @@ class _NewsPostCard extends StatelessWidget {
                           fr: 'Aucun commentaire pour le moment.')),
                     )
                   else
-                    ...comments.map(
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                          maxHeight:
+                              MediaQuery.of(sheetContext).size.height * 0.4),
+                      child: ListView(
+                        shrinkWrap: true,
+                        children: comments.map(
                       (NewsComment comment) => ListTile(
                         contentPadding: EdgeInsets.zero,
                         leading: CircleAvatar(
@@ -1217,6 +1305,8 @@ class _NewsPostCard extends StatelessWidget {
                                     comment.authorWhatsapp, comment.message),
                               )
                             : null,
+                      ),
+                    ).toList(),
                       ),
                     ),
                   const SizedBox(height: 12),
@@ -1624,6 +1714,53 @@ class NewsComposeDraft {
   final NewsPostVisibility visibility;
 }
 
+class _CategoryBadge extends StatelessWidget {
+  const _CategoryBadge(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0E5A41),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(text,
+          style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.3)),
+    );
+  }
+}
+
+class _PostAction extends StatelessWidget {
+  const _PostAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return TextButton.icon(
+      onPressed: onTap,
+      style: TextButton.styleFrom(
+          foregroundColor: theme.colorScheme.onSurfaceVariant),
+      icon: Icon(icon, size: 19),
+      label: Text(label),
+    );
+  }
+}
+
 class _Tag extends StatelessWidget {
   const _Tag({required this.text, required this.color});
 
@@ -1658,23 +1795,3 @@ class _Tag extends StatelessWidget {
   }
 }
 
-class _ActionChip extends StatelessWidget {
-  const _ActionChip({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ActionChip(
-      onPressed: onTap,
-      avatar: Icon(icon, size: 18),
-      label: Text(label),
-    );
-  }
-}
