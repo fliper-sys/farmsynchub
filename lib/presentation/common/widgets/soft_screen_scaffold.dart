@@ -340,7 +340,9 @@ class SoftSectionTitle extends StatelessWidget {
               title,
               style: titleStyle ??
                   theme.textTheme.titleLarge?.copyWith(
-                    color: AppColors.primaryForeground(theme.brightness),
+                    color: theme.brightness == Brightness.dark
+                        ? theme.colorScheme.onSurface
+                        : AppColors.primaryForeground(theme.brightness),
                   ),
             ),
           ),
