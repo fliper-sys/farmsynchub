@@ -77,7 +77,7 @@ class CropAdviceCatalog {
   static const List<CropAdviceProfile> _profiles = <CropAdviceProfile>[
     CropAdviceProfile(
       name: 'Maize',
-      aliases: <String>['maize', 'corn'],
+      aliases: <String>['maize', 'corn', 'masara', 'maïs', 'mais'],
       seedRatePerHa: 20,
       seedUnit: 'kg',
       fertiliserSummary: 'Apply compound fertiliser at planting, then top dress with nitrogen at 3-4 weeks and again at knee height where rainfall allows.',
@@ -89,7 +89,7 @@ class CropAdviceCatalog {
     ),
     CropAdviceProfile(
       name: 'Rice',
-      aliases: <String>['rice', 'paddy'],
+      aliases: <String>['rice', 'paddy', 'shinkafa', 'riz'],
       seedRatePerHa: 60,
       seedUnit: 'kg',
       fertiliserSummary: 'Use basal fertiliser before transplanting or direct seeding, then top dress nitrogen around tillering and panicle initiation.',
@@ -101,7 +101,7 @@ class CropAdviceCatalog {
     ),
     CropAdviceProfile(
       name: 'Sorghum',
-      aliases: <String>['sorghum', 'guinea corn'],
+      aliases: <String>['sorghum', 'guinea corn', 'dawa', 'sorgho'],
       seedRatePerHa: 10,
       seedUnit: 'kg',
       fertiliserSummary: 'Use moderate basal fertiliser and split nitrogen if moisture is dependable.',
@@ -113,7 +113,7 @@ class CropAdviceCatalog {
     ),
     CropAdviceProfile(
       name: 'Millet',
-      aliases: <String>['millet', 'pearl millet'],
+      aliases: <String>['millet', 'pearl millet', 'gero', 'petit mil'],
       seedRatePerHa: 5,
       seedUnit: 'kg',
       fertiliserSummary: 'Use a light basal fertiliser and maintain weed control early; millet usually responds better to modest nutrition than heavy dressing.',
@@ -125,7 +125,7 @@ class CropAdviceCatalog {
     ),
     CropAdviceProfile(
       name: 'Wheat',
-      aliases: <String>['wheat'],
+      aliases: <String>['wheat', 'alkama', 'blé'],
       seedRatePerHa: 100,
       seedUnit: 'kg',
       fertiliserSummary: 'Use basal fertiliser, then split nitrogen during tillering and stem elongation.',
@@ -137,7 +137,7 @@ class CropAdviceCatalog {
     ),
     CropAdviceProfile(
       name: 'Cassava',
-      aliases: <String>['cassava', 'tapioca'],
+      aliases: <String>['cassava', 'tapioca', 'rogo', 'manioc'],
       seedRatePerHa: 10000,
       seedUnit: 'stems',
       fertiliserSummary: 'Apply balanced fertiliser soon after establishment and again during early bulking if soil fertility is low.',
@@ -149,7 +149,7 @@ class CropAdviceCatalog {
     ),
     CropAdviceProfile(
       name: 'Yam',
-      aliases: <String>['yam'],
+      aliases: <String>['yam', 'doya', 'igname'],
       seedRatePerHa: 2500,
       seedUnit: 'setts',
       fertiliserSummary: 'Apply basal fertiliser after sprouting and top dress around vine development if the crop is vigorous.',
@@ -161,7 +161,7 @@ class CropAdviceCatalog {
     ),
     CropAdviceProfile(
       name: 'Sweet potato',
-      aliases: <String>['sweet potato', 'sweetpotato'],
+      aliases: <String>['sweet potato', 'sweetpotato', 'dankalin hausa', 'patate douce'],
       seedRatePerHa: 40000,
       seedUnit: 'vines',
       fertiliserSummary: 'Use moderate fertiliser at planting and keep potassium in mind for root bulking.',
@@ -173,7 +173,7 @@ class CropAdviceCatalog {
     ),
     CropAdviceProfile(
       name: 'Potato',
-      aliases: <String>['potato', 'irish potato'],
+      aliases: <String>['potato', 'irish potato', 'dankalin turawa', 'pomme de terre'],
       seedRatePerHa: 2500,
       seedUnit: 'seed pieces',
       fertiliserSummary: 'Use basal fertiliser at planting and hill up with a follow-up nitrogen application before tuber initiation.',
@@ -197,7 +197,7 @@ class CropAdviceCatalog {
     ),
     CropAdviceProfile(
       name: 'Cowpea',
-      aliases: <String>['cowpea', 'beans', 'sitao'],
+      aliases: <String>['cowpea', 'beans', 'sitao', 'wake', 'niébé', 'niebe'],
       seedRatePerHa: 25,
       seedUnit: 'kg',
       fertiliserSummary: 'Use a modest basal fertiliser and avoid too much nitrogen; phosphorus support is usually more helpful.',
@@ -209,7 +209,7 @@ class CropAdviceCatalog {
     ),
     CropAdviceProfile(
       name: 'Groundnut',
-      aliases: <String>['groundnut', 'peanut'],
+      aliases: <String>['groundnut', 'peanut', 'gyada', 'gyaɗa', 'arachide'],
       seedRatePerHa: 90,
       seedUnit: 'kg',
       fertiliserSummary: 'Apply phosphorus-rich fertiliser and avoid heavy nitrogen so nodulation and pegging stay strong.',
@@ -233,7 +233,7 @@ class CropAdviceCatalog {
     ),
     CropAdviceProfile(
       name: 'Tomato',
-      aliases: <String>['tomato'],
+      aliases: <String>['tomato', 'tumatir', 'tomate'],
       seedRatePerHa: 0.35,
       seedUnit: 'kg seed',
       fertiliserSummary: 'Use basal fertiliser at transplanting, then frequent light feeding during flowering and fruit set.',
@@ -245,7 +245,7 @@ class CropAdviceCatalog {
     ),
     CropAdviceProfile(
       name: 'Pepper',
-      aliases: <String>['pepper', 'chilli', 'chili', 'hot pepper'],
+      aliases: <String>['pepper', 'chilli', 'chili', 'hot pepper', 'barkono', 'piment'],
       seedRatePerHa: 0.25,
       seedUnit: 'kg seed',
       fertiliserSummary: 'Use basal fertiliser and support fruiting with potassium-rich feeding later in the cycle.',
@@ -257,7 +257,7 @@ class CropAdviceCatalog {
     ),
     CropAdviceProfile(
       name: 'Onion',
-      aliases: <String>['onion'],
+      aliases: <String>['onion', 'albasa', 'oignon'],
       seedRatePerHa: 6,
       seedUnit: 'kg seed',
       fertiliserSummary: 'Use basal fertiliser and split feeding through bulb development, with emphasis on potassium.',
