@@ -281,7 +281,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                       actions: <_ManagementAction>[
                         _ManagementAction(
                             Icons.agriculture_rounded,
-                            language.tr(en: 'Farms', ha: 'Gonaki', fr: 'Fermes'),
+                            language.tr(
+                                en: 'Farms', ha: 'Gonaki', fr: 'Fermes'),
                             '${farms.length} locations',
                             '/farms'),
                         _ManagementAction(

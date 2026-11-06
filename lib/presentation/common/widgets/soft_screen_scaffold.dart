@@ -40,6 +40,10 @@ class SoftScreenScaffold extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final ColorScheme scheme = theme.colorScheme;
     final bool isDark = theme.brightness == Brightness.dark;
+    // Use a high-contrast green for text and icons on light surfaces.
+    final Color accent = AppColors.primaryForeground(theme.brightness);
+    final Color softFill =
+        isDark ? AppColors.primary.withOpacity(0.16) : AppColors.surfaceSoft;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -53,8 +57,8 @@ class SoftScreenScaffold extends StatelessWidget {
                   scheme.surface,
                 ]
               : <Color>[
-                  const Color(0xFFFFFBF2),
-                  const Color(0xFFF1F8EE),
+                  scheme.surface,
+                  scheme.surfaceContainerLow,
                 ],
         ),
       ),
@@ -101,13 +105,10 @@ class SoftScreenScaffold extends StatelessWidget {
                                     width: 56,
                                     height: 56,
                                     decoration: BoxDecoration(
-                                      color: isDark
-                                          ? scheme.primary.withOpacity(0.18)
-                                          : AppColors.surfaceSoft,
+                                      color: softFill,
                                       borderRadius: BorderRadius.circular(20),
                                     ),
-                                    child:
-                                        Icon(heroIcon, color: scheme.primary),
+                                    child: Icon(heroIcon, color: accent),
                                   ),
                                   const SizedBox(width: 14),
                                   Expanded(
@@ -120,10 +121,7 @@ class SoftScreenScaffold extends StatelessWidget {
                                             padding: const EdgeInsets.symmetric(
                                                 horizontal: 12, vertical: 7),
                                             decoration: BoxDecoration(
-                                              color: isDark
-                                                  ? scheme.primary
-                                                      .withOpacity(0.18)
-                                                  : AppColors.surfaceSoft,
+                                              color: softFill,
                                               borderRadius:
                                                   BorderRadius.circular(999),
                                             ),
@@ -131,7 +129,7 @@ class SoftScreenScaffold extends StatelessWidget {
                                               heroBadge!,
                                               style: theme.textTheme.labelMedium
                                                   ?.copyWith(
-                                                color: AppColors.primaryMid,
+                                                color: accent,
                                                 fontWeight: FontWeight.w700,
                                               ),
                                             ),
@@ -181,7 +179,7 @@ class SoftScreenScaffold extends StatelessWidget {
                                       : AppColors.primaryForeground(theme.brightness),
                                   onPressed: onBack,
                                 ),
-                                const SizedBox(width: 12),
+                                const SizedBox(height: 10),
                               ],
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -190,13 +188,10 @@ class SoftScreenScaffold extends StatelessWidget {
                                     width: 56,
                                     height: 56,
                                     decoration: BoxDecoration(
-                                      color: isDark
-                                          ? scheme.primary.withOpacity(0.18)
-                                          : AppColors.surfaceSoft,
+                                      color: softFill,
                                       borderRadius: BorderRadius.circular(20),
                                     ),
-                                    child:
-                                        Icon(heroIcon, color: scheme.primary),
+                                    child: Icon(heroIcon, color: accent),
                                   ),
                                   const SizedBox(width: 14),
                                   Expanded(
@@ -209,10 +204,7 @@ class SoftScreenScaffold extends StatelessWidget {
                                             padding: const EdgeInsets.symmetric(
                                                 horizontal: 12, vertical: 7),
                                             decoration: BoxDecoration(
-                                              color: isDark
-                                                  ? scheme.primary
-                                                      .withOpacity(0.18)
-                                                  : AppColors.surfaceSoft,
+                                              color: softFill,
                                               borderRadius:
                                                   BorderRadius.circular(999),
                                             ),
@@ -220,12 +212,12 @@ class SoftScreenScaffold extends StatelessWidget {
                                               heroBadge!,
                                               style: theme.textTheme.labelMedium
                                                   ?.copyWith(
-                                                color: AppColors.primaryMid,
+                                                color: accent,
                                                 fontWeight: FontWeight.w700,
                                               ),
                                             ),
                                           ),
-                                          const SizedBox(height: 12),
+                                          const SizedBox(height: 10),
                                         ],
                                         Text(
                                           heroTitle,
