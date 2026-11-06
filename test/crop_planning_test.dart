@@ -45,4 +45,12 @@ void main() {
       );
     });
   });
+
+  test('Hausa and French crop names are recognised', () {
+    expect(CropAdviceCatalog.detect('Masara')?.name, 'Maize');
+    expect(CropAdviceCatalog.detect('Tomate')?.name, 'Tomato');
+    expect(CropAdviceCatalog.detect('Rogo')?.name, 'Cassava');
+    expect(CropAdviceCatalog.detect('Pomme de terre')?.name, 'Potato');
+    expect(CropAdviceCatalog.detect('Dankalin hausa')?.name, 'Sweet potato');
+  });
 }
