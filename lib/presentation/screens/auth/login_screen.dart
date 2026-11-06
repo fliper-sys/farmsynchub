@@ -99,6 +99,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             label: 'Email',
             hint: 'farmer@example.com',
             keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            autofillHints: const <String>[AutofillHints.email],
+            prefix: const Icon(Icons.alternate_email_rounded),
           ),
           const SizedBox(height: 14),
           AppTextField(
@@ -106,6 +109,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             label: 'Password',
             hint: 'Enter your password',
             obscureText: _obscurePassword,
+            textInputAction: TextInputAction.done,
+            autofillHints: const <String>[AutofillHints.password],
+            onSubmitted: (_) => _submit(),
+            prefix: const Icon(Icons.lock_outline_rounded),
             suffix: IconButton(
               onPressed: () =>
                   setState(() => _obscurePassword = !_obscurePassword),
@@ -133,6 +140,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             isLoading: isLoading,
             onPressed: _submit,
           ),
+          const SizedBox(height: 18),
+          const AuthDivider(),
           const SizedBox(height: 14),
           if (kIsWeb)
             buildGoogleSignInButton()

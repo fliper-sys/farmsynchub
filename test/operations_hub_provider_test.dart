@@ -1,5 +1,7 @@
+import 'package:farmsynchub/data/remote/firebase_service.dart';
 import 'package:farmsynchub/data/remote/operations_hub_remote_store.dart';
 import 'package:farmsynchub/data/repositories/inventory_repository.dart';
+import 'package:farmsynchub/providers/stock_ledger_provider.dart';
 import 'package:farmsynchub/providers/operations_hub_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,10 +13,16 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
-  test('addInventoryItem updates state and forwards it to the inventory repository', () async {
-    final FakeOperationsHubRemoteStore remoteStore = FakeOperationsHubRemoteStore(hasActiveUser: true);
-    final FakeInventoryRepository inventoryRepository = FakeInventoryRepository();
-    final OperationsHubNotifier notifier = OperationsHubNotifier(remoteStore, inventoryRepository);
+  test(
+      'addInventoryItem updates state and forwards it to the inventory repository',
+      () async {
+    final FakeOperationsHubRemoteStore remoteStore =
+        FakeOperationsHubRemoteStore(hasActiveUser: true);
+    final FakeInventoryRepository inventoryRepository =
+        FakeInventoryRepository();
+    final StockLedgerNotifier ledger = StockLedgerNotifier(FirebaseService());
+    final OperationsHubNotifier notifier =
+        OperationsHubNotifier(remoteStore, inventoryRepository, ledger);
 
     final InventoryItem item = InventoryItem(
       id: 'item-1',
@@ -77,7 +85,8 @@ class FakeOperationsHubRemoteStore implements OperationsHubRemoteStore {
   }
 
   @override
-  Future<void> syncToFirestore(String collection, Map<String, dynamic> data) async {
+  Future<void> syncToFirestore(
+      String collection, Map<String, dynamic> data) async {
     syncCalls += 1;
     syncedPayloads.add(Map<String, dynamic>.from(data));
   }

@@ -40,12 +40,6 @@ class SoftScreenScaffold extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final ColorScheme scheme = theme.colorScheme;
     final bool isDark = theme.brightness == Brightness.dark;
-    // Green used as text/icon color: deep on light surfaces so it is readable.
-    final Color accent = AppColors.primaryForeground(theme.brightness);
-    // Soft green fill for icon tiles and badges; a translucent tint in dark
-    // mode instead of a pale pastel that would glow on a near-black screen.
-    final Color softFill =
-        isDark ? AppColors.primary.withOpacity(0.16) : AppColors.surfaceSoft;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -58,11 +52,9 @@ class SoftScreenScaffold extends StatelessWidget {
                   const Color(0xFF102219),
                   scheme.surface,
                 ]
-              // Matches the app's neutral light scaffold instead of the old
-              // cream tint, so tab pages and detail pages look like one app.
               : <Color>[
-                  scheme.surface,
-                  scheme.surfaceContainerLow,
+                  const Color(0xFFFFFBF2),
+                  const Color(0xFFF1F8EE),
                 ],
         ),
       ),
@@ -81,61 +73,67 @@ class SoftScreenScaffold extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   if (showHero)
-                  AppCard(
-                    color: scheme.surfaceContainerHighest,
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          if (compact) ...<Widget>[
-                            if (onBack != null) ...<Widget>[
-                              Align(
-                                alignment: Alignment.topLeft,
-                                child: IconButton(
-                                  icon: const Icon(Icons.arrow_back_rounded),
-                                  color: isDark
-                                      ? theme.colorScheme.onSurface
-                                      : accent,
-                                  onPressed: onBack,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                            ],
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Container(
-                                  width: 56,
-                                  height: 56,
-                                  decoration: BoxDecoration(
-                                    color: softFill,
-                                    borderRadius: BorderRadius.circular(20),
+                    AppCard(
+                      color: scheme.surfaceContainerHighest,
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            if (compact) ...<Widget>[
+                              if (onBack != null) ...<Widget>[
+                                Align(
+                                  alignment: Alignment.topLeft,
+                                  child: IconButton(
+                                    icon: const Icon(Icons.arrow_back_rounded),
+                                    color: isDark
+                                        ? theme.colorScheme.onSurface
+                                        : AppColors.primary,
+                                    onPressed: onBack,
                                   ),
-                                  child:
-                                      Icon(heroIcon, color: accent),
                                 ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: <Widget>[
-                                      if (heroBadge != null) ...<Widget>[
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 7),
-                                          decoration: BoxDecoration(
-                                            color: softFill,
-                                            borderRadius:
-                                                BorderRadius.circular(999),
-                                          ),
-                                          child: Text(
-                                            heroBadge!,
-                                            style: theme.textTheme.labelMedium
-                                                ?.copyWith(
-                                              color: accent,
-                                              fontWeight: FontWeight.w700,
+                                const SizedBox(height: 10),
+                              ],
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Container(
+                                    width: 56,
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      color: isDark
+                                          ? scheme.primary.withOpacity(0.18)
+                                          : AppColors.surfaceSoft,
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child:
+                                        Icon(heroIcon, color: scheme.primary),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: <Widget>[
+                                        if (heroBadge != null) ...<Widget>[
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 7),
+                                            decoration: BoxDecoration(
+                                              color: isDark
+                                                  ? scheme.primary
+                                                      .withOpacity(0.18)
+                                                  : AppColors.surfaceSoft,
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                            ),
+                                            child: Text(
+                                              heroBadge!,
+                                              style: theme.textTheme.labelMedium
+                                                  ?.copyWith(
+                                                color: AppColors.primaryMid,
+                                                fontWeight: FontWeight.w700,
+                                              ),
                                             ),
                                           ),
                                           const SizedBox(height: 10),
@@ -150,26 +148,17 @@ class SoftScreenScaffold extends StatelessWidget {
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
                                         ),
-                                        const SizedBox(height: 10),
-                                      ],
-                                      Text(
-                                        heroTitle,
-                                        style: theme.textTheme.headlineSmall
-                                            ?.copyWith(
-                                          fontSize: titleSize,
-                                          color: accent,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        heroSubtitle,
-                                        style: theme.textTheme.bodyMedium
-                                            ?.copyWith(
-                                          height: 1.6,
-                                          color: theme
-                                              .colorScheme.onSurfaceVariant,
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          heroSubtitle,
+                                          style: theme.textTheme.bodyMedium
+                                              ?.copyWith(
+                                            height: 1.6,
+                                            color: theme
+                                                .colorScheme.onSurfaceVariant,
+                                          ),
+                                          maxLines: compact ? 4 : 3,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                       ],
                                     ),
@@ -183,59 +172,57 @@ class SoftScreenScaffold extends StatelessWidget {
                                   child: trailing!,
                                 ),
                               ],
-                            ),
-                            if (trailing != null) ...<Widget>[
-                              const SizedBox(height: 16),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: trailing!,
-                              ),
-                            ],
-                          ] else ...<Widget>[
-                            if (onBack != null) ...<Widget>[
-                              IconButton(
-                                icon: const Icon(Icons.arrow_back_rounded),
-                                color: isDark
-                                    ? theme.colorScheme.onSurface
-                                    : accent,
-                                onPressed: onBack,
-                              ),
-                              const SizedBox(width: 12),
-                            ],
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Container(
-                                  width: 56,
-                                  height: 56,
-                                  decoration: BoxDecoration(
-                                    color: softFill,
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child:
-                                      Icon(heroIcon, color: accent),
+                            ] else ...<Widget>[
+                              if (onBack != null) ...<Widget>[
+                                IconButton(
+                                  icon: const Icon(Icons.arrow_back_rounded),
+                                  color: isDark
+                                      ? theme.colorScheme.onSurface
+                                      : AppColors.primary,
+                                  onPressed: onBack,
                                 ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: <Widget>[
-                                      if (heroBadge != null) ...<Widget>[
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 7),
-                                          decoration: BoxDecoration(
-                                            color: softFill,
-                                            borderRadius:
-                                                BorderRadius.circular(999),
-                                          ),
-                                          child: Text(
-                                            heroBadge!,
-                                            style: theme.textTheme.labelMedium
-                                                ?.copyWith(
-                                              color: accent,
-                                              fontWeight: FontWeight.w700,
+                                const SizedBox(width: 12),
+                              ],
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Container(
+                                    width: 56,
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      color: isDark
+                                          ? scheme.primary.withOpacity(0.18)
+                                          : AppColors.surfaceSoft,
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child:
+                                        Icon(heroIcon, color: scheme.primary),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: <Widget>[
+                                        if (heroBadge != null) ...<Widget>[
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 7),
+                                            decoration: BoxDecoration(
+                                              color: isDark
+                                                  ? scheme.primary
+                                                      .withOpacity(0.18)
+                                                  : AppColors.surfaceSoft,
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                            ),
+                                            child: Text(
+                                              heroBadge!,
+                                              style: theme.textTheme.labelMedium
+                                                  ?.copyWith(
+                                                color: AppColors.primaryMid,
+                                                fontWeight: FontWeight.w700,
+                                              ),
                                             ),
                                           ),
                                           const SizedBox(height: 12),
@@ -250,26 +237,17 @@ class SoftScreenScaffold extends StatelessWidget {
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
                                         ),
-                                        const SizedBox(height: 12),
-                                      ],
-                                      Text(
-                                        heroTitle,
-                                        style: theme.textTheme.headlineSmall
-                                            ?.copyWith(
-                                          fontSize: titleSize,
-                                          color: accent,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        heroSubtitle,
-                                        style: theme.textTheme.bodyMedium
-                                            ?.copyWith(
-                                          height: 1.6,
-                                          color: theme
-                                              .colorScheme.onSurfaceVariant,
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          heroSubtitle,
+                                          style: theme.textTheme.bodyMedium
+                                              ?.copyWith(
+                                            height: 1.6,
+                                            color: theme
+                                                .colorScheme.onSurfaceVariant,
+                                          ),
+                                          maxLines: compact ? 4 : 3,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                       ],
                                     ),
@@ -369,7 +347,7 @@ class SoftSectionTitle extends StatelessWidget {
                   theme.textTheme.titleLarge?.copyWith(
                     color: theme.brightness == Brightness.dark
                         ? theme.colorScheme.onSurface
-                        : accent,
+                        : AppColors.primary,
                   ),
             ),
           ),
