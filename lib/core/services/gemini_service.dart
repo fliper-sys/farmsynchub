@@ -50,6 +50,33 @@ const Duration _kCacheTtl = Duration(hours: 6);
 // that also fails).
 const String _kGeminiApiKey = String.fromEnvironment('GEMINI_API_KEY');
 
+// Free-tier quotas are per model, so when the main model is rate limited the
+// lighter "lite" alias usually still has quota left. Override if it moves.
+const String _kGeminiLiteModelName = String.fromEnvironment(
+  'GEMINI_LITE_MODEL',
+  defaultValue: 'gemini-flash-lite-latest',
+);
+
+// Optional third route: any OpenAI-compatible provider with a free tier
+// (Groq, OpenRouter, Cloudflare Workers AI, Mistral...). It is only tried
+// after both Gemini routes fail, and is skipped entirely when no key is set.
+//   --dart-define=AI_FALLBACK_API_KEY=...
+//   --dart-define=AI_FALLBACK_BASE_URL=https://api.groq.com/openai/v1
+//   --dart-define=AI_FALLBACK_MODEL=<a vision-capable model id>
+// Free model IDs change often - check the provider's model list.
+// NOTE: a key baked into an app can be extracted. For a public release point
+// AI_FALLBACK_BASE_URL at your own small proxy (e.g. a Cloudflare Worker)
+// that holds the key, and leave AI_FALLBACK_API_KEY empty or a shared token.
+const String _kFallbackBaseUrl = String.fromEnvironment(
+  'AI_FALLBACK_BASE_URL',
+  defaultValue: 'https://api.groq.com/openai/v1',
+);
+const String _kFallbackApiKey = String.fromEnvironment('AI_FALLBACK_API_KEY');
+const String _kFallbackModel = String.fromEnvironment(
+  'AI_FALLBACK_MODEL',
+  defaultValue: 'qwen/qwen3.8-27b',
+);
+
 String _buildSystemPrompt(String language, AiTopic topic) => '''
 You are Farmsync AI, the farming assistant inside FarmSync for farmers in Nigeria.
 Stay focused on farming, livestock, soil, weather, market access, farm records, and rural livelihoods.
@@ -75,7 +102,10 @@ class GeminiService {
   final Map<String, _CachedResponse> _cache = <String, _CachedResponse>{};
   DateTime? _rateLimitedUntil;
 
-  bool get hasApiKey => Firebase.apps.isNotEmpty;
+  bool get hasApiKey =>
+      Firebase.apps.isNotEmpty ||
+      _kGeminiApiKey.isNotEmpty ||
+      _kFallbackApiKey.isNotEmpty;
 
   String get modelName => _kFirebaseAiModelName;
 
@@ -595,18 +625,149 @@ Future estimate
   /// Check involved. [Content.toJson]/[Part.toJson] already produce the
   /// exact JSON shape this REST endpoint expects, so history/image parts
   /// built for Firebase AI Logic are reused as-is.
+  ///
+  /// Despite the name this is the whole non-Firebase chain, tried in order:
+  /// Gemini key on the main model, Gemini key on the lite model (separate
+  /// free quota), then the optional OpenAI-compatible provider. The first
+  /// route that returns text wins; if all fail the last error is rethrown.
   Future<String> _generateViaApiKey({
     required String systemPrompt,
     required List<Content> contents,
     double temperature = 0.4,
     int maxOutputTokens = 700,
   }) async {
-    if (_kGeminiApiKey.isEmpty) {
-      throw StateError(
-          'No GEMINI_API_KEY configured (pass --dart-define=GEMINI_API_KEY=... at build/run time)');
+    Object? lastError;
+    StackTrace? lastStack;
+
+    if (_kGeminiApiKey.isNotEmpty) {
+      for (final String model in <String>{
+        _kFirebaseAiModelName,
+        _kGeminiLiteModelName,
+      }) {
+        try {
+          final String text = await _generateViaGeminiKey(
+            model: model,
+            systemPrompt: systemPrompt,
+            contents: contents,
+            temperature: temperature,
+            maxOutputTokens: maxOutputTokens,
+          );
+          if (text.isNotEmpty) return text;
+        } catch (error, stack) {
+          lastError = error;
+          lastStack = stack;
+          debugPrint('[GeminiService] Gemini key route ($model) failed: $error');
+        }
+      }
     }
+
+    if (_kFallbackApiKey.isNotEmpty) {
+      try {
+        final String text = await _generateViaOpenAiCompatible(
+          systemPrompt: systemPrompt,
+          contents: contents,
+          temperature: temperature,
+          maxOutputTokens: maxOutputTokens,
+        );
+        if (text.isNotEmpty) return text;
+      } catch (error, stack) {
+        lastError = error;
+        lastStack = stack;
+        debugPrint('[GeminiService] OpenAI-compatible route failed: $error');
+      }
+    }
+
+    if (lastError != null) {
+      Error.throwWithStackTrace(lastError, lastStack ?? StackTrace.current);
+    }
+    throw StateError(
+        'No fallback AI route configured (pass --dart-define=GEMINI_API_KEY=... and/or AI_FALLBACK_API_KEY=...)');
+  }
+
+  /// Converts Gemini-style [Content] JSON (text + inlineData parts) into the
+  /// OpenAI chat format, including base64 image parts, and calls the
+  /// configured provider.
+  Future<String> _generateViaOpenAiCompatible({
+    required String systemPrompt,
+    required List<Content> contents,
+    required double temperature,
+    required int maxOutputTokens,
+  }) async {
+    final List<Map<String, dynamic>> messages = <Map<String, dynamic>>[
+      <String, dynamic>{'role': 'system', 'content': systemPrompt},
+    ];
+    for (final Content c in contents) {
+      final Map<String, dynamic> json = c.toJson();
+      final String role = json['role'] == 'model' ? 'assistant' : 'user';
+      final List<Map<String, dynamic>> parts = <Map<String, dynamic>>[];
+      for (final dynamic raw in (json['parts'] as List<dynamic>? ?? const <dynamic>[])) {
+        final Map<String, dynamic> part = raw as Map<String, dynamic>;
+        if (part['text'] is String) {
+          parts.add(<String, dynamic>{'type': 'text', 'text': part['text']});
+        } else if (part['inlineData'] is Map<String, dynamic>) {
+          final Map<String, dynamic> data =
+              part['inlineData'] as Map<String, dynamic>;
+          parts.add(<String, dynamic>{
+            'type': 'image_url',
+            'image_url': <String, String>{
+              'url': 'data:${data['mimeType']};base64,${data['data']}',
+            },
+          });
+        }
+      }
+      if (parts.isEmpty) continue;
+      final bool textOnly =
+          parts.every((Map<String, dynamic> p) => p['type'] == 'text');
+      messages.add(<String, dynamic>{
+        'role': role,
+        // Plain string for text-only turns: the most widely supported form.
+        'content': textOnly
+            ? parts.map((Map<String, dynamic> p) => p['text']).join('\n')
+            : parts,
+      });
+    }
+
+    final String base = _kFallbackBaseUrl.endsWith('/')
+        ? _kFallbackBaseUrl.substring(0, _kFallbackBaseUrl.length - 1)
+        : _kFallbackBaseUrl;
+    final http.Response response = await http
+        .post(
+          Uri.parse('$base/chat/completions'),
+          headers: <String, String>{
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $_kFallbackApiKey',
+          },
+          body: jsonEncode(<String, dynamic>{
+            'model': _kFallbackModel,
+            'messages': messages,
+            'temperature': temperature,
+            'max_tokens': maxOutputTokens,
+          }),
+        )
+        .timeout(const Duration(seconds: 45));
+    if (response.statusCode != 200) {
+      throw HttpException(
+          'AI fallback returned ${response.statusCode}: ${response.body}');
+    }
+    final Map<String, dynamic> decoded =
+        jsonDecode(response.body) as Map<String, dynamic>;
+    final List<dynamic>? choices = decoded['choices'] as List<dynamic>?;
+    if (choices == null || choices.isEmpty) return '';
+    final Map<String, dynamic>? message =
+        (choices.first as Map<String, dynamic>)['message']
+            as Map<String, dynamic>?;
+    return ((message?['content'] as String?) ?? '').trim();
+  }
+
+  Future<String> _generateViaGeminiKey({
+    required String model,
+    required String systemPrompt,
+    required List<Content> contents,
+    required double temperature,
+    required int maxOutputTokens,
+  }) async {
     final Uri uri = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/$_kFirebaseAiModelName:generateContent?key=$_kGeminiApiKey',
+      'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$_kGeminiApiKey',
     );
     final Map<String, dynamic> body = <String, dynamic>{
       'contents': contents.map((Content c) => c.toJson()).toList(),
@@ -625,11 +786,13 @@ Future estimate
       ],
     };
 
-    final http.Response response = await http.post(
-      uri,
-      headers: const <String, String>{'Content-Type': 'application/json'},
-      body: jsonEncode(body),
-    );
+    final http.Response response = await http
+        .post(
+          uri,
+          headers: const <String, String>{'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 45));
 
     if (response.statusCode != 200) {
       throw HttpException(
