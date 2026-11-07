@@ -456,6 +456,76 @@ class GeminiService {
     );
   }
 
+  /// Translates [texts] into [language] (for example "Hausa" or "Nigerian
+  /// Pidgin") and returns a list of the same length, or null when no AI route
+  /// could produce a usable answer. Used by the lesson translator.
+  Future<List<String>?> translateTexts(
+      List<String> texts, String language) async {
+    if (texts.isEmpty) return <String>[];
+    final String system =
+        'You are a careful translator for a farming education app used by '
+        'smallholder farmers in Nigeria. Translate every string in the JSON '
+        'array the user sends into $language. Keep the meaning exact and the '
+        'wording simple and practical. Keep numbers, units, product names and '
+        'URLs unchanged. Return ONLY a JSON array of strings with exactly the '
+        'same number of items in the same order. No commentary, no markdown.';
+    final String prompt = jsonEncode(texts);
+
+    Future<String> viaFirebase() async {
+      final FirebaseAI firebaseAi = FirebaseAI.googleAI(
+        auth: FirebaseAuth.instance,
+        appCheck: _appCheckForPlatform,
+      );
+      final GenerativeModel model = firebaseAi.generativeModel(
+        model: _kFirebaseAiModelName,
+        systemInstruction: Content.system(system),
+        generationConfig: GenerationConfig(
+          temperature: 0.2,
+          maxOutputTokens: 8192,
+        ),
+      );
+      final GenerateContentResponse response =
+          await model.generateContent(<Content>[Content.text(prompt)]);
+      return response.text?.trim() ?? '';
+    }
+
+    Future<String> viaKeys() => _generateViaApiKey(
+          systemPrompt: system,
+          contents: <Content>[Content.text(prompt)],
+          temperature: 0.2,
+          maxOutputTokens: 8192,
+        );
+
+    for (final Future<String> Function() attempt in <Future<String> Function()>[
+      viaFirebase,
+      viaKeys,
+    ]) {
+      try {
+        final List<String>? parsed =
+            _parseJsonStringList(await attempt(), texts.length);
+        if (parsed != null) return parsed;
+      } catch (error) {
+        debugPrint('[GeminiService] translateTexts attempt failed: $error');
+      }
+    }
+    return null;
+  }
+
+  List<String>? _parseJsonStringList(String raw, int expectedLength) {
+    String text = raw.trim();
+    final int start = text.indexOf('[');
+    final int end = text.lastIndexOf(']');
+    if (start < 0 || end <= start) return null;
+    text = text.substring(start, end + 1);
+    try {
+      final dynamic decoded = jsonDecode(text);
+      if (decoded is! List || decoded.length != expectedLength) return null;
+      return decoded.map((dynamic item) => item.toString()).toList();
+    } catch (_) {
+      return null;
+    }
+  }
+
   String buildLocalMarketTrendInsight({
     required String location,
     required List<Map<String, dynamic>> trendData,

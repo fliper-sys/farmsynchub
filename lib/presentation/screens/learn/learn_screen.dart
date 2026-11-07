@@ -7,7 +7,9 @@ import '../../../core/constants/app_assets.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../providers/app_preferences_provider.dart';
+import '../../../core/i18n/lesson_boilerplate.dart';
 import '../../../providers/learning_provider.dart';
+import '../../../providers/lesson_translation_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
@@ -27,6 +29,35 @@ class LearnScreen extends ConsumerStatefulWidget {
 
 class _LearnScreenState extends ConsumerState<LearnScreen> {
   final TextEditingController _searchController = TextEditingController();
+  AppLanguage? _prefetchedFor;
+
+  /// Once per language: load cached lesson translations from disk, then
+  /// translate every lesson title and subtitle in the background so the list
+  /// is readable in Hausa/Pidgin without opening each lesson.
+  void _prefetchTranslations(AppLanguage language) {
+    if (!_isTranslatedLanguage(language) || _prefetchedFor == language) return;
+    _prefetchedFor = language;
+    Future<void>.microtask(() async {
+      final LessonTranslationNotifier notifier =
+          ref.read(lessonTranslationProvider.notifier);
+      await notifier.loadCachedMany(
+          language, <String>[for (final LearningLesson l in _learningLessons) l.id, _kLessonCatalogId]);
+      final Map<String, String> bp = _lessonBoilerplate(language);
+      final Set<String> sentences = <String>{};
+      for (final LearningLesson l in _learningLessons) {
+        for (final String text in <String>[l.title, l.subtitle]) {
+          for (final String part in text.split(_lessonSentenceSplit)) {
+            final String t = part.trim();
+            if (t.isNotEmpty && !bp.containsKey(t)) sentences.add(t);
+          }
+        }
+      }
+      await notifier.ensure(
+          language: language,
+          lessonId: _kLessonCatalogId,
+          sentences: sentences.toList(growable: false));
+    });
+  }
 
   @override
   void dispose() {
@@ -40,6 +71,11 @@ class _LearnScreenState extends ConsumerState<LearnScreen> {
     final AppLanguage language = ref.watch(appLanguageProvider);
     final LearningState learning = ref.watch(learningProvider);
     final String query = _searchController.text.trim().toLowerCase();
+    _prefetchTranslations(language);
+    final LessonTranslationState translations =
+        ref.watch(lessonTranslationProvider);
+    final Map<String, String> catalogCache =
+        translations.forLesson(language, _kLessonCatalogId);
     final List<LearningLesson> lessons =
         _learningLessons.where((LearningLesson lesson) {
       final String haystack =
@@ -50,6 +86,11 @@ class _LearnScreenState extends ConsumerState<LearnScreen> {
       final List<String> tokens =
           query.split(RegExp('\\\\s+')).where((t) => t.isNotEmpty).toList();
       return tokens.every((String token) => haystack.contains(token));
+    }).map((LearningLesson lesson) {
+      return _localizeLesson(lesson, language, <String, String>{
+        ...catalogCache,
+        ...translations.forLesson(language, lesson.id),
+      });
     }).toList(growable: false);
     const List<PracticeActivity> activities = _practiceActivities;
     final double lessonProgress = lessons.isEmpty
@@ -316,6 +357,34 @@ class LearnLessonDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ThemeData theme = Theme.of(context);
     final AppLanguage language = ref.watch(appLanguageProvider);
+    final LessonTranslationState translations =
+        ref.watch(lessonTranslationProvider);
+    final LearningLesson lesson = _localizeLesson(
+      this.lesson,
+      language,
+      <String, String>{
+        ...translations.forLesson(language, _kLessonCatalogId),
+        ...translations.forLesson(language, this.lesson.id),
+      },
+    );
+    final bool translating = _isTranslatedLanguage(language) &&
+        translations.isLoading(language, this.lesson.id);
+    final bool translationFailed = _isTranslatedLanguage(language) &&
+        translations.hasFailed(language, this.lesson.id);
+    if (_isTranslatedLanguage(language) &&
+        !translating &&
+        !translationFailed) {
+      final List<String> needed =
+          _lessonSentencesToTranslate(this.lesson, language);
+      if (needed.isNotEmpty) {
+        Future<void>.microtask(() => ref
+            .read(lessonTranslationProvider.notifier)
+            .ensure(
+                language: language,
+                lessonId: this.lesson.id,
+                sentences: needed));
+      }
+    }
     final LearningState learning = ref.watch(learningProvider);
     final bool completed = learning.completedLessons.contains(lesson.id);
     final bool skipped = learning.skippedLessons.contains(lesson.id);
@@ -357,6 +426,62 @@ class LearnLessonDetailScreen extends ConsumerWidget {
         heroBadge: '${lesson.duration} - ${lesson.difficulty}',
         showArtwork: false,
         sections: <Widget>[
+          if (translating || translationFailed)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Row(
+                  children: <Widget>[
+                    if (translating)
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2.4),
+                      )
+                    else
+                      Icon(Icons.translate_rounded,
+                          color: theme.colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        translating
+                            ? language.tr(
+                                en: 'Translating this lesson...',
+                                ha: 'Ana fassara wannan darasi...',
+                                fr: 'Traduction de la lecon...',
+                                pcm: 'Dem dey translate dis lesson...')
+                            : language.tr(
+                                en: 'Could not translate right now. Showing English.',
+                                ha: 'Ba a iya fassara yanzu ba. Ana nuna Turanci.',
+                                fr: 'Traduction impossible pour le moment.',
+                                pcm: 'We no fit translate now. Dem dey show English.'),
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ),
+                    if (translationFailed)
+                      TextButton(
+                        onPressed: () => ref
+                            .read(lessonTranslationProvider.notifier)
+                            .ensure(
+                                language: language,
+                                lessonId: this.lesson.id,
+                                sentences: _lessonSentencesToTranslate(
+                                    this.lesson, language)),
+                        child: Text(language.tr(
+                            en: 'Retry',
+                            ha: 'Sake gwadawa',
+                            fr: 'Reessayer',
+                            pcm: 'Try again')),
+                      ),
+                  ],
+                ),
+              ),
+            ),
           _LessonImageHeader(lesson: lesson),
           const SizedBox(height: 18),
           Row(
@@ -1833,6 +1958,101 @@ class _AwardData {
   final IconData icon;
   final Color tint;
 }
+
+// ---------------------------------------------------------------------------
+// Lesson translation (Hausa / Pidgin). Source lessons are English; shared
+// sentences come from kLessonBoilerplate*, the rest from the on-device cache
+// filled by LessonTranslationNotifier. Anything missing stays English.
+// ---------------------------------------------------------------------------
+
+final RegExp _lessonSentenceSplit = RegExp(r'(?<=[.!?])\s+');
+
+bool _isTranslatedLanguage(AppLanguage language) =>
+    language == AppLanguage.hausa || language == AppLanguage.pidgin;
+
+Map<String, String> _lessonBoilerplate(AppLanguage language) {
+  switch (language) {
+    case AppLanguage.hausa:
+      return kLessonBoilerplateHa;
+    case AppLanguage.pidgin:
+      return kLessonBoilerplatePcm;
+    case AppLanguage.english:
+    case AppLanguage.french:
+      return const <String, String>{};
+  }
+}
+
+String _translateLessonText(
+    String text, Map<String, String> boilerplate, Map<String, String> cached) {
+  if (text.isEmpty) return text;
+  return text
+      .split(_lessonSentenceSplit)
+      .map((String sentence) =>
+          boilerplate[sentence] ?? cached[sentence] ?? sentence)
+      .join(' ');
+}
+
+/// Unique sentences of [lesson] that still need AI translation.
+List<String> _lessonSentencesToTranslate(
+    LearningLesson lesson, AppLanguage language) {
+  final Map<String, String> boilerplate = _lessonBoilerplate(language);
+  final Set<String> out = <String>{};
+  void add(String text) {
+    for (final String sentence in text.split(_lessonSentenceSplit)) {
+      final String t = sentence.trim();
+      if (t.isEmpty || boilerplate.containsKey(t)) continue;
+      if (t.startsWith('http') || RegExp(r'^[\d\s.]+$').hasMatch(t)) continue;
+      out.add(t);
+    }
+  }
+
+  add(lesson.title);
+  add(lesson.subtitle);
+  add(lesson.overview);
+  lesson.steps.forEach(add);
+  lesson.tools.forEach(add);
+  for (final LessonQuestion q in lesson.questions) {
+    add(q.prompt);
+    q.options.forEach(add);
+    add(q.explanation);
+  }
+  return out.toList(growable: false);
+}
+
+LearningLesson _localizeLesson(LearningLesson lesson, AppLanguage language,
+    Map<String, String> cached) {
+  if (!_isTranslatedLanguage(language)) return lesson;
+  final Map<String, String> bp = _lessonBoilerplate(language);
+  String t(String text) => _translateLessonText(text, bp, cached);
+  return LearningLesson(
+    id: lesson.id,
+    title: t(lesson.title),
+    subtitle: t(lesson.subtitle),
+    baseProgress: lesson.baseProgress,
+    duration: lesson.duration,
+    tint: lesson.tint,
+    track: lesson.track,
+    difficulty: lesson.difficulty,
+    overview: t(lesson.overview),
+    steps: lesson.steps.map(t).toList(growable: false),
+    questions: lesson.questions
+        .map((LessonQuestion q) => LessonQuestion(
+              id: q.id,
+              prompt: t(q.prompt),
+              options: q.options.map(t).toList(growable: false),
+              correctOptionIndex: q.correctOptionIndex,
+              explanation: t(q.explanation),
+            ))
+        .toList(growable: false),
+    tools: lesson.tools.map(t).toList(growable: false),
+    icon: lesson.icon,
+    imageAsset: lesson.imageAsset,
+    websiteUrl: lesson.websiteUrl,
+    youtubeVideoId: lesson.youtubeVideoId,
+  );
+}
+
+const String _kLessonCatalogId = '_catalog';
 
 class LearningLesson {
   const LearningLesson({
