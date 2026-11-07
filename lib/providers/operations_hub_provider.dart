@@ -105,11 +105,15 @@ class OperationsHubState {
 }
 
 final inventoryRepositoryProvider = Provider<InventoryRepository>((ref) {
+  // Rebuilt for every account so one person never sees another's records.
+  ref.watch(sessionUidProvider);
   return FirestoreInventoryRepository(ref.watch(firebaseServiceProvider));
 });
 
 final operationsHubProvider =
     StateNotifierProvider<OperationsHubNotifier, OperationsHubState>((ref) {
+  // Rebuilt for every account so one person never sees another's records.
+  ref.watch(sessionUidProvider);
   return OperationsHubNotifier(
     ref.watch(firebaseServiceProvider),
     ref.watch(inventoryRepositoryProvider),

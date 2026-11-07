@@ -12,6 +12,8 @@ import 'user_profile_provider.dart';
 
 /// Provider for farm repository.
 final farmRepositoryProvider = Provider<FarmRepository>((ref) {
+  // Rebuilt for every account so one person never sees another's records.
+  ref.watch(sessionUidProvider);
   return FirestoreFarmRepository(ref.watch(firebaseServiceProvider));
 });
 
@@ -25,6 +27,8 @@ final farmsProvider =
 /// Persisted active farm selection used by the dashboard and workspace cards.
 final activeFarmProvider =
     StateNotifierProvider<ActiveFarmNotifier, String?>((ref) {
+  // Rebuilt for every account so one person never sees another's records.
+  ref.watch(sessionUidProvider);
   return ActiveFarmNotifier();
 });
 

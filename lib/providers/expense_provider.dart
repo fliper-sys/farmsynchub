@@ -6,6 +6,8 @@ import '../domain/models/expense_entry.dart';
 import 'auth_provider.dart';
 
 final expenseRepositoryProvider = Provider<ExpenseRepository>((ref) {
+  // Rebuilt for every account so one person never sees another's records.
+  ref.watch(sessionUidProvider);
   return FirestoreExpenseRepository(ref.watch(firebaseServiceProvider));
 });
 
