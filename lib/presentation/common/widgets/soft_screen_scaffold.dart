@@ -88,7 +88,7 @@ class SoftScreenScaffold extends StatelessWidget {
                                     icon: const Icon(Icons.arrow_back_rounded),
                                     color: isDark
                                         ? theme.colorScheme.onSurface
-                                        : AppColors.primary,
+                                        : AppColors.primaryForeground(theme.brightness),
                                     onPressed: onBack,
                                   ),
                                 ),
@@ -143,7 +143,7 @@ class SoftScreenScaffold extends StatelessWidget {
                                           style: theme.textTheme.headlineSmall
                                               ?.copyWith(
                                             fontSize: titleSize,
-                                            color: AppColors.primary,
+                                            color: AppColors.primaryForeground(theme.brightness),
                                           ),
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
@@ -178,7 +178,7 @@ class SoftScreenScaffold extends StatelessWidget {
                                   icon: const Icon(Icons.arrow_back_rounded),
                                   color: isDark
                                       ? theme.colorScheme.onSurface
-                                      : AppColors.primary,
+                                      : AppColors.primaryForeground(theme.brightness),
                                   onPressed: onBack,
                                 ),
                                 const SizedBox(width: 12),
@@ -232,7 +232,7 @@ class SoftScreenScaffold extends StatelessWidget {
                                           style: theme.textTheme.headlineSmall
                                               ?.copyWith(
                                             fontSize: titleSize,
-                                            color: AppColors.primary,
+                                            color: AppColors.primaryForeground(theme.brightness),
                                           ),
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
@@ -347,7 +347,7 @@ class SoftSectionTitle extends StatelessWidget {
                   theme.textTheme.titleLarge?.copyWith(
                     color: theme.brightness == Brightness.dark
                         ? theme.colorScheme.onSurface
-                        : AppColors.primary,
+                        : AppColors.primaryForeground(theme.brightness),
                   ),
             ),
           ),
