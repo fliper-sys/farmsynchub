@@ -692,6 +692,7 @@ Locale _materialLocaleFor(AppLanguage language) {
     case AppLanguage.french:
       return const Locale('fr');
     case AppLanguage.hausa:
+    case AppLanguage.pidgin:
     case AppLanguage.english:
       return const Locale('en');
   }

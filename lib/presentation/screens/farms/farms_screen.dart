@@ -199,11 +199,26 @@ class FarmsScreen extends ConsumerWidget {
                 const SizedBox(height: 14),
                 Row(
                   children: <Widget>[
-                    _heroStat('Farms', '${visibleFarms.length}'),
-                    _heroStat('Inventory value',
+                    _heroStat(language.tr(en: 'Farms', ha: 'Gonaki', fr: 'Fermes'), '${visibleFarms.length}'),
+                    _heroStat(
+                        language.tr(
+                            en: 'Inventory value',
+                            ha: 'Darajar kaya',
+                            fr: 'Valeur du stock'),
                         CurrencyUtils.formatCompactCurrency(inventoryValue)),
-                    _heroStat('Open tasks', '$openTasks'),
-                    _heroStat('Pending sync', '$pendingSync'),
+                    _heroStat(
+                        language.tr(
+                            en: 'Open tasks',
+                            ha: 'Ayyukan da suka rage',
+                            fr: 'Taches ouvertes'),
+                        '$openTasks'),
+                    _heroStat(
+                        language.tr(
+                            en: 'Pending sync',
+                            ha: 'Ana jiran sync',
+                            fr: 'Sync en attente',
+                            pcm: 'Dey wait sync'),
+                        '$pendingSync'),
                   ],
                 ),
               ],
@@ -231,7 +246,11 @@ class FarmsScreen extends ConsumerWidget {
             onChanged: (String v) =>
                 ref.read(_farmSearchProvider.notifier).state = v,
             decoration: InputDecoration(
-              hintText: 'Search farms by name or ward',
+              hintText: language.tr(
+                  en: 'Search farms by name or ward',
+                  ha: 'Nemi gona da suna ko unguwa',
+                  fr: 'Rechercher une ferme par nom ou quartier',
+                  pcm: 'Search farm by name or ward'),
               prefixIcon: const Icon(Icons.search_rounded),
               filled: true,
               fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -791,7 +810,11 @@ class _FarmManagementCard extends StatelessWidget {
                       child: FilledButton.icon(
                         onPressed: onOpen,
                         icon: const Icon(Icons.open_in_new_rounded, size: 18),
-                        label: const Text('Open farm'),
+                        label: Text(context.appLanguage.tr(
+                            en: 'Open farm',
+                            ha: 'Bude gona',
+                            fr: 'Ouvrir la ferme',
+                            pcm: 'Open farm')),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -803,15 +826,16 @@ class _FarmManagementCard extends StatelessWidget {
                           ),
                         ),
                         icon: const Icon(Icons.groups_rounded, size: 18),
-                        label: Text('Team (${farm.workspaceMembers.length})'),
+                        label: Text(
+                            '${context.appLanguage.tr(en: 'Team', ha: 'Tawaga', fr: 'Equipe', pcm: 'Team')} (${farm.workspaceMembers.length})'),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Updated ${app_date.DateUtils.formatDate(farm.updatedAt)}'
-                  '${farm.openWorkspaceTaskCount > 0 ? '  ·  ${farm.openWorkspaceTaskCount} open tasks' : ''}',
+                  '${context.appLanguage.tr(en: 'Updated', ha: 'An sabunta', fr: 'Mis a jour', pcm: 'Dem update am')} ${app_date.DateUtils.formatDate(farm.updatedAt)}'
+                  '${farm.openWorkspaceTaskCount > 0 ? '  ·  ${farm.openWorkspaceTaskCount} ${context.appLanguage.tr(en: 'open tasks', ha: 'ayyuka a bude', fr: 'taches ouvertes', pcm: 'tasks dey open')}' : ''}',
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                 ),
