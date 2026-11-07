@@ -205,6 +205,7 @@ class StartupResumePrompt extends ConsumerStatefulWidget {
 
 class _StartupResumePromptState extends ConsumerState<StartupResumePrompt> {
   bool _shownThisLaunch = false;
+  int _loadRetries = 0;
 
   @override
   void initState() {
@@ -235,22 +236,12 @@ class _StartupResumePromptState extends ConsumerState<StartupResumePrompt> {
 
   @override
   Widget build(BuildContext context) {
-    final List<domain.Notification> notifications =
-        ref.watch(notificationsProvider);
-    final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
-    final List<Crop> crops = ref.watch(cropsProvider).valueOrNull ?? <Crop>[];
-    final List<Livestock> livestock =
-        ref.watch(livestockProvider).valueOrNull ?? <Livestock>[];
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _maybeShowPrompt(
-        notifications: notifications,
-        farms: farms,
-        crops: crops,
-        livestock: livestock,
-      );
-    });
-
+    // Deliberately does NOT watch the farms/crops/livestock/notifications
+    // providers. Watching them here forced every Firestore-backed stream to
+    // start during the splash and login screens; the prompt only needs the
+    // data once the user reaches the dashboard, and the route listener in
+    // initState already triggers the check at that moment (it reads the
+    // providers then).
     return widget.child;
   }
 
@@ -274,6 +265,24 @@ class _StartupResumePromptState extends ConsumerState<StartupResumePrompt> {
     final User? user = FirebaseService().currentUser;
     if (user == null ||
         (user.email?.isNotEmpty == true && !user.emailVerified)) {
+      return;
+    }
+    // The providers are no longer pre-loaded at launch, so give their first
+    // snapshot a moment (bounded) before deciding there is nothing to show.
+    if (_loadRetries < 8 &&
+        (ref.read(farmsProvider).isLoading ||
+            ref.read(cropsProvider).isLoading ||
+            ref.read(livestockProvider).isLoading)) {
+      _loadRetries++;
+      Future<void>.delayed(const Duration(milliseconds: 500), () {
+        if (!mounted) return;
+        _maybeShowPrompt(
+          notifications: ref.read(notificationsProvider),
+          farms: ref.read(farmsProvider).valueOrNull ?? <Farm>[],
+          crops: ref.read(cropsProvider).valueOrNull ?? <Crop>[],
+          livestock: ref.read(livestockProvider).valueOrNull ?? <Livestock>[],
+        );
+      });
       return;
     }
     _shownThisLaunch = true;
