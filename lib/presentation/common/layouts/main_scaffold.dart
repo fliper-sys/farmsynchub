@@ -19,6 +19,7 @@ import '../../../providers/user_profile_provider.dart';
 import '../../screens/learn/engagement_widgets.dart';
 import '../../screens/learn/streak_calendar_screen.dart';
 import 'app_menu_drawer.dart';
+import '../tour/app_spotlight_tour.dart';
 
 /// Connection state used for the app-wide sync indicator.
 enum SyncStatus {
@@ -401,7 +402,9 @@ class _PremiumBottomNavigationState extends State<_PremiumBottomNavigation> {
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-        child: ClipRRect(
+        child: KeyedSubtree(
+          key: TourTargets.keyFor('nav_bar'),
+          child: ClipRRect(
           borderRadius: BorderRadius.circular(32),
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
@@ -548,6 +551,7 @@ class _PremiumBottomNavigationState extends State<_PremiumBottomNavigation> {
               ),
             ),
           ),
+        ),
         ),
       ),
     );
