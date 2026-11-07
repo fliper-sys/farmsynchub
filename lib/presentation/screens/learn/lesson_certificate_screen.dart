@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../core/constants/app_assets.dart';
 import '../../../core/services/report_file_saver.dart';
 import '../../../core/services/report_file_saver_base.dart';
 import '../../../core/utils/date_utils.dart' as app_date;
@@ -34,6 +35,15 @@ class LessonCertificateScreen extends ConsumerStatefulWidget {
 
 class _LessonCertificateScreenState
     extends ConsumerState<LessonCertificateScreen> {
+
+  // Load the logo before the person taps Share or Save, so it is already
+  // decoded when the certificate is captured as an image.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    precacheImage(const AssetImage(AppAssets.appIcon), context);
+  }
+
   static const String _legacyPlaceholderName = 'FarmSync learner';
 
   final GlobalKey _certificateKey = GlobalKey();

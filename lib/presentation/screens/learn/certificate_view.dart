@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/constants/app_assets.dart';
 import '../../../providers/app_preferences_provider.dart';
 
 /// A reusable certificate visual widget. Keep it self-contained so it can
@@ -119,7 +120,21 @@ class CertificateView extends StatelessWidget {
           borderRadius: BorderRadius.circular(22),
           border: Border.all(color: ringColor, width: 1.2),
         ),
-        child: Padding(
+        child: Stack(
+          alignment: Alignment.center,
+          children: <Widget>[
+            // Faint logo watermark behind the text.
+            Opacity(
+              opacity: 0.06,
+              child: Image.asset(
+                AppAssets.appIcon,
+                width: 420,
+                height: 420,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+            ),
+            Padding(
           padding: const EdgeInsets.all(28),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -127,21 +142,39 @@ class CertificateView extends StatelessWidget {
             children: <Widget>[
               Column(
                 children: <Widget>[
-                  Container(
-                    width: 108,
-                    height: 108,
-                    decoration: BoxDecoration(
-                      color: chipBackground,
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(color: ringColor),
-                    ),
-                    padding: const EdgeInsets.all(14),
-                    child: Image.asset(
-                      'assets/app/appicon.png',
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) =>
-                          Icon(Icons.agriculture_rounded, size: 56, color: accent),
-                    ),
+                  // The FarmSync logo. (This used to point at a file that does
+                  // not exist, so every certificate showed a generic icon.)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Container(
+                        width: 96,
+                        height: 96,
+                        decoration: BoxDecoration(
+                          color: chipBackground,
+                          borderRadius: BorderRadius.circular(26),
+                          border: Border.all(color: ringColor),
+                        ),
+                        padding: const EdgeInsets.all(12),
+                        child: Image.asset(
+                          AppAssets.appIcon,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => Icon(
+                              Icons.agriculture_rounded,
+                              size: 52,
+                              color: accent),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        'FarmSyncHub',
+                        style: t.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: accent,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -262,6 +295,8 @@ class CertificateView extends StatelessWidget {
               )
             ],
           ),
+        ),
+          ],
         ),
       ),
     );
