@@ -11,6 +11,7 @@ import '../../common/widgets/detail_ui.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/finance_ui.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
+import 'stock_i18n.dart';
 
 /// Harvested crops, eggs and mature animals that are ready to be sold -
 /// one tap to sell some of it, or jump to the sales desk to build a cart.
@@ -56,7 +57,7 @@ class _ForSaleScreenState extends ConsumerState<ForSaleScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SoftScreenScaffold(
-        heroTitle: 'Ready to sell',
+        heroTitle: stockTr(context, 'Ready to sell', 'A shirye don siyarwa', 'Prêt à vendre', 'Ready to sell'),
         heroSubtitle: '',
         heroIcon: Icons.storefront_rounded,
         heroVariant: FarmArtworkVariant.dashboard,
@@ -75,11 +76,11 @@ class _ForSaleScreenState extends ConsumerState<ForSaleScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text('Ready to sell',
+                    Text(stockTr(context, 'Ready to sell', 'A shirye don siyarwa', 'Prêt à vendre', 'Ready to sell'),
                         style: theme.textTheme.headlineSmall
                             ?.copyWith(fontWeight: FontWeight.w900)),
                     Text(
-                      'Harvested crops, eggs and mature animals waiting for a buyer.',
+                      stockTr(context, 'Harvested crops, eggs and mature animals waiting for a buyer.', 'Amfanin gona da aka girba, kwai da manyan dabbobi masu jiran mai saye.', 'Récoltes, œufs et animaux adultes en attente d’acheteur.', 'Harvest crops, eggs and big animals wey dey wait for buyer.'),
                       style: theme.textTheme.bodySmall,
                     ),
                   ],
@@ -94,24 +95,24 @@ class _ForSaleScreenState extends ConsumerState<ForSaleScreen> {
             stats: <MetricStat>[
               MetricStat(
                 icon: Icons.payments_rounded,
-                label: 'Potential sales',
+                label: stockTr(context, 'Potential sales', 'Yiwuwar tallace-tallace', 'Ventes potentielles', 'Sales wey fit happen'),
                 value: CurrencyUtils.formatCompactCurrency(potential),
               ),
               MetricStat(
                 icon: Icons.trending_up_rounded,
-                label: 'Est. profit',
+                label: stockTr(context, 'Est. profit', 'Kiyasin riba', 'Bénéfice estimé', 'Profit estimate'),
                 value: CurrencyUtils.formatCompactCurrency(profit),
                 color: const Color(0xFF2E9E5B),
               ),
               MetricStat(
                 icon: Icons.inventory_2_rounded,
-                label: 'Lines',
+                label: stockTr(context, 'Lines', 'Layuka', 'Lignes', 'Lines'),
                 value: '${ready.length}',
                 color: const Color(0xFF8B5CF6),
               ),
               MetricStat(
                 icon: Icons.pets_rounded,
-                label: 'Animals',
+                label: stockTr(context, 'Animals', 'Dabbobi', 'Animaux', 'Animals'),
                 value: '$animals',
                 color: const Color(0xFF0EA5A4),
               ),
@@ -123,10 +124,10 @@ class _ForSaleScreenState extends ConsumerState<ForSaleScreen> {
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: <Widget>[
-                _chip('All', _filter == null, () => setState(() => _filter = null)),
-                _chip('Produce', _filter == InventoryGroup.produce,
+                _chip(stockTr(context, 'All', 'Duka', 'Tout', 'All'), _filter == null, () => setState(() => _filter = null)),
+                _chip(stockTr(context, 'Produce', 'Amfanin gona', 'Produits', 'Produce'), _filter == InventoryGroup.produce,
                     () => setState(() => _filter = InventoryGroup.produce)),
-                _chip('Animals', _filter == InventoryGroup.animals,
+                _chip(stockTr(context, 'Animals', 'Dabbobi', 'Animaux', 'Animals'), _filter == InventoryGroup.animals,
                     () => setState(() => _filter = InventoryGroup.animals)),
               ],
             ),
@@ -135,9 +136,13 @@ class _ForSaleScreenState extends ConsumerState<ForSaleScreen> {
           if (unpriced.isNotEmpty)
             AttentionBanner(
               level: AttentionLevel.notice,
-              title:
+              title: stockTr(
+                  context,
                   '${unpriced.length} item${unpriced.length == 1 ? '' : 's'} have no price',
-              message: 'Set a price so you can sell them from the sales desk.',
+                  '${unpriced.length} daga cikin kayayyaki ba su da farashi',
+                  '${unpriced.length} article${unpriced.length == 1 ? '' : 's'} sans prix',
+                  '${unpriced.length} item no get price'),
+              message: stockTr(context, 'Set a price so you can sell them from the sales desk.', 'Sanya farashi don ku iya sayar da su daga teburin siyarwa.', 'Fixez un prix pour pouvoir les vendre depuis la caisse.', 'Put price so you fit sell dem from sales desk.'),
             ),
           if (unpriced.isNotEmpty) const SizedBox(height: 12),
           if (ready.isEmpty)
@@ -149,8 +154,8 @@ class _ForSaleScreenState extends ConsumerState<ForSaleScreen> {
                   children: <Widget>[
                     const Text('🧺', style: TextStyle(fontSize: 40)),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Nothing is ready yet. Record a harvest on a crop, collect eggs, or move animals to sale stock from the livestock screen.',
+                    Text(
+                      stockTr(context, 'Nothing is ready yet. Record a harvest on a crop, collect eggs, or move animals to sale stock from the livestock screen.', 'Babu abin da ya shirya tukuna. Rubuta girbi a amfanin gona, tattara kwai, ko mayar da dabbobi zuwa kayan siyarwa daga shafin dabbobi.', 'Rien n’est prêt. Enregistrez une récolte, ramassez des œufs ou déplacez des animaux vers le stock à vendre depuis l’écran du bétail.', 'Nothing ready yet. Record harvest for crop, collect egg, or move animals go sale stock from livestock screen.'),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 12),
@@ -159,11 +164,11 @@ class _ForSaleScreenState extends ConsumerState<ForSaleScreen> {
                       children: <Widget>[
                         OutlinedButton(
                           onPressed: () => context.go('/crops'),
-                          child: const Text('Open crops'),
+                          child: Text(stockTr(context, 'Open crops', 'Bude amfanin gona', 'Ouvrir les cultures', 'Open crops')),
                         ),
                         OutlinedButton(
                           onPressed: () => context.go('/livestock'),
-                          child: const Text('Open livestock'),
+                          child: Text(stockTr(context, 'Open livestock', 'Bude dabbobi', 'Ouvrir le bétail', 'Open animals')),
                         ),
                       ],
                     ),
@@ -187,9 +192,9 @@ class _ForSaleScreenState extends ConsumerState<ForSaleScreen> {
             child: FilledButton.icon(
               onPressed: () => context.pushReplacement('/sales'),
               icon: const Icon(Icons.point_of_sale_rounded),
-              label: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text('Open sales desk (cart)'),
+              label: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(stockTr(context, 'Open sales desk (cart)', 'Bude teburin siyarwa (kwando)', 'Ouvrir la caisse (panier)', 'Open sales desk (cart)')),
               ),
             ),
           ),
@@ -214,7 +219,7 @@ class _ForSaleScreenState extends ConsumerState<ForSaleScreen> {
     final double? price = await showDialog<double>(
       context: context,
       builder: (BuildContext context) => AlertDialog(
-        title: Text('Price per ${item.unit}'),
+        title: Text(stockTr(context, 'Price per ${item.unit}', 'Farashi a kowace ${item.unit}', 'Prix par ${item.unit}', 'Price for each ${item.unit}')),
         content: TextField(
           controller: c,
           autofocus: true,
@@ -225,11 +230,11 @@ class _ForSaleScreenState extends ConsumerState<ForSaleScreen> {
         actions: <Widget>[
           TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel')),
+              child: Text(stockTr(context, 'Cancel', 'Soke', 'Annuler', 'Cancel'))),
           FilledButton(
             onPressed: () =>
                 Navigator.of(context).pop(double.tryParse(c.text.trim())),
-            child: const Text('Save'),
+            child: Text(stockTr(context, 'Save', 'Adana', 'Enregistrer', 'Save')),
           ),
         ],
       ),
@@ -259,8 +264,8 @@ class _ForSaleScreenState extends ConsumerState<ForSaleScreen> {
     HapticFeedback.mediumImpact();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(result.isOk
-          ? 'Sold ${formatQty(r.quantity)} ${item.unit} of ${item.name} for ${CurrencyUtils.formatCurrency(r.quantity * r.unitPrice)}.'
-          : result.error ?? 'Could not record that sale.'),
+          ? stockTr(context, 'Sold ${formatQty(r.quantity)} ${item.unit} of ${item.name} for ${CurrencyUtils.formatCurrency(r.quantity * r.unitPrice)}.', 'An sayar da ${formatQty(r.quantity)} ${item.unit} na ${item.name} a kan ${CurrencyUtils.formatCurrency(r.quantity * r.unitPrice)}.', '${formatQty(r.quantity)} ${item.unit} de ${item.name} vendu pour ${CurrencyUtils.formatCurrency(r.quantity * r.unitPrice)}.', 'We don sell ${formatQty(r.quantity)} ${item.unit} of ${item.name} for ${CurrencyUtils.formatCurrency(r.quantity * r.unitPrice)}.')
+          : result.error ?? stockTr(context, 'Could not record that sale.', 'Ba a iya rubuta wannan siyarwar ba.', 'Impossible d’enregistrer cette vente.', 'We no fit record that sale.')),
     ));
   }
 }
@@ -324,7 +329,7 @@ class _ReadyCard extends StatelessWidget {
                         style: theme.textTheme.titleMedium
                             ?.copyWith(fontWeight: FontWeight.w900)),
                     Text(
-                      '${formatQty(item.availableQuantity)} ${item.unit} ready · ${groupLabel(item.group)}',
+                      '${formatQty(item.availableQuantity)} ${item.unit} ${stockTr(context, 'ready', 'a shirye', 'prêt', 'ready')} · ${localGroupLabel(context, item.group)}',
                       style: theme.textTheme.bodySmall,
                     ),
                   ],
@@ -336,7 +341,7 @@ class _ReadyCard extends StatelessWidget {
                   Text(
                     priced
                         ? CurrencyUtils.formatCurrency(item.retailValue)
-                        : 'No price',
+                        : stockTr(context, 'No price', 'Babu farashi', 'Pas de prix', 'No price'),
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w900,
                       color: priced
@@ -347,7 +352,7 @@ class _ReadyCard extends StatelessWidget {
                   Text(
                     priced
                         ? '${CurrencyUtils.formatCurrency(item.unitPrice)} / ${item.unit}'
-                        : 'tap Set price',
+                        : stockTr(context, 'tap Set price', 'danna Sanya farashi', 'touchez Fixer le prix', 'tap Set price'),
                     style: theme.textTheme.labelSmall,
                   ),
                 ],
@@ -361,7 +366,9 @@ class _ReadyCard extends StatelessWidget {
                 child: OutlinedButton.icon(
                   onPressed: onSetPrice,
                   icon: const Icon(Icons.sell_outlined, size: 18),
-                  label: Text(priced ? 'Edit price' : 'Set price'),
+                  label: Text(priced
+                      ? stockTr(context, 'Edit price', 'Gyara farashi', 'Modifier le prix', 'Edit price')
+                      : stockTr(context, 'Set price', 'Sanya farashi', 'Fixer le prix', 'Set price')),
                 ),
               ),
               const SizedBox(width: 10),
@@ -369,7 +376,7 @@ class _ReadyCard extends StatelessWidget {
                 child: FilledButton.icon(
                   onPressed: priced ? onSell : null,
                   icon: const Icon(Icons.bolt_rounded, size: 18),
-                  label: const Text('Quick sell'),
+                  label: Text(stockTr(context, 'Quick sell', 'Siyarwa da sauri', 'Vente rapide', 'Quick sell')),
                 ),
               ),
             ],
@@ -411,12 +418,12 @@ class _SellSheetState extends State<_SellSheet> {
 
   void _submit() {
     if (_q <= 0) {
-      setState(() => _error = 'Enter a quantity above zero.');
+      setState(() => _error = stockTr(context, 'Enter a quantity above zero.', 'Shigar da adadi fiye da sifili.', 'Saisissez une quantité supérieure à zéro.', 'Put quantity wey pass zero.'));
       return;
     }
     if (_q > widget.item.availableQuantity) {
       setState(() => _error =
-          'Only ${formatQty(widget.item.availableQuantity)} ${widget.item.unit} ready.');
+          stockTr(context, 'Only ${formatQty(widget.item.availableQuantity)} ${widget.item.unit} ready.', '${formatQty(widget.item.availableQuantity)} ${widget.item.unit} kawai ya shirya.', 'Seulement ${formatQty(widget.item.availableQuantity)} ${widget.item.unit} prêt.', 'Na only ${formatQty(widget.item.availableQuantity)} ${widget.item.unit} ready.'));
       return;
     }
     Navigator.of(context)
@@ -441,7 +448,7 @@ class _SellSheetState extends State<_SellSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text('Sell ${widget.item.emoji} ${widget.item.name}',
+              Text(stockTr(context, 'Sell ${widget.item.emoji} ${widget.item.name}', 'Sayar da ${widget.item.emoji} ${widget.item.name}', 'Vendre ${widget.item.emoji} ${widget.item.name}', 'Sell ${widget.item.emoji} ${widget.item.name}'),
                   style: theme.textTheme.titleLarge
                       ?.copyWith(fontWeight: FontWeight.w900)),
               const SizedBox(height: 14),
@@ -454,7 +461,7 @@ class _SellSheetState extends State<_SellSheet> {
                       keyboardType: const TextInputType.numberWithOptions(
                           decimal: true),
                       decoration: InputDecoration(
-                        labelText: 'Quantity (${widget.item.unit})',
+                        labelText: stockTr(context, 'Quantity (${widget.item.unit})', 'Adadi (${widget.item.unit})', 'Quantité (${widget.item.unit})', 'Quantity (${widget.item.unit})'),
                         errorText: _error,
                         border: const OutlineInputBorder(),
                       ),
@@ -467,9 +474,9 @@ class _SellSheetState extends State<_SellSheet> {
                       onChanged: (_) => setState(() {}),
                       keyboardType: const TextInputType.numberWithOptions(
                           decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Price each',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: stockTr(context, 'Price each', 'Farashi a kowanne', 'Prix unitaire', 'Price for one'),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                   ),
@@ -478,14 +485,14 @@ class _SellSheetState extends State<_SellSheet> {
               const SizedBox(height: 12),
               TextField(
                 controller: _buyer,
-                decoration: const InputDecoration(
-                  labelText: 'Buyer (optional)',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: stockTr(context, 'Buyer (optional)', 'Mai saye (ba dole ba)', 'Acheteur (facultatif)', 'Buyer (optional)'),
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 14),
               Text(
-                'Total ${CurrencyUtils.formatCurrency(_q * _p)}',
+                '${stockTr(context, 'Total', 'Jimla', 'Total', 'Total')} ${CurrencyUtils.formatCurrency(_q * _p)}',
                 style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w900,
                     color: theme.colorScheme.primary),
@@ -495,9 +502,9 @@ class _SellSheetState extends State<_SellSheet> {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: _submit,
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Text('Record sale'),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(stockTr(context, 'Record sale', 'Rubuta siyarwa', 'Enregistrer la vente', 'Record sale')),
                   ),
                 ),
               ),

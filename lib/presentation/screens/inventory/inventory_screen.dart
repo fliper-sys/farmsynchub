@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/date_utils.dart' as app_date;
 import '../../../domain/models/farm.dart';
+import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/operations_hub_provider.dart';
 import '../../../providers/stock_ledger_provider.dart';
@@ -15,8 +16,12 @@ import '../../common/widgets/detail_ui.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/finance_ui.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
+import 'stock_i18n.dart';
 
 enum _StockAction { use, restock, count, loss }
+
+String _tr(BuildContext c, String en, String ha, String fr, String pcm) =>
+    stockTr(c, en, ha, fr, pcm);
 
 class _ActionResult {
   const _ActionResult({required this.quantity, this.unitCost, this.note = ''});
@@ -92,10 +97,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: farms.isEmpty ? null : () => _addItem(farms),
         icon: const Icon(Icons.add_rounded),
-        label: const Text('New item'),
+        label: const Text(_tr(context, 'New item', 'Sabon kaya', 'Nouvel article', 'New item')),
       ),
       body: SoftScreenScaffold(
-        heroTitle: 'Stock',
+        heroTitle: _tr(context, 'Stock', 'Kaya', 'Stock', 'Stock'),
         heroSubtitle: '',
         heroIcon: Icons.inventory_2_rounded,
         heroVariant: FarmArtworkVariant.dashboard,
@@ -114,11 +119,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text('Stock',
+                    Text(_tr(context, 'Stock', 'Kaya', 'Stock', 'Stock'),
                         style: theme.textTheme.headlineSmall
                             ?.copyWith(fontWeight: FontWeight.w900)),
                     Text(
-                      'Everything you hold, how much is left, and where it went.',
+                      _tr(context, 'Everything you hold, how much is left, and where it went.', 'Duk abin da kake da shi, nawa ya rage, da inda ya tafi.', 'Tout ce que vous détenez, ce qu\'il reste et où cela est allé.', 'Everything wey you get, how much remain, and where e go.'),
                       style: theme.textTheme.bodySmall,
                     ),
                   ],
@@ -133,18 +138,18 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             stats: <MetricStat>[
               MetricStat(
                 icon: Icons.account_balance_wallet_rounded,
-                label: 'Stock value',
+                label: _tr(context, 'Stock value', 'Darajar kaya', 'Valeur du stock', 'Value of stock'),
                 value: CurrencyUtils.formatCompactCurrency(stockValue),
               ),
               MetricStat(
                 icon: Icons.inventory_2_rounded,
-                label: 'Items',
+                label: _tr(context, 'Items', 'Kayayyaki', 'Articles', 'Items'),
                 value: '${all.length}',
                 color: const Color(0xFF8B5CF6),
               ),
               MetricStat(
                 icon: Icons.warning_amber_rounded,
-                label: 'Low / out',
+                label: _tr(context, 'Low / out', 'Kadan / an gama', 'Faible / épuisé', 'Low / don finish'),
                 value: '$attention',
                 color: attention > 0
                     ? const Color(0xFFD99A1E)
@@ -152,7 +157,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               ),
               MetricStat(
                 icon: Icons.hourglass_bottom_rounded,
-                label: 'Expiring 14d',
+                label: _tr(context, 'Expiring 14d', 'Zai kare cikin kwana 14', 'Expire sous 14 j', 'Go expire inside 14d'),
                 value: '$expiring',
                 color: expiring > 0
                     ? const Color(0xFFE0524A)
@@ -165,7 +170,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             controller: _search,
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
-              hintText: 'Search stock',
+              hintText: _tr(context, 'Search stock', 'Nemi kaya', 'Rechercher dans le stock', 'Search stock'),
               prefixIcon: const Icon(Icons.search_rounded),
               filled: true,
               fillColor: theme.colorScheme.surfaceContainerHighest,
@@ -181,16 +186,16 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: <Widget>[
-                _chip('All', _group == null && !_onlyAttention, () {
+                _chip(_tr(context, 'All', 'Duka', 'Tout', 'All'), _group == null && !_onlyAttention, () {
                   setState(() {
                     _group = null;
                     _onlyAttention = false;
                   });
                 }),
                 for (final InventoryGroup g in InventoryGroup.values)
-                  _chip(groupLabel(g), _group == g,
+                  _chip(localGroupLabel(context, g), _group == g,
                       () => setState(() => _group = _group == g ? null : g)),
-                _chip('Needs attention', _onlyAttention,
+                _chip(_tr(context, 'Needs attention', 'Yana bukatar kulawa', 'À surveiller', 'Need attention'), _onlyAttention,
                     () => setState(() => _onlyAttention = !_onlyAttention)),
               ],
             ),
@@ -207,8 +212,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     const SizedBox(height: 8),
                     Text(
                       all.isEmpty
-                          ? 'No stock yet. Add seed, feed or chemicals with "New item" - harvests and eggs add themselves.'
-                          : 'Nothing matches those filters.',
+                          ? _tr(context, 'No stock yet. Add seed, feed or chemicals with "New item" - harvests and eggs add themselves.', 'Babu kaya tukuna. Kara iri, abinci ko magani da "Sabon kaya" - girbi da kwai suna shiga da kansu.', 'Pas encore de stock. Ajoutez semences, aliments ou produits avec "Nouvel article" - les récoltes et les œufs s\'ajoutent seuls.', 'No stock yet. Add seed, feed or chemical with "New item" - harvest and egg go add by themselves.')
+                          : _tr(context, 'Nothing matches those filters.', 'Babu abin da ya dace da wadannan tacewa.', 'Rien ne correspond à ces filtres.', 'Nothing match those filters.'),
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -228,13 +233,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 ),
               ),
           const SizedBox(height: 18),
-          Text('Recent movements',
+          Text(_tr(context, 'Recent movements', 'Motsin kaya na kwanan nan', 'Mouvements récents', 'Recent movements'),
               style: theme.textTheme.titleMedium
                   ?.copyWith(fontWeight: FontWeight.w900)),
           const SizedBox(height: 8),
           if (ledger.isEmpty)
             Text(
-              'Changes to your stock will be listed here.',
+              _tr(context, 'Changes to your stock will be listed here.', 'Canje-canje a kayanka za su bayyana a nan.', 'Les changements de votre stock apparaîtront ici.', 'Changes for your stock go show here.'),
               style: theme.textTheme.bodySmall,
             )
           else
@@ -271,33 +276,33 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         ok = await hub.recordUsage(
           itemId: item.id,
           quantity: result.quantity,
-          note: result.note.isEmpty ? 'Used' : result.note,
+          note: result.note.isEmpty ? _tr(context, 'Used', 'An yi amfani', 'Utilisé', 'Used') : result.note,
         );
         message = ok
-            ? 'Recorded ${formatQty(result.quantity)} ${item.unit} used.'
-            : 'You only have ${formatQty(item.availableQuantity)} ${item.unit} left.';
+            ? _tr(context, 'Recorded ${formatQty(result.quantity)} ${item.unit} used.', 'An rubuta ${formatQty(result.quantity)} ${item.unit} da aka yi amfani.', '${formatQty(result.quantity)} ${item.unit} utilisé enregistré.', 'We don record ${formatQty(result.quantity)} ${item.unit} wey you use.')
+            : _tr(context, 'You only have ${formatQty(item.availableQuantity)} ${item.unit} left.', 'Ka rage da ${formatQty(item.availableQuantity)} ${item.unit} kawai.', 'Il ne vous reste que ${formatQty(item.availableQuantity)} ${item.unit}.', 'Na only ${formatQty(item.availableQuantity)} ${item.unit} remain for you.');
         break;
       case _StockAction.loss:
         ok = await hub.recordUsage(
           itemId: item.id,
           quantity: result.quantity,
-          note: result.note.isEmpty ? 'Lost / spoiled' : result.note,
+          note: result.note.isEmpty ? _tr(context, 'Lost / spoiled', 'Bata / lalace', 'Perdu / gâté', 'Lost / spoil') : result.note,
           type: StockMovementType.loss,
         );
         message = ok
-            ? 'Recorded ${formatQty(result.quantity)} ${item.unit} lost.'
-            : 'You only have ${formatQty(item.availableQuantity)} ${item.unit} left.';
+            ? _tr(context, 'Recorded ${formatQty(result.quantity)} ${item.unit} lost.', 'An rubuta asarar ${formatQty(result.quantity)} ${item.unit}.', 'Perte de ${formatQty(result.quantity)} ${item.unit} enregistrée.', 'We don record ${formatQty(result.quantity)} ${item.unit} wey lost.')
+            : _tr(context, 'You only have ${formatQty(item.availableQuantity)} ${item.unit} left.', 'Ka rage da ${formatQty(item.availableQuantity)} ${item.unit} kawai.', 'Il ne vous reste que ${formatQty(item.availableQuantity)} ${item.unit}.', 'Na only ${formatQty(item.availableQuantity)} ${item.unit} remain for you.');
         break;
       case _StockAction.restock:
         ok = await hub.restock(
           itemId: item.id,
           quantity: result.quantity,
           unitCost: result.unitCost,
-          note: result.note.isEmpty ? 'Restocked' : result.note,
+          note: result.note.isEmpty ? _tr(context, 'Restocked', 'An sake cikawa', 'Réapprovisionné', 'Restocked') : result.note,
         );
         message = ok
-            ? 'Added ${formatQty(result.quantity)} ${item.unit}.'
-            : 'Could not add stock.';
+            ? _tr(context, 'Added ${formatQty(result.quantity)} ${item.unit}.', 'An kara ${formatQty(result.quantity)} ${item.unit}.', '${formatQty(result.quantity)} ${item.unit} ajouté.', 'We don add ${formatQty(result.quantity)} ${item.unit}.')
+            : _tr(context, 'Could not add stock.', 'Ba a iya kara kaya ba.', 'Impossible d\'ajouter au stock.', 'We no fit add stock.');
         break;
       case _StockAction.count:
         ok = await hub.setCount(
@@ -306,8 +311,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           note: result.note,
         );
         message = ok
-            ? 'Stock-take saved: ${formatQty(result.quantity)} ${item.unit}.'
-            : 'Could not save the count.';
+            ? _tr(context, 'Stock-take saved: ${formatQty(result.quantity)} ${item.unit}.', 'An adana kidayar kaya: ${formatQty(result.quantity)} ${item.unit}.', 'Inventaire enregistré : ${formatQty(result.quantity)} ${item.unit}.', 'Stock count don save: ${formatQty(result.quantity)} ${item.unit}.')
+            : _tr(context, 'Could not save the count.', 'Ba a iya adana kidayar ba.', 'Impossible d\'enregistrer le comptage.', 'We no fit save the count.');
         break;
     }
     if (!mounted) return;
@@ -349,19 +354,19 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text('${item.emoji} ${item.name} history',
+                Text(_tr(context, '${item.emoji} ${item.name} history', '${item.emoji} Tarihin ${item.name}', '${item.emoji} Historique de ${item.name}', '${item.emoji} ${item.name} history'),
                     style: theme.textTheme.titleLarge
                         ?.copyWith(fontWeight: FontWeight.w900)),
                 const SizedBox(height: 4),
                 Text(
-                    'Now: ${formatQty(item.availableQuantity)} ${item.unit}',
+                    _tr(context, 'Now: ${formatQty(item.availableQuantity)} ${item.unit}', 'Yanzu: ${formatQty(item.availableQuantity)} ${item.unit}', 'Actuel : ${formatQty(item.availableQuantity)} ${item.unit}', 'Now: ${formatQty(item.availableQuantity)} ${item.unit}'),
                     style: theme.textTheme.bodySmall),
                 const SizedBox(height: 10),
                 Flexible(
                   child: rows.isEmpty
-                      ? const Padding(
-                          padding: EdgeInsets.all(20),
-                          child: Text('No movements recorded yet.'),
+                      ? Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Text(_tr(context, 'No movements recorded yet.', 'Babu motsin da aka rubuta tukuna.', 'Aucun mouvement enregistré.', 'No movement don record yet.')),
                         )
                       : ListView(
                           shrinkWrap: true,
@@ -447,7 +452,7 @@ class _ItemCard extends StatelessWidget {
                             ?.copyWith(fontWeight: FontWeight.w900)),
                     Text(
                       [
-                        groupLabel(item.group),
+                        localGroupLabel(context, item.group),
                         item.category,
                         if (farmName.isNotEmpty) farmName,
                       ].where((String s) => s.isNotEmpty).join(' · '),
@@ -467,7 +472,9 @@ class _ItemCard extends StatelessWidget {
                         fontWeight: FontWeight.w900, color: color),
                   ),
                   Text(
-                    level == StockLevel.out ? 'out of stock' : '${item.unit} left',
+                    level == StockLevel.out
+                        ? _tr(context, 'out of stock', 'an gama', 'épuisé', 'don finish')
+                        : _tr(context, '${item.unit} left', '${item.unit} ya rage', '${item.unit} restant', '${item.unit} remain'),
                     style: theme.textTheme.labelSmall,
                   ),
                 ],
@@ -481,20 +488,20 @@ class _ItemCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 6,
             children: <Widget>[
-              _tag(context, 'Worth ${CurrencyUtils.formatCompactCurrency(item.costValue)}'),
-              if (used30 > 0) _tag(context, 'Used ${formatQty(used30)} in 30d'),
-              if (sold30 > 0) _tag(context, 'Sold ${formatQty(sold30)} in 30d'),
+              _tag(context, _tr(context, 'Worth ${CurrencyUtils.formatCompactCurrency(item.costValue)}', 'Darajar ${CurrencyUtils.formatCompactCurrency(item.costValue)}', 'Valeur ${CurrencyUtils.formatCompactCurrency(item.costValue)}', 'Worth ${CurrencyUtils.formatCompactCurrency(item.costValue)}')),
+              if (used30 > 0) _tag(context, _tr(context, 'Used ${formatQty(used30)} in 30d', 'An yi amfani da ${formatQty(used30)} cikin kwana 30', '${formatQty(used30)} utilisés en 30 j', 'Use ${formatQty(used30)} inside 30d')),
+              if (sold30 > 0) _tag(context, _tr(context, 'Sold ${formatQty(sold30)} in 30d', 'An sayar da ${formatQty(sold30)} cikin kwana 30', '${formatQty(sold30)} vendus en 30 j', 'Sell ${formatQty(sold30)} inside 30d')),
               if (cover != null)
-                _tag(context, cover <= 7 ? 'Lasts ~$cover days' : 'Lasts ~$cover days',
+                _tag(context, _tr(context, 'Lasts ~$cover days', 'Zai isa kusan kwana $cover', 'Suffisant ~$cover jours', 'Go reach ~$cover days'),
                     warn: cover <= 7),
-              if (item.isLowStock) _tag(context, 'Low stock', warn: true),
+              if (item.isLowStock) _tag(context, _tr(context, 'Low stock', 'Kaya ya yi kadan', 'Stock faible', 'Stock low'), warn: true),
               if (expiring)
                 _tag(
                     context,
-                    'Expires ${app_date.DateUtils.formatDate(item.expiryDate!)}',
+                    _tr(context, 'Expires ${app_date.DateUtils.formatDate(item.expiryDate!)}', 'Zai kare ${app_date.DateUtils.formatDate(item.expiryDate!)}', 'Expire ${app_date.DateUtils.formatDate(item.expiryDate!)}', 'E go expire ${app_date.DateUtils.formatDate(item.expiryDate!)}'),
                     warn: true),
               if (canSell && item.margin != 0)
-                _tag(context, 'Margin ${(item.margin * 100).toStringAsFixed(0)}%'),
+                _tag(context, _tr(context, 'Margin ${(item.margin * 100).toStringAsFixed(0)}%', 'Riba ${(item.margin * 100).toStringAsFixed(0)}%', 'Marge ${(item.margin * 100).toStringAsFixed(0)}%', 'Profit ${(item.margin * 100).toStringAsFixed(0)}%')),
             ],
           ),
           const SizedBox(height: 10),
@@ -502,23 +509,23 @@ class _ItemCard extends StatelessWidget {
             children: <Widget>[
               Expanded(
                 child: _action(context, Icons.remove_circle_outline_rounded,
-                    'Use', () => onAction(_StockAction.use)),
+                    _tr(context, 'Use', 'Yi amfani', 'Utiliser', 'Use'), () => onAction(_StockAction.use)),
               ),
               Expanded(
                 child: _action(context, Icons.add_circle_outline_rounded,
-                    'Add', () => onAction(_StockAction.restock)),
+                    _tr(context, 'Add', 'Kara', 'Ajouter', 'Add'), () => onAction(_StockAction.restock)),
               ),
               Expanded(
-                child: _action(context, Icons.fact_check_outlined, 'Count',
+                child: _action(context, Icons.fact_check_outlined, _tr(context, 'Count', 'Kirga', 'Compter', 'Count'),
                     () => onAction(_StockAction.count)),
               ),
               Expanded(
-                child: _action(context, Icons.delete_sweep_outlined, 'Loss',
+                child: _action(context, Icons.delete_sweep_outlined, _tr(context, 'Loss', 'Asara', 'Perte', 'Loss'),
                     () => onAction(_StockAction.loss)),
               ),
               Expanded(
                 child: _action(
-                    context, Icons.history_rounded, 'History', onHistory),
+                    context, Icons.history_rounded, _tr(context, 'History', 'Tarihi', 'Historique', 'History'), onHistory),
               ),
             ],
           ),
@@ -598,8 +605,8 @@ class _MovementTile extends StatelessWidget {
               children: <Widget>[
                 Text(
                   showName
-                      ? '${movement.itemName} · ${movement.type.label}'
-                      : movement.type.label,
+                      ? '${movement.itemName} · ${localMovementLabel(context, movement.type)}'
+                      : localMovementLabel(context, movement.type),
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
                 Text(
@@ -619,7 +626,7 @@ class _MovementTile extends StatelessWidget {
             children: <Widget>[
               Text(qty,
                   style: TextStyle(color: color, fontWeight: FontWeight.w900)),
-              Text('left ${formatQty(movement.balanceAfter)}',
+              Text(_tr(context, 'left ${formatQty(movement.balanceAfter)}', 'ya rage ${formatQty(movement.balanceAfter)}', 'reste ${formatQty(movement.balanceAfter)}', 'remain ${formatQty(movement.balanceAfter)}'),
                   style: theme.textTheme.labelSmall),
             ],
           ),
@@ -664,24 +671,24 @@ class _ActionSheetState extends State<_ActionSheet> {
   String get _title {
     switch (widget.action) {
       case _StockAction.use:
-        return 'Use ${widget.item.name}';
+        return _tr(context, 'Use ${widget.item.name}', 'Yi amfani da ${widget.item.name}', 'Utiliser ${widget.item.name}', 'Use ${widget.item.name}');
       case _StockAction.restock:
-        return 'Add stock: ${widget.item.name}';
+        return _tr(context, 'Add stock: ${widget.item.name}', 'Kara kaya: ${widget.item.name}', 'Ajouter du stock : ${widget.item.name}', 'Add stock: ${widget.item.name}');
       case _StockAction.count:
-        return 'Stock-take: ${widget.item.name}';
+        return _tr(context, 'Stock-take: ${widget.item.name}', 'Kidayar kaya: ${widget.item.name}', 'Inventaire : ${widget.item.name}', 'Stock count: ${widget.item.name}');
       case _StockAction.loss:
-        return 'Record loss: ${widget.item.name}';
+        return _tr(context, 'Record loss: ${widget.item.name}', 'Rubuta asara: ${widget.item.name}', 'Enregistrer une perte : ${widget.item.name}', 'Record loss: ${widget.item.name}');
     }
   }
 
   String get _qtyLabel {
     switch (widget.action) {
       case _StockAction.count:
-        return 'Counted quantity (${widget.item.unit})';
+        return _tr(context, 'Counted quantity (${widget.item.unit})', 'Adadin da aka kirga (${widget.item.unit})', 'Quantité comptée (${widget.item.unit})', 'Quantity wey you count (${widget.item.unit})');
       case _StockAction.restock:
-        return 'Quantity added (${widget.item.unit})';
+        return _tr(context, 'Quantity added (${widget.item.unit})', 'Adadin da aka kara (${widget.item.unit})', 'Quantité ajoutée (${widget.item.unit})', 'Quantity wey you add (${widget.item.unit})');
       default:
-        return 'Quantity (${widget.item.unit})';
+        return _tr(context, 'Quantity (${widget.item.unit})', 'Adadi (${widget.item.unit})', 'Quantité (${widget.item.unit})', 'Quantity (${widget.item.unit})');
     }
   }
 
@@ -689,14 +696,14 @@ class _ActionSheetState extends State<_ActionSheet> {
     final double? q = double.tryParse(_qty.text.trim());
     final bool isCount = widget.action == _StockAction.count;
     if (q == null || q < 0 || (!isCount && q <= 0)) {
-      setState(() => _error = 'Enter a valid quantity.');
+      setState(() => _error = _tr(context, 'Enter a valid quantity.', 'Shigar da adadi mai inganci.', 'Saisissez une quantité valide.', 'Put correct quantity.'));
       return;
     }
     final bool takesOut = widget.action == _StockAction.use ||
         widget.action == _StockAction.loss;
     if (takesOut && q > widget.item.availableQuantity) {
       setState(() => _error =
-          'Only ${formatQty(widget.item.availableQuantity)} ${widget.item.unit} left.');
+          _tr(context, 'Only ${formatQty(widget.item.availableQuantity)} ${widget.item.unit} left.', '${formatQty(widget.item.availableQuantity)} ${widget.item.unit} kawai ya rage.', 'Il ne reste que ${formatQty(widget.item.availableQuantity)} ${widget.item.unit}.', 'Na only ${formatQty(widget.item.availableQuantity)} ${widget.item.unit} remain.'));
       return;
     }
     Navigator.of(context).pop(_ActionResult(
@@ -729,7 +736,7 @@ class _ActionSheetState extends State<_ActionSheet> {
                       ?.copyWith(fontWeight: FontWeight.w900)),
               const SizedBox(height: 4),
               Text(
-                  'Now: ${formatQty(widget.item.availableQuantity)} ${widget.item.unit}',
+                  _tr(context, 'Now: ${formatQty(widget.item.availableQuantity)} ${widget.item.unit}', 'Yanzu: ${formatQty(widget.item.availableQuantity)} ${widget.item.unit}', 'Actuel : ${formatQty(widget.item.availableQuantity)} ${widget.item.unit}', 'Now: ${formatQty(widget.item.availableQuantity)} ${widget.item.unit}'),
                   style: theme.textTheme.bodySmall),
               const SizedBox(height: 14),
               TextField(
@@ -750,7 +757,7 @@ class _ActionSheetState extends State<_ActionSheet> {
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(
-                    labelText: 'Cost per ${widget.item.unit} (optional)',
+                    labelText: _tr(context, 'Cost per ${widget.item.unit} (optional)', 'Farashi a kowace ${widget.item.unit} (ba dole ba)', 'Coût par ${widget.item.unit} (facultatif)', 'Cost for each ${widget.item.unit} (optional)'),
                     border: const OutlineInputBorder(),
                   ),
                 ),
@@ -758,10 +765,10 @@ class _ActionSheetState extends State<_ActionSheet> {
               const SizedBox(height: 12),
               TextField(
                 controller: _note,
-                decoration: const InputDecoration(
-                  labelText: 'Note (optional)',
-                  hintText: 'e.g. fed layers, sprayed plot 2',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: _tr(context, 'Note (optional)', 'Bayani (ba dole ba)', 'Note (facultatif)', 'Note (optional)'),
+                  hintText: _tr(context, 'e.g. fed layers, sprayed plot 2', 'misali ciyar da kaji, fesa fili na 2', 'p. ex. nourri les pondeuses, traité la parcelle 2', 'e.g. feed layers, spray plot 2'),
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 16),
@@ -769,9 +776,9 @@ class _ActionSheetState extends State<_ActionSheet> {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: _submit,
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Text('Save'),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(_tr(context, 'Save', 'Adana', 'Enregistrer', 'Save')),
                   ),
                 ),
               ),
@@ -857,11 +864,11 @@ class _NewItemSheetState extends State<_NewItemSheet> {
     final String name = _name.text.trim();
     final double qty = double.tryParse(_qty.text.trim()) ?? 0;
     if (name.isEmpty) {
-      setState(() => _error = 'Give the item a name.');
+      setState(() => _error = _tr(context, 'Give the item a name.', 'Ba kayan suna.', 'Donnez un nom à l\'article.', 'Give the item name.'));
       return;
     }
     if (qty < 0) {
-      setState(() => _error = 'Quantity cannot be negative.');
+      setState(() => _error = _tr(context, 'Quantity cannot be negative.', 'Adadi ba zai iya zama ƙasa da sifili ba.', 'La quantité ne peut pas être négative.', 'Quantity no fit dey negative.'));
       return;
     }
     final DateTime now = DateTime.now();
@@ -902,15 +909,15 @@ class _NewItemSheetState extends State<_NewItemSheet> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text('New stock item',
+                Text(_tr(context, 'New stock item', 'Sabon kayan ajiya', 'Nouvel article en stock', 'New stock item'),
                     style: theme.textTheme.titleLarge
                         ?.copyWith(fontWeight: FontWeight.w900)),
                 const SizedBox(height: 14),
                 TextField(
                   controller: _name,
                   decoration: InputDecoration(
-                    labelText: 'Name',
-                    hintText: 'e.g. Layers mash, NPK 15-15-15',
+                    labelText: _tr(context, 'Name', 'Suna', 'Nom', 'Name'),
+                    hintText: _tr(context, 'e.g. Layers mash, NPK 15-15-15', 'misali abincin kaji, NPK 15-15-15', 'p. ex. aliment pondeuses, NPK 15-15-15', 'e.g. Layers mash, NPK 15-15-15'),
                     errorText: _error,
                     border: const OutlineInputBorder(),
                   ),
@@ -919,8 +926,9 @@ class _NewItemSheetState extends State<_NewItemSheet> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     value: _farmId,
-                    decoration: const InputDecoration(
-                        labelText: 'Farm', border: OutlineInputBorder()),
+                    decoration: InputDecoration(
+                        labelText: _tr(context, 'Farm', 'Gona', 'Ferme', 'Farm'),
+                        border: const OutlineInputBorder()),
                     items: <DropdownMenuItem<String>>[
                       for (final Farm f in widget.farms)
                         DropdownMenuItem<String>(
@@ -936,12 +944,12 @@ class _NewItemSheetState extends State<_NewItemSheet> {
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         value: _category,
-                        decoration: const InputDecoration(
-                            labelText: 'Category',
-                            border: OutlineInputBorder()),
+                        decoration: InputDecoration(
+                            labelText: _tr(context, 'Category', 'Rukuni', 'Catégorie', 'Category'),
+                            border: const OutlineInputBorder()),
                         items: <DropdownMenuItem<String>>[
                           for (final String c in _categories)
-                            DropdownMenuItem<String>(value: c, child: Text(c)),
+                            DropdownMenuItem<String>(value: c, child: Text(localCategoryLabel(context, c))),
                         ],
                         onChanged: (String? v) =>
                             setState(() => _category = v ?? _category),
@@ -951,8 +959,9 @@ class _NewItemSheetState extends State<_NewItemSheet> {
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         value: _unit,
-                        decoration: const InputDecoration(
-                            labelText: 'Unit', border: OutlineInputBorder()),
+                        decoration: InputDecoration(
+                            labelText: _tr(context, 'Unit', 'Ma\'auni', 'Unité', 'Unit'),
+                            border: const OutlineInputBorder()),
                         items: <DropdownMenuItem<String>>[
                           for (final String u in _units)
                             DropdownMenuItem<String>(value: u, child: Text(u)),
@@ -966,17 +975,17 @@ class _NewItemSheetState extends State<_NewItemSheet> {
                 const SizedBox(height: 12),
                 Row(
                   children: <Widget>[
-                    Expanded(child: _num(_qty, 'Quantity now')),
+                    Expanded(child: _num(_qty, _tr(context, 'Quantity now', 'Adadin yanzu', 'Quantité actuelle', 'Quantity now'))),
                     const SizedBox(width: 12),
-                    Expanded(child: _num(_threshold, 'Warn me below')),
+                    Expanded(child: _num(_threshold, _tr(context, 'Warn me below', 'Gargade ni idan ya yi kasa da', 'M\'alerter en dessous de', 'Warn me if e dey below'))),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Row(
                   children: <Widget>[
-                    Expanded(child: _num(_cost, 'Cost per unit')),
+                    Expanded(child: _num(_cost, _tr(context, 'Cost per unit', 'Farashi a kowane daya', 'Coût unitaire', 'Cost for one'))),
                     const SizedBox(width: 12),
-                    Expanded(child: _num(_price, 'Selling price')),
+                    Expanded(child: _num(_price, _tr(context, 'Selling price', 'Farashin siyarwa', 'Prix de vente', 'Selling price'))),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -984,9 +993,9 @@ class _NewItemSheetState extends State<_NewItemSheet> {
                   width: double.infinity,
                   child: FilledButton(
                     onPressed: _save,
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Text('Add to stock'),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text(_tr(context, 'Add to stock', 'Kara a kaya', 'Ajouter au stock', 'Add to stock')),
                     ),
                   ),
                 ),
