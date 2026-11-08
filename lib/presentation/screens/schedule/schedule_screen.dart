@@ -18,6 +18,7 @@ import '../../../domain/models/livestock.dart';
 import '../../../providers/crop_provider.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/livestock_provider.dart';
+import '../../../providers/app_preferences_provider.dart';
 import '../../common/widgets/detail_ui.dart';
 import '../../common/widgets/todo_edit_sheet.dart';
 import '../farms/farm_detail_screen.dart';
@@ -648,14 +649,38 @@ Color _sourceColor(_ScheduleSourceType type) {
   }
 }
 
-String _relativeLabel(DateTime due) {
+String _groupLabel(String key, AppLanguage l) {
+  switch (key) {
+    case 'Overdue':
+      return l.tr(en: 'Overdue', ha: 'Ya wuce lokaci', fr: 'En retard', pcm: 'Don pass time');
+    case 'Today':
+      return l.tr(en: 'Today', ha: 'Yau', fr: "Aujourd'hui", pcm: 'Today');
+    case 'Tomorrow':
+      return l.tr(en: 'Tomorrow', ha: 'Gobe', fr: 'Demain', pcm: 'Tomorrow');
+    case 'This week':
+      return l.tr(en: 'This week', ha: 'Wannan mako', fr: 'Cette semaine', pcm: 'Dis week');
+    case 'Later':
+      return l.tr(en: 'Later', ha: 'Daga baya', fr: 'Plus tard', pcm: 'Later');
+  }
+  return key;
+}
+
+String _relativeLabel(DateTime due, AppLanguage l) {
   final DateTime now = DateTime.now();
   final DateTime today = DateTime(now.year, now.month, now.day);
   final int days = DateTime(due.year, due.month, due.day).difference(today).inDays;
-  if (days < 0) return days == -1 ? '1 day overdue' : '${-days} days overdue';
-  if (days == 0) return 'Due today';
-  if (days == 1) return 'Tomorrow';
-  return 'In $days days';
+  if (days < 0) {
+    return days == -1
+        ? l.tr(en: '1 day overdue', ha: 'Kwana 1 ya wuce', fr: '1 jour de retard', pcm: '1 day don pass')
+        : l.tr(en: '${-days} days overdue', ha: 'Kwanaki ${-days} sun wuce', fr: '${-days} jours de retard', pcm: '${-days} days don pass');
+  }
+  if (days == 0) {
+    return l.tr(en: 'Due today', ha: 'Na yau ne', fr: "Pour aujourd'hui", pcm: 'E dey due today');
+  }
+  if (days == 1) {
+    return l.tr(en: 'Tomorrow', ha: 'Gobe', fr: 'Demain', pcm: 'Tomorrow');
+  }
+  return l.tr(en: 'In $days days', ha: 'Nan da kwanaki $days', fr: 'Dans $days jours', pcm: 'Inside $days days');
 }
 
 class _SummaryPill extends StatelessWidget {
@@ -753,12 +778,21 @@ class _ListView extends StatelessWidget {
                       size: 44, color: theme.colorScheme.primary),
                 ),
                 const SizedBox(height: 18),
-                Text('You are all caught up',
+                Text(
+                    context.appLanguage.tr(
+                        en: 'You are all caught up',
+                        ha: 'Ba ka da wani abu da ya rage',
+                        fr: 'Tout est a jour',
+                        pcm: 'You don finish everything'),
                     style: theme.textTheme.titleMedium
                         ?.copyWith(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 6),
                 Text(
-                  'No reminders scheduled yet. Add one from a crop, animal group, or farm, or switch to the calendar and tap Add task.',
+                  context.appLanguage.tr(
+                      en: 'No reminders scheduled yet. Add one from a crop, animal group, or farm, or switch to the calendar and tap Add task.',
+                      ha: 'Babu tunatarwa da aka tsara tukuna. Kara daya daga amfanin gona, rukunin dabbobi ko gona, ko ka koma kalanda ka danna Kara aiki.',
+                      fr: "Aucun rappel programme. Ajoutez-en un depuis une culture, un groupe d'animaux ou une ferme, ou ouvrez le calendrier et touchez Ajouter une tache.",
+                      pcm: 'No reminder dey yet. Add one from crop, animal group or farm, or go calendar and tap Add task.'),
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant),
@@ -796,10 +830,19 @@ class _ListView extends StatelessWidget {
             ),
             child: Row(
               children: <Widget>[
-                _SummaryPill(overdue, 'Overdue'),
-                _SummaryPill(today, 'Today'),
-                _SummaryPill(week, 'Next 7 days'),
-                _SummaryPill(entries.length, 'Open'),
+                _SummaryPill(overdue, _groupLabel('Overdue', context.appLanguage)),
+                _SummaryPill(today, _groupLabel('Today', context.appLanguage)),
+                _SummaryPill(
+                    week,
+                    context.appLanguage.tr(
+                        en: 'Next 7 days',
+                        ha: 'Kwanaki 7 masu zuwa',
+                        fr: '7 prochains jours',
+                        pcm: 'Next 7 days')),
+                _SummaryPill(
+                    entries.length,
+                    context.appLanguage.tr(
+                        en: 'Open', ha: 'A bude', fr: 'Ouverts', pcm: 'Open')),
               ],
             ),
           ),
@@ -823,7 +866,7 @@ class _ListView extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  group.key,
+                  _groupLabel(group.key, context.appLanguage),
                   style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w800,
                       color: group.key == 'Overdue'
@@ -933,7 +976,11 @@ class _CalendarView extends StatelessWidget {
                   DateTime(focusedMonth.year, focusedMonth.month + 1)),
             ),
             IconButton(
-              tooltip: 'Jump to today',
+              tooltip: context.appLanguage.tr(
+                  en: 'Jump to today',
+                  ha: 'Je zuwa yau',
+                  fr: "Aller a aujourd'hui",
+                  pcm: 'Go today'),
               icon: const Icon(Icons.today_rounded),
               onPressed: () {
                 onMonthChanged(DateTime(today.year, today.month));
@@ -1290,7 +1337,7 @@ class _EntryTile extends StatelessWidget {
                                 const SizedBox(width: 8),
                                 Flexible(
                                   child: Text(
-                                    _relativeLabel(entry.dueDate),
+                                    _relativeLabel(entry.dueDate, context.appLanguage),
                                     overflow: TextOverflow.ellipsis,
                                     style: theme.textTheme.bodySmall?.copyWith(
                                         color: accent,
@@ -1310,7 +1357,11 @@ class _EntryTile extends StatelessWidget {
                         ),
                       ),
                       IconButton(
-                        tooltip: 'Delete reminder',
+                        tooltip: context.appLanguage.tr(
+                            en: 'Delete reminder',
+                            ha: 'Share tunatarwa',
+                            fr: 'Supprimer le rappel',
+                            pcm: 'Delete reminder'),
                         icon: Icon(Icons.delete_outline_rounded,
                             size: 20,
                             color: theme.colorScheme.onSurfaceVariant),

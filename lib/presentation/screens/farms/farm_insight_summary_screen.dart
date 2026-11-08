@@ -14,6 +14,7 @@ import '../../../domain/models/crop.dart';
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/livestock.dart';
 import '../../../domain/models/transaction.dart';
+import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/crop_provider.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/finance_provider.dart';
@@ -94,8 +95,12 @@ class _FarmInsightSummaryScreenState extends ConsumerState<FarmInsightSummaryScr
         ),
       ),
       body: SoftScreenScaffold(
-        heroTitle: 'AI farm briefing',
-        heroSubtitle: 'A practical briefing for ${farm.name} based on the stored farm, crop, livestock, and finance records.',
+        heroTitle: context.appLanguage.tr(en: 'AI farm briefing', ha: 'Takaitaccen bayanin gona na AI', fr: 'Bilan agricole IA', pcm: 'AI farm briefing'),
+        heroSubtitle: context.appLanguage.tr(
+          en: 'A practical briefing for ${farm.name} based on the stored farm, crop, livestock, and finance records.',
+          ha: 'Takaitaccen bayani mai amfani kan ${farm.name} daga bayanan gona, amfanin gona, dabbobi da kudi.',
+          fr: 'Un bilan pratique de ${farm.name} base sur les donnees de la ferme, des cultures, du betail et des finances.',
+          pcm: 'Correct summary for ${farm.name} wey dey based on your farm, crop, animal and money records.'),
         heroIcon: Icons.insights_rounded,
         heroVariant: FarmArtworkVariant.dashboard,
         heroBadge: '${farm.documents.length} docs • ${farm.openWorkspaceTaskCount} open tasks',
@@ -127,20 +132,20 @@ class _FarmInsightSummaryScreenState extends ConsumerState<FarmInsightSummaryScr
               children: <Widget>[
                 _InsightStat(
                     icon: Icons.grass_rounded,
-                    label: 'Crops',
+                    label: context.appLanguage.tr(en: 'Crops', ha: 'Amfanin gona', fr: 'Cultures', pcm: 'Crops'),
                     value: '${crops.length}',
                     color: const Color(0xFF2E9E5B)),
                 const SizedBox(width: 10),
                 _InsightStat(
                     icon: Icons.pets_rounded,
-                    label: 'Livestock',
+                    label: context.appLanguage.tr(en: 'Livestock', ha: 'Dabbobi', fr: 'Betail', pcm: 'Animals'),
                     value:
                         '${livestock.fold<int>(0, (int sum, Livestock item) => sum + item.count)}',
                     color: const Color(0xFF3B82C4)),
                 const SizedBox(width: 10),
                 _InsightStat(
                     icon: Icons.folder_copy_rounded,
-                    label: 'Records',
+                    label: context.appLanguage.tr(en: 'Records', ha: 'Bayanai', fr: 'Registres', pcm: 'Records'),
                     value:
                         '${farm.documents.length + farm.activityLog.length + transactions.length}',
                     color: const Color(0xFFE08A1E)),
@@ -149,7 +154,7 @@ class _FarmInsightSummaryScreenState extends ConsumerState<FarmInsightSummaryScr
           ),
           const SizedBox(height: 18),
           SoftSectionTitle(
-            title: 'AI briefing',
+            title: context.appLanguage.tr(en: 'AI briefing', ha: 'Bayanin AI', fr: 'Bilan IA', pcm: 'AI briefing'),
             action: TextButton.icon(
               onPressed: () {
                 setState(() {
@@ -158,7 +163,7 @@ class _FarmInsightSummaryScreenState extends ConsumerState<FarmInsightSummaryScr
                 });
               },
               icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Refresh'),
+              label: Text(context.appLanguage.tr(en: 'Refresh', ha: 'Sabunta', fr: 'Actualiser', pcm: 'Refresh')),
             ),
           ),
           FutureBuilder<String>(
@@ -190,14 +195,16 @@ class _FarmInsightSummaryScreenState extends ConsumerState<FarmInsightSummaryScr
             },
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Recommended next actions'),
+          SoftSectionTitle(
+              title: context.appLanguage.tr(en: 'Recommended next actions', ha: 'Matakan da aka shawarta', fr: 'Actions recommandees', pcm: 'Wetin you suppose do next')),
           FadeInUp(
             child: _ActionChecklist(
               actions: _nextActionTexts(farm, crops, livestock, transactions),
             ),
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Important context'),
+          SoftSectionTitle(
+              title: context.appLanguage.tr(en: 'Important context', ha: 'Muhimman bayanai', fr: 'Contexte important', pcm: 'Important things')),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -373,7 +380,8 @@ class _BalanceHero extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text('Net balance',
+          Text(
+              context.appLanguage.tr(en: 'Net balance', ha: 'Ragowar kudi', fr: 'Solde net', pcm: 'Money wey remain'),
               style: TextStyle(
                   color: Colors.white.withOpacity(0.85), fontSize: 13)),
           const SizedBox(height: 4),
@@ -409,9 +417,11 @@ class _BalanceHero extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: <Widget>[
-              Text('Income ${CurrencyUtils.formatCompactCurrency(income)}',
+              Text(
+                  '${context.appLanguage.tr(en: 'Income', ha: 'Kudin shiga', fr: 'Revenus', pcm: 'Income')} ${CurrencyUtils.formatCompactCurrency(income)}',
                   style: const TextStyle(color: Colors.white, fontSize: 12)),
-              Text('Expenses ${CurrencyUtils.formatCompactCurrency(expenses)}',
+              Text(
+                  '${context.appLanguage.tr(en: 'Expenses', ha: 'Kashe kudi', fr: 'Depenses', pcm: 'Expenses')} ${CurrencyUtils.formatCompactCurrency(expenses)}',
                   style: const TextStyle(color: Colors.white, fontSize: 12)),
             ],
           ),
@@ -516,7 +526,8 @@ class _BriefingLoadingState extends State<_BriefingLoading>
                 Icon(Icons.auto_awesome_rounded,
                     size: 18, color: theme.colorScheme.primary),
                 const SizedBox(width: 8),
-                Text('Analysing your farm records...',
+                Text(
+                    context.appLanguage.tr(en: 'Analysing your farm records...', ha: 'Ana nazarin bayanan gonarka...', fr: 'Analyse des donnees de votre ferme...', pcm: 'We dey check your farm records...'),
                     style: theme.textTheme.labelLarge),
               ]),
               const SizedBox(height: 16),
