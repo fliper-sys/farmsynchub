@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/i18n/context_tr.dart';
 import '../../../core/services/operations_history_report_service.dart';
 import '../../../core/services/report_file_saver.dart';
 import '../../../core/services/report_share_service.dart';
@@ -421,7 +422,8 @@ class _ProcurementScreenState extends ConsumerState<ProcurementScreen> {
             content: Text(language.tr(
                 en: 'Procurement PDF saved: $path',
                 ha: 'An adana PDF na sayayya: $path',
-                fr: 'PDF d\'approvisionnement enregistre : $path'))),
+                fr: 'PDF d\'approvisionnement enregistre : $path',
+                pcm: 'Procurement PDF don save: $path'))),
       );
     } finally {
       if (mounted) {
@@ -715,6 +717,7 @@ class _TrackedOrderCard extends StatelessWidget {
               en: 'Ordered ${appDate(order.orderDate)} • Expected ${appDate(order.expectedDeliveryDate)}',
               ha: 'An yi oda ${appDate(order.orderDate)} • Ana sa ran ${appDate(order.expectedDeliveryDate)}',
               fr: 'Commande le ${appDate(order.orderDate)} • Prevue le ${appDate(order.expectedDeliveryDate)}',
+              pcm: 'Order dey ${appDate(order.orderDate)} • Expect am ${appDate(order.expectedDeliveryDate)}',
             ),
             style: Theme.of(context).textTheme.bodySmall,
           ),
@@ -1052,9 +1055,12 @@ class _FarmDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
       value: value.isEmpty ? null : value,
-      decoration: const InputDecoration(labelText: 'Farm'),
+      decoration: InputDecoration(
+          labelText: ctr(context, 'Farm', 'Gona', 'Ferme', 'Farm')),
       items: <DropdownMenuItem<String>>[
-        const DropdownMenuItem<String>(value: '', child: Text('All farms')),
+        DropdownMenuItem<String>(
+            value: '',
+            child: Text(ctr(context, 'All farms', 'Dukkan gonaki', 'Toutes les fermes', 'All farms'))),
         ...farms.map(
           (Farm farm) => DropdownMenuItem<String>(
             value: farm.id,
@@ -1158,7 +1164,7 @@ class _SupplierBars extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text('Where the money went',
+          Text(ctr(context, 'Where the money went', 'Inda kudi suka tafi', 'Où est allé l’argent', 'Where the money go'),
               style: theme.textTheme.titleMedium
                   ?.copyWith(fontWeight: FontWeight.w900)),
           const SizedBox(height: 12),
