@@ -204,7 +204,8 @@ class FarmsScreen extends ConsumerWidget {
                         language.tr(
                             en: 'Inventory value',
                             ha: 'Darajar kaya',
-                            fr: 'Valeur du stock'),
+                            fr: 'Valeur du stock',
+                            pcm: 'Value of your stock'),
                         CurrencyUtils.formatCompactCurrency(inventoryValue)),
                     _heroStat(
                         language.tr(

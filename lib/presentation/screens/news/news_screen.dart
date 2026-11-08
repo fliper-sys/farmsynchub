@@ -509,7 +509,8 @@ class _PeopleDiscoverySection extends StatelessWidget {
                       language.tr(
                           en: '${people.length} suggested',
                           ha: '${people.length} da aka shawarta',
-                          fr: '${people.length} suggeres'),
+                          fr: '${people.length} suggeres',
+                          pcm: '${people.length} wey we suggest'),
                       style: theme.textTheme.labelLarge),
                   const SizedBox(width: 6),
                   IconButton(
@@ -1004,7 +1005,7 @@ class _NewsPostCard extends StatelessWidget {
                           ],
                         ),
                         Text(
-                          '${_timeAgo(post.createdAt)}'
+                          '${_timeAgo(post.createdAt, language)}'
                           '${post.location.isNotEmpty ? '  ·  ${post.location}' : ''}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -1156,12 +1157,20 @@ class _NewsPostCard extends StatelessWidget {
     );
   }
 
-  static String _timeAgo(DateTime t) {
+  static String _timeAgo(DateTime t, AppLanguage l) {
     final Duration d = DateTime.now().difference(t);
-    if (d.inMinutes < 1) return 'just now';
-    if (d.inMinutes < 60) return '${d.inMinutes}m ago';
-    if (d.inHours < 24) return '${d.inHours}h ago';
-    if (d.inDays < 7) return '${d.inDays}d ago';
+    if (d.inMinutes < 1) {
+      return l.tr(en: 'just now', ha: 'yanzu', fr: "a l'instant", pcm: 'just now');
+    }
+    if (d.inMinutes < 60) {
+      return l.tr(en: '${d.inMinutes}m ago', ha: 'mintuna ${d.inMinutes} da suka wuce', fr: 'il y a ${d.inMinutes} min', pcm: '${d.inMinutes}m ago');
+    }
+    if (d.inHours < 24) {
+      return l.tr(en: '${d.inHours}h ago', ha: 'awa ${d.inHours} da suka wuce', fr: 'il y a ${d.inHours} h', pcm: '${d.inHours}h ago');
+    }
+    if (d.inDays < 7) {
+      return l.tr(en: '${d.inDays}d ago', ha: 'kwana ${d.inDays} da suka wuce', fr: 'il y a ${d.inDays} j', pcm: '${d.inDays}d ago');
+    }
     return app_date.DateUtils.formatDate(t);
   }
 

@@ -187,7 +187,8 @@ class LivestockScreen extends ConsumerWidget {
                         language.tr(
                             en: 'animals across ${livestock.length} groups',
                             ha: 'dabbobi a rukunoni ${livestock.length}',
-                            fr: 'animaux dans ${livestock.length} groupes'),
+                            fr: 'animaux dans ${livestock.length} groupes',
+                            pcm: 'animals inside ${livestock.length} groups'),
                         style: TextStyle(
                             color: Colors.white.withOpacity(0.85),
                             fontSize: 13),

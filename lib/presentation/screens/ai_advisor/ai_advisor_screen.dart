@@ -470,6 +470,7 @@ class _CooldownBanner extends StatelessWidget {
                 en: 'Please wait $seconds seconds before sending another request.',
                 ha: 'Da fatan za a jira dakiku $seconds kafin aika wata bukata.',
                 fr: 'Veuillez patienter $seconds secondes avant d\'envoyer une autre demande.',
+                pcm: 'Abeg wait $seconds seconds before you send another request.',
               ),
               style: const TextStyle(color: Color(0xFF7A4B00), fontSize: 12.5),
             ),
