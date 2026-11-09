@@ -4118,7 +4118,7 @@ class _TaskListItem extends StatelessWidget {
                 ),
               ],
             ),
-          ),
+            ),
           PopupMenuButton<String>(
             tooltip: 'Task actions',
             onSelected: (String action) {
