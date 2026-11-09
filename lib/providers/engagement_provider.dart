@@ -108,8 +108,8 @@ class Achievements {
       lottie: LottieAssets.streakFire,
       isMet: (EngagementState s, DateTime now) =>
           s.currentStreak(now) >= 7 || s.longestStreak >= 7,
-      title: (AppLanguage l) =>
-          l.tr(en: 'Week Warrior', ha: 'Jarumin Mako', fr: 'Guerrier de la semaine'),
+      title: (AppLanguage l) => l.tr(
+          en: 'Week Warrior', ha: 'Jarumin Mako', fr: 'Guerrier de la semaine'),
       description: (AppLanguage l) => l.tr(
           en: 'Learn 7 days in a row',
           ha: 'Yi karatu kwana 7 a jere',
@@ -139,9 +139,7 @@ class Achievements {
       title: (AppLanguage l) =>
           l.tr(en: 'Century', ha: 'Maki 100', fr: 'Centurion'),
       description: (AppLanguage l) => l.tr(
-          en: 'Earn 100 XP',
-          ha: 'Samu maki 100 na XP',
-          fr: 'Gagnez 100 XP'),
+          en: 'Earn 100 XP', ha: 'Samu maki 100 na XP', fr: 'Gagnez 100 XP'),
     ),
     AchievementDef(
       id: 'xp_500',
@@ -149,12 +147,10 @@ class Achievements {
       color: const Color(0xFF1CB0F6),
       bonusXp: 25,
       isMet: (EngagementState s, DateTime now) => s.totalXp >= 500,
-      title: (AppLanguage l) =>
-          l.tr(en: 'Rising Star', ha: 'Tauraruwa Mai Tashi', fr: 'Étoile montante'),
+      title: (AppLanguage l) => l.tr(
+          en: 'Rising Star', ha: 'Tauraruwa Mai Tashi', fr: 'Étoile montante'),
       description: (AppLanguage l) => l.tr(
-          en: 'Earn 500 XP',
-          ha: 'Samu maki 500 na XP',
-          fr: 'Gagnez 500 XP'),
+          en: 'Earn 500 XP', ha: 'Samu maki 500 na XP', fr: 'Gagnez 500 XP'),
     ),
     AchievementDef(
       id: 'lessons_5',
@@ -1011,7 +1007,8 @@ class EngagementNotifier extends Notifier<EngagementState> {
       // Only a brand-new device adopts the cloud's allowance counters; an
       // existing local record keeps its own.
       restorationsUsed: (fresh && latest != null)
-          ? clampInt(latest['restorationsUsed'], EngagementState.maxRestorations)
+          ? clampInt(
+              latest['restorationsUsed'], EngagementState.maxRestorations)
           : state.restorationsUsed,
       freezeItems: (fresh && latest != null)
           ? clampInt(latest['freezeItems'], EngagementState.maxFreezes)
@@ -1117,8 +1114,7 @@ class EngagementNotifier extends Notifier<EngagementState> {
     final _Prep prep = _beginActivity(t);
     final int streakBefore = state.streakInfo(t).count;
     final bool firstTime = !state.rewardedLessons.contains(lessonId);
-    final bool perfect =
-        totalQuestions > 0 && correctAnswers >= totalQuestions;
+    final bool perfect = totalQuestions > 0 && correctAnswers >= totalQuestions;
 
     // First completion: 10 base + 2 per correct answer + 5 for a perfect run.
     // Replays only pay 5 so the same lesson can't be farmed for points.
@@ -1136,8 +1132,7 @@ class EngagementNotifier extends Notifier<EngagementState> {
         key: day.copyWith(xp: day.xp + xp, lessons: day.lessons + 1),
       },
       rewardedLessons: <String>{...state.rewardedLessons, lessonId},
-      perfectLessons:
-          state.perfectLessons + ((perfect && firstTime) ? 1 : 0),
+      perfectLessons: state.perfectLessons + ((perfect && firstTime) ? 1 : 0),
     );
 
     final List<AchievementDef> unlocked = _unlockAchievements(t);

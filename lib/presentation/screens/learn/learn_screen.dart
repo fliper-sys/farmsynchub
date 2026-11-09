@@ -27,7 +27,6 @@ class LearnScreen extends ConsumerStatefulWidget {
 
 class _LearnScreenState extends ConsumerState<LearnScreen> {
   final TextEditingController _searchController = TextEditingController();
-  int _selectedSection = 0;
 
   @override
   void dispose() {
@@ -49,7 +48,7 @@ class _LearnScreenState extends ConsumerState<LearnScreen> {
       if (query.isEmpty) return true;
       if (haystack.contains(query)) return true;
       final List<String> tokens =
-          query.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+          query.split(RegExp('\\\\s+')).where((t) => t.isNotEmpty).toList();
       return tokens.every((String token) => haystack.contains(token));
     }).toList(growable: false);
     const List<PracticeActivity> activities = _practiceActivities;
@@ -107,182 +106,194 @@ class _LearnScreenState extends ConsumerState<LearnScreen> {
           AppCard(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(18),
               child: AppTextField(
                 controller: _searchController,
                 label: language.tr(
                     en: 'Search lessons',
-                    ha: 'Nemi darussa',
+                    ha: 'Nemi Darussa',
                     fr: 'Rechercher des lecons'),
                 hint: language.tr(
-                    en: 'Search by topic or skill',
-                    ha: 'Nemi batu ko kwarewa',
-                    fr: 'Rechercher un sujet ou une competence'),
+                    en: 'Search by title, track, topic, or difficulty',
+                    ha: 'Nemi ta take, hanya, batu, ko wahala',
+                    fr: 'Rechercher par titre, parcours, sujet ou difficulte'),
                 prefix: const Icon(Icons.search_rounded),
                 onChanged: (_) => setState(() {}),
               ),
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 18),
           const StreakHero(),
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
           const WeekStrip(),
-          const SizedBox(height: 16),
-          Row(children: <Widget>[
-            Expanded(
+          const SizedBox(height: 18),
+          SoftSectionTitle(
+              title: language.tr(
+                  en: 'Learning progress',
+                  ha: 'Ci Gaban Koyo',
+                  fr: 'Progression d\'apprentissage')),
+          Row(
+            children: <Widget>[
+              Expanded(
                 child: SoftInfoChip(
-                    label: AppStrings.lessons,
-                    value: '${lessons.length}',
-                    color: const Color(0xFFDFF1FF))),
-            const SizedBox(width: 8),
-            Expanded(
+                  label: AppStrings.lessons,
+                  value: '${lessons.length}',
+                  color: const Color(0xFFDFF1FF),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
                 child: SoftInfoChip(
-                    label: AppStrings.progress,
-                    value: '${(progress * 100).round()}%',
-                    color: const Color(0xFFE8F4D8))),
-            const SizedBox(width: 8),
-            Expanded(
+                  label: AppStrings.progress,
+                  value: '${(progress * 100).round()}%',
+                  color: const Color(0xFFE8F4D8),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
                 child: SoftInfoChip(
-                    label: language.tr(
-                        en: 'Awards', ha: 'Kyaututtuka', fr: 'Recompenses'),
-                    value: '${learning.awardCount}',
-                    color: const Color(0xFFFFEBCF))),
-          ]),
-          const SizedBox(height: 12),
+                  label: language.tr(
+                      en: 'Awards', ha: 'Kyaututtuka', fr: 'Recompenses'),
+                  value: '${learning.awardCount}',
+                  color: const Color(0xFFFFEBCF),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
             child: LinearProgressIndicator(
-              minHeight: 8,
+              minHeight: 10,
               value: progress.clamp(0.0, 1.0).toDouble(),
               backgroundColor: theme.colorScheme.surfaceContainerHighest,
               valueColor:
                   const AlwaysStoppedAnimation<Color>(AppColors.primaryMid),
             ),
           ),
-          const SizedBox(height: 20),
-          Wrap(spacing: 8, runSpacing: 8, children: <Widget>[
-            ChoiceChip(
-                label: Text(
-                    language.tr(en: 'Lessons', ha: 'Darussa', fr: 'Lecons')),
-                selected: _selectedSection == 0,
-                onSelected: (_) => setState(() => _selectedSection = 0)),
-            ChoiceChip(
-                label: Text(
-                    language.tr(en: 'Tracks', ha: 'Hanyoyi', fr: 'Parcours')),
-                selected: _selectedSection == 1,
-                onSelected: (_) => setState(() => _selectedSection = 1)),
-            ChoiceChip(
-                label: Text(language.tr(
-                    en: 'Practice', ha: 'Atisaye', fr: 'Exercices')),
-                selected: _selectedSection == 2,
-                onSelected: (_) => setState(() => _selectedSection = 2)),
-          ]),
-          const SizedBox(height: 14),
-          if (_selectedSection == 0) ...<Widget>[
-            SoftSectionTitle(
-              title: query.isEmpty
-                  ? language.tr(
-                      en: 'Continue learning',
-                      ha: 'Ci gaba da koyo',
-                      fr: 'Continuer a apprendre')
-                  : language.tr(
-                      en: 'Search results',
-                      ha: 'Sakamakon bincike',
-                      fr: 'Resultats de recherche'),
-              action: Text(
-                  language.tr(
-                      en: '$completedLessons completed',
-                      ha: '$completedLessons an kammala',
-                      fr: '$completedLessons terminees'),
-                  style: theme.textTheme.labelLarge
-                      ?.copyWith(color: theme.colorScheme.primary)),
+          const SizedBox(height: 18),
+          SoftSectionTitle(
+              title: language.tr(
+                  en: 'Awards', ha: 'Kyaututtuka', fr: 'Recompenses')),
+          _AwardsBoard(language: language, learning: learning),
+          const SizedBox(height: 18),
+          SoftSectionTitle(
+            title: lessons.length == _learningLessons.length
+                ? AppStrings.continueLearning
+                : language.tr(
+                    en: 'Search results',
+                    ha: 'Sakamakon Bincike',
+                    fr: 'Resultats de recherche'),
+            action: Text(
+              language.tr(
+                  en: '$completedLessons completed',
+                  ha: '$completedLessons an kammala',
+                  fr: '$completedLessons terminees'),
+              style: theme.textTheme.labelLarge
+                  ?.copyWith(color: theme.colorScheme.primary),
             ),
-            if (lessons.isEmpty)
-              AppCard(
-                  child: Padding(
-                      padding: const EdgeInsets.all(18),
-                      child: Text(language.tr(
-                          en: 'No lessons match your search. Try another keyword or clear the search.',
-                          ha: 'Babu darasin da ya dace. Gwada wata kalma ko share binciken.',
-                          fr: 'Aucune lecon ne correspond. Essayez un autre mot ou effacez la recherche.')))),
-            ...lessons.map((LearningLesson lesson) {
+          ),
+          if (lessons.isEmpty)
+            AppCard(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Text(language.tr(
+                  en: 'No lessons match your search. Try a different keyword or clear the search box.',
+                  ha: 'Babu darasi da ya dace da binciken ka. Gwada wata kalma ko share akwatin bincike.',
+                  fr: 'Aucune lecon ne correspond a votre recherche. Essayez un autre mot-cle ou effacez la recherche.',
+                )),
+              ),
+            ),
+          ...lessons.map(
+            (LearningLesson lesson) {
               final bool completed =
                   learning.completedLessons.contains(lesson.id);
+              final double currentProgress = _lessonProgress(learning, lesson);
               return Padding(
-                padding: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.only(bottom: 12),
                 child: _LessonCard(
                   language: language,
                   lesson: lesson,
                   completed: completed,
-                  progress: _lessonProgress(learning, lesson),
+                  progress: currentProgress,
                   onTap: () => _openPage(
-                      context, LearnLessonDetailScreen(lesson: lesson)),
+                    context,
+                    LearnLessonDetailScreen(lesson: lesson),
+                  ),
                   onShare: () => _shareText(ref, lesson.id, lesson.shareText),
                 ),
               );
-            }),
-          ],
-          if (_selectedSection == 1) ...<Widget>[
-            SoftSectionTitle(
-                title: language.tr(
-                    en: 'Choose a learning track',
-                    ha: 'Zabi hanyar koyo',
-                    fr: 'Choisir un parcours')),
-            GridView.count(
-              crossAxisCount: MediaQuery.sizeOf(context).width >= 600 ? 3 : 2,
-              shrinkWrap: true,
-              childAspectRatio: 1.15,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              children: _learningTracks
-                  .map((LearningTrack track) => _TopicCard(
-                        track: track,
-                        completedCount: lessons
-                            .where((LearningLesson lesson) =>
-                                lesson.track == track.title &&
-                                learning.completedLessons.contains(lesson.id))
-                            .length,
-                        onTap: () => _openPage(
-                            context,
-                            LearnTrackDetailScreen(
-                                track: track,
-                                lessons: lessons
-                                    .where((LearningLesson lesson) =>
-                                        lesson.track == track.title)
-                                    .toList())),
-                      ))
-                  .toList(),
-            ),
-          ],
-          if (_selectedSection == 2) ...<Widget>[
-            SoftSectionTitle(
+            },
+          ),
+          const SizedBox(height: 18),
+          SoftSectionTitle(
               title: language.tr(
-                  en: 'Practice activities',
-                  ha: 'Ayyukan atisaye',
-                  fr: 'Activites pratiques'),
-              action: Text(
-                  language.tr(
-                      en: '$completedPractices done',
-                      ha: '$completedPractices an kammala',
-                      fr: '$completedPractices terminees'),
-                  style: theme.textTheme.labelLarge
-                      ?.copyWith(color: theme.colorScheme.primary)),
-            ),
-            ...activities.map((PracticeActivity activity) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _PracticeCard(
-                    language: language,
-                    activity: activity,
-                    completed:
-                        learning.completedPractices.contains(activity.id),
+                  en: 'Learning tracks',
+                  ha: 'Hanyoyin Koyo',
+                  fr: 'Parcours d\'apprentissage')),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            childAspectRatio: 1.08,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            children: _learningTracks
+                .map(
+                  (LearningTrack track) => _TopicCard(
+                    track: track,
+                    completedCount: lessons
+                        .where(
+                          (LearningLesson lesson) =>
+                              lesson.track == track.title &&
+                              learning.completedLessons.contains(lesson.id),
+                        )
+                        .length,
                     onTap: () => _openPage(
-                        context, LearnPracticeDetailScreen(activity: activity)),
-                    onShare: () =>
-                        _shareText(ref, activity.id, activity.shareText),
+                      context,
+                      LearnTrackDetailScreen(
+                        track: track,
+                        lessons: lessons
+                            .where((LearningLesson lesson) =>
+                                lesson.track == track.title)
+                            .toList(),
+                      ),
+                    ),
                   ),
-                )),
-          ],
+                )
+                .toList(),
+          ),
+          const SizedBox(height: 18),
+          SoftSectionTitle(
+            title: language.tr(
+                en: 'Practice activities',
+                ha: 'Ayyukan Atisaye',
+                fr: 'Activites pratiques'),
+            action: Text(
+              language.tr(
+                  en: '$completedPractices done',
+                  ha: '$completedPractices an kammala',
+                  fr: '$completedPractices terminees'),
+              style: theme.textTheme.labelLarge
+                  ?.copyWith(color: theme.colorScheme.primary),
+            ),
+          ),
+          ...activities.map(
+            (PracticeActivity activity) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _PracticeCard(
+                language: language,
+                activity: activity,
+                completed: learning.completedPractices.contains(activity.id),
+                onTap: () => _openPage(
+                  context,
+                  LearnPracticeDetailScreen(activity: activity),
+                ),
+                onShare: () => _shareText(ref, activity.id, activity.shareText),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -297,417 +308,412 @@ class _LearnScreenState extends ConsumerState<LearnScreen> {
   }
 }
 
-class LearnLessonDetailScreen extends ConsumerStatefulWidget {
-  const LearnLessonDetailScreen({super.key, required this.lesson});
+class LearnLessonDetailScreen extends ConsumerWidget {
+  const LearnLessonDetailScreen({
+    super.key,
+    required this.lesson,
+  });
+
   final LearningLesson lesson;
 
   @override
-  ConsumerState<LearnLessonDetailScreen> createState() =>
-      _LearnLessonDetailScreenState();
-}
-
-class _LearnLessonDetailScreenState
-    extends ConsumerState<LearnLessonDetailScreen> {
-  final PageController _controller = PageController();
-  int _page = 0;
-  bool _saving = false;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final LearningLesson lesson = widget.lesson;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ThemeData theme = Theme.of(context);
     final AppLanguage language = ref.watch(appLanguageProvider);
     final LearningState learning = ref.watch(learningProvider);
     final bool completed = learning.completedLessons.contains(lesson.id);
-    final List<Widget> pages = _pages(lesson, language);
-    final int count = pages.length;
-    final bool last = _page >= count - 1;
+    final bool skipped = learning.skippedLessons.contains(lesson.id);
+    final CertificateRecord? certificate =
+        learning.certificateForLesson(lesson.id);
+    final int reviewedQuestions = lesson.questions
+        .where(
+          (LessonQuestion question) => learning.reviewedQuestions
+              .contains('${lesson.id}::${question.id}'),
+        )
+        .length;
+    final double questionProgress = lesson.questions.isEmpty
+        ? 0
+        : reviewedQuestions / lesson.questions.length;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(lesson.title),
         leading: IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            onPressed: () => Navigator.of(context).pop()),
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         actions: <Widget>[
           IconButton(
             tooltip: language.tr(
-                en: 'Share lesson', ha: 'Raba darasi', fr: 'Partager la lecon'),
+                en: 'Share to WhatsApp',
+                ha: 'Raba zuwa WhatsApp',
+                fr: 'Partager sur WhatsApp'),
             icon: const Icon(Icons.ios_share_rounded),
             onPressed: () => _shareText(ref, lesson.id, lesson.shareText),
           ),
         ],
       ),
-      body: SafeArea(
-        top: false,
-        child: Column(
-          children: <Widget>[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-              child: Column(children: <Widget>[
-                Row(children: <Widget>[
-                  Expanded(
-                      child: Text(
-                          language.tr(
-                            en: 'Step ${_page + 1} of $count',
-                            ha: 'Mataki ${_page + 1} na $count',
-                            fr: 'Etape ${_page + 1} sur $count',
-                          ),
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelLarge
-                              ?.copyWith(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant))),
-                  if (completed)
-                    const Icon(Icons.check_circle_rounded,
-                        color: AppColors.primary),
-                ]),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(99),
-                  child: LinearProgressIndicator(
-                    minHeight: 8,
-                    value: count <= 1 ? 1 : _page / (count - 1),
-                    backgroundColor:
-                        Theme.of(context).colorScheme.surfaceContainerHighest,
-                    valueColor: AlwaysStoppedAnimation<Color>(lesson.tint),
-                  ),
+      body: SoftScreenScaffold(
+        heroTitle: lesson.title,
+        heroSubtitle: lesson.subtitle,
+        heroIcon: lesson.icon,
+        heroVariant: FarmArtworkVariant.crops,
+        heroBadge: '${lesson.duration} - ${lesson.difficulty}',
+        showArtwork: false,
+        sections: <Widget>[
+          _LessonImageHeader(lesson: lesson),
+          const SizedBox(height: 18),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: SoftInfoChip(
+                  label: language.tr(en: 'Track', ha: 'Hanya', fr: 'Parcours'),
+                  value: lesson.track,
+                  color: lesson.tint,
                 ),
-              ]),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: SoftInfoChip(
+                  label: language.tr(en: 'Status', ha: 'Matsayi', fr: 'Statut'),
+                  value: completed
+                      ? language.tr(
+                          en: 'Completed', ha: 'An Kammala', fr: 'Termine')
+                      : skipped
+                          ? language.tr(
+                              en: 'Skipped for now',
+                              ha: 'An tsallake na yanzu',
+                              fr: 'Ignore pour le moment')
+                          : reviewedQuestions == 0
+                              ? language.tr(
+                                  en: 'Not started',
+                                  ha: 'Ba a fara ba',
+                                  fr: 'Non commence')
+                              : language.tr(
+                                  en: '$reviewedQuestions checked',
+                                  ha: '$reviewedQuestions an duba',
+                                  fr: '$reviewedQuestions verifiees'),
+                  color: const Color(0xFFE8F4D8),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              minHeight: 10,
+              value: questionProgress.clamp(0.0, 1.0).toDouble(),
+              backgroundColor:
+                  Theme.of(context).colorScheme.surfaceContainerHighest,
+              valueColor: AlwaysStoppedAnimation<Color>(lesson.tint),
             ),
-            Expanded(
-              child: PageView.builder(
-                controller: _controller,
-                itemCount: count,
-                onPageChanged: (int index) => setState(() => _page = index),
-                itemBuilder: (BuildContext context, int index) => pages[index],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            lesson.questions.isEmpty
+                ? language.tr(
+                    en: 'Lesson progress is based on the reading steps.',
+                    ha: 'Ci gaban darasi ya dogara ne akan matakan karatu.',
+                    fr: 'La progression de la lecon est basee sur les etapes de lecture.')
+                : language.tr(
+                    en: '$reviewedQuestions of ${lesson.questions.length} understanding checks reviewed',
+                    ha: '$reviewedQuestions daga cikin ${lesson.questions.length} an duba jarabawar fahimta',
+                    fr: '$reviewedQuestions sur ${lesson.questions.length} controles de comprehension revus',
+                  ),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 18),
+          SoftSectionTitle(
+              title: language.tr(en: 'Overview', ha: 'Bayyani', fr: 'Apercu')),
+          AppCard(
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Text(
+                lesson.overview,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(height: 1.6),
               ),
             ),
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-                child: Row(children: <Widget>[
-                  if (_page > 0)
-                    Expanded(
-                        child: AppButton.secondary(
-                      onPressed: _saving
-                          ? null
-                          : () => _controller.previousPage(
-                              duration: const Duration(milliseconds: 240),
-                              curve: Curves.easeOutCubic),
-                      child: Text(language.tr(
-                          en: 'Back', ha: 'Koma baya', fr: 'Retour')),
-                    ))
-                  else
-                    const Spacer(),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: AppButton.primary(
-                      onPressed: _saving
-                          ? null
-                          : last
-                              ? () => _finish(lesson, language)
-                              : () => _controller.nextPage(
-                                  duration: const Duration(milliseconds: 240),
-                                  curve: Curves.easeOutCubic),
-                      child: _saving
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white))
-                          : Text(language.tr(
-                              en: last
-                                  ? (completed ? 'Done' : 'Finish lesson')
-                                  : 'Continue',
-                              ha: last
-                                  ? (completed ? 'An gama' : 'Kammala darasi')
-                                  : 'Ci gaba',
-                              fr: last
-                                  ? (completed
-                                      ? 'Termine'
-                                      : 'Terminer la lecon')
-                                  : 'Continuer',
-                            )),
-                    ),
+          ),
+          const SizedBox(height: 18),
+          SoftSectionTitle(
+              title: language.tr(
+                  en: 'Field steps',
+                  ha: 'Matakan Gona',
+                  fr: 'Etapes de terrain')),
+          ...lesson.steps.asMap().entries.map(
+                (MapEntry<int, String> entry) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _ChecklistTile(
+                    index: entry.key + 1,
+                    text: entry.value,
+                    tint: lesson.tint,
                   ),
-                ]),
+                ),
+              ),
+          const SizedBox(height: 18),
+          SoftSectionTitle(
+              title: language.tr(
+                  en: 'Use this on the farm',
+                  ha: 'Yi Amfani da Wannan a Gona',
+                  fr: 'Utiliser ceci a la ferme')),
+          ...lesson.tools.map(
+            (String tool) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _ToolRow(text: tool, tint: lesson.tint),
+            ),
+          ),
+          if (lesson.youtubeVideoId != null) ...<Widget>[
+            const SizedBox(height: 18),
+            SoftSectionTitle(
+                title: language.tr(
+                    en: 'Watch video',
+                    ha: 'Kalli Bidiyo',
+                    fr: 'Regarder la video')),
+            AppCard(
+              color: theme.colorScheme.surfaceContainerHighest,
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    _VideoThumbnailPreview(
+                      videoId: lesson.youtubeVideoId!,
+                      tint: lesson.tint,
+                      onTap: () => _playVideo(
+                          context, lesson.youtubeVideoId!, lesson.title),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      language.tr(
+                        en: 'Watch a short demonstration to reinforce the field steps.',
+                        ha: 'Kalli takaitaccen nunin aiki don karfafa matakan gona.',
+                        fr: 'Regardez une courte demonstration pour renforcer les etapes de terrain.',
+                      ),
+                      style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
+                    ),
+                    const SizedBox(height: 12),
+                    AppButton.primary(
+                      onPressed: () => _playVideo(
+                          context, lesson.youtubeVideoId!, lesson.title),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          Icon(
+                              VideoPlayerScreen.isSupported
+                                  ? Icons.play_circle_fill_rounded
+                                  : Icons.ondemand_video_rounded,
+                              size: 18),
+                          const SizedBox(width: 8),
+                          Text(VideoPlayerScreen.isSupported
+                              ? language.tr(
+                                  en: 'Play video',
+                                  ha: 'Kunna Bidiyo',
+                                  fr: 'Lire la video')
+                              : language.tr(
+                                  en: 'Open in YouTube',
+                                  ha: 'Bude a YouTube',
+                                  fr: 'Ouvrir dans YouTube')),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
+          if (lesson.websiteUrl != null) ...<Widget>[
+            const SizedBox(height: 18),
+            SoftSectionTitle(
+                title: language.tr(
+                    en: 'Learn more', ha: 'Koyi Kara', fr: 'En savoir plus')),
+            AppCard(
+              color: theme.colorScheme.surfaceContainerHighest,
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Text(
+                      language.tr(
+                        en: 'Visit an external resource for additional details, images, and practical guidance.',
+                        ha: 'Ziyarci wata majiya ta waje domin karin bayani, hotuna, da jagora mai amfani.',
+                        fr: 'Consultez une ressource externe pour plus de details, d\'images et de conseils pratiques.',
+                      ),
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(height: 1.5),
+                    ),
+                    const SizedBox(height: 12),
+                    AppButton.secondary(
+                      onPressed: () async {
+                        await _launchExternalUrl(lesson.websiteUrl!);
+                      },
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          const Icon(Icons.open_in_new_rounded, size: 18),
+                          const SizedBox(width: 8),
+                          Text(language.tr(
+                              en: 'Visit website',
+                              ha: 'Ziyarci Shafin Yanar Gizo',
+                              fr: 'Visiter le site web')),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 18),
+          SoftSectionTitle(
+              title: language.tr(
+                  en: 'Check your understanding',
+                  ha: 'Duba Fahimtarka',
+                  fr: 'Verifiez votre comprehension')),
+          if (lesson.questions.isEmpty)
+            AppCard(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Text(
+                  language.tr(
+                      en: 'This lesson does not have quiz questions yet.',
+                      ha: 'Wannan darasi ba shi da tambayoyin gwaji tukuna.',
+                      fr: 'Cette lecon n\'a pas encore de questions de quiz.'),
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+            )
+          else
+            ...lesson.questions.asMap().entries.map(
+                  (MapEntry<int, LessonQuestion> entry) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _QuizQuestionCard(
+                      lessonId: lesson.id,
+                      question: entry.value,
+                      index: entry.key + 1,
+                      tint: lesson.tint,
+                    ),
+                  ),
+                ),
+          const SizedBox(height: 18),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: AppButton.secondary(
+                  onPressed: () => _shareText(ref, lesson.id, lesson.shareText),
+                  child: Text(language.tr(
+                      en: 'Share guide',
+                      ha: 'Raba Jagora',
+                      fr: 'Partager le guide')),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: AppButton.primary(
+                  onPressed: completed
+                      ? null
+                      : () async {
+                          await ref
+                              .read(learningProvider.notifier)
+                              .completeLesson(
+                                lesson.id,
+                                lessonTitle: lesson.title,
+                              );
+                          final CertificateRecord? record = ref
+                              .read(learningProvider)
+                              .certificateForLesson(lesson.id);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                  content: Text(language.tr(
+                                      en: 'Lesson completed. Award progress updated.',
+                                      ha: 'An kammala darasi. An sabunta ci gaban kyauta.',
+                                      fr: 'Lecon terminee. Progression des recompenses mise a jour.'))),
+                            );
+                            if (record != null) {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => LessonCertificateScreen(
+                                    record: record,
+                                    recipientName: 'FarmSync learner',
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  child: Text(completed
+                      ? language.tr(
+                          en: 'Completed', ha: 'An Kammala', fr: 'Termine')
+                      : language.tr(
+                          en: 'Mark complete',
+                          ha: 'Alama an Kammala',
+                          fr: 'Marquer comme termine')),
+                ),
+              ),
+            ],
+          ),
+          if (certificate != null) ...<Widget>[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: AppButton.secondary(
+                onPressed: () => _openCertificate(context, certificate),
+                child: Text(language.tr(
+                    en: 'View certificate',
+                    ha: 'Duba Takardar Shaida',
+                    fr: 'Voir le certificat')),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: AppButton.secondary(
+              onPressed: skipped
+                  ? null
+                  : () async {
+                      await ref
+                          .read(learningProvider.notifier)
+                          .skipLesson(lesson.id);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content: Text(language.tr(
+                                  en: 'Lesson skipped for now. You can come back later.',
+                                  ha: 'An tsallake darasi na yanzu. Za ka iya dawowa daga baya.',
+                                  fr: 'Lecon ignoree pour le moment. Vous pouvez revenir plus tard.'))),
+                        );
+                      }
+                    },
+              child: Text(skipped
+                  ? language.tr(en: 'Skipped', ha: 'An Tsallake', fr: 'Ignore')
+                  : language.tr(
+                      en: 'Skip lesson for now',
+                      ha: 'Tsallake darasi na yanzu',
+                      fr: 'Ignorer la lecon pour le moment')),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openCertificate(BuildContext context, CertificateRecord certificate) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => LessonCertificateScreen(
+          record: certificate,
+          recipientName: 'FarmSync learner',
         ),
       ),
     );
-  }
-
-  List<Widget> _pages(LearningLesson lesson, AppLanguage language) {
-    final List<Widget> result = <Widget>[
-      _step(
-        eyebrow: language.tr(
-            en: 'Today’s lesson', ha: 'Darasin yau', fr: 'Lecon du jour'),
-        title: lesson.title,
-        subtitle: lesson.subtitle,
-        icon: lesson.icon,
-        tint: lesson.tint,
-        child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              _LessonImageHeader(lesson: lesson),
-              const SizedBox(height: 18),
-              Text(
-                  language.tr(
-                      en: 'What you’ll learn',
-                      ha: 'Abin da za ka koya',
-                      fr: 'Ce que vous apprendrez'),
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 8),
-              Text(lesson.overview,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyLarge
-                      ?.copyWith(height: 1.6)),
-              const SizedBox(height: 16),
-              Wrap(spacing: 8, runSpacing: 8, children: <Widget>[
-                _MiniMeta(text: lesson.track, color: lesson.tint),
-                _MiniMeta(text: lesson.duration, color: lesson.tint),
-                _MiniMeta(text: lesson.difficulty, color: lesson.tint),
-              ]),
-            ]),
-      ),
-    ];
-
-    for (final MapEntry<int, String> entry in lesson.steps.asMap().entries) {
-      result.add(_step(
-        eyebrow: language.tr(
-            en: 'Field guide', ha: 'Jagorar gona', fr: 'Guide de terrain'),
-        title: language.tr(
-            en: 'Step ${entry.key + 1}',
-            ha: 'Mataki ${entry.key + 1}',
-            fr: 'Etape ${entry.key + 1}'),
-        subtitle: lesson.title,
-        icon: Icons.eco_rounded,
-        tint: lesson.tint,
-        child: _ChecklistTile(
-            index: entry.key + 1, text: entry.value, tint: lesson.tint),
-      ));
-    }
-
-    if (lesson.tools.isNotEmpty) {
-      result.add(_step(
-        eyebrow: language.tr(
-            en: 'Put it into practice',
-            ha: 'Aiki a gona',
-            fr: 'Mise en pratique'),
-        title: language.tr(
-            en: 'What you’ll need',
-            ha: 'Abin da za ka bukata',
-            fr: 'Ce dont vous aurez besoin'),
-        subtitle: language.tr(
-            en: 'Prepare these tools before you begin.',
-            ha: 'Shirya kayan kafin ka fara.',
-            fr: 'Preparez ces outils avant de commencer.'),
-        icon: Icons.handyman_rounded,
-        tint: lesson.tint,
-        child: Column(
-            children: lesson.tools
-                .map((String tool) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _ToolRow(text: tool, tint: lesson.tint)))
-                .toList()),
-      ));
-    }
-
-    if (lesson.youtubeVideoId != null || lesson.websiteUrl != null) {
-      result.add(_step(
-        eyebrow: language.tr(
-            en: 'Explore more',
-            ha: 'Koyi karin bayani',
-            fr: 'Pour aller plus loin'),
-        title: language.tr(
-            en: 'See it in action',
-            ha: 'Kalli yadda ake yi',
-            fr: 'Voir en action'),
-        subtitle: language.tr(
-            en: 'Use a resource to reinforce the field steps.',
-            ha: 'Yi amfani da wannan don kara fahimtar matakan.',
-            fr: 'Une ressource pour renforcer les etapes.'),
-        icon: Icons.play_circle_outline_rounded,
-        tint: lesson.tint,
-        child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              if (lesson.youtubeVideoId != null) ...<Widget>[
-                _VideoThumbnailPreview(
-                    videoId: lesson.youtubeVideoId!,
-                    tint: lesson.tint,
-                    onTap: () => _playVideo(
-                        context, lesson.youtubeVideoId!, lesson.title)),
-                const SizedBox(height: 12),
-                AppButton.secondary(
-                    onPressed: () => _playVideo(
-                        context, lesson.youtubeVideoId!, lesson.title),
-                    child: Text(language.tr(
-                        en: 'Play video',
-                        ha: 'Kunna bidiyo',
-                        fr: 'Lire la video'))),
-              ],
-              if (lesson.websiteUrl != null) ...<Widget>[
-                const SizedBox(height: 12),
-                AppButton.secondary(
-                    onPressed: () => _launchExternalUrl(lesson.websiteUrl!),
-                    child: Text(language.tr(
-                        en: 'Open learning resource',
-                        ha: 'Bude karin bayani',
-                        fr: 'Ouvrir la ressource'))),
-              ],
-            ]),
-      ));
-    }
-
-    for (final MapEntry<int, LessonQuestion> entry
-        in lesson.questions.asMap().entries) {
-      result.add(_step(
-        eyebrow: language.tr(
-            en: 'Quick check', ha: 'Gwajin fahimta', fr: 'Petit quiz'),
-        title: language.tr(
-            en: 'Question ${entry.key + 1}',
-            ha: 'Tambaya ${entry.key + 1}',
-            fr: 'Question ${entry.key + 1}'),
-        subtitle: language.tr(
-            en: 'Choose an answer, then check it to see why.',
-            ha: 'Zabi amsa, sannan ka duba dalilinta.',
-            fr: 'Choisissez une reponse, puis verifiez-la pour comprendre.'),
-        icon: Icons.quiz_rounded,
-        tint: lesson.tint,
-        child: _QuizQuestionCard(
-            key: ValueKey<String>('${lesson.id}-${entry.value.id}'),
-            lessonId: lesson.id,
-            question: entry.value,
-            index: entry.key + 1,
-            tint: lesson.tint),
-      ));
-    }
-
-    result.add(_step(
-      eyebrow: language.tr(
-          en: 'You’re nearly there',
-          ha: 'Kusan ka gama',
-          fr: 'Vous y etes presque'),
-      title: language.tr(
-          en: 'Put your learning to work',
-          ha: 'Yi amfani da abin da ka koya',
-          fr: 'Mettez vos acquis en pratique'),
-      subtitle: language.tr(
-          en: 'Review the key idea, then finish to save your progress.',
-          ha: 'Duba muhimmin bayani, sannan ka kammala domin adana ci gaba.',
-          fr: 'Revoyez l’essentiel, puis terminez pour enregistrer votre progression.'),
-      icon: Icons.emoji_events_outlined,
-      tint: lesson.tint,
-      child: AppCard(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Text(
-                lesson.steps.isEmpty ? lesson.overview : lesson.steps.last,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyLarge
-                    ?.copyWith(height: 1.5))),
-      ),
-    ));
-    return result;
-  }
-
-  Widget _step(
-      {required String eyebrow,
-      required String title,
-      required String subtitle,
-      required IconData icon,
-      required Color tint,
-      required Widget child}) {
-    final ThemeData theme = Theme.of(context);
-    return SingleChildScrollView(
-      key: PageStorageKey<String>('learn-${widget.lesson.id}-$title'),
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
-      child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                    color: tint.withOpacity(
-                        theme.brightness == Brightness.dark ? 0.22 : 0.14),
-                    borderRadius: BorderRadius.circular(16)),
-                child: Icon(icon, color: theme.colorScheme.primary)),
-            const SizedBox(height: 18),
-            Text(eyebrow.toUpperCase(),
-                style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.1)),
-            const SizedBox(height: 7),
-            Text(title,
-                style: theme.textTheme.headlineSmall
-                    ?.copyWith(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
-            Text(subtitle,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant, height: 1.5)),
-            const SizedBox(height: 22),
-            child,
-          ]),
-    );
-  }
-
-  Future<void> _finish(LearningLesson lesson, AppLanguage language) async {
-    final NavigatorState navigator = Navigator.of(context);
-    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
-    if (ref.read(learningProvider).completedLessons.contains(lesson.id)) {
-      navigator.pop();
-      return;
-    }
-    setState(() => _saving = true);
-    try {
-      await ref
-          .read(learningProvider.notifier)
-          .completeLesson(lesson.id, lessonTitle: lesson.title);
-      if (!mounted) return;
-      final CertificateRecord? record =
-          ref.read(learningProvider).certificateForLesson(lesson.id);
-      messenger.showSnackBar(SnackBar(
-          content: Text(language.tr(
-              en: 'Lesson completed. Your progress is saved.',
-              ha: 'An kammala darasi kuma an adana ci gabanka.',
-              fr: 'Lecon terminee. Votre progression est enregistree.'))));
-      if (record != null) {
-        await navigator.push<void>(MaterialPageRoute<void>(
-            builder: (_) => LessonCertificateScreen(
-                record: record, recipientName: 'FarmSync learner')));
-      }
-    } catch (_) {
-      if (mounted) {
-        messenger.showSnackBar(SnackBar(
-            content: Text(language.tr(
-                en: 'Could not save lesson completion. Please try again.',
-                ha: 'Ba a iya adana kammala darasi ba. Sake gwadawa.',
-                fr: 'Impossible d’enregistrer la fin de la lecon. Reessayez.'))));
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
   }
 }
 
@@ -939,6 +945,143 @@ class LearnPracticeDetailScreen extends ConsumerWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AwardsBoard extends StatelessWidget {
+  const _AwardsBoard({required this.language, required this.learning});
+
+  final AppLanguage language;
+  final LearningState learning;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<_AwardData> awards = <_AwardData>[
+      _AwardData(
+        title: language.tr(
+            en: 'First Lesson', ha: 'Darasi na Farko', fr: 'Premiere lecon'),
+        detail: language.tr(
+            en: 'Complete one lesson',
+            ha: 'Kammala darasi daya',
+            fr: 'Terminer une lecon'),
+        unlocked: learning.completedLessons.isNotEmpty,
+        icon: Icons.school_rounded,
+        tint: const Color(0xFFDFF1FF),
+      ),
+      _AwardData(
+        title: language.tr(
+            en: 'Crop Scholar',
+            ha: 'Masanin Amfanin Gona',
+            fr: 'Expert des cultures'),
+        detail: language.tr(
+            en: 'Complete three lessons',
+            ha: 'Kammala darussa uku',
+            fr: 'Terminer trois lecons'),
+        unlocked: learning.completedLessons.length >= 3,
+        icon: Icons.workspace_premium_rounded,
+        tint: const Color(0xFFE8F4D8),
+      ),
+      _AwardData(
+        title: language.tr(
+            en: 'Field Doer', ha: 'Mai Aikin Gona', fr: 'Acteur de terrain'),
+        detail: language.tr(
+            en: 'Finish two practices',
+            ha: 'Kammala atisaye biyu',
+            fr: 'Terminer deux exercices'),
+        unlocked: learning.completedPractices.length >= 2,
+        icon: Icons.fact_check_rounded,
+        tint: const Color(0xFFFFEBCF),
+      ),
+      _AwardData(
+        title: language.tr(
+            en: 'Community Helper',
+            ha: 'Mataimakin Al\'umma',
+            fr: 'Aide communautaire'),
+        detail: language.tr(
+            en: 'Share one guide',
+            ha: 'Raba jagora daya',
+            fr: 'Partager un guide'),
+        unlocked: learning.sharedItems.isNotEmpty,
+        icon: Icons.groups_rounded,
+        tint: const Color(0xFFEDE8FF),
+      ),
+    ];
+
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      childAspectRatio: 1.32,
+      children:
+          awards.map((_AwardData award) => _AwardCard(award: award)).toList(),
+    );
+  }
+}
+
+class _AwardCard extends StatelessWidget {
+  const _AwardCard({required this.award});
+
+  final _AwardData award;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return AppCard(
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color:
+                        award.unlocked ? award.tint : theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
+                  ),
+                  child: Icon(
+                    award.unlocked ? award.icon : Icons.lock_outline_rounded,
+                    color: award.unlocked
+                        ? AppColors.primary
+                        : theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const Spacer(),
+                Icon(
+                  award.unlocked
+                      ? Icons.check_circle_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  color: award.unlocked
+                      ? AppColors.primaryMid
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+              ],
+            ),
+            const Spacer(),
+            Text(
+              award.title,
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              award.detail,
+              style: theme.textTheme.bodySmall,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1368,7 +1511,6 @@ class _QuizQuestionCard extends ConsumerStatefulWidget {
     required this.question,
     required this.index,
     required this.tint,
-    required ValueKey<String> key,
   });
 
   final String lessonId;
@@ -1385,7 +1527,6 @@ class _QuizQuestionCardState extends ConsumerState<_QuizQuestionCard> {
   bool _revealed = false;
   bool? _isCorrect;
   bool _skipped = false;
-  bool _isChecking = false;
 
   @override
   Widget build(BuildContext context) {
@@ -1442,17 +1583,11 @@ class _QuizQuestionCardState extends ConsumerState<_QuizQuestionCard> {
                     child: RadioListTile<int>(
                       value: entry.key,
                       groupValue: _selectedIndex,
-                      onChanged:
-                          _isChecking || (_revealed && _isCorrect == true)
-                              ? null
-                              : (int? value) {
-                                  setState(() {
-                                    _selectedIndex = value;
-                                    _revealed = false;
-                                    _isCorrect = null;
-                                    _skipped = false;
-                                  });
-                                },
+                      onChanged: _revealed
+                          ? null
+                          : (int? value) {
+                              setState(() => _selectedIndex = value);
+                            },
                       contentPadding: const EdgeInsets.symmetric(horizontal: 0),
                       title: Text(entry.value),
                       dense: true,
@@ -1517,74 +1652,41 @@ class _QuizQuestionCardState extends ConsumerState<_QuizQuestionCard> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: AppButton.primary(
-                    onPressed: _isChecking || (_revealed && _isCorrect == true)
+                    onPressed: _revealed
                         ? null
                         : () async {
-                            final ScaffoldMessengerState failureMessenger =
-                                ScaffoldMessenger.of(context);
                             if (_selectedIndex == null) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(language.tr(
-                                    en: 'Choose an answer or skip the question.',
-                                    ha: 'Zaɓi amsa ko tsallake tambayar.',
-                                    fr: 'Choisissez une reponse ou ignorez la question.',
-                                  )),
-                                ),
+                                    content: Text(language.tr(
+                                        en: 'Choose an answer or skip the question.',
+                                        ha: 'Zaɓi amsa ko tsallake tambayar.',
+                                        fr: 'Choisissez une reponse ou ignorez la question.'))),
                               );
                               return;
                             }
-                            setState(() => _isChecking = true);
-                            try {
-                              final bool correct = _selectedIndex ==
-                                  widget.question.correctOptionIndex;
-                              await ref
-                                  .read(learningProvider.notifier)
-                                  .recordAnswer(
-                                    lessonId: widget.lessonId,
-                                    questionId: widget.question.id,
-                                    correct: correct,
-                                  );
-                              if (!mounted) return;
-                              setState(() {
-                                _skipped = false;
-                                _isCorrect = correct;
-                                _revealed = true;
-                              });
-                            } catch (_) {
-                              if (!mounted) return;
-                              failureMessenger.showSnackBar(
-                                SnackBar(
-                                  content: Text(language.tr(
-                                    en: 'We could not check this answer. Please try again.',
-                                    ha: 'Ba a iya duba amsar ba. Sake gwadawa.',
-                                    fr: 'Impossible de verifier cette reponse. Reessayez.',
-                                  )),
-                                ),
-                              );
-                            } finally {
-                              if (mounted) setState(() => _isChecking = false);
-                            }
+                            final bool correct = _selectedIndex ==
+                                widget.question.correctOptionIndex;
+                            await ref
+                                .read(learningProvider.notifier)
+                                .recordAnswer(
+                                  lessonId: widget.lessonId,
+                                  questionId: widget.question.id,
+                                  correct: correct,
+                                );
+                            setState(() {
+                              _skipped = false;
+                              _isCorrect = correct;
+                              _revealed = true;
+                            });
                           },
-                    child: _isChecking
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(_revealed && _isCorrect == false
-                            ? language.tr(
-                                en: 'Try again',
-                                ha: 'Sake gwadawa',
-                                fr: 'Reessayer')
-                            : _revealed
-                                ? language.tr(
-                                    en: 'Correct', ha: 'Daidai', fr: 'Correct')
-                                : language.tr(
-                                    en: 'Check answer',
-                                    ha: 'Duba Amsa',
-                                    fr: 'Verifier la reponse',
-                                  )),
+                    child: Text(_revealed
+                        ? language.tr(
+                            en: 'Checked', ha: 'An Duba', fr: 'Verifie')
+                        : language.tr(
+                            en: 'Check answer',
+                            ha: 'Duba Amsa',
+                            fr: 'Verifier la reponse')),
                   ),
                 ),
               ],
@@ -1745,6 +1847,22 @@ double _lessonProgress(LearningState learning, LearningLesson lesson) {
     return 0;
   }
   return reviewedQuestions / lesson.questions.length;
+}
+
+class _AwardData {
+  const _AwardData({
+    required this.title,
+    required this.detail,
+    required this.unlocked,
+    required this.icon,
+    required this.tint,
+  });
+
+  final String title;
+  final String detail;
+  final bool unlocked;
+  final IconData icon;
+  final Color tint;
 }
 
 class LearningLesson {
@@ -21696,7 +21814,7 @@ const List<LearningTrack> _learningTracks = <LearningTrack>[
 
 final List<LearningLesson> _additionalLearningLessons = <LearningLesson>[
   // Third academy expansion: additional crop, livestock, business and resilience lessons.
-  const LearningLesson(
+  LearningLesson(
     id: 'onion-curing',
     title: 'Onion production and bulb curing',
     subtitle: 'Practical field guide: curing.',

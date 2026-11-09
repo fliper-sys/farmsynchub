@@ -18,6 +18,7 @@ import '../../../core/services/weather_reading_service.dart';
 import '../../../core/utils/widget_image_capture.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/date_utils.dart' as app_date;
 import '../../../core/utils/validators.dart';
@@ -1132,12 +1133,14 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           const SizedBox(height: 18),
           _CollapsibleSection(
             sectionKey: _sectionKeys['workspaceMembers']!,
+            icon: Icons.groups_rounded,
             title: _localizedSectionTitle(language, 'workspaceMembers'),
             expanded: _expanded['workspaceMembers']!,
             onToggle: (bool value) =>
                 setState(() => _expanded['workspaceMembers'] = value),
             child: farm.workspaceMembers.isEmpty
                 ? const _EmptyInfoCard(
+                    icon: Icons.person_add_alt_1_rounded,
                     message:
                         'Invite workers, partners, or co-owners to share access to this farm.')
                 : Column(
@@ -1177,12 +1180,14 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           const SizedBox(height: 18),
           _CollapsibleSection(
             sectionKey: _sectionKeys['taskCalendar']!,
+            icon: Icons.event_note_rounded,
             title: _localizedSectionTitle(language, 'taskCalendar'),
             expanded: _expanded['taskCalendar']!,
             onToggle: (bool value) =>
                 setState(() => _expanded['taskCalendar'] = value),
             child: farm.workspaceTasks.isEmpty
                 ? const _EmptyInfoCard(
+                    icon: Icons.event_available_rounded,
                     message:
                         'No shared tasks yet. Add a schedule, assign it, and let the team update progress here.')
                 : _TaskCalendarCard(
@@ -1198,12 +1203,14 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           const SizedBox(height: 18),
           _CollapsibleSection(
             sectionKey: _sectionKeys['activityLog']!,
+            icon: Icons.history_rounded,
             title: _localizedSectionTitle(language, 'activityLog'),
             expanded: _expanded['activityLog']!,
             onToggle: (bool value) =>
                 setState(() => _expanded['activityLog'] = value),
             child: farm.activityLog.isEmpty
                 ? const _EmptyInfoCard(
+                    icon: Icons.history_rounded,
                     message:
                         'Activity updates from workers and partners will appear here for the farm owner or co-owners.')
                 : Column(
@@ -1221,6 +1228,7 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           const SizedBox(height: 18),
           _CollapsibleSection(
             sectionKey: _sectionKeys['farmNotes']!,
+            icon: Icons.sticky_note_2_rounded,
             title: _localizedSectionTitle(language, 'farmNotes'),
             expanded: _expanded['farmNotes']!,
             onToggle: (bool value) =>
@@ -1232,21 +1240,48 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(
-                      farm.notes.trim().isEmpty
-                          ? 'No farm notes added yet.'
-                          : farm.notes,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(height: 1.5),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Icon(
+                          Icons.notes_rounded,
+                          color: AppColors.primaryForeground(
+                              Theme.of(context).brightness),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            farm.notes.trim().isEmpty
+                                ? 'No farm notes added yet. Add field observations, storage plans, or seasonal reminders.'
+                                : farm.notes,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  height: 1.55,
+                                  color: farm.notes.trim().isEmpty
+                                      ? Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant
+                                      : null,
+                                ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 14),
-                    Align(
-                      alignment: Alignment.centerRight,
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
                       child: AppButton.secondary(
                         onPressed: () => _openNotesSheet(context, ref, farm!),
-                        child: const Text('Update notes'),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: <Widget>[
+                            Icon(Icons.edit_note_rounded, size: 19),
+                            SizedBox(width: 8),
+                            Text('Update notes'),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -1257,20 +1292,16 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           const SizedBox(height: 18),
           _CollapsibleSection(
             sectionKey: _sectionKeys['documentStorage']!,
+            icon: Icons.folder_copy_rounded,
             title: _localizedSectionTitle(language, 'documentStorage'),
             expanded: _expanded['documentStorage']!,
             onToggle: (bool value) =>
                 setState(() => _expanded['documentStorage'] = value),
             child: farm.documents.isEmpty
-                ? AppCard(
-                    color:
-                        Theme.of(context).colorScheme.surfaceContainerHighest,
-                    child: const Padding(
-                      padding: EdgeInsets.all(18),
-                      child: Text(
+                ? const _EmptyInfoCard(
+                    icon: Icons.folder_open_rounded,
+                    message:
                         'No farm documents added yet. Add permits, contracts, inspection notes, or storage references.',
-                      ),
-                    ),
                   )
                 : Column(
                     children: farm.documents
@@ -1288,12 +1319,19 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
                                   width: 48,
                                   height: 48,
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFDFF1FF),
+                                    color: Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? AppColors.primary.withOpacity(0.16)
+                                        : AppColors.surfaceSoft,
                                     borderRadius: BorderRadius.circular(16),
                                   ),
-                                  child: Icon(document.hasAttachedFile
-                                      ? Icons.attach_file_rounded
-                                      : Icons.description_outlined),
+                                  child: Icon(
+                                    document.hasAttachedFile
+                                        ? Icons.attach_file_rounded
+                                        : Icons.description_outlined,
+                                    color: AppColors.primaryForeground(
+                                        Theme.of(context).brightness),
+                                  ),
                                 ),
                                 title: Text(document.title),
                                 subtitle: Padding(
@@ -1308,81 +1346,87 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
                                         ?.copyWith(height: 1.5),
                                   ),
                                 ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: <Widget>[
-                                    if (document.hasAttachedFile)
-                                      IconButton(
-                                        icon: const Icon(
-                                            Icons.download_rounded),
-                                        tooltip: 'Download document',
-                                        onPressed: () =>
-                                            _downloadFarmDocument(document),
-                                      ),
-                                    Builder(builder: (BuildContext ctx) {
-                                      final Uri? uri =
-                                          Uri.tryParse(document.reference);
-                                      final bool isUrl = uri != null &&
-                                          (uri.scheme == 'http' ||
-                                              uri.scheme == 'https');
-                                      if (document.hasAttachedFile &&
-                                          document.reference.trim().isEmpty) {
-                                        return const SizedBox.shrink();
+                                trailing: PopupMenuButton<String>(
+                                  tooltip: 'Document actions',
+                                  onSelected: (String action) async {
+                                    if (action == 'download') {
+                                      await _downloadFarmDocument(document);
+                                      return;
+                                    }
+                                    if (action == 'copy') {
+                                      await Clipboard.setData(ClipboardData(
+                                          text: document.reference));
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(const SnackBar(
+                                          content: Text(
+                                              'Document reference copied.'),
+                                        ));
                                       }
-                                      return Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: <Widget>[
-                                          IconButton(
-                                            icon: const Icon(
-                                                Icons.open_in_new_rounded),
-                                            tooltip: isUrl
-                                                ? 'Open document'
-                                                : 'Open reference',
-                                            onPressed: isUrl
-                                                ? () async {
-                                                    try {
-                                                      if (!await launchUrl(uri,
-                                                          mode: LaunchMode
-                                                              .externalApplication)) {
-                                                        ScaffoldMessenger.of(
-                                                                ctx)
-                                                            .showSnackBar(
-                                                                const SnackBar(
-                                                                    content: Text(
-                                                                        'Could not open link.')));
-                                                      }
-                                                    } catch (e) {
-                                                      ScaffoldMessenger.of(ctx)
-                                                          .showSnackBar(
-                                                              const SnackBar(
-                                                                  content: Text(
-                                                                      'Could not open link.')));
-                                                    }
-                                                  }
-                                                : () {
-                                                    ScaffoldMessenger.of(ctx)
-                                                        .showSnackBar(
-                                                            const SnackBar(
-                                                                content: Text(
-                                                                    'No direct link available — copy the reference instead.')));
-                                                  },
-                                          ),
-                                          IconButton(
-                                            icon:
-                                                const Icon(Icons.copy_rounded),
-                                            tooltip: 'Copy reference',
-                                            onPressed: () {
-                                              Clipboard.setData(ClipboardData(
-                                                  text: document.reference));
-                                              ScaffoldMessenger.of(ctx)
-                                                  .showSnackBar(const SnackBar(
-                                                      content: Text(
-                                                          'Document reference copied')));
-                                            },
-                                          ),
-                                        ],
+                                      return;
+                                    }
+                                    final Uri? uri =
+                                        Uri.tryParse(document.reference);
+                                    final bool isUrl = uri != null &&
+                                        (uri.scheme == 'http' ||
+                                            uri.scheme == 'https');
+                                    if (!isUrl) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(const SnackBar(
+                                        content: Text(
+                                            'No direct link available. Copy the reference instead.'),
+                                      ));
+                                      return;
+                                    }
+                                    try {
+                                      final bool opened = await launchUrl(
+                                        uri,
+                                        mode: LaunchMode.externalApplication,
                                       );
-                                    }),
+                                      if (!opened && context.mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(const SnackBar(
+                                          content: Text('Could not open link.'),
+                                        ));
+                                      }
+                                    } catch (_) {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(const SnackBar(
+                                          content: Text('Could not open link.'),
+                                        ));
+                                      }
+                                    }
+                                  },
+                                  itemBuilder: (BuildContext context) =>
+                                      <PopupMenuEntry<String>>[
+                                    if (document.hasAttachedFile)
+                                      const PopupMenuItem<String>(
+                                        value: 'download',
+                                        child: ListTile(
+                                          leading: Icon(Icons.download_rounded),
+                                          title: Text('Download file'),
+                                          dense: true,
+                                        ),
+                                      ),
+                                    if (document.reference.trim().isNotEmpty)
+                                      const PopupMenuItem<String>(
+                                        value: 'open',
+                                        child: ListTile(
+                                          leading:
+                                              Icon(Icons.open_in_new_rounded),
+                                          title: Text('Open reference'),
+                                          dense: true,
+                                        ),
+                                      ),
+                                    const PopupMenuItem<String>(
+                                      value: 'copy',
+                                      child: ListTile(
+                                        leading: Icon(Icons.copy_rounded),
+                                        title: Text('Copy reference'),
+                                        dense: true,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -1472,12 +1516,14 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           const SizedBox(height: 18),
           _CollapsibleSection(
             sectionKey: _sectionKeys['linkedCrops']!,
+            icon: Icons.spa_rounded,
             title: _localizedSectionTitle(language, 'linkedCrops'),
             expanded: _expanded['linkedCrops']!,
             onToggle: (bool value) =>
                 setState(() => _expanded['linkedCrops'] = value),
             child: crops.isEmpty
                 ? const _EmptyInfoCard(
+                    icon: Icons.spa_rounded,
                     message: 'No crops linked to this farm yet.')
                 : Column(
                     children: crops
@@ -1508,12 +1554,14 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           const SizedBox(height: 18),
           _CollapsibleSection(
             sectionKey: _sectionKeys['linkedLivestock']!,
+            icon: Icons.pets_rounded,
             title: _localizedSectionTitle(language, 'linkedLivestock'),
             expanded: _expanded['linkedLivestock']!,
             onToggle: (bool value) =>
                 setState(() => _expanded['linkedLivestock'] = value),
             child: livestock.isEmpty
                 ? const _EmptyInfoCard(
+                    icon: Icons.pets_rounded,
                     message: 'No livestock groups linked to this farm yet.')
                 : Column(
                     children: livestock
@@ -1713,8 +1761,8 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           await captureBoundaryImage(_shareBoundaryKey);
       if (imageBytes == null) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Could not capture the status card.')));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Could not capture the status card.')));
         }
         return;
       }
@@ -1865,8 +1913,7 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
               ),
               FilledButton(
                 onPressed: () {
-                  final int? count =
-                      int.tryParse(countController.text.trim());
+                  final int? count = int.tryParse(countController.text.trim());
                   if (count == null || count <= 0) {
                     return;
                   }
@@ -1875,7 +1922,8 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
                     targetPlantCount: count,
                     cropType: cropType,
                   );
-                  final double suggestedAreaHa = plan.usableAreaM2 / 10000 / 0.72;
+                  final double suggestedAreaHa =
+                      plan.usableAreaM2 / 10000 / 0.72;
                   Navigator.of(dialogContext).pop();
                   showDialog<void>(
                     context: context,
@@ -1985,8 +2033,8 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
       );
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Could not open that document.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not open that document.')));
       }
     }
   }
@@ -2107,8 +2155,9 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
     // immediately instead of sending a new-account invite.
     UserProfile? existingUser;
     if (draft.email.isNotEmpty) {
-      existingUser =
-          await ref.read(firebaseServiceProvider).findUserProfileByEmail(draft.email);
+      existingUser = await ref
+          .read(firebaseServiceProvider)
+          .findUserProfileByEmail(draft.email);
     }
 
     final String memberId = existingUser?.uid ?? const Uuid().v4();
@@ -2935,12 +2984,12 @@ class _WorkspaceScheduleSheetState extends State<_WorkspaceScheduleSheet> {
       firstDate: DateTime.now().subtract(const Duration(days: 1)),
       lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
     );
-    if (date == null) return;
+    if (!mounted || date == null) return;
     final TimeOfDay? time = await showTimePicker(
       context: context,
       initialTime: TimeOfDay(hour: _startAt.hour, minute: _startAt.minute),
     );
-    if (time == null) return;
+    if (!mounted || time == null) return;
     setState(() => _startAt =
         DateTime(date.year, date.month, date.day, time.hour, time.minute));
   }
@@ -3192,7 +3241,8 @@ class _WorkspaceMemberSheetState extends State<_WorkspaceMemberSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text(_isEditing ? 'Edit workspace member' : 'Add workspace member',
+              Text(
+                  _isEditing ? 'Edit workspace member' : 'Add workspace member',
                   style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 14),
               AppTextField(
@@ -3283,10 +3333,13 @@ class _WorkspaceMemberSheetState extends State<_WorkspaceMemberSheet> {
                   ],
                 ),
               ),
-              if (widget.crops.isNotEmpty || widget.livestock.isNotEmpty) ...<Widget>[
+              if (widget.crops.isNotEmpty ||
+                  widget.livestock.isNotEmpty) ...<Widget>[
                 const SizedBox(height: 16),
                 Text('Record access',
-                    style: Theme.of(context).textTheme.titleSmall
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
                         ?.copyWith(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
                 Text(
@@ -3296,8 +3349,7 @@ class _WorkspaceMemberSheetState extends State<_WorkspaceMemberSheet> {
                 ),
                 const SizedBox(height: 10),
                 if (widget.crops.isNotEmpty) ...<Widget>[
-                  Text('Crops',
-                      style: Theme.of(context).textTheme.labelLarge),
+                  Text('Crops', style: Theme.of(context).textTheme.labelLarge),
                   const SizedBox(height: 6),
                   Wrap(
                     spacing: 8,
@@ -3327,7 +3379,8 @@ class _WorkspaceMemberSheetState extends State<_WorkspaceMemberSheet> {
                     runSpacing: 8,
                     children: widget.livestock
                         .map((Livestock item) => FilterChip(
-                              label: Text('${item.emoji} ${item.breed.isEmpty ? _speciesLabel(item.species) : item.breed}'),
+                              label: Text(
+                                  '${item.emoji} ${item.breed.isEmpty ? _speciesLabel(item.species) : item.breed}'),
                               selected: _selectedLivestockIds.contains(item.id),
                               onSelected: (bool selected) => setState(() {
                                 if (selected) {
@@ -3897,9 +3950,8 @@ class _WorkspaceMemberTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final Color accent = member.isActive
-        ? const Color(0xFF2E9E5B)
-        : const Color(0xFFE08A1E);
+    final Color accent =
+        member.isActive ? const Color(0xFF2E9E5B) : const Color(0xFFE08A1E);
     return Material(
       color: theme.colorScheme.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(22),
@@ -3963,8 +4015,8 @@ class _WorkspaceMemberTile extends StatelessWidget {
                       '${member.email}${member.phone.isEmpty ? '' : '  ·  ${member.phone}'}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant),
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                     ),
                     if (!member.isActive) ...<Widget>[
                       const SizedBox(height: 4),
@@ -3975,8 +4027,7 @@ class _WorkspaceMemberTile extends StatelessWidget {
                           const SizedBox(width: 4),
                           Text('Invite pending',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                  color: accent,
-                                  fontWeight: FontWeight.w700)),
+                                  color: accent, fontWeight: FontWeight.w700)),
                         ],
                       ),
                     ],
@@ -4015,8 +4066,7 @@ class _WorkspaceMemberTile extends StatelessWidget {
                     onRemove();
                   }
                 },
-                itemBuilder: (BuildContext context) =>
-                    <PopupMenuEntry<String>>[
+                itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
                   const PopupMenuItem<String>(
                     value: 'edit',
                     child: Text('Edit'),
@@ -4061,9 +4111,24 @@ class _TaskCalendarCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text('Upcoming tasks',
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 12),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    'Your schedule',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                ),
+                _Tag(
+                  text:
+                      '${tasks.where((FarmWorkspaceTask task) => !task.isCompleted).length} open',
+                  color: AppColors.surfaceSoft,
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
             if (sortedDays.isEmpty)
               const Text('No upcoming tasks right now.')
             else
@@ -4075,12 +4140,36 @@ class _TaskCalendarCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text(
-                        _formatDayLabel(day),
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelLarge
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                      Row(
+                        children: <Widget>[
+                          Icon(
+                            Icons.calendar_today_rounded,
+                            size: 16,
+                            color: AppColors.primaryForeground(
+                                Theme.of(context).brightness),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _formatDayLabel(day),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelLarge
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                          Text(
+                            '${dayTasks.length} ${dayTasks.length == 1 ? 'task' : 'tasks'}',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 8),
                       ...dayTasks.map((FarmWorkspaceTask task) => Padding(
@@ -4144,80 +4233,94 @@ class _TaskListItem extends StatelessWidget {
             : const Color(0xFF3B82C4);
     return Container(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-            color: theme.colorScheme.outlineVariant.withOpacity(0.35)),
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       clipBehavior: Clip.antiAlias,
-      child: IntrinsicHeight(
-        child: Row(
-          children: <Widget>[
-            Container(width: 4, color: accent),
-            Checkbox(
-                value: task.isCompleted,
-                shape: const CircleBorder(),
-                onChanged: (_) {
-                  HapticFeedback.selectionClick();
-                  onToggle();
-                }),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 200),
-                      style: (theme.textTheme.titleSmall ?? const TextStyle())
-                          .copyWith(
-                        fontWeight: FontWeight.w700,
-                        decoration: task.isCompleted
-                            ? TextDecoration.lineThrough
-                            : TextDecoration.none,
-                        color: task.isCompleted
-                            ? theme.colorScheme.onSurfaceVariant
-                            : theme.colorScheme.onSurface,
-                      ),
-                      child: Text(task.title),
+      child: Row(
+        children: <Widget>[
+          Container(width: 4, color: accent),
+          Checkbox(
+              value: task.isCompleted,
+              shape: const CircleBorder(),
+              onChanged: (_) {
+                HapticFeedback.selectionClick();
+                onToggle();
+              }),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 200),
+                    style: (theme.textTheme.titleSmall ?? const TextStyle())
+                        .copyWith(
+                      fontWeight: FontWeight.w700,
+                      decoration: task.isCompleted
+                          ? TextDecoration.lineThrough
+                          : TextDecoration.none,
+                      color: task.isCompleted
+                          ? theme.colorScheme.onSurfaceVariant
+                          : theme.colorScheme.onSurface,
                     ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: <Widget>[
-                        Icon(
-                            overdue
-                                ? Icons.warning_amber_rounded
-                                : Icons.schedule_rounded,
-                            size: 13,
-                            color: accent),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            '${app_date.DateUtils.formatDateTime(task.dueAt)}${task.reminderEnabled ? ' · ${task.reminderLeadMinutes}m reminder' : ''}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                                color: overdue
-                                    ? accent
-                                    : theme.colorScheme.onSurfaceVariant),
-                          ),
+                    child: Text(task.title),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: <Widget>[
+                      Icon(
+                          overdue
+                              ? Icons.warning_amber_rounded
+                              : Icons.schedule_rounded,
+                          size: 13,
+                          color: accent),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          '${app_date.DateUtils.formatDateTime(task.dueAt)}${task.reminderEnabled ? ' · ${task.reminderLeadMinutes}m reminder' : ''}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                              color: overdue
+                                  ? accent
+                                  : theme.colorScheme.onSurfaceVariant),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            IconButton(
-                visualDensity: VisualDensity.compact,
-                onPressed: onEdit,
-                icon: const Icon(Icons.edit_outlined, size: 20)),
-            IconButton(
-                visualDensity: VisualDensity.compact,
-                onPressed: onDelete,
-                icon: const Icon(Icons.delete_outline_rounded, size: 20)),
-          ],
-        ),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'Task actions',
+            onSelected: (String action) {
+              if (action == 'edit') onEdit();
+              if (action == 'delete') onDelete();
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              const PopupMenuItem<String>(
+                value: 'edit',
+                child: ListTile(
+                  leading: Icon(Icons.edit_outlined),
+                  title: Text('Edit task'),
+                  dense: true,
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'delete',
+                child: ListTile(
+                  leading: Icon(Icons.delete_outline_rounded),
+                  title: Text('Delete task'),
+                  dense: true,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -4231,8 +4334,7 @@ class _ActivityLogTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final bool ownersOnly =
-        activity.audience == FarmActivityAudience.owners;
+    final bool ownersOnly = activity.audience == FarmActivityAudience.owners;
     final Color accent =
         ownersOnly ? const Color(0xFF3B82C4) : const Color(0xFF7A5BC4);
     return Container(
@@ -4251,10 +4353,8 @@ class _ActivityLogTile extends StatelessWidget {
               color: accent.withOpacity(0.15),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(
-                ownersOnly ? Icons.lock_rounded : Icons.history_rounded,
-                size: 20,
-                color: accent),
+            child: Icon(ownersOnly ? Icons.lock_rounded : Icons.history_rounded,
+                size: 20, color: accent),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -4283,8 +4383,8 @@ class _ActivityLogTile extends StatelessWidget {
                           text: 'Sent to owners', color: Color(0xFFDFF1FF)),
                     Text(
                       app_date.DateUtils.formatDateTime(activity.createdAt),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant),
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                     ),
                   ],
                 ),
@@ -4495,6 +4595,7 @@ class _CollapsibleSection extends StatelessWidget {
     required this.expanded,
     required this.onToggle,
     required this.child,
+    this.icon = Icons.tune_rounded,
   });
 
   final GlobalKey sectionKey;
@@ -4502,57 +4603,77 @@ class _CollapsibleSection extends StatelessWidget {
   final bool expanded;
   final ValueChanged<bool> onToggle;
   final Widget child;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final IconData icon = _sectionIcon(_sectionIdForTitle(title));
+    final Color accent = AppColors.primaryForeground(theme.brightness);
+    final Color iconFill = theme.brightness == Brightness.dark
+        ? accent.withOpacity(0.16)
+        : AppColors.surfaceSoft;
+
     return Column(
       key: sectionKey,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => onToggle(!expanded),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
-            child: Row(
-              children: <Widget>[
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(12),
+        Material(
+          color: theme.colorScheme.surfaceContainerHighest,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+            side: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => onToggle(!expanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              child: Row(
+                children: <Widget>[
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: iconFill,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(icon, color: accent, size: 21),
                   ),
-                  child:
-                      Icon(icon, size: 18, color: theme.colorScheme.primary),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w800),
+                  const SizedBox(width: 13),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
                   ),
-                ),
-                AnimatedRotation(
-                  turns: expanded ? 0 : -0.25,
-                  duration: const Duration(milliseconds: 200),
-                  child: Icon(Icons.keyboard_arrow_down_rounded,
-                      color: theme.colorScheme.onSurfaceVariant),
-                ),
-              ],
+                  AnimatedRotation(
+                    turns: expanded ? 0 : -0.25,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
         const SizedBox(height: 4),
         ClipRect(
           child: AnimatedSize(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeInOut,
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeInOutCubic,
             alignment: Alignment.topCenter,
-            child: expanded ? child : const SizedBox(width: double.infinity),
+            child: expanded
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: child,
+                  )
+                : const SizedBox(width: double.infinity),
           ),
         ),
       ],
@@ -4697,7 +4818,8 @@ class _AnimatedValue extends StatelessWidget {
   Widget build(BuildContext context) {
     final RegExpMatch? m = RegExp(r'^(\d+)$').firstMatch(value);
     if (m == null) {
-      return Text(value, style: style, maxLines: 1, overflow: TextOverflow.ellipsis);
+      return Text(value,
+          style: style, maxLines: 1, overflow: TextOverflow.ellipsis);
     }
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0, end: double.parse(m.group(1)!)),
@@ -4828,52 +4950,66 @@ class _LinkedEntityTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    return Material(
+    final Color accent = AppColors.primaryForeground(theme.brightness);
+    final Color iconFill = theme.brightness == Brightness.dark
+        ? accent.withOpacity(0.16)
+        : AppColors.surfaceSoft;
+
+    return AppCard(
+      onTap: onTap,
       color: theme.colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(22),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
-          child: Row(
-            children: <Widget>[
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Icon(icon, color: theme.colorScheme.primary),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: iconFill,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Icon(icon, color: accent),
+        ),
+        title: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 5),
+          child: statusBadge == null
+              ? Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                )
+              : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 2),
-                    Text(subtitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant)),
-                    if (statusBadge != null) ...<Widget>[
-                      const SizedBox(height: 6),
-                      statusBadge!,
-                    ],
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    statusBadge!,
                   ],
                 ),
-              ),
-              Icon(Icons.chevron_right_rounded,
-                  color: theme.colorScheme.onSurfaceVariant),
-            ],
-          ),
+        ),
+        trailing: Icon(
+          Icons.arrow_forward_rounded,
+          color: theme.colorScheme.onSurfaceVariant,
+          size: 20,
         ),
       ),
     );
@@ -4881,32 +5017,53 @@ class _LinkedEntityTile extends StatelessWidget {
 }
 
 class _EmptyInfoCard extends StatelessWidget {
-  const _EmptyInfoCard({required this.message});
+  const _EmptyInfoCard({
+    required this.message,
+    this.icon = Icons.inbox_rounded,
+  });
 
   final String message;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Row(
-        children: <Widget>[
-          Icon(Icons.inbox_rounded,
-              size: 28, color: theme.colorScheme.onSurfaceVariant),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(message,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                    height: 1.45,
-                    color: theme.colorScheme.onSurfaceVariant)),
-          ),
-        ],
+    final Color accent = AppColors.primaryForeground(theme.brightness);
+    final Color iconFill = theme.brightness == Brightness.dark
+        ? accent.withOpacity(0.16)
+        : AppColors.surfaceSoft;
+
+    return AppCard(
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: iconFill,
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: Icon(icon, color: accent, size: 21),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  message,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    height: 1.5,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -5300,7 +5457,8 @@ class _FarmDocumentSheetState extends State<_FarmDocumentSheet> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    color:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
                         color: Theme.of(context).colorScheme.outlineVariant),
@@ -5337,7 +5495,8 @@ class _FarmDocumentSheetState extends State<_FarmDocumentSheet> {
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.attach_file_rounded),
-                  label: Text(_isPicking ? 'Opening file picker...' : 'Attach file'),
+                  label: Text(
+                      _isPicking ? 'Opening file picker...' : 'Attach file'),
                 ),
               const SizedBox(height: 12),
               AppTextField(

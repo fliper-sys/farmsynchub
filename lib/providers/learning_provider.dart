@@ -178,7 +178,8 @@ class LearningNotifier extends Notifier<LearningState> {
 
   /// One-time migration for question IDs that were reused by different lessons.
   /// The first occurrence keeps its historical ID; later lessons receive unique IDs.
-  static const Map<String, String> _legacyQuestionKeyMigrations = <String, String>{
+  static const Map<String, String> _legacyQuestionKeyMigrations =
+      <String, String>{
     "extra-014::nursery-1": "extra-014::extra-014-nursery-1",
     "extra-014::nursery-2": "extra-014::extra-014-nursery-2",
     "extra-014::nursery-3": "extra-014::extra-014-nursery-3",
@@ -236,16 +237,26 @@ class LearningNotifier extends Notifier<LearningState> {
     "extra-099::fs-1": "extra-099::extra-099-fs-1",
     "extra-099::fs-2": "extra-099::extra-099-fs-2",
     "extra-099::fs-3": "extra-099::extra-099-fs-3",
-    "inventory-stock-control-advanced::inventory-stock-control-1": "inventory-stock-control-advanced::inventory-stock-control-advanced-inventory-stock-control-1",
-    "inventory-stock-control-advanced::inventory-stock-control-2": "inventory-stock-control-advanced::inventory-stock-control-advanced-inventory-stock-control-2",
-    "inventory-stock-control-advanced::inventory-stock-control-3": "inventory-stock-control-advanced::inventory-stock-control-advanced-inventory-stock-control-3",
-    "inventory-stock-control-advanced::inventory-stock-control-4": "inventory-stock-control-advanced::inventory-stock-control-advanced-inventory-stock-control-4",
-    "inventory-stock-control-advanced::inventory-stock-control-5": "inventory-stock-control-advanced::inventory-stock-control-advanced-inventory-stock-control-5",
-    "livestock-body-condition-review::livestock-body-condition-1": "livestock-body-condition-review::livestock-body-condition-review-livestock-body-condition-1",
-    "livestock-body-condition-review::livestock-body-condition-2": "livestock-body-condition-review::livestock-body-condition-review-livestock-body-condition-2",
-    "livestock-body-condition-review::livestock-body-condition-3": "livestock-body-condition-review::livestock-body-condition-review-livestock-body-condition-3",
-    "livestock-body-condition-review::livestock-body-condition-4": "livestock-body-condition-review::livestock-body-condition-review-livestock-body-condition-4",
-    "livestock-body-condition-review::livestock-body-condition-5": "livestock-body-condition-review::livestock-body-condition-review-livestock-body-condition-5"
+    "inventory-stock-control-advanced::inventory-stock-control-1":
+        "inventory-stock-control-advanced::inventory-stock-control-advanced-inventory-stock-control-1",
+    "inventory-stock-control-advanced::inventory-stock-control-2":
+        "inventory-stock-control-advanced::inventory-stock-control-advanced-inventory-stock-control-2",
+    "inventory-stock-control-advanced::inventory-stock-control-3":
+        "inventory-stock-control-advanced::inventory-stock-control-advanced-inventory-stock-control-3",
+    "inventory-stock-control-advanced::inventory-stock-control-4":
+        "inventory-stock-control-advanced::inventory-stock-control-advanced-inventory-stock-control-4",
+    "inventory-stock-control-advanced::inventory-stock-control-5":
+        "inventory-stock-control-advanced::inventory-stock-control-advanced-inventory-stock-control-5",
+    "livestock-body-condition-review::livestock-body-condition-1":
+        "livestock-body-condition-review::livestock-body-condition-review-livestock-body-condition-1",
+    "livestock-body-condition-review::livestock-body-condition-2":
+        "livestock-body-condition-review::livestock-body-condition-review-livestock-body-condition-2",
+    "livestock-body-condition-review::livestock-body-condition-3":
+        "livestock-body-condition-review::livestock-body-condition-review-livestock-body-condition-3",
+    "livestock-body-condition-review::livestock-body-condition-4":
+        "livestock-body-condition-review::livestock-body-condition-review-livestock-body-condition-4",
+    "livestock-body-condition-review::livestock-body-condition-5":
+        "livestock-body-condition-review::livestock-body-condition-review-livestock-body-condition-5"
   };
 
   /// Completes when saved progress has been read. Every action awaits this so
@@ -268,11 +279,13 @@ class LearningNotifier extends Notifier<LearningState> {
 
   Future<void> _startFirebaseSync() async {
     await _ready;
-    _accountSubscription = FirebaseAuth.instance.authStateChanges().listen((user) {
+    _accountSubscription =
+        FirebaseAuth.instance.authStateChanges().listen((user) {
       if (user?.uid != _loadedUid) unawaited(_switchAccount());
     });
     ref.onDispose(() => _accountSubscription?.cancel());
-    await FirebaseLearningSync.instance.start(onRemoteEvents: _mergeRemoteEvents);
+    await FirebaseLearningSync.instance
+        .start(onRemoteEvents: _mergeRemoteEvents);
   }
 
   Future<void> _switchAccount() async {
@@ -294,11 +307,13 @@ class LearningNotifier extends Notifier<LearningState> {
         if (entry.value == 'learner_name') {
           await prefs.setString(newKey, prefs.getString(oldKey) ?? '');
         } else {
-          await prefs.setStringList(newKey, prefs.getStringList(oldKey) ?? <String>[]);
+          await prefs.setStringList(
+              newKey, prefs.getStringList(oldKey) ?? <String>[]);
         }
         await prefs.remove(oldKey);
       } catch (error) {
-        debugPrint('LearningNotifier: legacy progress migration failed for $oldKey: $error');
+        debugPrint(
+            'LearningNotifier: legacy progress migration failed for $oldKey: $error');
       }
     }
   }
@@ -314,13 +329,16 @@ class LearningNotifier extends Notifier<LearningState> {
     final Set<String> correct = <String>{...state.correctQuestions};
     final Set<String> skipped = <String>{...state.skippedQuestions};
     final Set<String> skippedLessons = <String>{...state.skippedLessons};
-    final Map<String, CertificateRecord> certificates = <String, CertificateRecord>{
+    final Map<String, CertificateRecord> certificates =
+        <String, CertificateRecord>{
       for (final CertificateRecord c in state.earnedCertificates) c.lessonId: c,
     };
     String learnerName = state.learnerName;
     final Set<String> activeDays = <String>{...state.activeDays};
     final List<Map<String, dynamic>> ordered = <Map<String, dynamic>>[...events]
-      ..sort((a, b) => (a['occurredAt'] ?? '').toString().compareTo((b['occurredAt'] ?? '').toString()));
+      ..sort((a, b) => (a['occurredAt'] ?? '')
+          .toString()
+          .compareTo((b['occurredAt'] ?? '').toString()));
 
     for (final Map<String, dynamic> event in ordered) {
       final String type = event['type']?.toString() ?? '';
@@ -328,18 +346,21 @@ class LearningNotifier extends Notifier<LearningState> {
       final String at = event['occurredAt']?.toString() ?? '';
       final DateTime occurredAt = DateTime.tryParse(at) ?? DateTime.now();
       if (event['activityDate'] is String &&
-          <String>{'lessonCompleted', 'practiceCompleted', 'questionAnswered'}.contains(type)) {
+          <String>{'lessonCompleted', 'practiceCompleted', 'questionAnswered'}
+              .contains(type)) {
         activeDays.add(event['activityDate'] as String);
       }
       switch (type) {
         case 'lessonCompleted':
           if (id.isNotEmpty) {
             lessons.add(id);
-            certificates.putIfAbsent(id, () => CertificateRecord(
-              lessonId: id,
-              lessonTitle: event['lessonTitle']?.toString() ?? id,
-              completedAt: occurredAt,
-            ));
+            certificates.putIfAbsent(
+                id,
+                () => CertificateRecord(
+                      lessonId: id,
+                      lessonTitle: event['lessonTitle']?.toString() ?? id,
+                      completedAt: occurredAt,
+                    ));
             skippedLessons.remove(id);
           }
           break;
@@ -363,7 +384,9 @@ class LearningNotifier extends Notifier<LearningState> {
           break;
         case 'questionSkipped':
           final String key = '$id::${event['questionId'] ?? ''}';
-          if (id.isNotEmpty && event['questionId'] != null && !reviewed.contains(key)) skipped.add(key);
+          if (id.isNotEmpty &&
+              event['questionId'] != null &&
+              !reviewed.contains(key)) skipped.add(key);
           break;
         case 'lessonSkipped':
           if (id.isNotEmpty && !lessons.contains(id)) skippedLessons.add(id);
@@ -386,9 +409,16 @@ class LearningNotifier extends Notifier<LearningState> {
       activeDays: activeDays,
     );
     await _persist(<String>{
-      _completedLessonsKey, _completedPracticesKey, _sharedItemsKey,
-      _reviewedQuestionsKey, _correctQuestionsKey, _skippedQuestionsKey,
-      _skippedLessonsKey, _earnedCertificatesKey, _learnerNameKey, _activeDaysKey,
+      _completedLessonsKey,
+      _completedPracticesKey,
+      _sharedItemsKey,
+      _reviewedQuestionsKey,
+      _correctQuestionsKey,
+      _skippedQuestionsKey,
+      _skippedLessonsKey,
+      _earnedCertificatesKey,
+      _learnerNameKey,
+      _activeDaysKey,
     });
     // The same cloud history feeds the engagement record, which owns the
     // streak. It is merged in (never replaced), so offline progress stays.
@@ -412,8 +442,8 @@ class LearningNotifier extends Notifier<LearningState> {
 
       final List<CertificateRecord> certificates = <CertificateRecord>[];
       try {
-        for (final String raw
-            in prefs.getStringList(_earnedCertificatesKey) ?? const <String>[]) {
+        for (final String raw in prefs.getStringList(_earnedCertificatesKey) ??
+            const <String>[]) {
           try {
             final Object? decoded = jsonDecode(raw);
             if (decoded is Map<String, dynamic>) {
@@ -425,7 +455,8 @@ class LearningNotifier extends Notifier<LearningState> {
             }
           } catch (error) {
             // One corrupt record must not discard everything else.
-            debugPrint('LearningNotifier: skipped a corrupt certificate: $error');
+            debugPrint(
+                'LearningNotifier: skipped a corrupt certificate: $error');
           }
         }
       } catch (error) {
@@ -597,7 +628,8 @@ class LearningNotifier extends Notifier<LearningState> {
       earnedCertificates: earnedCertificates,
     );
     final String activityDate = await _recordActivityDay();
-    await FirebaseLearningSync.instance.record('lessonCompleted', <String, dynamic>{
+    await FirebaseLearningSync.instance
+        .record('lessonCompleted', <String, dynamic>{
       'entityId': lessonId,
       'lessonTitle': lessonTitle ?? lessonId,
       'activityDate': activityDate,
@@ -609,8 +641,9 @@ class LearningNotifier extends Notifier<LearningState> {
     });
 
     final String prefix = '$lessonId::';
-    final int answered =
-        state.reviewedQuestions.where((String k) => k.startsWith(prefix)).length;
+    final int answered = state.reviewedQuestions
+        .where((String k) => k.startsWith(prefix))
+        .length;
     final int right =
         state.correctQuestions.where((String k) => k.startsWith(prefix)).length;
     return ref.read(engagementProvider.notifier).recordLessonComplete(
@@ -636,7 +669,10 @@ class LearningNotifier extends Notifier<LearningState> {
     final String? activityDate = completed ? await _recordActivityDay() : null;
     await FirebaseLearningSync.instance.record(
       completed ? 'practiceCompleted' : 'practiceUncompleted',
-      <String, dynamic>{'entityId': practiceId, if (activityDate != null) 'activityDate': activityDate},
+      <String, dynamic>{
+        'entityId': practiceId,
+        if (activityDate != null) 'activityDate': activityDate
+      },
     );
     await _persist(<String>{_completedPracticesKey});
     if (firstTime) {
@@ -651,7 +687,8 @@ class LearningNotifier extends Notifier<LearningState> {
     state = state.copyWith(
       sharedItems: <String>{...state.sharedItems, itemId},
     );
-    await FirebaseLearningSync.instance.record('itemShared', <String, dynamic>{'entityId': itemId});
+    await FirebaseLearningSync.instance
+        .record('itemShared', <String, dynamic>{'entityId': itemId});
     await _persist(<String>{_sharedItemsKey});
   }
 
@@ -674,8 +711,11 @@ class LearningNotifier extends Notifier<LearningState> {
       skippedLessons: <String>{...state.skippedLessons}..remove(lessonId),
     );
     final String activityDate = await _recordActivityDay();
-    await FirebaseLearningSync.instance.record('questionAnswered', <String, dynamic>{
-      'entityId': lessonId, 'questionId': questionId, 'correct': correct,
+    await FirebaseLearningSync.instance
+        .record('questionAnswered', <String, dynamic>{
+      'entityId': lessonId,
+      'questionId': questionId,
+      'correct': correct,
       'activityDate': activityDate,
     });
     await _persist(<String>{
@@ -705,8 +745,10 @@ class LearningNotifier extends Notifier<LearningState> {
     state = state.copyWith(
       skippedQuestions: <String>{...state.skippedQuestions, key},
     );
-    await FirebaseLearningSync.instance.record('questionSkipped', <String, dynamic>{
-      'entityId': lessonId, 'questionId': questionId,
+    await FirebaseLearningSync.instance
+        .record('questionSkipped', <String, dynamic>{
+      'entityId': lessonId,
+      'questionId': questionId,
     });
     await _persist(<String>{_skippedQuestionsKey});
   }
@@ -716,7 +758,8 @@ class LearningNotifier extends Notifier<LearningState> {
     state = state.copyWith(
       skippedLessons: <String>{...state.skippedLessons, lessonId},
     );
-    await FirebaseLearningSync.instance.record('lessonSkipped', <String, dynamic>{'entityId': lessonId});
+    await FirebaseLearningSync.instance
+        .record('lessonSkipped', <String, dynamic>{'entityId': lessonId});
     await _persist(<String>{_skippedLessonsKey});
   }
 
@@ -726,7 +769,8 @@ class LearningNotifier extends Notifier<LearningState> {
     state = state.copyWith(
       learnerName: trimmed.length > 60 ? trimmed.substring(0, 60) : trimmed,
     );
-    await FirebaseLearningSync.instance.record('learnerNameChanged', <String, dynamic>{'name': state.learnerName});
+    await FirebaseLearningSync.instance.record(
+        'learnerNameChanged', <String, dynamic>{'name': state.learnerName});
     await _persist(<String>{_learnerNameKey});
   }
 }
