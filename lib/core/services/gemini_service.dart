@@ -12,6 +12,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/currency_utils.dart';
+import 'ai_free_route.dart';
 import '../../domain/models/ai_topic.dart';
 import '../../domain/models/crop.dart';
 import '../../domain/models/farm.dart';
@@ -75,7 +76,13 @@ class GeminiService {
   final Map<String, _CachedResponse> _cache = <String, _CachedResponse>{};
   DateTime? _rateLimitedUntil;
 
-  bool get hasApiKey => Firebase.apps.isNotEmpty;
+  /// True when at least one AI route could answer: Firebase AI Logic (needs
+  /// an initialised Firebase app), the direct Gemini key, or the free
+  /// OpenAI-compatible route.
+  bool get hasApiKey =>
+      Firebase.apps.isNotEmpty ||
+      _kGeminiApiKey.isNotEmpty ||
+      FreeAiRoute.isConfigured;
 
   String get modelName => _kFirebaseAiModelName;
 
@@ -343,6 +350,25 @@ class GeminiService {
       } catch (restError) {
         debugPrint('[GeminiService] generateFarmInsight direct API key fallback also failed: $restError');
       }
+      final String freeInsight = await _tryFreeRoute(
+        systemPrompt: _buildFarmInsightSystemPrompt(),
+        turns: <AiTurn>[
+          AiTurn(
+            'user',
+            _buildFarmInsightPrompt(
+              farm: farm,
+              crops: crops,
+              livestock: livestock,
+              transactions: transactions,
+            ),
+          ),
+        ],
+        temperature: 0.35,
+        maxTokens: 1500,
+      );
+      if (freeInsight.isNotEmpty) {
+        return freeInsight;
+      }
       // Fall through to a local briefing if both AI transports fail.
     }
 
@@ -416,6 +442,20 @@ class GeminiService {
         }
       } catch (restError) {
         debugPrint('[GeminiService] generateFinanceRecap direct API key fallback also failed: $restError');
+      }
+      final String freeRecap = await _tryFreeRoute(
+        systemPrompt: _buildFinanceRecapSystemPrompt(language),
+        turns: <AiTurn>[
+          AiTurn(
+            'user',
+            _buildFinanceRecapPrompt(transactions: transactions, farms: farms),
+          ),
+        ],
+        temperature: 0.35,
+        maxTokens: 1500,
+      );
+      if (freeRecap.isNotEmpty) {
+        return freeRecap;
       }
       // Fall through to a local briefing if both AI transports fail.
     }
@@ -545,6 +585,16 @@ Future estimate
         debugPrint('[GeminiService] Direct API key fallback also failed: $restError');
         debugPrintStack(stackTrace: restStack);
       }
+
+      final String freeText = await _tryFreeRoute(
+        systemPrompt: _buildSystemPrompt(language, topic),
+        turns: _buildFreeTurns(userMessage: userMessage, history: history),
+        imageBytes: imageBytes,
+        maxTokens: 1500,
+      );
+      if (freeText.isNotEmpty) {
+        return freeText;
+      }
       Error.throwWithStackTrace(firebaseError, firebaseStack);
     }
   }
@@ -658,6 +708,51 @@ Future estimate
     return buffer.toString().trim();
   }
 
+  /// Last resort before the offline guidance: the free OpenAI-compatible
+  /// route. Returns an empty string when it is not configured or fails, so
+  /// callers can simply carry on to their own fallback.
+  Future<String> _tryFreeRoute({
+    required String systemPrompt,
+    required List<AiTurn> turns,
+    List<int>? imageBytes,
+    double temperature = 0.4,
+    int maxTokens = 1500,
+  }) async {
+    if (!FreeAiRoute.isConfigured) {
+      return '';
+    }
+    try {
+      return await FreeAiRoute.instance.generate(
+        systemPrompt: systemPrompt,
+        turns: turns,
+        imageBytes: imageBytes,
+        temperature: temperature,
+        maxTokens: maxTokens,
+      );
+    } catch (error) {
+      debugPrint('[GeminiService] Free AI route failed: $error');
+      return '';
+    }
+  }
+
+  /// Chat history plus the new message as plain turns for the free route.
+  List<AiTurn> _buildFreeTurns({
+    required String userMessage,
+    required List<ChatMessage> history,
+  }) {
+    final List<ChatMessage> usable = history
+        .where((ChatMessage m) => !m.isLoading && !m.isError)
+        .toList(growable: false);
+    final List<ChatMessage> trimmed = usable.length > _kMaxHistoryTurns * 2
+        ? usable.sublist(usable.length - (_kMaxHistoryTurns * 2))
+        : usable;
+    return <AiTurn>[
+      for (final ChatMessage m in trimmed)
+        AiTurn(m.isFromUser ? 'user' : 'assistant', m.text),
+      AiTurn('user', userMessage),
+    ];
+  }
+
   ChatMessage _handleFirebaseAiFailure({
     required AiTopic topic,
     required String message,
@@ -711,7 +806,7 @@ Future estimate
     if (imageBytes != null) {
       userParts.add(
         InlineDataPart(
-          'image/jpeg',
+          aiImageMimeType(imageBytes),
           Uint8List.fromList(imageBytes),
         ),
       );

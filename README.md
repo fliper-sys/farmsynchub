@@ -41,3 +41,7 @@ FarmSync Hub grew out of a research and needs-assessment process with smallholde
 ## About LBtech
 
 FarmSync Hub is built and maintained by [LBtech](https://lbtech.site), a technical services studio based in Jos, Plateau State, Nigeria.
+
+## AI setup
+
+The AI Advisor, photo review and AI summaries use free AI routes with an offline fallback. See [docs/AI_SETUP.md](docs/AI_SETUP.md) for the keys and build flags.
