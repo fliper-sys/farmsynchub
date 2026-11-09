@@ -202,6 +202,50 @@ class FarmNotificationService {
     );
   }
 
+  /// Schedules a one-off notification on its own channel. It is stored by the
+  /// operating system, so it fires with no internet and with the app closed.
+  /// Inexact alarms are used on purpose: they need no special permission and
+  /// the reminder may land a few minutes late, which is fine for a nudge.
+  Future<void> scheduleOneShot({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime scheduledAt,
+    required String channelId,
+    required String channelName,
+    required String channelDescription,
+    String? payload,
+  }) async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+    if (!_isInitialized || !await _areNotificationsEnabled()) {
+      return;
+    }
+    if (!scheduledAt.isAfter(DateTime.now())) {
+      return;
+    }
+    await _plugin.zonedSchedule(
+      id,
+      title,
+      body,
+      tz.TZDateTime.from(scheduledAt, tz.local),
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          channelId,
+          channelName,
+          channelDescription: channelDescription,
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+        iOS: const DarwinNotificationDetails(),
+        macOS: const DarwinNotificationDetails(),
+      ),
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      payload: payload,
+    );
+  }
+
   Future<void> cancel(int id) async {
     if (!_isInitialized) {
       return;

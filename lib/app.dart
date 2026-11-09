@@ -70,6 +70,7 @@ import 'presentation/screens/notifications/notification_detail_screen.dart';
 import 'providers/app_preferences_provider.dart';
 import 'providers/crop_provider.dart';
 import 'providers/farm_provider.dart';
+import 'providers/learning_reminder_provider.dart';
 import 'providers/livestock_provider.dart';
 import 'providers/notification_provider.dart';
 import 'providers/theme_provider.dart';
@@ -182,7 +183,9 @@ class _FarmsyncAppState extends ConsumerState<FarmsyncApp> {
         GlobalWidgetsLocalizations.delegate,
       ],
       builder: (BuildContext context, Widget? child) {
-        return StartupResumePrompt(child: child ?? const SizedBox.shrink());
+        return LearningReminderBinder(
+          child: StartupResumePrompt(child: child ?? const SizedBox.shrink()),
+        );
       },
       routerConfig: _router,
       debugShowCheckedModeBanner: false,

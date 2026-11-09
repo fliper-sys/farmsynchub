@@ -65,6 +65,29 @@ class FirebaseMessagingService {
     }
   }
 
+  String? _learningTopic;
+
+  /// Subscribes this device to one "learn reminders" topic for its language so
+  /// the team can send an online push (Firebase console or a Cloud Function).
+  /// Offline reminders do not depend on this: they are local notifications.
+  Future<void> syncLearningTopic({
+    required String language,
+    required bool enabled,
+  }) async {
+    if (kIsWeb) return; // Topic subscription is not supported on the web.
+    final String? wanted = enabled ? 'learn_reminders_$language' : null;
+    if (wanted == _learningTopic) return;
+    try {
+      final String? old = _learningTopic;
+      if (old != null) await _messaging.unsubscribeFromTopic(old);
+      if (wanted != null) await _messaging.subscribeToTopic(wanted);
+      _learningTopic = wanted;
+    } catch (error) {
+      // Needs a connection; it is retried the next time the app opens.
+      debugPrint('[Messaging] Learning topic sync skipped: $error');
+    }
+  }
+
   void dispose() {
     _authStateSubscription?.cancel();
   }
