@@ -41,7 +41,7 @@ class StreakHero extends ConsumerWidget {
             ha: 'Wutar ka ta daskare! Kammala darasi yau don dawo da ita. '
                 'Saura dawowa ${info.restorationsLeft} cikin ${EngagementState.maxRestorations}.',
             fr: 'Votre flamme est gelée ! Terminez une leçon aujourd’hui pour la rallumer. '
-                'Il reste ${info.restorationsLeft} restauration(s) sur ${EngagementState.maxRestorations}.');
+                'Il reste ${info.restorationsLeft} restauration(s) sur ${EngagementState.maxRestorations}.', pcm: 'Your fire don freeze! Finish one lesson today to bring am back. ${info.restorationsLeft} of ${EngagementState.maxRestorations} restorations remain.');
         break;
       case StreakStatus.broken:
         base = const Color(0xFF8E8E93);
@@ -131,7 +131,7 @@ class StreakHero extends ConsumerWidget {
                     language.tr(
                         en: 'Streak freezes: ${s.freezeItems}/${EngagementState.maxFreezes}',
                         ha: 'Daskarewar jere: ${s.freezeItems}/${EngagementState.maxFreezes}',
-                        fr: 'Gels de série : ${s.freezeItems}/${EngagementState.maxFreezes}'),
+                        fr: 'Gels de série : ${s.freezeItems}/${EngagementState.maxFreezes}', pcm: 'Streak freezes: ${s.freezeItems}/${EngagementState.maxFreezes}'),
                     style: const TextStyle(fontWeight: FontWeight.w800),
                   ),
                 ),
@@ -226,7 +226,7 @@ class _FreezeSheet extends ConsumerWidget {
                     '${EngagementState.maxRestorations} ba.',
                 fr: 'Un gel protège automatiquement votre série si vous manquez '
                     'un jour, sans utiliser l’une de vos '
-                    '${EngagementState.maxRestorations} restaurations.'),
+                    '${EngagementState.maxRestorations} restaurations.', pcm: 'One freeze dey protect your streak by itself if you miss one day, and e no dey use any of your ${EngagementState.maxRestorations} restorations.'),
             style: const TextStyle(color: EngagementColors.grayText),
           ),
           const SizedBox(height: 12),
@@ -245,7 +245,7 @@ class _FreezeSheet extends ConsumerWidget {
                 fr: 'Sans gel, un jour manqué fige votre flamme et terminer une '
                     'leçon la rallume. Vous avez ${EngagementState.maxRestorations} '
                     'restaurations (${s.restorationsLeft} restantes). Ensuite, '
-                    'le prochain oubli remet votre série à zéro.'),
+                    'le prochain oubli remet votre série à zéro.', pcm: 'If you no get freeze, one day wey you miss go freeze your fire and if you finish one lesson e go come back. You get ${EngagementState.maxRestorations} restorations (${s.restorationsLeft} remain). After that, the next miss go send your streak go start again.'),
           ),
           const SizedBox(height: 18),
           SizedBox(
@@ -274,7 +274,7 @@ class _FreezeSheet extends ConsumerWidget {
               label: Text(language.tr(
                   en: 'GET FOR ${EngagementState.freezeCostGems} GEMS',
                   ha: 'SAMU DA DUWATSU ${EngagementState.freezeCostGems}',
-                  fr: 'OBTENIR POUR ${EngagementState.freezeCostGems} GEMMES')),
+                  fr: 'OBTENIR POUR ${EngagementState.freezeCostGems} GEMMES', pcm: 'GET AM FOR ${EngagementState.freezeCostGems} GEMS')),
             ),
           ),
           if (hint != null) ...<Widget>[

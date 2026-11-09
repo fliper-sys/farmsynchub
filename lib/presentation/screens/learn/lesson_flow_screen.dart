@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/i18n/context_tr.dart';
 import '../../../providers/learning_provider.dart';
 import 'engagement_widgets.dart';
 import 'learn_screen.dart';
@@ -107,16 +108,15 @@ class _LessonFlowScreenState extends ConsumerState<LessonFlowScreen> {
     final bool? leave = await showDialog<bool>(
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('Leave this lesson?'),
-        content: const Text(
-            'Your answers so far are saved. You can pick up again later, but the streak is only earned when you finish with every question answered.'),
+        title: Text(ctr(ctx, 'Leave this lesson?', 'Ka bar wannan darasi?', 'Quitter cette leçon ?', 'You wan comot from this lesson?')),
+        content: Text(ctr(ctx, 'Your answers so far are saved. You can pick up again later, but the streak is only earned when you finish with every question answered.', 'An adana amsoshinka zuwa yanzu. Za ka iya ci gaba daga baya, amma ana samun jerin kwanaki ne kawai idan ka gama kuma ka amsa kowace tambaya.', 'Vos réponses sont enregistrées. Vous pourrez reprendre plus tard, mais la série n’est gagnée qu’en terminant avec toutes les questions répondues.', 'Your answers don save. You fit continue later, but you only get streak if you finish and answer every question.')),
         actions: <Widget>[
           TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Keep going')),
+              child: Text(ctr(ctx, 'Keep going', 'Ci gaba', 'Continuer', 'Keep going'))),
           FilledButton(
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Leave')),
+              child: Text(ctr(ctx, 'Leave', 'Fita', 'Quitter', 'Comot'))),
         ],
       ),
     );
@@ -243,11 +243,11 @@ class _LessonFlowScreenState extends ConsumerState<LessonFlowScreen> {
                                 : null,
                             child: Text(
                               current.kind == _Kind.intro
-                                  ? 'Start lesson'
+                                  ? ctr(context, 'Start lesson', 'Fara darasi', 'Commencer la leçon', 'Start lesson')
                                   : current.kind == _Kind.question &&
                                           !_canAdvance(current)
-                                      ? 'Choose an answer'
-                                      : 'Continue',
+                                      ? ctr(context, 'Choose an answer', 'Zaɓi amsa', 'Choisissez une réponse', 'Choose answer')
+                                      : ctr(context, 'Continue', 'Ci gaba', 'Continuer', 'Continue'),
                               style: const TextStyle(
                                   fontWeight: FontWeight.w900, fontSize: 16),
                             ),
@@ -421,7 +421,7 @@ class _IntroCard extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      '${lesson.steps.length} quick ideas, ${lesson.questions.length} questions. Answer every question to keep your streak - skipped questions earn nothing.',
+                      ctr(context, '${lesson.steps.length} quick ideas, ${lesson.questions.length} questions. Answer every question to keep your streak - skipped questions earn nothing.', 'Gajerun bayanai ${lesson.steps.length}, tambayoyi ${lesson.questions.length}. Ka amsa kowace tambaya don ka ci gaba da jerin kwanakinka - tambayoyin da aka tsallake ba sa samun komai.', '${lesson.steps.length} idées rapides, ${lesson.questions.length} questions. Répondez à toutes pour garder votre série - les questions ignorées ne rapportent rien.', '${lesson.steps.length} quick ideas, ${lesson.questions.length} questions. Answer every question to keep your streak - questions wey you skip no dey earn anything.'),
                       style: theme.textTheme.bodySmall,
                     ),
                   ),
@@ -490,7 +490,7 @@ class _StepCard extends StatelessWidget {
                   color: lesson.tint,
                   borderRadius: BorderRadius.circular(99),
                 ),
-                child: Text('Idea $number of $total',
+                child: Text(ctr(context, 'Idea $number of $total', 'Bayani na $number cikin $total', 'Idée $number sur $total', 'Idea $number of $total'),
                     style: const TextStyle(
                         color: Colors.white, fontWeight: FontWeight.w900)),
               ),
@@ -568,8 +568,8 @@ class _QuestionCard extends StatelessWidget {
                         children: <Widget>[
                           Text(
                             result == _Result.correct
-                                ? 'Correct!'
-                                : 'Not quite',
+                                ? ctr(context, 'Correct!', 'Daidai!', 'Correct !', 'Correct!')
+                                : ctr(context, 'Not quite', 'Ba daidai ba tukuna', 'Pas tout à fait', 'Not quite yet'),
                             style: TextStyle(
                               fontWeight: FontWeight.w900,
                               fontSize: 16,
@@ -592,7 +592,7 @@ class _QuestionCard extends StatelessWidget {
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: onSkip,
-                  child: const Text('Skip (earns nothing)'),
+                  child: Text(ctr(context, 'Skip (earns nothing)', 'Tsallake (ba ya samun komai)', 'Passer (ne rapporte rien)', 'Skip (no go earn anything)')),
                 ),
               ),
           ],
@@ -707,15 +707,17 @@ class _FinishCard extends StatelessWidget {
             ),
             const SizedBox(height: 18),
             Text(
-              ready ? 'Lesson finished!' : 'Almost there',
+              ready
+                  ? ctr(context, 'Lesson finished!', 'An gama darasi!', 'Leçon terminée !', 'Lesson don finish!')
+                  : ctr(context, 'Almost there', 'Ka kusa gamawa', 'Presque terminé', 'You don almost finish'),
               style: theme.textTheme.headlineMedium
                   ?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 10),
             Text(
               ready
-                  ? 'You got $correct of $total right. Claim your XP and extend your streak.'
-                  : '$skipped question${skipped == 1 ? '' : 's'} still unanswered. Skipped questions earn no XP and do not count towards your streak - answer them to finish.',
+                  ? ctr(context, 'You got $correct of $total right. Claim your XP and extend your streak.', 'Ka samu $correct daidai cikin $total. Karɓi XP ɗinka ka tsawaita jerin kwanakinka.', 'Vous avez $correct bonnes réponses sur $total. Récupérez vos XP et prolongez votre série.', 'You get $correct correct for $total. Collect your XP and make your streak long.')
+                  : ctr(context, '$skipped question${skipped == 1 ? '' : 's'} still unanswered. Skipped questions earn no XP and do not count towards your streak - answer them to finish.', 'Tambayoyi $skipped ba a amsa ba tukuna. Tambayoyin da aka tsallake ba sa samun XP kuma ba sa shiga jerin kwanaki - ka amsa su don ka gama.', '$skipped question${skipped == 1 ? '' : 's'} sans réponse. Les questions ignorées ne rapportent pas d’XP et ne comptent pas pour la série - répondez-y pour terminer.', '$skipped question${skipped == 1 ? '' : 's'} never get answer. Questions wey you skip no dey earn XP and no dey count for streak - answer dem to finish.'),
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
             ),
@@ -731,7 +733,9 @@ class _FinishCard extends StatelessWidget {
                 ),
                 onPressed: ready ? onFinish : onReviewSkipped,
                 child: Text(
-                  ready ? 'Claim rewards' : 'Answer skipped questions',
+                  ready
+                      ? ctr(context, 'Claim rewards', 'Karɓi lada', 'Récupérer les récompenses', 'Collect rewards')
+                      : ctr(context, 'Answer skipped questions', 'Amsa tambayoyin da aka tsallake', 'Répondre aux questions ignorées', 'Answer the questions wey you skip'),
                   style: const TextStyle(
                       fontWeight: FontWeight.w900, fontSize: 16),
                 ),
@@ -739,7 +743,8 @@ class _FinishCard extends StatelessWidget {
             ),
             if (!ready)
               TextButton(
-                  onPressed: onLeave, child: const Text('Leave without rewards')),
+                  onPressed: onLeave,
+                  child: Text(ctr(context, 'Leave without rewards', 'Fita ba tare da lada ba', 'Quitter sans récompenses', 'Comot without rewards'))),
           ],
         ),
       ),

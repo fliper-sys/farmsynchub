@@ -225,7 +225,7 @@ class _LearnScreenState extends ConsumerState<LearnScreen> {
               language.tr(
                   en: '$completedLessons completed',
                   ha: '$completedLessons an kammala',
-                  fr: '$completedLessons terminees'),
+                  fr: '$completedLessons terminees', pcm: '$completedLessons don finish'),
               style: theme.textTheme.labelLarge
                   ?.copyWith(color: theme.colorScheme.primary),
             ),
@@ -311,7 +311,7 @@ class _LearnScreenState extends ConsumerState<LearnScreen> {
               language.tr(
                   en: '$completedPractices done',
                   ha: '$completedPractices an kammala',
-                  fr: '$completedPractices terminees'),
+                  fr: '$completedPractices terminees', pcm: '$completedPractices don finish'),
               style: theme.textTheme.labelLarge
                   ?.copyWith(color: theme.colorScheme.primary),
             ),
@@ -1706,7 +1706,7 @@ class _QuizQuestionCardState extends ConsumerState<_QuizQuestionCard> {
                           ha:
                               'An tsallake na yanzu. ${widget.question.explanation}',
                           fr:
-                              'Ignore pour le moment. ${widget.question.explanation}')
+                              'Ignore pour le moment. ${widget.question.explanation}', pcm: 'We skip am for now. ${widget.question.explanation}')
                       : (_isCorrect ?? false)
                           ? language.tr(
                               en: 'Correct. ${widget.question.explanation}',

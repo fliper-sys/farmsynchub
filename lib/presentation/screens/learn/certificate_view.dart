@@ -185,6 +185,7 @@ class CertificateView extends StatelessWidget {
                         en: 'For successfully completing the lesson:\n"$lessonTitle"',
                         ha: 'Saboda kammala darasin nan cikin nasara:\n"$lessonTitle"',
                         fr: 'Pour avoir terminé avec succès la leçon :\n« $lessonTitle »',
+          pcm: 'For finishing the lesson well well:\n"$lessonTitle"',
                       ),
                       textAlign: TextAlign.center,
                       maxLines: 5,

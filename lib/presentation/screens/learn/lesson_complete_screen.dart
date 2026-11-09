@@ -186,7 +186,7 @@ class _LessonCompleteScreenState extends ConsumerState<LessonCompleteScreen> {
                         language.tr(
                             en: '+${reward.xpEarned} lesson XP  •  +${reward.bonusXp} award bonus',
                             ha: '+${reward.xpEarned} XP na darasi  •  +${reward.bonusXp} kyautar lambar yabo',
-                            fr: '+${reward.xpEarned} XP de leçon  •  +${reward.bonusXp} bonus de récompense'),
+                            fr: '+${reward.xpEarned} XP de leçon  •  +${reward.bonusXp} bonus de récompense', pcm: '+${reward.xpEarned} lesson XP  •  +${reward.bonusXp} award bonus'),
                         style: const TextStyle(
                             color: EngagementColors.grayText,
                             fontWeight: FontWeight.w600),
@@ -225,7 +225,7 @@ class _LessonCompleteScreenState extends ConsumerState<LessonCompleteScreen> {
                         language.tr(
                             en: 'Up next: ${widget.nextLessonTitle}',
                             ha: 'Na gaba: ${widget.nextLessonTitle}',
-                            fr: 'À suivre : ${widget.nextLessonTitle}'),
+                            fr: 'À suivre : ${widget.nextLessonTitle}', pcm: 'Next one: ${widget.nextLessonTitle}'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -339,13 +339,13 @@ class _StreakPanel extends StatelessWidget {
       return language.tr(
           en: 'Fire restored! ${reward.restorationsLeft} of ${EngagementState.maxRestorations} restorations left.',
           ha: 'An dawo da wuta! Saura dawowa ${reward.restorationsLeft} cikin ${EngagementState.maxRestorations}.',
-          fr: 'Flamme rallumée ! Il reste ${reward.restorationsLeft} restauration(s) sur ${EngagementState.maxRestorations}.');
+          fr: 'Flamme rallumée ! Il reste ${reward.restorationsLeft} restauration(s) sur ${EngagementState.maxRestorations}.', pcm: 'Fire don come back! ${reward.restorationsLeft} of ${EngagementState.maxRestorations} restorations remain.');
     }
     if (reward.streakReset) {
       return language.tr(
           en: 'Your ${reward.lostStreak}-day streak ended. A fresh start - you have all ${EngagementState.maxRestorations} restorations again.',
           ha: 'Jerin kwanaki ${reward.lostStreak} ya ƙare. Sabon farawa - kana da dawowa ${EngagementState.maxRestorations} kuma.',
-          fr: 'Votre série de ${reward.lostStreak} jours est terminée. Nouveau départ - vous avez de nouveau ${EngagementState.maxRestorations} restaurations.');
+          fr: 'Votre série de ${reward.lostStreak} jours est terminée. Nouveau départ - vous avez de nouveau ${EngagementState.maxRestorations} restaurations.', pcm: 'Your ${reward.lostStreak}-day streak don end. Fresh start - you get all ${EngagementState.maxRestorations} restorations again.');
     }
     if (reward.freezesUsed > 0) {
       return language.tr(
@@ -396,7 +396,7 @@ class _StreakPanel extends StatelessWidget {
                         language.tr(
                             en: '$v day streak',
                             ha: 'Kwanaki $v a jere',
-                            fr: 'Série de $v jours'),
+                            fr: 'Série de $v jours', pcm: '$v day streak'),
                         style: const TextStyle(
                             color: EngagementColors.fire,
                             fontSize: 22,

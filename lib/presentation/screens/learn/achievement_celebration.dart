@@ -177,6 +177,7 @@ class _AchievementDialogState extends ConsumerState<_AchievementDialog> {
           en: 'I just unlocked "${widget.def.title(language)}" on FarmSync Learn!',
           ha: 'Na samu "${widget.def.title(language)}" a FarmSync Learn!',
           fr: 'Je viens de débloquer « ${widget.def.title(language)} » sur FarmSync Learn !',
+          pcm: 'I just unlock "${widget.def.title(language)}" for FarmSync Learn!',
         ),
       );
       // Sharing counts towards the "community helper" award.

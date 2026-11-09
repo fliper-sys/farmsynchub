@@ -171,12 +171,13 @@ class _LessonCertificateScreenState
                     Text(language.tr(
                         en: 'Lesson: ${widget.record.lessonTitle}',
                         ha: 'Darasi: ${widget.record.lessonTitle}',
-                        fr: 'Leçon : ${widget.record.lessonTitle}')),
+                        fr: 'Leçon : ${widget.record.lessonTitle}', pcm: 'Lesson: ${widget.record.lessonTitle}')),
                     const SizedBox(height: 4),
                     Text(language.tr(
                       en: 'Completed: ${app_date.DateUtils.formatDateTime(widget.record.completedAt)}',
                       ha: 'An Kammala: ${app_date.DateUtils.formatDateTime(widget.record.completedAt)}',
                       fr: 'Terminé le : ${app_date.DateUtils.formatDateTime(widget.record.completedAt)}',
+          pcm: 'E don finish: ${app_date.DateUtils.formatDateTime(widget.record.completedAt)}',
                     )),
                     const SizedBox(height: 4),
                     Text(language.tr(
@@ -236,7 +237,7 @@ class _LessonCertificateScreenState
       _showMessage(language.tr(
           en: 'Certificate saved to $path',
           ha: 'An adana takardar shaida a $path',
-          fr: 'Certificat enregistré dans $path'));
+          fr: 'Certificat enregistré dans $path', pcm: 'Certificate don save for $path'));
     } catch (error) {
       debugPrint('Certificate export failed: $error');
       _showMessage(language.tr(
@@ -269,6 +270,7 @@ class _LessonCertificateScreenState
           en: 'FarmSync certificate for ${widget.record.lessonTitle}',
           ha: 'Takardar shaidar FarmSync ta ${widget.record.lessonTitle}',
           fr: 'Certificat FarmSync pour ${widget.record.lessonTitle}',
+          pcm: 'FarmSync certificate for ${widget.record.lessonTitle}',
         ),
       );
     } catch (error) {
