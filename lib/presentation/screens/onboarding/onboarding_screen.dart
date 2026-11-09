@@ -1,452 +1,689 @@
+import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lottie/lottie.dart';
 
 import '../../../core/constants/app_assets.dart';
 import '../../../core/services/onboarding_preferences.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../common/widgets/app_button.dart';
+import '../../../providers/app_preferences_provider.dart';
+import '../../common/wizard/wizard_models.dart' show LocalizedText;
+import '../learn/engagement_widgets.dart' show LottieOrIcon;
 
-/// Theme-aware onboarding carousel for the first app launch.
-class OnboardingScreen extends StatefulWidget {
+/// First-launch introduction.
+///
+/// Full-screen farm photos crossfade and drift as the person swipes, an
+/// animated illustration floats over a frosted panel, and the text and
+/// feature chips rise in one after another. Everything is available in
+/// English, Hausa and French, switchable from the top bar.
+class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
   @override
-  State<OnboardingScreen> createState() => _OnboardingScreenState();
+  ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
-  final PageController _pageController = PageController();
-  int _currentPage = 0;
-  bool _isCompleting = false;
-
-  final List<OnboardingPageData> _pages = const <OnboardingPageData>[
-    OnboardingPageData(
-      title: 'Manage every farm from one workspace',
-      subtitle:
-          'Create farms, track fields, store documents, and keep environmental readings close to the work.',
-      animationAsset: AppAssets.onboardingWelcomeAnimation,
-      accentColor: Color(0xFF5F9D58),
-      chips: <OnboardingChipData>[
-        OnboardingChipData(
-            label: 'Farm profiles', assetPath: AppAssets.uiGallery05),
-        OnboardingChipData(
-            label: 'Field records', assetPath: AppAssets.uiGallery06),
+class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
+  static const List<_Page> _pages = <_Page>[
+    _Page(
+      photo: AppAssets.uiFarmLandscape,
+      animation: AppAssets.onboardingWelcomeAnimation,
+      icon: Icons.agriculture_rounded,
+      title: LocalizedText(
+        'Run every farm from one place',
+        ha: 'Ka gudanar da kowace gona daga wuri ɗaya',
+        fr: 'Gérez chaque ferme depuis un seul endroit',
+      ),
+      body: LocalizedText(
+        'Create farms, keep records and see what needs doing today, even with a weak signal.',
+        ha: 'Ƙirƙiri gonaki, adana bayanai ka ga abin da ya kamata a yi a yau, ko da sigina ba ta da ƙarfi.',
+        fr: 'Créez vos fermes, tenez vos registres et voyez ce qu’il faut faire aujourd’hui, même avec un signal faible.',
+      ),
+      chips: <_Chip>[
+        _Chip(
+          Icons.home_work_rounded,
+          LocalizedText('Farm profiles', ha: 'Bayanan gona', fr: 'Fiches de ferme'),
+        ),
+        _Chip(
+          Icons.cloud_off_rounded,
+          LocalizedText('Works offline', ha: 'Yana aiki ba intanet', fr: 'Hors ligne'),
+        ),
       ],
     ),
-    OnboardingPageData(
-      title: 'Connect crops, animals, inventory, and sales',
-      subtitle:
-          'Follow produce from planning to buyer receipt, with livestock and procurement records in the same flow.',
-      animationAsset: AppAssets.onboardingSyncAnimation,
-      accentColor: Color(0xFFCE9B3A),
-      chips: <OnboardingChipData>[
-        OnboardingChipData(label: 'Produce', assetPath: AppAssets.uiGallery07),
-        OnboardingChipData(label: 'Market', assetPath: AppAssets.uiGallery08),
-        OnboardingChipData(
-            label: 'Logistics', assetPath: AppAssets.uiGallery09),
+    _Page(
+      photo: AppAssets.uiGallery03,
+      animation: AppAssets.onboardingSyncAnimation,
+      icon: Icons.eco_rounded,
+      title: LocalizedText(
+        'Crops, animals and money together',
+        ha: 'Amfanin gona, dabbobi da kuɗi a wuri ɗaya',
+        fr: 'Cultures, animaux et argent réunis',
+      ),
+      body: LocalizedText(
+        'Follow a crop from planting to harvest, look after your animals and see what you earn and spend.',
+        ha: 'Bi amfanin gona daga shuka zuwa girbi, kula da dabbobinka ka ga abin da kake samu da kashewa.',
+        fr: 'Suivez une culture de la plantation à la récolte, prenez soin de vos animaux et voyez vos revenus et dépenses.',
+      ),
+      chips: <_Chip>[
+        _Chip(
+          Icons.grass_rounded,
+          LocalizedText('Crops', ha: 'Amfanin gona', fr: 'Cultures'),
+        ),
+        _Chip(
+          Icons.pets_rounded,
+          LocalizedText('Livestock', ha: 'Dabbobi', fr: 'Élevage'),
+        ),
+        _Chip(
+          Icons.payments_rounded,
+          LocalizedText('Finance', ha: 'Kuɗi', fr: 'Finances'),
+        ),
       ],
     ),
-    OnboardingPageData(
-      title: 'Learn, ask AI, and act with confidence',
-      subtitle:
-          'Use lessons, field prompts, weather guidance, and notifications to keep farm decisions moving.',
-      animationAsset: AppAssets.onboardingSuccessAnimation,
-      accentColor: Color(0xFF3D6FA8),
-      chips: <OnboardingChipData>[
-        OnboardingChipData(label: 'Insights', assetPath: AppAssets.uiGallery10),
-        OnboardingChipData(label: 'Harvest', assetPath: AppAssets.uiGallery01),
+    _Page(
+      photo: AppAssets.uiSmartFarm,
+      animation: AppAssets.onboardingSuccessAnimation,
+      icon: Icons.auto_awesome_rounded,
+      title: LocalizedText(
+        'Learn and get advice in your language',
+        ha: 'Koyi ka samu shawara da harshenka',
+        fr: 'Apprenez et conseillez-vous dans votre langue',
+      ),
+      body: LocalizedText(
+        'Short lessons, weather tips, farm news and an AI advisor that speaks English, Hausa and French.',
+        ha: 'Gajerun darussa, shawarwarin yanayi, labaran noma da mai ba da shawara na AI da ke jin Turanci, Hausa da Faransanci.',
+        fr: 'Leçons courtes, conseils météo, actualités agricoles et un conseiller IA qui parle anglais, haoussa et français.',
+      ),
+      chips: <_Chip>[
+        _Chip(
+          Icons.school_rounded,
+          LocalizedText('Lessons', ha: 'Darussa', fr: 'Leçons'),
+        ),
+        _Chip(
+          Icons.newspaper_rounded,
+          LocalizedText('News', ha: 'Labarai', fr: 'Actualités'),
+        ),
+        _Chip(
+          Icons.chat_rounded,
+          LocalizedText('AI advisor', ha: 'Mai ba da shawara', fr: 'Conseiller IA'),
+        ),
       ],
-      isLastPage: true,
     ),
   ];
 
+  final PageController _controller = PageController();
+  int _current = 0;
+  bool _completing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_onScroll);
+  }
+
   @override
   void dispose() {
-    _pageController.dispose();
+    _controller.removeListener(_onScroll);
+    _controller.dispose();
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme scheme = theme.colorScheme;
-    final bool isDark = theme.brightness == Brightness.dark;
+  // Rebuilds the photo layer while swiping so it crossfades with the finger.
+  void _onScroll() => setState(() {});
 
-    return Scaffold(
-      body: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: isDark
-                ? const <Color>[
-                    AppColors.darkPrimaryBackground,
-                    Color(0xFF0E1A15),
-                    AppColors.darkPrimaryBackground,
-                  ]
-                : const <Color>[
-                    Color(0xFFFFFBF2),
-                    Color(0xFFEFF8EA),
-                    Color(0xFFE4F1DD),
-                  ],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: <Widget>[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 16, 22, 8),
-                child: Row(
-                  children: <Widget>[
-                    Container(
-                      width: 42,
-                      height: 42,
-                      padding: const EdgeInsets.all(7),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? AppColors.darkElevatedCard
-                            : scheme.surface.withOpacity(0.88),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                            color: isDark
-                                ? AppColors.darkBorder
-                                : scheme.outlineVariant),
-                        boxShadow: isDark
-                            ? <BoxShadow>[
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.35),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: Image.asset(AppAssets.appIcon),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'FarmSyncHub',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          color: isDark ? Colors.white : AppColors.primary,
-                          fontWeight: FontWeight.w400,
-                          letterSpacing: -0.35,
-                        ),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: _completeOnboarding,
-                      child: const Text('Skip'),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: PageView.builder(
-                  controller: _pageController,
-                  itemCount: _pages.length,
-                  onPageChanged: (int page) =>
-                      setState(() => _currentPage = page),
-                  itemBuilder: (BuildContext context, int index) {
-                    return _OnboardingPage(data: _pages[index]);
-                  },
-                ),
-              ),
-              _BottomControls(
-                currentPage: _currentPage,
-                pageCount: _pages.length,
-                isCompleting: _isCompleting,
-                onBack: _currentPage == 0 ? _completeOnboarding : _previousPage,
-                onNext: _currentPage == _pages.length - 1
-                    ? _completeOnboarding
-                    : _nextPage,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  double get _page => _controller.hasClients && _controller.page != null
+      ? _controller.page!
+      : _current.toDouble();
 
-  void _nextPage() {
-    _pageController.nextPage(
-      duration: const Duration(milliseconds: 320),
-      curve: Curves.easeInOut,
-    );
-  }
+  void _go(int index) => _controller.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeInOutCubic,
+      );
 
-  void _previousPage() {
-    _pageController.previousPage(
-      duration: const Duration(milliseconds: 320),
-      curve: Curves.easeInOut,
-    );
-  }
-
-  Future<void> _completeOnboarding() async {
-    if (_isCompleting) {
+  Future<void> _finish() async {
+    if (_completing) {
       return;
     }
-
-    setState(() => _isCompleting = true);
+    setState(() => _completing = true);
     await OnboardingPreferences.markCompleted();
     if (!mounted) {
       return;
     }
     context.go('/login');
   }
-}
-
-class _BottomControls extends StatelessWidget {
-  const _BottomControls({
-    required this.currentPage,
-    required this.pageCount,
-    required this.isCompleting,
-    required this.onBack,
-    required this.onNext,
-  });
-
-  final int currentPage;
-  final int pageCount;
-  final bool isCompleting;
-  final VoidCallback onBack;
-  final VoidCallback onNext;
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final bool isDark = theme.brightness == Brightness.dark;
-    final bool isLastPage = currentPage == pageCount - 1;
+    final AppLanguage language = ref.watch(appLanguageProvider);
+    final bool isLast = _current == _pages.length - 1;
+    final double page = _page;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: isDark
-                ? const <Color>[AppColors.darkCard, AppColors.darkElevatedCard]
-                : <Color>[
-                    theme.colorScheme.surfaceContainerHighest,
-                    theme.colorScheme.surfaceContainer,
-                  ],
+    return Scaffold(
+      backgroundColor: const Color(0xFF06281A),
+      body: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          // Photos: crossfade and drift with the swipe.
+          for (int i = 0; i < _pages.length; i++)
+            Opacity(
+              opacity: (1 - (page - i).abs()).clamp(0.0, 1.0).toDouble(),
+              child: Transform.translate(
+                offset: Offset((i - page) * -40, 0),
+                child: Transform.scale(
+                  scale: 1.18,
+                  child: Image.asset(_pages[i].photo, fit: BoxFit.cover),
+                ),
+              ),
+            ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: <Color>[
+                  Colors.black.withOpacity(0.45),
+                  Colors.black.withOpacity(0.25),
+                  const Color(0xFF06281A).withOpacity(0.92),
+                ],
+                stops: const <double>[0, 0.35, 0.78],
+              ),
+            ),
           ),
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: theme.colorScheme.outlineVariant),
-          boxShadow: <BoxShadow>[
-            BoxShadow(
-              color: theme.colorScheme.shadow.withOpacity(isDark ? 0.42 : 0.10),
-              blurRadius: 22,
-              offset: const Offset(0, 12),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Row(
+          SafeArea(
+            child: Column(
               children: <Widget>[
+                _TopBar(
+                  language: language,
+                  skipLabel:
+                      language.tr(en: 'Skip', ha: 'Tsallake', fr: 'Passer'),
+                  onLanguage: (AppLanguage value) => ref
+                      .read(appLanguageProvider.notifier)
+                      .setLanguage(value),
+                  onSkip: _finish,
+                ),
                 Expanded(
-                  child: Text(
-                    isLastPage
-                        ? 'Ready to begin'
-                        : 'Step ${currentPage + 1} of $pageCount',
-                    style: theme.textTheme.labelLarge
-                        ?.copyWith(color: AppColors.primary),
+                  child: PageView.builder(
+                    controller: _controller,
+                    itemCount: _pages.length,
+                    onPageChanged: (int value) =>
+                        setState(() => _current = value),
+                    itemBuilder: (BuildContext context, int index) {
+                      return _PageView(
+                        data: _pages[index],
+                        language: language,
+                        active: index == _current,
+                      );
+                    },
                   ),
                 ),
-                Row(
-                  children: List<Widget>.generate(
-                    pageCount,
-                    (int index) => AnimatedContainer(
-                      duration: const Duration(milliseconds: 240),
-                      width: currentPage == index ? 26 : 8,
-                      height: 8,
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(
-                        color: currentPage == index
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.outlineVariant,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                  ),
+                _Controls(
+                  current: _current,
+                  count: _pages.length,
+                  completing: _completing,
+                  nextLabel: isLast
+                      ? language.tr(
+                          en: 'Get started',
+                          ha: 'Fara yanzu',
+                          fr: 'Commencer')
+                      : language.tr(en: 'Next', ha: 'Na gaba', fr: 'Suivant'),
+                  backLabel:
+                      language.tr(en: 'Back', ha: 'Koma baya', fr: 'Retour'),
+                  onBack: _current == 0 ? null : () => _go(_current - 1),
+                  onNext: isLast ? _finish : () => _go(_current + 1),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: AppButton.secondary(
-                    onPressed: isCompleting ? null : onBack,
-                    child: Text(currentPage == 0 ? 'Skip' : 'Back'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: AppButton.primary(
-                    onPressed: isCompleting ? null : onNext,
-                    child: Text(isLastPage ? 'Enter FarmSync' : 'Next'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class OnboardingPageData {
-  const OnboardingPageData({
-    required this.title,
-    required this.subtitle,
-    required this.animationAsset,
-    required this.accentColor,
-    required this.chips,
-    this.isLastPage = false,
+class _TopBar extends StatelessWidget {
+  const _TopBar({
+    required this.language,
+    required this.skipLabel,
+    required this.onLanguage,
+    required this.onSkip,
   });
 
-  final String title;
-  final String subtitle;
-  final String animationAsset;
-  final Color accentColor;
-  final List<OnboardingChipData> chips;
-  final bool isLastPage;
-}
+  final AppLanguage language;
+  final String skipLabel;
+  final ValueChanged<AppLanguage> onLanguage;
+  final VoidCallback onSkip;
 
-class OnboardingChipData {
-  const OnboardingChipData({
-    required this.label,
-    required this.assetPath,
-  });
-
-  final String label;
-  final String assetPath;
-}
-
-class _OnboardingPage extends StatelessWidget {
-  const _OnboardingPage({required this.data});
-
-  final OnboardingPageData data;
+  static const Map<AppLanguage, String> _short = <AppLanguage, String>{
+    AppLanguage.english: 'EN',
+    AppLanguage.hausa: 'HA',
+    AppLanguage.french: 'FR',
+  };
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final bool isDark = theme.brightness == Brightness.dark;
-
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
-      child: Column(
+      padding: const EdgeInsets.fromLTRB(20, 10, 12, 4),
+      child: Row(
         children: <Widget>[
+          Container(
+            width: 38,
+            height: 38,
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.92),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Image.asset(AppAssets.appIcon),
+          ),
+          const SizedBox(width: 10),
           Expanded(
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: isDark
-                      ? const <Color>[
-                          AppColors.darkCard,
-                          AppColors.darkElevatedCard
-                        ]
-                      : <Color>[
-                          theme.colorScheme.surfaceContainerHighest,
-                          theme.colorScheme.surfaceContainer,
-                        ],
-                ),
-                borderRadius: BorderRadius.circular(32),
-                border: Border.all(color: theme.colorScheme.outlineVariant),
-                boxShadow: <BoxShadow>[
-                  BoxShadow(
-                    color: theme.colorScheme.shadow
-                        .withOpacity(isDark ? 0.45 : 0.10),
-                    blurRadius: 28,
-                    offset: const Offset(0, 16),
-                  ),
-                  BoxShadow(
-                    color: data.accentColor.withOpacity(isDark ? 0.12 : 0.07),
-                    blurRadius: 32,
-                    offset: const Offset(0, -8),
-                  ),
-                ],
+            child: Text(
+              'FarmSyncHub',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
               ),
-              child: Column(
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      _FeaturePill(
-                        icon: data.isLastPage
-                            ? Icons.check_circle_rounded
-                            : Icons.auto_awesome_rounded,
-                        label: data.isLastPage ? 'Ready' : 'Farm workflow',
-                        tint: data.accentColor,
-                      ),
-                      const Spacer(),
-                      Icon(Icons.swipe_rounded,
-                          color: theme.colorScheme.onSurfaceVariant),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color:
-                            data.accentColor.withOpacity(isDark ? 0.16 : 0.11),
-                        borderRadius: BorderRadius.circular(28),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(18),
-                        child: Lottie.asset(
-                          data.animationAsset,
-                          fit: BoxFit.contain,
-                          repeat: !data.isLastPage,
+            ),
+          ),
+          // Language switcher: three tiny pills so the very first screen can
+          // already be read in the farmer's own language.
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.4),
+              borderRadius: BorderRadius.circular(99),
+              border: Border.all(color: Colors.white.withOpacity(0.25)),
+            ),
+            child: Row(
+              children: <Widget>[
+                for (final AppLanguage value in AppLanguage.values)
+                  Semantics(
+                    button: true,
+                    selected: value == language,
+                    label: value.label,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => onLanguage(value),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: value == language
+                              ? Colors.white
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          _short[value]!,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: value == language
+                                ? const Color(0xFF0B7F4D)
+                                : Colors.white,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: data.chips
-                        .map(
-                          (OnboardingChipData chip) => _AssetChip(
-                            chip: chip,
-                            tint: data.accentColor,
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: onSkip,
+            style: TextButton.styleFrom(foregroundColor: Colors.white),
+            child: Text(skipLabel),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PageView extends StatelessWidget {
+  const _PageView({
+    required this.data,
+    required this.language,
+    required this.active,
+  });
+
+  final _Page data;
+  final AppLanguage language;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints box) {
+        final double art = math.min(box.maxHeight * 0.38, 230);
+        return SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(22, 4, 22, 12),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: box.maxHeight - 16),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: <Widget>[
+                _Rise(
+                  active: active,
+                  delay: 0,
+                  child: _FloatingArt(data: data, size: art),
+                ),
+                const SizedBox(height: 18),
+                _Rise(
+                  active: active,
+                  delay: 140,
+                  child: _Glass(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          data.title.resolve(language),
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            height: 1.15,
                           ),
-                        )
-                        .toList(),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          data.body.resolve(language),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: Colors.white.withOpacity(0.92),
+                            height: 1.55,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: <Widget>[
+                            for (int i = 0; i < data.chips.length; i++)
+                              _Rise(
+                                active: active,
+                                delay: 320 + i * 110,
+                                child: _FeatureChip(
+                                  chip: data.chips[i],
+                                  language: language,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 22),
+        );
+      },
+    );
+  }
+}
+
+/// The illustration, bobbing gently inside a frosted circle.
+class _FloatingArt extends StatefulWidget {
+  const _FloatingArt({required this.data, required this.size});
+
+  final _Page data;
+  final double size;
+
+  @override
+  State<_FloatingArt> createState() => _FloatingArtState();
+}
+
+class _FloatingArtState extends State<_FloatingArt>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _bob = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2800),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _bob.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _bob,
+      builder: (BuildContext context, Widget? child) => Transform.translate(
+        offset: Offset(0, math.sin(_bob.value * math.pi) * -9),
+        child: child,
+      ),
+      child: Container(
+        width: widget.size,
+        height: widget.size,
+        padding: EdgeInsets.all(widget.size * 0.1),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white.withOpacity(0.16),
+          border: Border.all(color: Colors.white.withOpacity(0.35), width: 1.5),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: Colors.black.withOpacity(0.25),
+              blurRadius: 30,
+              offset: const Offset(0, 14),
+            ),
+          ],
+        ),
+        child: LottieOrIcon(
+          asset: widget.data.animation,
+          fallbackIcon: widget.data.icon,
+          fallbackColor: Colors.white,
+          size: widget.size * 0.8,
+        ),
+      ),
+    );
+  }
+}
+
+/// Fades and lifts its child in, [delay] ms after its page becomes active.
+class _Rise extends StatefulWidget {
+  const _Rise({
+    required this.active,
+    required this.delay,
+    required this.child,
+  });
+
+  final bool active;
+  final int delay;
+  final Widget child;
+
+  @override
+  State<_Rise> createState() => _RiseState();
+}
+
+class _RiseState extends State<_Rise> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 520),
+  );
+  late final Animation<double> _a =
+      CurvedAnimation(parent: _c, curve: Curves.easeOutCubic);
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.active) {
+      _play();
+    }
+  }
+
+  @override
+  void didUpdateWidget(_Rise old) {
+    super.didUpdateWidget(old);
+    if (widget.active && !old.active) {
+      _play();
+    } else if (!widget.active && old.active) {
+      _c.value = 0;
+    }
+  }
+
+  void _play() {
+    _c.value = 0;
+    Future<void>.delayed(Duration(milliseconds: widget.delay), () {
+      if (mounted && widget.active) {
+        _c.forward();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _a,
+      child: SlideTransition(
+        position: Tween<Offset>(begin: const Offset(0, 0.18), end: Offset.zero)
+            .animate(_a),
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+class _Glass extends StatelessWidget {
+  const _Glass({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(28),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            // Dark enough that white text reads over any photo.
+            color: Colors.black.withOpacity(0.48),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: Colors.white.withOpacity(0.2)),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+class _FeatureChip extends StatelessWidget {
+  const _FeatureChip({required this.chip, required this.language});
+
+  final _Chip chip;
+  final AppLanguage language;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.16),
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: Colors.white.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(chip.icon, size: 16, color: Colors.white),
+          const SizedBox(width: 6),
           Text(
-            data.title,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontSize: 31,
-              color: isDark ? Colors.white : AppColors.primary,
+            chip.label.resolve(language),
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Controls extends StatelessWidget {
+  const _Controls({
+    required this.current,
+    required this.count,
+    required this.completing,
+    required this.nextLabel,
+    required this.backLabel,
+    required this.onBack,
+    required this.onNext,
+  });
+
+  final int current;
+  final int count;
+  final bool completing;
+  final String nextLabel;
+  final String backLabel;
+  final VoidCallback? onBack;
+  final VoidCallback onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 4, 22, 18),
+      child: Row(
+        children: <Widget>[
+          SizedBox(
+            width: 92,
+            child: onBack == null
+                ? const SizedBox.shrink()
+                : TextButton(
+                    onPressed: completing ? null : onBack,
+                    style:
+                        TextButton.styleFrom(foregroundColor: Colors.white),
+                    child: Text(backLabel),
+                  ),
+          ),
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                for (int i = 0; i < count; i++)
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 260),
+                    curve: Curves.easeOutCubic,
+                    width: i == current ? 28 : 8,
+                    height: 8,
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    decoration: BoxDecoration(
+                      color: i == current
+                          ? Colors.white
+                          : Colors.white.withOpacity(0.4),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            data.subtitle,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              height: 1.55,
-              color:
-                  isDark ? Colors.white70 : theme.colorScheme.onSurfaceVariant,
+          FilledButton(
+            onPressed: completing ? null : onNext,
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: const Color(0xFF0B7F4D),
+              minimumSize: const Size(116, 50),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(99)),
+            ),
+            child: Text(
+              nextLabel,
+              style: const TextStyle(fontWeight: FontWeight.w800),
             ),
           ),
         ],
@@ -455,98 +692,29 @@ class _OnboardingPage extends StatelessWidget {
   }
 }
 
-class _FeaturePill extends StatelessWidget {
-  const _FeaturePill({
+@immutable
+class _Page {
+  const _Page({
+    required this.photo,
+    required this.animation,
     required this.icon,
-    required this.label,
-    required this.tint,
+    required this.title,
+    required this.body,
+    required this.chips,
   });
+
+  final String photo;
+  final String animation;
+  final IconData icon;
+  final LocalizedText title;
+  final LocalizedText body;
+  final List<_Chip> chips;
+}
+
+@immutable
+class _Chip {
+  const _Chip(this.icon, this.label);
 
   final IconData icon;
-  final String label;
-  final Color tint;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final bool isDark = theme.brightness == Brightness.dark;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: BoxDecoration(
-        color: tint.withOpacity(isDark ? 0.22 : 0.14),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: tint.withOpacity(isDark ? 0.4 : 0.2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Icon(icon,
-              size: 17, color: isDark ? tint : theme.colorScheme.primary),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: isDark ? Colors.white : null,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AssetChip extends StatelessWidget {
-  const _AssetChip({
-    required this.chip,
-    required this.tint,
-  });
-
-  final OnboardingChipData chip;
-  final Color tint;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final bool isDark = theme.brightness == Brightness.dark;
-
-    return Container(
-      constraints: const BoxConstraints(minWidth: 112),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        // A tier *lighter* than the parent card (not `colorScheme.surface`,
-        // which is darker in dark mode and reads as a hole cut into the card).
-        color: isDark ? AppColors.darkElevatedCard : theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-            color: isDark
-                ? AppColors.darkBorder
-                : theme.colorScheme.outlineVariant),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Container(
-            width: 28,
-            height: 28,
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: tint.withOpacity(isDark ? 0.24 : 0.14),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Image.asset(chip.assetPath, fit: BoxFit.contain),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              chip.label,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  final LocalizedText label;
 }

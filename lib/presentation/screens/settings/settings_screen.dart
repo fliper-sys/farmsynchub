@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../domain/models/user_profile.dart';
+import '../../../providers/app_tour_provider.dart';
 import '../../../providers/ai_chat_provider.dart';
 import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/auth_provider.dart';
@@ -425,6 +427,23 @@ class SettingsScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(18),
               child: Column(
                 children: <Widget>[
+                  _SettingsRow(
+                    icon: Icons.tour_rounded,
+                    title: appLanguage.tr(
+                        en: 'Replay app tour',
+                        ha: 'Sake yawon manhaja',
+                        fr: 'Revoir la visite guidée'),
+                    value: appLanguage.tr(
+                        en: 'A quick walkthrough of the main screens',
+                        ha: 'Gajeren jagora kan manyan shafuka',
+                        fr: 'Un tour rapide des écrans principaux'),
+                    tint: const Color(0xFFE9F4DB),
+                    onTap: () {
+                      ref.read(appTourRequestedProvider.notifier).state = true;
+                      context.go('/dashboard');
+                    },
+                  ),
+                  const SizedBox(height: 12),
                   _SettingsRow(
                     icon: Icons.support_agent_rounded,
                     title: appLanguage.tr(

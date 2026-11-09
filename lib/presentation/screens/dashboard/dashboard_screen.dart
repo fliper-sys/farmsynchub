@@ -12,6 +12,7 @@ import '../../../domain/models/crop.dart';
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/livestock.dart';
 import '../../../domain/models/transaction.dart';
+import '../../../providers/app_tour_provider.dart';
 import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/crop_provider.dart';
@@ -28,6 +29,7 @@ import 'streak_challenge_banner.dart';
 import 'widgets/activity_feed.dart';
 import 'widgets/latest_news_carousel.dart';
 import 'widgets/weather_pill.dart';
+import '../../common/tour/app_spotlight_tour.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -52,6 +54,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     _fade = CurvedAnimation(parent: _intro, curve: Curves.easeOutCubic);
     _slide = Tween<Offset>(begin: const Offset(0, 0.035), end: Offset.zero)
         .animate(_fade);
+    // A person arriving from the welcome screen (or replaying the tour from
+    // Settings) asked for the guided tour; start it once the page is up.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeStartTour());
+  }
+
+  Future<void> _maybeStartTour() async {
+    if (!mounted || !ref.read(appTourRequestedProvider)) {
+      return;
+    }
+    ref.read(appTourRequestedProvider.notifier).state = false;
+    // Let the dashboard finish its entrance animation and load its cards.
+    await Future<void>.delayed(const Duration(milliseconds: 1100));
+    if (!mounted) {
+      return;
+    }
+    AppSpotlightTour.show(context, language: ref.read(appLanguageProvider));
   }
 
   @override
@@ -64,6 +82,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final AppLanguage language = ref.watch(appLanguageProvider);
+    ref.listen<bool>(appTourRequestedProvider, (bool? _, bool next) {
+      if (next) {
+        _maybeStartTour();
+      }
+    });
     final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
     final List<Crop> crops = ref.watch(cropsProvider).valueOrNull ?? <Crop>[];
     final List<Livestock> livestock =
@@ -169,13 +192,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             badge: unread,
             onTap: () => context.go('/notifications'),
           ),
-          _HeaderIcon(
-              icon: Icons.auto_awesome_rounded,
-              tooltip: language.tr(
-                  en: 'AI Advisor',
-                  ha: 'Mai ba da shawara',
-                  fr: 'Conseiller IA'),
-              onTap: () => context.go('/ai-advisor')),
+          KeyedSubtree(
+            key: TourTargets.keyFor('dash_ai'),
+            child: _HeaderIcon(
+                icon: Icons.auto_awesome_rounded,
+                tooltip: language.tr(
+                    en: 'AI Advisor',
+                    ha: 'Mai ba da shawara',
+                    fr: 'Conseiller IA'),
+                onTap: () => context.go('/ai-advisor')),
+          ),
           const SizedBox(width: 6),
         ],
       ),
@@ -212,23 +238,32 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(18, 10, 18, 112),
                   children: <Widget>[
-                    _HeroSummaryCard(
-                      greeting: _greeting(),
-                      userName: userName,
-                      activeFocus: activeFocus,
-                      onMeasurements: () => context.go('/farms'),
+                    KeyedSubtree(
+                      key: TourTargets.keyFor('dash_hero'),
+                      child: _HeroSummaryCard(
+                        greeting: _greeting(),
+                        userName: userName,
+                        activeFocus: activeFocus,
+                        onMeasurements: () => context.go('/farms'),
+                      ),
                     ),
                     const SizedBox(height: 14),
                     const StreakChallengeBanner(),
                     const SizedBox(height: 14),
-                    _TodayTasksCard(
-                      farm: activeFarm,
-                      tasks: activeFarm?.workspaceTasks ??
-                          const <FarmWorkspaceTask>[],
-                      onViewAll: () => context.go('/farm-tasks'),
+                    KeyedSubtree(
+                      key: TourTargets.keyFor('dash_tasks'),
+                      child: _TodayTasksCard(
+                        farm: activeFarm,
+                        tasks: activeFarm?.workspaceTasks ??
+                            const <FarmWorkspaceTask>[],
+                        onViewAll: () => context.go('/farm-tasks'),
+                      ),
                     ),
                     const SizedBox(height: 14),
-                    const LatestNewsCarousel(),
+                    KeyedSubtree(
+                      key: TourTargets.keyFor('dash_news'),
+                      child: const LatestNewsCarousel(),
+                    ),
                     _HarvestReadinessCard(
                       items: HarvestReadinessService.all(
                           crops: crops, livestock: livestock),
