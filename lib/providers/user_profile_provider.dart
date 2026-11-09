@@ -8,11 +8,10 @@ import 'auth_provider.dart';
 
 final userProfileProvider =
     StateNotifierProvider<UserProfileController, AsyncValue<UserProfile?>>((ref) {
-  final UserProfileController controller = UserProfileController(ref.watch(firebaseServiceProvider));
-  ref.listen(authStateProvider, (_, __) {
-    controller.loadProfile();
-  });
-  return controller;
+  // A new controller (starting from a clean, loading state) for every
+  // account, so the previous person's name, photo and role never linger.
+  ref.watch(sessionUidProvider);
+  return UserProfileController(ref.watch(firebaseServiceProvider));
 });
 
 class UserProfileController extends StateNotifier<AsyncValue<UserProfile?>> {
@@ -36,12 +35,23 @@ class UserProfileController extends StateNotifier<AsyncValue<UserProfile?>> {
     state = const AsyncValue.data(null);
   }
 
+  /// Loads the profile. The copy already on this device is shown straight
+  /// away (no spinner), then replaced by the server's copy when it arrives.
   Future<void> loadProfile() async {
     if (!mounted) {
       return;
     }
 
-    state = const AsyncValue.loading();
+    if (!state.hasValue || state.valueOrNull == null) {
+      final UserProfile? cached = await _firebaseService.getCachedUserProfile();
+      if (!mounted) {
+        return;
+      }
+      state = cached != null
+          ? AsyncValue.data(cached)
+          : const AsyncValue<UserProfile?>.loading();
+    }
+
     try {
       final UserProfile? profile = await _firebaseService.getUserProfile();
       if (!mounted) {
@@ -52,33 +62,47 @@ class UserProfileController extends StateNotifier<AsyncValue<UserProfile?>> {
       if (!mounted) {
         return;
       }
-      state = AsyncValue.error(error, stackTrace);
+      // Keep showing what we already have rather than replacing a usable
+      // profile with an error screen.
+      if (!state.hasValue || state.valueOrNull == null) {
+        state = AsyncValue.error(error, stackTrace);
+      }
     }
   }
 
+  /// Saves the profile. The screen updates immediately and the saved copy is
+  /// confirmed in the background; if saving fails the previous profile is put
+  /// back and the error is rethrown so the caller can tell the person.
   Future<void> saveProfile(UserProfile profile) async {
     if (!mounted) {
       return;
     }
 
+    final AsyncValue<UserProfile?> previous = state;
+    state = AsyncValue.data(profile);
+
     try {
       await _firebaseService.saveUserProfile(profile);
-      if (!mounted) {
-        return;
+    } catch (error) {
+      if (mounted) {
+        state = previous;
       }
-
-      final UserProfile? persistedProfile = await _firebaseService.getUserProfile();
-      if (!mounted) {
-        return;
-      }
-
-      state = AsyncValue.data(persistedProfile ?? profile);
-    } catch (error, stackTrace) {
-      if (!mounted) {
-        return;
-      }
-      state = AsyncValue.error(error, stackTrace);
       rethrow;
+    }
+
+    // Confirm what the server actually stored (it may add fields), without
+    // making the person wait for the extra round trip.
+    unawaited(_confirmSaved(profile));
+  }
+
+  Future<void> _confirmSaved(UserProfile fallback) async {
+    try {
+      final UserProfile? persisted = await _firebaseService.getUserProfile();
+      if (mounted && persisted != null && persisted.uid == fallback.uid) {
+        state = AsyncValue.data(persisted);
+      }
+    } catch (_) {
+      // The optimistic copy is already showing; nothing to repair.
     }
   }
 

@@ -87,16 +87,27 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
       password: password,
     );
 
-    if (displayName != null && displayName.trim().isNotEmpty) {
-      await credential.user?.updateDisplayName(displayName.trim());
+    // The account now exists, so a hiccup in the follow-up steps must not
+    // report registration as failed (a retry would then say "email already in
+    // use"). Missing pieces are filled in by the account setup screen.
+    try {
+      if (displayName != null && displayName.trim().isNotEmpty) {
+        await credential.user?.updateDisplayName(displayName.trim());
+      }
+    } catch (error) {
+      debugPrint('[Auth] Display name update failed: $error');
     }
 
-    await _createDefaultUserProfile(
-      uid: credential.user?.uid,
-      email: email,
-      displayName: displayName,
-      phoneNumber: phoneNumber,
-    );
+    try {
+      await _createDefaultUserProfile(
+        uid: credential.user?.uid,
+        email: email,
+        displayName: displayName,
+        phoneNumber: phoneNumber,
+      );
+    } catch (error) {
+      debugPrint('[Auth] Profile creation failed: $error');
+    }
 
     return credential;
   }
@@ -242,6 +253,26 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
     return null;
   }
 
+  /// The profile as last seen on this device, or null when none is cached.
+  /// Instant, so the app can show the person's name and photo straight away
+  /// while [getUserProfile] refreshes from the server.
+  Future<UserProfile?> getCachedUserProfile() async {
+    final String? userId = currentUser?.uid;
+    if (userId == null) {
+      return null;
+    }
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> cached = await _firestore
+          .collection('users')
+          .doc(userId)
+          .get(const GetOptions(source: Source.cache));
+      final Map<String, dynamic>? data = cached.data();
+      return data == null ? null : UserProfile.fromJson(data);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<UserProfile?> getUserProfileById(String userId) async {
     if (userId.trim().isEmpty) {
       return null;
@@ -280,8 +311,14 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
         .doc(profile.uid)
         .set(profile.toJson(), SetOptions(merge: true));
 
-    if (currentUser != null && profile.fullName.trim().isNotEmpty) {
-      await currentUser!.updateDisplayName(profile.fullName.trim());
+    // The profile is already saved. Updating the Firebase display name is a
+    // nicety, so a failure there must not report the whole save as failed.
+    try {
+      if (currentUser != null && profile.fullName.trim().isNotEmpty) {
+        await currentUser!.updateDisplayName(profile.fullName.trim());
+      }
+    } catch (error) {
+      debugPrint('[Profile] Display name update failed: $error');
     }
   }
 
@@ -934,11 +971,30 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
       return;
     }
 
+    final DocumentReference<Map<String, dynamic>> docRef =
+        _firestore.collection('users').doc(uid);
+
+    // Signing in again (Google, phone) must never reset an existing
+    // profile's ward, bio, photo, role or created date back to blanks.
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> existing =
+          await docRef.get().timeout(const Duration(seconds: 8));
+      if (existing.exists) {
+        return;
+      }
+    } catch (error) {
+      // Cannot tell whether a profile exists. Skipping is safe: the account
+      // setup screen creates one if it is genuinely missing, whereas writing
+      // blanks could erase a real profile.
+      debugPrint('[Profile] Skipped default profile creation: $error');
+      return;
+    }
+
     final DateTime now = DateTime.now();
     final UserProfile profile = UserProfile(
       uid: uid,
       fullName: displayName?.trim() ?? '',
-      email: email,
+      email: email.trim().toLowerCase(),
       phoneNumber: phoneNumber?.trim() ?? '',
       accountRole: UserAccountRole.owner,
       ward: '',
@@ -950,10 +1006,7 @@ class FirebaseService implements FarmRemoteStore, OperationsHubRemoteStore {
       fcmTokens: const <String>[],
     );
 
-    await _firestore
-        .collection('users')
-        .doc(uid)
-        .set(profile.toJson(), SetOptions(merge: true));
+    await docRef.set(profile.toJson(), SetOptions(merge: true));
   }
 
   String _googleSignInErrorMessage(Object error) {

@@ -6,6 +6,8 @@ import '../domain/models/procurement_order.dart';
 import 'auth_provider.dart';
 
 final procurementRepositoryProvider = Provider<ProcurementRepository>((ref) {
+  // Rebuilt for every account so one person never sees another's records.
+  ref.watch(sessionUidProvider);
   return FirestoreProcurementRepository(ref.watch(firebaseServiceProvider));
 });
 

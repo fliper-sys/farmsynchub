@@ -12,6 +12,8 @@ import 'notification_provider.dart';
 
 /// Provider for finance repository.
 final financeRepositoryProvider = Provider<FinanceRepository>((ref) {
+  // Rebuilt for every account so one person never sees another's records.
+  ref.watch(sessionUidProvider);
   return FirestoreFinanceRepository(ref.watch(firebaseServiceProvider));
 });
 
