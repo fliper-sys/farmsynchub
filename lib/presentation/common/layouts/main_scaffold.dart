@@ -172,7 +172,8 @@ class MainScaffold extends ConsumerWidget {
               badgedIndex: streakAtRisk ? 0 : null,
               onDestinationSelected: (int index) {
                 if (index != currentIndex) HapticFeedback.selectionClick();
-                final String featureKey = AppDestinations.tabs[index].featureKey;
+                final String featureKey =
+                    AppDestinations.tabs[index].featureKey;
                 if (profile?.restrictedFeatures.contains(featureKey) == true) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -649,7 +650,8 @@ class _PremiumNavItem extends StatelessWidget {
                       maxLines: 1,
                       style: theme.textTheme.labelSmall!.copyWith(
                         color: selected ? AppColors.premiumGreen : inactive,
-                        fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                        fontWeight:
+                            selected ? FontWeight.w800 : FontWeight.w600,
                         fontSize: 10.5,
                       ),
                     ),
@@ -786,7 +788,8 @@ class _StreakPillState extends State<_StreakPill>
             decoration: BoxDecoration(
               color: color.withOpacity(0.14),
               borderRadius: BorderRadius.circular(99),
-              border: Border.all(color: color.withOpacity(0.35 + 0.35 * _c.value)),
+              border:
+                  Border.all(color: color.withOpacity(0.35 + 0.35 * _c.value)),
               boxShadow: widget.atRisk
                   ? <BoxShadow>[
                       BoxShadow(

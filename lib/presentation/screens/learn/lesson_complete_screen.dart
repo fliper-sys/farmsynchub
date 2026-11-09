@@ -117,7 +117,7 @@ class _LessonCompleteScreenState extends ConsumerState<LessonCompleteScreen> {
                 padding: const EdgeInsets.fromLTRB(22, 24, 22, 12),
                 child: Column(
                   children: <Widget>[
-                    LottieOrIcon(
+                    const LottieOrIcon(
                       asset: LottieAssets.trophy,
                       fallbackIcon: Icons.emoji_events_rounded,
                       fallbackColor: EngagementColors.gold,
@@ -149,7 +149,9 @@ class _LessonCompleteScreenState extends ConsumerState<LessonCompleteScreen> {
                           child: _ResultTile(
                             color: EngagementColors.gold,
                             title: language.tr(
-                                en: 'TOTAL XP', ha: 'JIMILLAR XP', fr: 'XP TOTAL'),
+                                en: 'TOTAL XP',
+                                ha: 'JIMILLAR XP',
+                                fr: 'XP TOTAL'),
                             icon: Icons.bolt_rounded,
                             child: TweenAnimationBuilder<int>(
                               tween: IntTween(begin: 0, end: totalXp),
@@ -242,14 +244,14 @@ class _LessonCompleteScreenState extends ConsumerState<LessonCompleteScreen> {
                       onPressed: reward == null ? null : _continue,
                       child: Text(
                         (widget.onNextLesson != null
-                                ? language.tr(
-                                    en: 'NEXT LESSON',
-                                    ha: 'DARASI NA GABA',
-                                    fr: 'LEÇON SUIVANTE')
-                                : language.tr(
-                                    en: 'CONTINUE',
-                                    ha: 'CI GABA',
-                                    fr: 'CONTINUER')),
+                            ? language.tr(
+                                en: 'NEXT LESSON',
+                                ha: 'DARASI NA GABA',
+                                fr: 'LEÇON SUIVANTE')
+                            : language.tr(
+                                en: 'CONTINUE',
+                                ha: 'CI GABA',
+                                fr: 'CONTINUER')),
                         style: const TextStyle(
                             fontWeight: FontWeight.w900, letterSpacing: 0.8),
                       ),

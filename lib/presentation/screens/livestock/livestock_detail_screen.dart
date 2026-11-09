@@ -126,8 +126,7 @@ class LivestockDetailScreen extends ConsumerWidget {
         GlobalObjectKey('vaccination_$livestockId');
     final GlobalKey productionLogKey =
         GlobalObjectKey('productionLog_$livestockId');
-    final GlobalKey weightGainKey =
-        GlobalObjectKey('weightGain_$livestockId');
+    final GlobalKey weightGainKey = GlobalObjectKey('weightGain_$livestockId');
     final GlobalKey photoJournalKey =
         GlobalObjectKey('photoJournal_$livestockId');
     final GlobalKey careTasksKey = GlobalObjectKey('careTasks_$livestockId');
@@ -228,23 +227,29 @@ class LivestockDetailScreen extends ConsumerWidget {
         title: Text('${livestock.emoji} ${_speciesLabel(livestock.species)}'),
         actions: <Widget>[
           IconButton(
-            tooltip: livestock.isFavorite ? 'Unpin' : 'Pin to top of livestock list',
+            tooltip:
+                livestock.isFavorite ? 'Unpin' : 'Pin to top of livestock list',
             icon: Icon(
-              livestock.isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
+              livestock.isFavorite
+                  ? Icons.star_rounded
+                  : Icons.star_outline_rounded,
               color: livestock.isFavorite ? Colors.amber : null,
             ),
-            onPressed: () => ref.read(livestockProvider.notifier).updateLivestock(
-                  livestock!.copyWith(
-                    isFavorite: !livestock.isFavorite,
-                    updatedAt: DateTime.now(),
-                    isSynced: false,
-                  ),
-                ),
+            onPressed: () =>
+                ref.read(livestockProvider.notifier).updateLivestock(
+                      livestock!.copyWith(
+                        isFavorite: !livestock.isFavorite,
+                        updatedAt: DateTime.now(),
+                        isSynced: false,
+                      ),
+                    ),
           ),
           _ShareStatusButton(
             boundaryKey: GlobalObjectKey('shareBoundary_$livestockId'),
-            fileName: 'livestock_status_${livestockId}_${DateTime.now().millisecondsSinceEpoch}.png',
-            shareMessage: '${_speciesLabel(livestock.species)} status from FarmSync Hub',
+            fileName:
+                'livestock_status_${livestockId}_${DateTime.now().millisecondsSinceEpoch}.png',
+            shareMessage:
+                '${_speciesLabel(livestock.species)} status from FarmSync Hub',
           ),
           SectionScrollMenu(
             sections: sections,
@@ -294,7 +299,8 @@ class LivestockDetailScreen extends ConsumerWidget {
                         : const Color(0xFF8CF0B0),
                 ringValue: lv.healthScore / 100,
                 ringText: '${lv.healthScore}%',
-                ringCaption: language.tr(en: 'health', ha: 'lafiya', fr: 'santé'),
+                ringCaption:
+                    language.tr(en: 'health', ha: 'lafiya', fr: 'santé'),
                 ringColor: lv.healthScore >= 80
                     ? const Color(0xFF8CF0B0)
                     : lv.healthScore >= 60
@@ -310,7 +316,9 @@ class LivestockDetailScreen extends ConsumerWidget {
                   HeroStat(
                     icon: Icons.restaurant_rounded,
                     label: language.tr(
-                        en: 'Feed / day', ha: 'Abinci/rana', fr: 'Aliment/jour'),
+                        en: 'Feed / day',
+                        ha: 'Abinci/rana',
+                        fr: 'Aliment/jour'),
                     value: '${totalDailyFeedKg.toStringAsFixed(1)} kg',
                   ),
                   HeroStat(
@@ -338,10 +346,12 @@ class LivestockDetailScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 18),
           SoftSectionTitle(
-              title: language.tr(
-                  en: 'Work focus',
-                  ha: 'Manufar aiki',
-                  fr: 'Priorites de travail')),
+            title: language.tr(
+              en: 'Work focus',
+              ha: 'Manufar aiki',
+              fr: 'Priorites de travail',
+            ),
+          ),
           Container(
             key: workFocusKey,
             child: AppCard(
@@ -389,7 +399,8 @@ class LivestockDetailScreen extends ConsumerWidget {
                 QuickAction(
                   icon: Icons.restaurant_rounded,
                   label: lv.wasFedToday
-                      ? language.tr(en: 'Fed today', ha: 'An ciyar', fr: 'Nourri')
+                      ? language.tr(
+                          en: 'Fed today', ha: 'An ciyar', fr: 'Nourri')
                       : language.tr(en: 'Mark fed', ha: 'Ciyar', fr: 'Nourrir'),
                   highlight: !lv.wasFedToday,
                   done: lv.wasFedToday,
@@ -415,8 +426,8 @@ class LivestockDetailScreen extends ConsumerWidget {
                 ),
                 QuickAction(
                   icon: Icons.task_alt_rounded,
-                  label: language.tr(
-                      en: 'Care tasks', ha: 'Ayyuka', fr: 'Tâches'),
+                  label:
+                      language.tr(en: 'Care tasks', ha: 'Ayyuka', fr: 'Tâches'),
                   highlight: overdueTasks > 0,
                   onTap: () => _scrollToKey(context, careTasksKey),
                 ),
@@ -436,7 +447,6 @@ class LivestockDetailScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           SectionJumpBar(sections: sections),
           const SizedBox(height: 18),
-          Container(key: workFocusKey, height: 0),
           Container(
             key: growthCycleKey,
             child: AppCard(
@@ -465,11 +475,10 @@ class LivestockDetailScreen extends ConsumerWidget {
                       currentIndex:
                           AnimalGrowthStage.values.indexOf(lv.growthStage),
                       progressInStage: ((progress *
-                                      (AnimalGrowthStage.values.length - 1)) -
-                                  AnimalGrowthStage.values
-                                      .indexOf(lv.growthStage))
-                              .clamp(0.0, 1.0)
-                              .toDouble(),
+                                  (AnimalGrowthStage.values.length - 1)) -
+                              AnimalGrowthStage.values.indexOf(lv.growthStage))
+                          .clamp(0.0, 1.0)
+                          .toDouble(),
                     ),
                     const SizedBox(height: 16),
                     Text(
@@ -496,30 +505,30 @@ class LivestockDetailScreen extends ConsumerWidget {
           Container(
             key: groupProfileKey,
             child: Row(
-            children: <Widget>[
-              Expanded(
-                child: _MetricCard(
-                  title:
-                      language.tr(en: 'Animals', ha: 'Dabbobi', fr: 'Animaux'),
-                  value: '${livestock.count}',
-                  note:
-                      '${livestock.maleCount} male • ${livestock.femaleCount} female',
-                  tint: const Color(0xFFDFF1FF),
-                  icon: Icons.pets_rounded,
+              children: <Widget>[
+                Expanded(
+                  child: _MetricCard(
+                    title: language.tr(
+                        en: 'Animals', ha: 'Dabbobi', fr: 'Animaux'),
+                    value: '${livestock.count}',
+                    note:
+                        '${livestock.maleCount} male • ${livestock.femaleCount} female',
+                    tint: const Color(0xFFDFF1FF),
+                    icon: Icons.pets_rounded,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _MetricCard(
-                  title:
-                      language.tr(en: 'Purpose', ha: 'Manufa', fr: 'Objectif'),
-                  value: _purposeLabel(livestock.purpose),
-                  note: _housingLabel(livestock.housingLocation),
-                  tint: const Color(0xFFE8F4D8),
-                  icon: Icons.flag_rounded,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _MetricCard(
+                    title: language.tr(
+                        en: 'Purpose', ha: 'Manufa', fr: 'Objectif'),
+                    value: _purposeLabel(livestock.purpose),
+                    note: _housingLabel(livestock.housingLocation),
+                    tint: const Color(0xFFE8F4D8),
+                    icon: Icons.flag_rounded,
+                  ),
                 ),
-              ),
-            ],
+              ],
             ),
           ),
           const SizedBox(height: 12),
@@ -555,33 +564,33 @@ class LivestockDetailScreen extends ConsumerWidget {
           Container(
             key: operatingRatiosKey,
             child: Row(
-            children: <Widget>[
-              Expanded(
-                child: _MetricCard(
-                  title: language.tr(
-                      en: 'Feed / day',
-                      ha: 'Abinci / rana',
-                      fr: 'Aliment / jour'),
-                  value: '${totalDailyFeedKg.toStringAsFixed(1)} kg',
-                  note:
-                      '${livestock.dailyFeedKg.toStringAsFixed(1)} kg per head',
-                  tint: const Color(0xFFE8F4D8),
-                  icon: Icons.grass_rounded,
+              children: <Widget>[
+                Expanded(
+                  child: _MetricCard(
+                    title: language.tr(
+                        en: 'Feed / day',
+                        ha: 'Abinci / rana',
+                        fr: 'Aliment / jour'),
+                    value: '${totalDailyFeedKg.toStringAsFixed(1)} kg',
+                    note:
+                        '${livestock.dailyFeedKg.toStringAsFixed(1)} kg per head',
+                    tint: const Color(0xFFE8F4D8),
+                    icon: Icons.grass_rounded,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _MetricCard(
-                  title: language.tr(
-                      en: 'Water / day', ha: 'Ruwa / rana', fr: 'Eau / jour'),
-                  value: '${totalDailyWaterLitres.toStringAsFixed(1)} L',
-                  note:
-                      '${livestock.dailyWaterLitres.toStringAsFixed(1)} L per head',
-                  tint: const Color(0xFFDFF1FF),
-                  icon: Icons.water_drop_rounded,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _MetricCard(
+                    title: language.tr(
+                        en: 'Water / day', ha: 'Ruwa / rana', fr: 'Eau / jour'),
+                    value: '${totalDailyWaterLitres.toStringAsFixed(1)} L',
+                    note:
+                        '${livestock.dailyWaterLitres.toStringAsFixed(1)} L per head',
+                    tint: const Color(0xFFDFF1FF),
+                    icon: Icons.water_drop_rounded,
+                  ),
                 ),
-              ),
-            ],
+              ],
             ),
           ),
           const SizedBox(height: 12),
@@ -639,14 +648,18 @@ class LivestockDetailScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Container(key: feedingPlanKey, child: FeedingPlanWidget(livestock: livestock)),
+          Container(
+              key: feedingPlanKey,
+              child: FeedingPlanWidget(livestock: livestock)),
           const SizedBox(height: 18),
           SoftSectionTitle(
               title: language.tr(
                   en: 'Vaccination & Health',
                   ha: 'Alurar Riga Kafi & Lafiya',
                   fr: 'Vaccination et sante')),
-          Container(key: vaccinationKey, child: VaccinationCalendarWidget(livestock: livestock)),
+          Container(
+              key: vaccinationKey,
+              child: VaccinationCalendarWidget(livestock: livestock)),
           const SizedBox(height: 18),
           SoftSectionTitle(
               title: language.tr(
@@ -1137,11 +1150,12 @@ class _ShareStatusButtonState extends State<_ShareStatusButton> {
   Future<void> _share() async {
     setState(() => _isSharing = true);
     try {
-      final Uint8List? imageBytes = await captureBoundaryImage(widget.boundaryKey);
+      final Uint8List? imageBytes =
+          await captureBoundaryImage(widget.boundaryKey);
       if (imageBytes == null) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Could not capture the status card.')));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Could not capture the status card.')));
         }
         return;
       }
@@ -1166,7 +1180,9 @@ class _ShareStatusButtonState extends State<_ShareStatusButton> {
       tooltip: 'Share status',
       icon: _isSharing
           ? const SizedBox(
-              width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2))
           : const Icon(Icons.ios_share_rounded),
       onPressed: _isSharing ? null : _share,
     );
@@ -1391,7 +1407,8 @@ class _TodayFeedingCard extends StatelessWidget {
                   alignment: Alignment.center,
                   child: Icon(
                     fed ? Icons.check_circle_rounded : Icons.restaurant_rounded,
-                    color: fed ? Colors.green : theme.colorScheme.onSurfaceVariant,
+                    color:
+                        fed ? Colors.green : theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(width: 14),
