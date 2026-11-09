@@ -11,6 +11,7 @@ import '../../../core/services/report_file_saver_base.dart';
 import '../../../core/services/report_share_service.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../domain/models/farm.dart';
+import '../../../core/i18n/context_tr.dart';
 import '../../../domain/models/transaction.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/finance_provider.dart';
@@ -101,10 +102,10 @@ class _ExpenseTrackingScreenState extends ConsumerState<ExpenseTrackingScreen> {
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => Navigator.of(context).canPop() ? Navigator.of(context).pop() : context.go('/finance'),
         ),
-        title: const Text('Expense tracking'),
+        title: Text(ctr(context, 'Expense tracking', 'Bin diddigin kashe kudi', 'Suivi des dépenses', 'Expense tracking')),
         actions: <Widget>[
           IconButton(
-            tooltip: 'Export expense history',
+            tooltip: ctr(context, 'Export expense history', 'Fitar da tarihin kashe kudi', 'Exporter l’historique des dépenses', 'Export expense history'),
             icon: _isExporting
                 ? const SizedBox(
                     width: 18,
@@ -144,7 +145,10 @@ class _ExpenseTrackingScreenState extends ConsumerState<ExpenseTrackingScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(_month == null ? 'Total spent' : 'Spent this month',
+                  Text(
+                      _month == null
+                          ? ctr(context, 'Total spent', 'Jimillar kashe kudi', 'Total dépensé', 'Total wey you spend')
+                          : ctr(context, 'Spent this month', 'An kashe a wannan wata', 'Dépensé ce mois-ci', 'Wey you spend this month'),
                       style: TextStyle(
                           color: Colors.white.withOpacity(0.85), fontSize: 13)),
                   const SizedBox(height: 4),
@@ -163,18 +167,18 @@ class _ExpenseTrackingScreenState extends ConsumerState<ExpenseTrackingScreen> {
                   Row(
                     children: <Widget>[
                       Expanded(
-                        child: _heroStat('Entries', '${expenses.length}'),
+                        child: _heroStat(ctr(context, 'Entries', 'Shigarwa', 'Entrées', 'Entries'), '${expenses.length}'),
                       ),
                       Expanded(
-                        child: _heroStat('Average',
+                        child: _heroStat(ctr(context, 'Average', 'Matsakaici', 'Moyenne', 'Average'),
                             CurrencyUtils.formatCompactCurrency(averageExpense)),
                       ),
                       Expanded(
                         child: _heroStat(
-                            'Top category',
+                            ctr(context, 'Top category', 'Babban rukuni', 'Catégorie principale', 'Top category'),
                             topCategories.isEmpty
                                 ? '-'
-                                : _categoryName(topCategories.first.key)),
+                                : _categoryName(context, topCategories.first.key)),
                       ),
                     ],
                   ),
@@ -193,12 +197,12 @@ class _ExpenseTrackingScreenState extends ConsumerState<ExpenseTrackingScreen> {
                             context.go('/finance');
                           },
                           icon: const Icon(Icons.add_rounded),
-                          label: const Text('Add expense'),
+                          label: Text(ctr(context, 'Add expense', 'Kara kashe kudi', 'Ajouter une dépense', 'Add expense')),
                         ),
                       ),
                       const SizedBox(width: 10),
                       IconButton.filledTonal(
-                        tooltip: 'Share PDF',
+                        tooltip: ctr(context, 'Share PDF', 'Raba PDF', 'Partager le PDF', 'Share PDF'),
                         onPressed: expenses.isEmpty || _isExporting
                             ? null
                             : () => _exportHistory(context, farms, expenses,
@@ -220,7 +224,7 @@ class _ExpenseTrackingScreenState extends ConsumerState<ExpenseTrackingScreen> {
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: ChoiceChip(
-                    label: const Text('All time'),
+                    label: Text(ctr(context, 'All time', 'Kowane lokaci', 'Toute la période', 'All time')),
                     selected: _month == null,
                     onSelected: (_) => setState(() => _month = null),
                   ),
@@ -229,7 +233,7 @@ class _ExpenseTrackingScreenState extends ConsumerState<ExpenseTrackingScreen> {
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: ChoiceChip(
-                      label: Text(_monthLabel(m)),
+                      label: Text(_monthLabel(context, m)),
                       selected: _month != null &&
                           _month!.year == m.year &&
                           _month!.month == m.month,
@@ -252,7 +256,7 @@ class _ExpenseTrackingScreenState extends ConsumerState<ExpenseTrackingScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text('Where it went',
+                  Text(ctr(context, 'Where it went', 'Inda ya tafi', 'Où cela est allé', 'Where e go'),
                       style: Theme.of(context)
                           .textTheme
                           .titleMedium
@@ -271,7 +275,7 @@ class _ExpenseTrackingScreenState extends ConsumerState<ExpenseTrackingScreen> {
                                   size: 16, color: _categoryColor(e.key)),
                               const SizedBox(width: 6),
                               Expanded(
-                                child: Text(_categoryName(e.key),
+                                child: Text(_categoryName(context, e.key),
                                     style: const TextStyle(
                                         fontWeight: FontWeight.w700)),
                               ),
@@ -297,8 +301,8 @@ class _ExpenseTrackingScreenState extends ConsumerState<ExpenseTrackingScreen> {
           const SizedBox(height: 16),
           AppTextField(
             controller: _searchController,
-            label: 'Search expenses',
-            hint: 'Search by note, category, or receipt number',
+            label: ctr(context, 'Search expenses', 'Nemi kashe kudi', 'Rechercher des dépenses', 'Search expenses'),
+            hint: ctr(context, 'Search by note, category, or receipt number', 'Nema ta bayani, rukuni ko lambar rasit', 'Rechercher par note, catégorie ou numéro de reçu', 'Search by note, category, or receipt number'),
             prefix: const Icon(Icons.search_rounded),
             onChanged: (_) => setState(() {}),
           ),
@@ -310,14 +314,14 @@ class _ExpenseTrackingScreenState extends ConsumerState<ExpenseTrackingScreen> {
           ),
           const SizedBox(height: 16),
           if (expenses.isEmpty)
-            const _EmptyState(message: 'No expense history matches the current filters.')
+            _EmptyState(message: ctr(context, 'No expense history matches the current filters.', 'Babu tarihin kashe kudi da ya dace da tacewar yanzu.', 'Aucun historique de dépenses ne correspond aux filtres.', 'No expense history match the filters.'))
           else
             ...expenses.map(
               (Transaction item) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: _HistoryCard(
                   title: item.description,
-                  subtitle: _categoryName(item.category),
+                  subtitle: _categoryName(context, item.category),
                   category: item.category,
                   meta: '${item.receiptNumber} • ${appDate(item.transactionDate)}',
                   amount: CurrencyUtils.formatCurrency(item.amount),
@@ -327,10 +331,10 @@ class _ExpenseTrackingScreenState extends ConsumerState<ExpenseTrackingScreen> {
           const SizedBox(height: 10),
           AppCard(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: const Padding(
-              padding: EdgeInsets.all(18),
+            child: Padding(
+              padding: const EdgeInsets.all(18),
               child: Text(
-                'Tip: expense entry and editing live in the Finance workspace. This page keeps the expense history easy to review and export.',
+                ctr(context, 'Tip: expense entry and editing live in the Finance workspace. This page keeps the expense history easy to review and export.', 'Shawara: ana shigar da kashe kudi da gyara su a wurin aikin Kudi. Wannan shafin yana sauƙaƙa duba da fitar da tarihin kashe kudi.', 'Astuce : la saisie et la modification des dépenses se font dans l’espace Finances. Cette page facilite la consultation et l’export de l’historique.', 'Tip: you go enter and edit expense for Finance workspace. This page dey make am easy to check and export expense history.'),
               ),
             ),
           ),
@@ -384,7 +388,8 @@ class _ExpenseTrackingScreenState extends ConsumerState<ExpenseTrackingScreen> {
       );
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Expense PDF saved: $path')),
+        SnackBar(
+            content: Text(ctr(context, 'Expense PDF saved: $path', 'An adana PDF na kashe kudi: $path', 'PDF des dépenses enregistré : $path', 'Expense PDF don save: $path'))),
       );
     } finally {
       if (mounted) {
@@ -409,9 +414,12 @@ class _FarmDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
       value: value.isEmpty ? null : value,
-      decoration: const InputDecoration(labelText: 'Farm'),
+      decoration: InputDecoration(
+          labelText: ctr(context, 'Farm', 'Gona', 'Ferme', 'Farm')),
       items: <DropdownMenuItem<String>>[
-        const DropdownMenuItem<String>(value: '', child: Text('All farms')),
+        DropdownMenuItem<String>(
+            value: '',
+            child: Text(ctr(context, 'All farms', 'Dukkan gonaki', 'Toutes les fermes', 'All farms'))),
         ...farms.map(
           (Farm farm) => DropdownMenuItem<String>(
             value: farm.id,
@@ -494,22 +502,22 @@ class _HistoryCard extends StatelessWidget {
   }
 }
 
-String _categoryName(TransactionCategory c) {
+String _categoryName(BuildContext ctx, TransactionCategory c) {
   switch (c) {
     case TransactionCategory.cropSale:
-      return 'Crop sales';
+      return ctr(ctx, 'Crop sales', 'Tallan amfanin gona', 'Ventes de cultures', 'Crop sales');
     case TransactionCategory.livestockSale:
-      return 'Livestock sales';
+      return ctr(ctx, 'Livestock sales', 'Tallan dabbobi', 'Ventes de bétail', 'Animal sales');
     case TransactionCategory.feed:
-      return 'Feed';
+      return ctr(ctx, 'Feed', 'Abincin dabbobi', 'Aliment', 'Feed');
     case TransactionCategory.fertiliser:
-      return 'Fertiliser';
+      return ctr(ctx, 'Fertiliser', 'Taki', 'Engrais', 'Fertiliser');
     case TransactionCategory.labour:
-      return 'Labour';
+      return ctr(ctx, 'Labour', 'Ma\'aikata', 'Main-d’œuvre', 'Labour');
     case TransactionCategory.veterinary:
-      return 'Veterinary';
+      return ctr(ctx, 'Veterinary', 'Likitan dabbobi', 'Vétérinaire', 'Vet');
     case TransactionCategory.other:
-      return 'Other';
+      return ctr(ctx, 'Other', 'Wasu', 'Autre', 'Other');
   }
 }
 
@@ -551,10 +559,20 @@ Color _categoryColor(TransactionCategory c) {
   }
 }
 
-String _monthLabel(DateTime d) {
-  const List<String> names = <String>[
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+String _monthLabel(BuildContext ctx, DateTime d) {
+  final List<String> names = <String>[
+    ctr(ctx, 'Jan', 'Jan', 'janv.', 'Jan'),
+    ctr(ctx, 'Feb', 'Fab', 'févr.', 'Feb'),
+    ctr(ctx, 'Mar', 'Mar', 'mars', 'Mar'),
+    ctr(ctx, 'Apr', 'Afr', 'avr.', 'Apr'),
+    ctr(ctx, 'May', 'May', 'mai', 'May'),
+    ctr(ctx, 'Jun', 'Yun', 'juin', 'Jun'),
+    ctr(ctx, 'Jul', 'Yul', 'juil.', 'Jul'),
+    ctr(ctx, 'Aug', 'Agu', 'août', 'Aug'),
+    ctr(ctx, 'Sep', 'Sat', 'sept.', 'Sep'),
+    ctr(ctx, 'Oct', 'Okt', 'oct.', 'Oct'),
+    ctr(ctx, 'Nov', 'Nuw', 'nov.', 'Nov'),
+    ctr(ctx, 'Dec', 'Dis', 'déc.', 'Dec'),
   ];
   return '${names[d.month - 1]} ${d.year}';
 }
