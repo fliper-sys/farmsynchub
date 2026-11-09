@@ -92,7 +92,7 @@ class SoftScreenScaffold extends StatelessWidget {
                                     icon: const Icon(Icons.arrow_back_rounded),
                                     color: isDark
                                         ? theme.colorScheme.onSurface
-                                        : accent,
+                                        : AppColors.primaryForeground(theme.brightness),
                                     onPressed: onBack,
                                   ),
                                 ),
@@ -141,7 +141,7 @@ class SoftScreenScaffold extends StatelessWidget {
                                           style: theme.textTheme.headlineSmall
                                               ?.copyWith(
                                             fontSize: titleSize,
-                                            color: accent,
+                                            color: AppColors.primaryForeground(theme.brightness),
                                           ),
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
@@ -172,15 +172,12 @@ class SoftScreenScaffold extends StatelessWidget {
                               ],
                             ] else ...<Widget>[
                               if (onBack != null) ...<Widget>[
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: IconButton(
-                                    icon: const Icon(Icons.arrow_back_rounded),
-                                    color: isDark
-                                        ? theme.colorScheme.onSurface
-                                        : accent,
-                                    onPressed: onBack,
-                                  ),
+                                IconButton(
+                                  icon: const Icon(Icons.arrow_back_rounded),
+                                  color: isDark
+                                      ? theme.colorScheme.onSurface
+                                      : AppColors.primaryForeground(theme.brightness),
+                                  onPressed: onBack,
                                 ),
                                 const SizedBox(height: 10),
                               ],
@@ -227,7 +224,7 @@ class SoftScreenScaffold extends StatelessWidget {
                                           style: theme.textTheme.headlineSmall
                                               ?.copyWith(
                                             fontSize: titleSize,
-                                            color: accent,
+                                            color: AppColors.primaryForeground(theme.brightness),
                                           ),
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
