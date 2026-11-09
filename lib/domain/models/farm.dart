@@ -556,6 +556,7 @@ class Farm {
     this.longitude,
     this.greenhouseCount = 0,
     this.greenhouseAreaHa = 0,
+    this.greenhouseCropType = 'mixedVegetables',
     this.cropCapacityHa = 0,
     this.livestockCapacity = 0,
     this.documents = const <FarmDocumentRecord>[],
@@ -590,6 +591,11 @@ class Farm {
   final double? longitude;
   final int greenhouseCount;
   final double greenhouseAreaHa;
+
+  /// Stores a [GreenhouseCropType] enum name (see
+  /// core/services/greenhouse_planner_service.dart) - kept as a plain
+  /// string here so the domain model doesn't depend on a service layer.
+  final String greenhouseCropType;
   final double cropCapacityHa;
   final int livestockCapacity;
   final List<FarmDocumentRecord> documents;
@@ -656,6 +662,7 @@ class Farm {
     double? longitude,
     int? greenhouseCount,
     double? greenhouseAreaHa,
+    String? greenhouseCropType,
     double? cropCapacityHa,
     int? livestockCapacity,
     List<FarmDocumentRecord>? documents,
@@ -690,6 +697,7 @@ class Farm {
       longitude: longitude ?? this.longitude,
       greenhouseCount: greenhouseCount ?? this.greenhouseCount,
       greenhouseAreaHa: greenhouseAreaHa ?? this.greenhouseAreaHa,
+      greenhouseCropType: greenhouseCropType ?? this.greenhouseCropType,
       cropCapacityHa: cropCapacityHa ?? this.cropCapacityHa,
       livestockCapacity: livestockCapacity ?? this.livestockCapacity,
       documents: documents ?? this.documents,
@@ -726,6 +734,7 @@ class Farm {
         'longitude': longitude,
         'greenhouseCount': greenhouseCount,
         'greenhouseAreaHa': greenhouseAreaHa,
+        'greenhouseCropType': greenhouseCropType,
         'cropCapacityHa': cropCapacityHa,
         'livestockCapacity': livestockCapacity,
         'documents':
@@ -785,6 +794,8 @@ class Farm {
         longitude: (json['longitude'] as num?)?.toDouble(),
         greenhouseCount: (json['greenhouseCount'] as num?)?.toInt() ?? 0,
         greenhouseAreaHa: (json['greenhouseAreaHa'] as num?)?.toDouble() ?? 0,
+        greenhouseCropType:
+            json['greenhouseCropType'] as String? ?? 'mixedVegetables',
         cropCapacityHa: (json['cropCapacityHa'] as num?)?.toDouble() ?? 0,
         livestockCapacity: (json['livestockCapacity'] as num?)?.toInt() ?? 0,
         documents: _jsonObjectList(json['documents'])

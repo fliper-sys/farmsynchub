@@ -7,6 +7,8 @@ import 'auth_provider.dart';
 
 /// Provider for livestock repository.
 final livestockRepositoryProvider = Provider<LivestockRepository>((ref) {
+  // Rebuilt for every account so one person never sees another's records.
+  ref.watch(sessionUidProvider);
   return FirestoreLivestockRepository(ref.watch(firebaseServiceProvider));
 });
 

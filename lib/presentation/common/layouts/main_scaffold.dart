@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_strings.dart';
+import '../../../core/navigation/app_destinations.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/models/user_profile.dart';
 import '../../../providers/app_preferences_provider.dart';
@@ -17,6 +18,8 @@ import '../../../providers/sync_provider.dart';
 import '../../../providers/user_profile_provider.dart';
 import '../../screens/learn/engagement_widgets.dart';
 import '../../screens/learn/streak_calendar_screen.dart';
+import 'app_menu_drawer.dart';
+import '../tour/app_spotlight_tour.dart';
 
 /// Connection state used for the app-wide sync indicator.
 enum SyncStatus {
@@ -39,6 +42,7 @@ class MainScaffold extends ConsumerWidget {
     required this.child,
     required this.onDestinationSelected,
     this.title,
+    this.currentPath = '',
     this.floatingActionButton,
     this.drawer,
     this.actions,
@@ -48,7 +52,8 @@ class MainScaffold extends ConsumerWidget {
     this.extendBody = false,
   });
 
-  /// The active navigation index.
+  /// The active bottom-bar tab, or -1 when the page on screen is not one of
+  /// the tabs (for example Settings or Learn), so no tab looks selected.
   final int currentIndex;
 
   /// The content rendered above the bottom navigation.
@@ -63,7 +68,11 @@ class MainScaffold extends ConsumerWidget {
   /// Optional floating action button for the active screen.
   final Widget? floatingActionButton;
 
-  /// Optional navigation drawer for quick links like AI and Learn.
+  /// Route on screen, used to highlight the current item in the menu.
+  final String currentPath;
+
+  /// Navigation drawer. Defaults to the full app menu so every screen is one
+  /// tap away from anywhere.
   final Widget? drawer;
 
   /// Optional trailing app bar actions.
@@ -99,58 +108,29 @@ class MainScaffold extends ConsumerWidget {
             streakInfo.status == StreakStatus.frozen);
     final double screenWidth = MediaQuery.sizeOf(context).width;
     final bool isCompactNavigation = screenWidth < 420;
-    final List<NavigationDestination> destinations = <NavigationDestination>[
-      NavigationDestination(
-        icon: const Icon(Icons.home_outlined),
-        selectedIcon: const Icon(Icons.home_rounded),
-        label: language.tr(en: AppStrings.home, ha: 'Gida', fr: 'Accueil'),
-      ),
-      NavigationDestination(
-        icon: const Icon(Icons.agriculture_outlined),
-        selectedIcon: const Icon(Icons.agriculture_rounded),
-        label: language.tr(en: AppStrings.farms, ha: 'Gonaki', fr: 'Fermes'),
-      ),
-      NavigationDestination(
-        icon: const Icon(Icons.grass_outlined),
-        selectedIcon: const Icon(Icons.grass_rounded),
-        label: language.tr(
-            en: AppStrings.crops, ha: 'Amfanin gona', fr: 'Cultures'),
-      ),
-      NavigationDestination(
-        icon: const Icon(Icons.pets_outlined),
-        selectedIcon: const Icon(Icons.pets),
-        label:
-            language.tr(en: AppStrings.livestock, ha: 'Dabbobi', fr: 'Bétail'),
-      ),
-      NavigationDestination(
-        icon: const Icon(Icons.account_balance_wallet_outlined),
-        selectedIcon: const Icon(Icons.account_balance_wallet_rounded),
-        label: language.tr(en: AppStrings.finance, ha: 'Kudi', fr: 'Finance'),
-      ),
-      NavigationDestination(
-        icon: const Icon(Icons.newspaper_outlined),
-        selectedIcon: const Icon(Icons.newspaper_rounded),
-        label: language.tr(en: AppStrings.news, ha: 'Labarai', fr: 'Nouvelles'),
-      ),
-      NavigationDestination(
-        icon: const Icon(Icons.person_outline_rounded),
-        selectedIcon: const Icon(Icons.person_rounded),
-        label: language.tr(
-            en: AppStrings.profile, ha: 'Bayanan kaina', fr: 'Profil'),
-      ),
-    ];
+    // Seven labelled tabs (the bar slides on narrow phones); every other
+    // screen is reachable from the menu.
+    final List<NavigationDestination> destinations = AppDestinations.tabs
+        .map(
+          (AppDestination destination) => NavigationDestination(
+            icon: Icon(destination.icon),
+            selectedIcon: Icon(destination.selectedIcon),
+            label: destination.label(language),
+          ),
+        )
+        .toList();
+
+    final Widget menuDrawer = drawer ?? AppMenuDrawer(currentPath: currentPath);
 
     return Scaffold(
       extendBody: extendBody,
-      drawer: drawer,
+      drawer: menuDrawer,
       appBar: showAppBar
           ? AppBar(
               title: title == null ? null : Text(title!),
-              leading: drawer == null
-                  ? null
-                  : Builder(
-                      builder: (BuildContext context) => const _MenuButton(),
-                    ),
+              leading: Builder(
+                builder: (BuildContext context) => const _MenuButton(),
+              ),
               actions: <Widget>[
                 _SyncStatusPill(
                   syncStatus: _resolveSyncStatus(syncOverview),
@@ -192,7 +172,7 @@ class MainScaffold extends ConsumerWidget {
               badgedIndex: streakAtRisk ? 0 : null,
               onDestinationSelected: (int index) {
                 if (index != currentIndex) HapticFeedback.selectionClick();
-                final String featureKey = _featureKeyForIndex(index);
+                final String featureKey = AppDestinations.tabs[index].featureKey;
                 if (profile?.restrictedFeatures.contains(featureKey) == true) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -340,26 +320,7 @@ class MainScaffold extends ConsumerWidget {
   }
 }
 
-String _featureKeyForIndex(int index) {
-  switch (index) {
-    case 1:
-      return 'farms';
-    case 2:
-      return 'crops';
-    case 3:
-      return 'livestock';
-    case 4:
-      return 'finance';
-    case 5:
-      return 'news';
-    case 6:
-      return 'profile';
-    default:
-      return 'dashboard';
-  }
-}
-
-class _PremiumBottomNavigation extends StatelessWidget {
+class _PremiumBottomNavigation extends StatefulWidget {
   const _PremiumBottomNavigation({
     required this.currentIndex,
     required this.destinations,
@@ -378,17 +339,72 @@ class _PremiumBottomNavigation extends StatelessWidget {
   final int? badgedIndex;
 
   @override
+  State<_PremiumBottomNavigation> createState() =>
+      _PremiumBottomNavigationState();
+}
+
+class _PremiumBottomNavigationState extends State<_PremiumBottomNavigation> {
+  /// Narrowest a tab may get before the bar starts sliding sideways.
+  static const double _minEvenSlot = 58;
+
+  /// Tabs visible at once while sliding. The half tab at the edge is the
+  /// visual hint that the bar scrolls.
+  static const double _visibleWhenSliding = 5.5;
+
+  final ScrollController _scroll = ScrollController();
+  int? _revealedIndex;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// Slides the bar so the selected tab is centred (instantly the first time,
+  /// smoothly afterwards).
+  void _reveal(double slot, double viewport) {
+    final int index = widget.currentIndex;
+    if (index < 0 || index == _revealedIndex) {
+      return;
+    }
+    final bool first = _revealedIndex == null;
+    _revealedIndex = index;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scroll.hasClients) {
+        return;
+      }
+      final double target = (slot * index + slot / 2 - viewport / 2)
+          .clamp(0.0, _scroll.position.maxScrollExtent)
+          .toDouble();
+      if (first) {
+        _scroll.jumpTo(target);
+      } else {
+        _scroll.animateTo(
+          target,
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
     const double height = 72;
-    final int count = destinations.length;
+    final int count = widget.destinations.length;
+    final Color barColor = isDark
+        ? AppColors.darkBottomNavigation.withOpacity(0.92)
+        : Colors.white.withOpacity(0.94);
 
     return SafeArea(
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-        child: ClipRRect(
+        child: KeyedSubtree(
+          key: TourTargets.keyFor('nav_bar'),
+          child: ClipRRect(
           borderRadius: BorderRadius.circular(32),
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
@@ -396,9 +412,7 @@ class _PremiumBottomNavigation extends StatelessWidget {
               height: height,
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: isDark
-                    ? AppColors.darkBottomNavigation.withOpacity(0.92)
-                    : Colors.white.withOpacity(0.94),
+                color: barColor,
                 borderRadius: BorderRadius.circular(32),
                 border: Border.all(
                   color: isDark
@@ -417,63 +431,157 @@ class _PremiumBottomNavigation extends StatelessWidget {
               ),
               child: LayoutBuilder(
                 builder: (BuildContext context, BoxConstraints box) {
-                  final double slot = box.maxWidth / count;
+                  final double evenSlot = box.maxWidth / count;
+                  // Wide enough: all tabs share the width. Otherwise each tab
+                  // keeps a readable size and the bar slides.
+                  final bool sliding = evenSlot < _minEvenSlot;
+                  final double slot =
+                      sliding ? box.maxWidth / _visibleWhenSliding : evenSlot;
+                  _reveal(slot, box.maxWidth);
+
                   return Stack(
                     children: <Widget>[
-                      // One pill that glides to the selected tab.
-                      AnimatedPositioned(
-                        duration: const Duration(milliseconds: 380),
-                        curve: Curves.easeOutBack,
-                        left: slot * currentIndex,
-                        top: 0,
-                        bottom: 0,
-                        width: slot,
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 2),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(26),
-                            gradient: const LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: <Color>[
-                                Color(0xFF0E5A41),
-                                Color(0xFF0B3D2D),
-                              ],
-                            ),
-                            boxShadow: <BoxShadow>[
-                              BoxShadow(
-                                color: AppColors.premiumGreen.withOpacity(0.35),
-                                blurRadius: 16,
-                                offset: const Offset(0, 6),
+                      SingleChildScrollView(
+                        controller: _scroll,
+                        scrollDirection: Axis.horizontal,
+                        physics: sliding
+                            ? const BouncingScrollPhysics()
+                            : const NeverScrollableScrollPhysics(),
+                        child: SizedBox(
+                          width: slot * count,
+                          child: Stack(
+                            children: <Widget>[
+                              // One pill that glides to the selected tab. It
+                              // is hidden on pages that are not a tab.
+                              if (widget.currentIndex >= 0)
+                                AnimatedPositioned(
+                                  duration: const Duration(milliseconds: 380),
+                                  curve: Curves.easeOutBack,
+                                  left: slot * widget.currentIndex,
+                                  top: 0,
+                                  bottom: 0,
+                                  width: slot,
+                                  child: Container(
+                                    margin: const EdgeInsets.symmetric(
+                                        horizontal: 2),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(26),
+                                      gradient: const LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: <Color>[
+                                          Color(0xFF0E5A41),
+                                          Color(0xFF0B3D2D),
+                                        ],
+                                      ),
+                                      boxShadow: <BoxShadow>[
+                                        BoxShadow(
+                                          color: AppColors.premiumGreen
+                                              .withOpacity(0.35),
+                                          blurRadius: 16,
+                                          offset: const Offset(0, 6),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              Row(
+                                children:
+                                    List<Widget>.generate(count, (int index) {
+                                  final NavigationDestination destination =
+                                      widget.destinations[index];
+                                  final bool selected =
+                                      index == widget.currentIndex;
+                                  return SizedBox(
+                                    width: slot,
+                                    child: _PremiumNavItem(
+                                      selected: selected,
+                                      label: destination.label,
+                                      badge: widget.badgedIndex == index &&
+                                          !selected,
+                                      icon: selected
+                                          ? (destination.selectedIcon ??
+                                              destination.icon)
+                                          : destination.icon,
+                                      onTap: () =>
+                                          widget.onDestinationSelected(index),
+                                    ),
+                                  );
+                                }),
                               ),
                             ],
                           ),
                         ),
                       ),
-                      Row(
-                        children: List<Widget>.generate(count, (int index) {
-                          final NavigationDestination destination =
-                              destinations[index];
-                          final bool selected = index == currentIndex;
-                          return Expanded(
-                            child: _PremiumNavItem(
-                              selected: selected,
-                              label: destination.label,
-                              badge: badgedIndex == index && !selected,
-                              icon: selected
-                                  ? (destination.selectedIcon ??
-                                      destination.icon)
-                                  : destination.icon,
-                              onTap: () => onDestinationSelected(index),
+                      if (sliding)
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: ListenableBuilder(
+                              listenable: _scroll,
+                              builder: (BuildContext context, Widget? child) {
+                                final bool ready = _scroll.hasClients &&
+                                    _scroll.position.haveDimensions;
+                                final bool canLeft =
+                                    ready && _scroll.offset > 2;
+                                final bool canRight = !ready ||
+                                    _scroll.offset <
+                                        _scroll.position.maxScrollExtent - 2;
+                                return Row(
+                                  children: <Widget>[
+                                    _EdgeFade(
+                                      color: barColor,
+                                      visible: canLeft,
+                                      fromLeft: true,
+                                    ),
+                                    const Spacer(),
+                                    _EdgeFade(
+                                      color: barColor,
+                                      visible: canRight,
+                                      fromLeft: false,
+                                    ),
+                                  ],
+                                );
+                              },
                             ),
-                          );
-                        }),
-                      ),
+                          ),
+                        ),
                     ],
                   );
                 },
               ),
             ),
+          ),
+        ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Soft fade at the edge of the sliding bar that says "more this way".
+class _EdgeFade extends StatelessWidget {
+  const _EdgeFade({
+    required this.color,
+    required this.visible,
+    required this.fromLeft,
+  });
+
+  final Color color;
+  final bool visible;
+  final bool fromLeft;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      opacity: visible ? 1 : 0,
+      duration: const Duration(milliseconds: 160),
+      child: Container(
+        width: 22,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: fromLeft ? Alignment.centerLeft : Alignment.centerRight,
+            end: fromLeft ? Alignment.centerRight : Alignment.centerLeft,
+            colors: <Color>[color, color.withOpacity(0)],
           ),
         ),
       ),
@@ -529,28 +637,23 @@ class _PremiumNavItem extends StatelessWidget {
                     child: icon,
                   ),
                 ),
-                // The label unfolds only for the active tab, so seven tabs
-                // still fit on a small phone.
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 280),
-                  curve: Curves.easeOutCubic,
-                  child: selected
-                      ? Padding(
-                          padding: const EdgeInsets.only(top: 3),
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              label,
-                              maxLines: 1,
-                              style: theme.textTheme.labelSmall!.copyWith(
-                                color: AppColors.premiumGreen,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 10.5,
-                              ),
-                            ),
-                          ),
-                        )
-                      : const SizedBox(width: 0, height: 0),
+                // Every tab always shows its name: an icon alone is easy to
+                // misread, especially for first-time users. With five tabs
+                // there is room; long names (e.g. in Hausa) scale down.
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(2, 3, 2, 0),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      style: theme.textTheme.labelSmall!.copyWith(
+                        color: selected ? AppColors.premiumGreen : inactive,
+                        fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                        fontSize: 10.5,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),

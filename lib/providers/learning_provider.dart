@@ -480,42 +480,31 @@ class LearningNotifier extends Notifier<LearningState> {
   }
 
   Future<void> _writeKey(SharedPreferences prefs, String key) async {
-    switch (key) {
-      case _completedLessonsKey:
-        await prefs.setStringList(key, state.completedLessons.toList());
-        break;
-      case _completedPracticesKey:
-        await prefs.setStringList(key, state.completedPractices.toList());
-        break;
-      case _sharedItemsKey:
-        await prefs.setStringList(key, state.sharedItems.toList());
-        break;
-      case _reviewedQuestionsKey:
-        await prefs.setStringList(key, state.reviewedQuestions.toList());
-        break;
-      case _correctQuestionsKey:
-        await prefs.setStringList(key, state.correctQuestions.toList());
-        break;
-      case _skippedQuestionsKey:
-        await prefs.setStringList(key, state.skippedQuestions.toList());
-        break;
-      case _skippedLessonsKey:
-        await prefs.setStringList(key, state.skippedLessons.toList());
-        break;
-      case _earnedCertificatesKey:
-        await prefs.setStringList(
-          key,
-          state.earnedCertificates
-              .map((CertificateRecord record) => jsonEncode(record.toJson()))
-              .toList(),
-        );
-        break;
-      case _learnerNameKey:
-        await prefs.setString(key, state.learnerName);
-        break;
-      case _activeDaysKey:
-        await prefs.setStringList(key, state.activeDays.toList()..sort());
-        break;
+    if (key == _completedLessonsKey) {
+      await prefs.setStringList(key, state.completedLessons.toList());
+    } else if (key == _completedPracticesKey) {
+      await prefs.setStringList(key, state.completedPractices.toList());
+    } else if (key == _sharedItemsKey) {
+      await prefs.setStringList(key, state.sharedItems.toList());
+    } else if (key == _reviewedQuestionsKey) {
+      await prefs.setStringList(key, state.reviewedQuestions.toList());
+    } else if (key == _correctQuestionsKey) {
+      await prefs.setStringList(key, state.correctQuestions.toList());
+    } else if (key == _skippedQuestionsKey) {
+      await prefs.setStringList(key, state.skippedQuestions.toList());
+    } else if (key == _skippedLessonsKey) {
+      await prefs.setStringList(key, state.skippedLessons.toList());
+    } else if (key == _earnedCertificatesKey) {
+      await prefs.setStringList(
+        key,
+        state.earnedCertificates
+            .map((CertificateRecord record) => jsonEncode(record.toJson()))
+            .toList(),
+      );
+    } else if (key == _learnerNameKey) {
+      await prefs.setString(key, state.learnerName);
+    } else if (key == _activeDaysKey) {
+      await prefs.setStringList(key, state.activeDays.toList()..sort());
     }
   }
 
@@ -652,6 +641,8 @@ class LearningNotifier extends Notifier<LearningState> {
     await _persist(<String>{_completedPracticesKey});
     if (firstTime) {
       await ref.read(engagementProvider.notifier).awardXp(5);
+    } else if (completed) {
+      await ref.read(engagementProvider.notifier).recordActivity();
     }
   }
 
@@ -693,9 +684,11 @@ class LearningNotifier extends Notifier<LearningState> {
       _skippedQuestionsKey,
       _skippedLessonsKey,
     });
-    // Answering a question for the first time keeps the streak alive (1 XP).
+    // First answers earn XP; later answers still keep the daily streak alive.
     if (firstAnswer) {
       await ref.read(engagementProvider.notifier).awardXp(1);
+    } else {
+      await ref.read(engagementProvider.notifier).recordActivity();
     }
   }
 

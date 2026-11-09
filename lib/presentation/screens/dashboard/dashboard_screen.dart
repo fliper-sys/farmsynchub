@@ -12,6 +12,7 @@ import '../../../domain/models/crop.dart';
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/livestock.dart';
 import '../../../domain/models/transaction.dart';
+import '../../../providers/app_tour_provider.dart';
 import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/crop_provider.dart';
@@ -27,7 +28,9 @@ import '../livestock/livestock_detail_screen.dart';
 import '../../common/widgets/brand_title.dart';
 import 'streak_challenge_banner.dart';
 import 'widgets/activity_feed.dart';
+import 'widgets/latest_news_carousel.dart';
 import 'widgets/weather_pill.dart';
+import '../../common/tour/app_spotlight_tour.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -52,6 +55,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     _fade = CurvedAnimation(parent: _intro, curve: Curves.easeOutCubic);
     _slide = Tween<Offset>(begin: const Offset(0, 0.035), end: Offset.zero)
         .animate(_fade);
+    // A person arriving from the welcome screen (or replaying the tour from
+    // Settings) asked for the guided tour; start it once the page is up.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeStartTour());
+  }
+
+  Future<void> _maybeStartTour() async {
+    if (!mounted || !ref.read(appTourRequestedProvider)) {
+      return;
+    }
+    ref.read(appTourRequestedProvider.notifier).state = false;
+    // Let the dashboard finish its entrance animation and load its cards.
+    await Future<void>.delayed(const Duration(milliseconds: 1100));
+    if (!mounted) {
+      return;
+    }
+    AppSpotlightTour.show(context, language: ref.read(appLanguageProvider));
   }
 
   @override
@@ -64,6 +83,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final AppLanguage language = ref.watch(appLanguageProvider);
+    ref.listen<bool>(appTourRequestedProvider, (bool? _, bool next) {
+      if (next) {
+        _maybeStartTour();
+      }
+    });
     final List<Farm> farms = ref.watch(farmsProvider).valueOrNull ?? <Farm>[];
     final List<Crop> crops = ref.watch(cropsProvider).valueOrNull ?? <Crop>[];
     final List<Livestock> livestock =
@@ -112,7 +136,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         ? currentUser!.displayName!.trim()
         : profile?.fullName.trim().isNotEmpty == true
             ? profile!.fullName.trim()
-            : 'Love Bari';
+            : language.tr(en: 'Farmer', ha: 'Manomi', fr: 'Agriculteur');
     final String activeFocus = activeFarm?.name ??
         (crops.isNotEmpty ? crops.first.name : 'Add your first farm');
 
@@ -132,15 +156,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 : null,
           ),
           _HeaderIcon(
-              icon: Icons.school_outlined, onTap: () => context.go('/learn')),
+              icon: Icons.school_outlined,
+              tooltip: language.tr(en: 'Learn', ha: 'Koyo', fr: 'Apprendre'),
+              onTap: () => context.go('/learn')),
           _HeaderIcon(
             icon: Icons.notifications_none_rounded,
+            tooltip: language.tr(
+                en: 'Notifications', ha: 'Sanarwa', fr: 'Notifications'),
             badge: unread,
             onTap: () => context.go('/notifications'),
           ),
-          _HeaderIcon(
-              icon: Icons.auto_awesome_rounded,
-              onTap: () => context.go('/ai-advisor')),
+          KeyedSubtree(
+            key: TourTargets.keyFor('dash_ai'),
+            child: _HeaderIcon(
+                icon: Icons.auto_awesome_rounded,
+                tooltip: language.tr(
+                    en: 'AI Advisor',
+                    ha: 'Mai ba da shawara',
+                    fr: 'Conseiller IA'),
+                onTap: () => context.go('/ai-advisor')),
+          ),
           const SizedBox(width: 6),
         ],
       ),
@@ -177,22 +212,32 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(18, 10, 18, 112),
                   children: <Widget>[
-                    _HeroSummaryCard(
-                      greeting: _greeting(),
-                      userName: userName,
-                      activeFocus: activeFocus,
-                      onMeasurements: () => context.go('/farms'),
+                    KeyedSubtree(
+                      key: TourTargets.keyFor('dash_hero'),
+                      child: _HeroSummaryCard(
+                        greeting: _greeting(),
+                        userName: userName,
+                        activeFocus: activeFocus,
+                        onMeasurements: () => context.go('/farms'),
+                      ),
                     ),
                     const SizedBox(height: 14),
                     const StreakChallengeBanner(),
                     const SizedBox(height: 14),
-                    _TodayTasksCard(
-                      farm: activeFarm,
-                      tasks: activeFarm?.workspaceTasks ??
-                          const <FarmWorkspaceTask>[],
-                      onViewAll: () => context.go('/farm-tasks'),
+                    KeyedSubtree(
+                      key: TourTargets.keyFor('dash_tasks'),
+                      child: _TodayTasksCard(
+                        farm: activeFarm,
+                        tasks: activeFarm?.workspaceTasks ??
+                            const <FarmWorkspaceTask>[],
+                        onViewAll: () => context.go('/farm-tasks'),
+                      ),
                     ),
                     const SizedBox(height: 14),
+                    KeyedSubtree(
+                      key: TourTargets.keyFor('dash_news'),
+                      child: const LatestNewsCarousel(),
+                    ),
                     _HarvestReadinessCard(
                       items: HarvestReadinessService.all(
                           crops: crops, livestock: livestock),
@@ -243,18 +288,60 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     const SizedBox(height: 14),
                     _ManagementGrid(
                       actions: <_ManagementAction>[
-                        _ManagementAction(Icons.eco_rounded, 'Crops',
-                            '${crops.length} crop records', '/crops'),
-                        _ManagementAction(Icons.pets_rounded, 'Livestock',
-                            '${livestock.length} groups', '/livestock'),
-                        _ManagementAction(Icons.inventory_2_rounded,
-                            'Inventory', 'Stock & supplies', '/finance'),
-                        _ManagementAction(Icons.account_balance_wallet_rounded,
-                            'Finance', 'Sales & expenses', '/finance'),
-                        _ManagementAction(Icons.agriculture_rounded, 'Farms',
-                            '${farms.length} locations', '/farms'),
-                        _ManagementAction(Icons.cloud_queue_rounded, 'Weather',
-                            'Live readings', '/farms'),
+                        _ManagementAction(
+                            Icons.agriculture_rounded,
+                            language.tr(en: 'Farms', ha: 'Gonaki', fr: 'Fermes'),
+                            '${farms.length} locations',
+                            '/farms'),
+                        _ManagementAction(
+                            Icons.eco_rounded,
+                            language.tr(
+                                en: 'Crops',
+                                ha: 'Amfanin gona',
+                                fr: 'Cultures'),
+                            '${crops.length} crop records',
+                            '/crops'),
+                        _ManagementAction(
+                            Icons.pets_rounded,
+                            language.tr(
+                                en: 'Livestock', ha: 'Dabbobi', fr: 'Bétail'),
+                            '${livestock.length} groups',
+                            '/livestock'),
+                        _ManagementAction(
+                            Icons.inventory_2_rounded,
+                            language.tr(en: 'Inventory', fr: 'Stock'),
+                            'Stock & supplies',
+                            '/inventory'),
+                        _ManagementAction(
+                            Icons.account_balance_wallet_rounded,
+                            language.tr(
+                                en: 'Finance', ha: 'Kudi', fr: 'Finance'),
+                            'Income & expenses',
+                            '/finance'),
+                        _ManagementAction(
+                            Icons.point_of_sale_rounded,
+                            language.tr(
+                                en: 'Sales desk',
+                                ha: 'Tebur Tallace-tallace',
+                                fr: 'Bureau des ventes'),
+                            'Record sales, share receipts',
+                            '/sales'),
+                        _ManagementAction(
+                            Icons.checklist_rounded,
+                            language.tr(
+                                en: 'Farm tasks',
+                                ha: 'Ayyukan gona',
+                                fr: 'Tâches'),
+                            'Today and this week',
+                            '/farm-tasks'),
+                        _ManagementAction(
+                            Icons.trending_up_rounded,
+                            language.tr(
+                                en: 'Market trends',
+                                ha: 'Yanayin kasuwa',
+                                fr: 'Marché'),
+                            'Current prices',
+                            '/market-trends'),
                       ],
                     ),
                     const SizedBox(height: 18),
@@ -321,9 +408,11 @@ Farm? _mostRecentlyActiveFarm({
   }
 
   Farm mostRecent = farms.first;
-  DateTime mostRecentAt = lastActivityByFarmId[mostRecent.id] ?? mostRecent.updatedAt;
+  DateTime mostRecentAt =
+      lastActivityByFarmId[mostRecent.id] ?? mostRecent.updatedAt;
   for (final Farm farm in farms) {
-    final DateTime candidateAt = lastActivityByFarmId[farm.id] ?? farm.updatedAt;
+    final DateTime candidateAt =
+        lastActivityByFarmId[farm.id] ?? farm.updatedAt;
     if (candidateAt.isAfter(mostRecentAt)) {
       mostRecent = farm;
       mostRecentAt = candidateAt;
@@ -724,8 +813,8 @@ class _HeroSummaryCardState extends State<_HeroSummaryCard>
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant),
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                     ),
                   ],
                 ),
@@ -737,8 +826,8 @@ class _HeroSummaryCardState extends State<_HeroSummaryCard>
                 child: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.surface
-                        .withOpacity(theme.brightness == Brightness.dark ? 0.5 : 0.7),
+                    color: theme.colorScheme.surface.withOpacity(
+                        theme.brightness == Brightness.dark ? 0.5 : 0.7),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: theme.colorScheme.outlineVariant),
                   ),
@@ -1094,11 +1183,16 @@ class _HeaderIcon extends StatelessWidget {
   const _HeaderIcon({
     required this.icon,
     required this.onTap,
+    required this.tooltip,
     this.badge = 0,
   });
 
   final IconData icon;
   final VoidCallback onTap;
+
+  /// Spoken by screen readers and shown on long-press, so an icon-only
+  /// button always says what it does.
+  final String tooltip;
   final int badge;
 
   @override
@@ -1107,6 +1201,7 @@ class _HeaderIcon extends StatelessWidget {
       clipBehavior: Clip.none,
       children: <Widget>[
         IconButton(
+          tooltip: tooltip,
           onPressed: onTap,
           icon: Icon(icon, color: Theme.of(context).colorScheme.onSurface),
         ),

@@ -6,6 +6,8 @@ import 'auth_provider.dart';
 
 final userDirectoryProvider =
     StateNotifierProvider<UserDirectoryController, AsyncValue<List<UserProfile>>>((ref) {
+  // Rebuilt for every account so one person never sees another's records.
+  ref.watch(sessionUidProvider);
   return UserDirectoryController(ref.watch(firebaseServiceProvider));
 });
 

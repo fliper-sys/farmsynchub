@@ -19,6 +19,7 @@ import 'core/data/fun_facts.dart';
 import 'core/services/farm_notification_service.dart';
 import 'core/services/firebase_messaging_service.dart';
 import 'core/services/fun_fact_popup_preferences.dart';
+import 'core/navigation/app_destinations.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/common/layouts/main_scaffold.dart';
 import 'presentation/common/widgets/fun_fact_popup.dart';
@@ -849,13 +850,12 @@ final GoRouter _router = GoRouter(
     ),
     ShellRoute(
       builder: (context, state, child) {
-        final currentIndex = _getCurrentIndex(state.uri.path);
         return MainScaffold(
-          currentIndex: currentIndex,
+          currentIndex: AppDestinations.tabIndexForPath(state.uri.path),
+          currentPath: state.uri.path,
           child: child,
           onDestinationSelected: (index) {
-            final path = _getPathForIndex(index);
-            context.go(path);
+            context.go(AppDestinations.routeForTab(index));
           },
         );
       },
@@ -1022,46 +1022,4 @@ String? _postAuthRouteForUser(User? user) {
     return '/verify-email';
   }
   return '/post-auth';
-}
-
-int _getCurrentIndex(String path) {
-  switch (path) {
-    case '/dashboard':
-      return 0;
-    case '/farms':
-      return 1;
-    case '/crops':
-      return 2;
-    case '/livestock':
-      return 3;
-    case '/finance':
-      return 4;
-    case '/news':
-      return 5;
-    case '/profile':
-      return 6;
-    default:
-      return 0;
-  }
-}
-
-String _getPathForIndex(int index) {
-  switch (index) {
-    case 0:
-      return '/dashboard';
-    case 1:
-      return '/farms';
-    case 2:
-      return '/crops';
-    case 3:
-      return '/livestock';
-    case 4:
-      return '/finance';
-    case 5:
-      return '/news';
-    case 6:
-      return '/profile';
-    default:
-      return '/dashboard';
-  }
 }

@@ -1,45 +1,84 @@
-# FarmSync AI - free setup
+# Making "Ask AI", photo review and AI summaries work (free)
 
-AI chat, image review, farm briefing and finance recap all go through
-`lib/core/services/gemini_service.dart`. A request tries these routes in order
-and uses the first that returns text; if all fail the app shows offline guidance.
+FarmSyncHub tries these routes in order and uses the first that answers:
 
-1. **Firebase AI Logic** (Gemini Developer API, free on the Spark plan). Needs
-   the "Gemini Developer API" enabled for the Firebase project and App Check
-   correctly set up.
-2. **Gemini API key, main model**, then **lite model** (`GEMINI_API_KEY`).
-   Free quotas are per model and per project, so the lite model often still
-   works when the main one is rate limited.
-3. **Optional OpenAI-compatible provider** (`AI_FALLBACK_*`), e.g. Groq,
-   OpenRouter or Cloudflare Workers AI. Skipped when no key is set.
+1. **Firebase AI Logic** (Gemini through your Firebase project).
+2. **Gemini API key** (direct call to Google, no Firebase/App Check involved).
+3. **Free OpenAI-compatible route** (OpenRouter free models by default; the optional `AI_FALLBACK_*` route such as Groq is also supported).
+4. **Offline farm guidance** (built in; used only if all of the above fail).
 
-## Steps
+Routes 1 to 3 cover the AI Advisor chat, the **photo/image review** (a photo
+attached in the advisor), farm insight summaries and the finance AI recap.
 
-1. Create a free key at https://aistudio.google.com/apikey (use a *new* Google
-   Cloud project, not the Firebase one, so it has its own quota).
-2. (Optional) Create a free key with Groq or OpenRouter. Pick a vision-capable
-   model so photo review works. Model IDs change - check the provider's list.
-3. Run or build with:
+If "Ask AI" shows offline guidance, no live route is working. The quickest
+fix is a free Gemini key (route 2), optionally with a free backup (route 3).
 
-```
-flutter run \
-  --dart-define=GEMINI_API_KEY=your-aistudio-key \
-  --dart-define=AI_FALLBACK_API_KEY=your-groq-or-openrouter-key \
-  --dart-define=AI_FALLBACK_BASE_URL=https://api.groq.com/openai/v1 \
-  --dart-define=AI_FALLBACK_MODEL=<vision model id>
-```
+## Route 2: free Gemini key (recommended, understands photos)
 
-Optional: `FIREBASE_AI_MODEL`, `GEMINI_LITE_MODEL`.
+1. Open <https://aistudio.google.com/apikey> and create a key (no card needed).
+2. Restrict the key in Google Cloud Console: *APIs & Services → Credentials →
+   your key → API restrictions → Generative Language API*, and add an
+   application restriction (Android package + SHA-1, or HTTP referrers for web).
+3. Build or run with the key:
 
-## Keys and security
+   ```
+   flutter run --dart-define=GEMINI_API_KEY=your-key
+   flutter build apk --dart-define=GEMINI_API_KEY=your-key
+   flutter build web --dart-define=GEMINI_API_KEY=your-key
+   ```
 
-Never commit a key (an earlier one was scraped and revoked). Keys passed with
-`--dart-define` are still extractable from a shipped app. For a public release,
-put the key in a small proxy (for example a free Cloudflare Worker) and set
-`AI_FALLBACK_BASE_URL` to the proxy.
+Optional: `--dart-define=FIREBASE_AI_MODEL=gemini-flash-latest` (the default).
 
-## Free-tier caveats
+## Route 3: free backup (OpenRouter)
 
-Limits change and are not guaranteed. Free tiers of Gemini, OpenRouter and
-Mistral may use prompts to improve their products, so avoid sending private
-farm finances through them if that matters to you.
+1. Create a free key at <https://openrouter.ai/keys> (no card needed).
+2. Add it to the build:
+
+   ```
+   --dart-define=AI_FREE_API_KEY=your-openrouter-key
+   ```
+
+   Defaults: `AI_FREE_MODEL=openrouter/free` and
+   `AI_FREE_BASE_URL=https://openrouter.ai/api/v1`.
+3. For photo review on this route, pick a free model that accepts images from
+   the OpenRouter model list (filter by "free" and "image input") and pass it:
+
+   ```
+   --dart-define=AI_FREE_VISION_MODEL=<model-id>
+   ```
+
+   If you do not set it, photos are sent to `AI_FREE_MODEL`; if that model
+   cannot read images the call fails and the app falls back to offline advice.
+
+Any other OpenAI-compatible service also works. Set `AI_FREE_BASE_URL`,
+`AI_FREE_API_KEY` and `AI_FREE_MODEL` for the built-in free route. The optional
+`AI_FALLBACK_BASE_URL`, `AI_FALLBACK_API_KEY` and `AI_FALLBACK_MODEL` values
+configure the additional provider route and are tried after Gemini.
+
+Combine both: `--dart-define=GEMINI_API_KEY=... --dart-define=AI_FREE_API_KEY=...`
+
+## Route 1: Firebase AI Logic checklist
+
+- In the Firebase console open *Build → AI Logic* and enable the **Gemini
+  Developer API** for the project.
+- Make sure App Check is registered for each platform (Play Integrity on
+  Android, DeviceCheck/App Attest on iOS, reCAPTCHA on web) or its enforcement
+  for AI Logic is off while testing.
+- Check the model name still exists (`gemini-flash-latest` is an alias).
+
+## Things to know
+
+- **Free tiers have limits.** They change over time, so check each provider's
+  current limits (as reported in late 2026: OpenRouter `:free` models about 20
+  requests per minute and 50 per day without credits; Gemini and Groq free
+  limits are shown in their dashboards). When a limit is hit the app tries the
+  next route, then falls back to offline advice.
+- **Privacy.** On free tiers providers may use prompts to improve their
+  products. The finance recap and farm insight send farm names, crops and
+  transaction summaries. Do not use free routes if that is not acceptable, or
+  switch to a paid plan.
+- **Keys inside an app can be extracted.** A `--dart-define` key is compiled
+  into the app, so restrict it (see above) and rotate it if it leaks. Never
+  commit a key. The safest design is a small server (for example a Firebase
+  Cloud Function, which needs the paid Blaze plan) that holds the key and
+  calls the AI for the app.

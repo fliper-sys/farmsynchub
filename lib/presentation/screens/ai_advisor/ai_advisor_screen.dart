@@ -534,7 +534,7 @@ class _TopicSwitcherSheet extends StatelessWidget {
                       title: Text(topic.label, style: TextStyle(color: _aiText(context), fontWeight: FontWeight.w600)),
                       subtitle: Text(topic.description, style: TextStyle(color: _aiMuted(context), fontSize: 12)),
                       trailing: topic == activeTopic
-                          ? Icon(Icons.check_circle_rounded, color: AppColors.primary)
+                          ? const Icon(Icons.check_circle_rounded, color: AppColors.primary)
                           : countFor(topic) > 0
                               ? CircleAvatar(
                                   radius: 11,
@@ -1267,9 +1267,9 @@ class _TypingBubble extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: _aiBorder(context)),
       ),
-      child: Row(
+      child: const Row(
         mainAxisSize: MainAxisSize.min,
-        children: const <Widget>[
+        children: <Widget>[
           _Dot(delay: 0),
           SizedBox(width: 4),
           _Dot(delay: 150),
@@ -1322,7 +1322,7 @@ class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
       child: Container(
         width: 6,
         height: 6,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: AppColors.primary,
           shape: BoxShape.circle,
         ),
@@ -1338,7 +1338,7 @@ class _AiLoadingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _aiBackground(context),
-      body: Center(
+      body: const Center(
         child: CircularProgressIndicator(color: AppColors.primary),
       ),
     );

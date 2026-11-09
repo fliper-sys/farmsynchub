@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/extensions/context_extensions.dart';
+import '../../../core/services/crop_planning.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/services/farm_notification_service.dart';
+import '../../../core/services/greenhouse_planner_service.dart';
 import '../../../data/services/crop_advice_catalog.dart';
 import '../../../domain/models/crop.dart';
 import '../../../domain/models/farm.dart';
@@ -26,9 +28,11 @@ import '../../common/widgets/detail_ui.dart';
 import '../../common/widgets/entity_card_pieces.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
+import '../../common/wizard/guided_wizard_screen.dart' show openWizard;
 import '../schedule/schedule_screen.dart';
 import 'crop_batch_comparison_screen.dart';
 import 'crop_detail_screen.dart';
+import 'crop_wizard_screen.dart';
 
 final StateProvider<String> _cropFilterProvider =
     StateProvider<String>((Ref ref) => 'all');
@@ -427,15 +431,18 @@ class CropsScreen extends ConsumerWidget {
     required List<Farm> farms,
     Crop? crop,
   }) async {
-    final CropDraft? draft = await showModalBottomSheet<CropDraft>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext context) => _CropFormSheet(
-        farms: farms,
-        initialCrop: crop,
-      ),
-    );
+    // New crops use the guided wizard; editing keeps the compact form sheet.
+    final CropDraft? draft = crop == null
+        ? await openWizard<CropDraft>(context, CropWizardScreen(farms: farms))
+        : await showModalBottomSheet<CropDraft>(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (BuildContext context) => _CropFormSheet(
+              farms: farms,
+              initialCrop: crop,
+            ),
+          );
 
     if (draft == null) {
       return;
@@ -890,9 +897,19 @@ class _CropFormSheetState extends State<_CropFormSheet> {
                       .firstWhere((Farm farm) => farm.id == farmId)
                       .name,
                   onChanged: (String? value) {
-                    if (value != null) {
-                      setState(() => _farmId = value);
+                    if (value == null) {
+                      return;
                     }
+                    setState(() {
+                      _farmId = value;
+                      // Keep this in step with the newly selected farm,
+                      // same as the initial default - otherwise switching
+                      // from a greenhouse farm to an open-field one (or
+                      // back) silently leaves the old farm's setting on.
+                      _protectedEnvironment = widget.farms
+                          .firstWhere((Farm farm) => farm.id == value)
+                          .supportsGreenhouse;
+                    });
                   },
                 ),
                 const SizedBox(height: 14),
@@ -900,6 +917,7 @@ class _CropFormSheetState extends State<_CropFormSheet> {
                   controller: _nameController,
                   label: 'Crop name',
                   hint: 'Tomato',
+                  onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 14),
                 AppTextField(
@@ -914,6 +932,7 @@ class _CropFormSheetState extends State<_CropFormSheet> {
                   hint: _landSizeUnit == LandSizeUnit.plots ? '4.0' : '0.3',
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 12),
                 _DropdownField<LandSizeUnit>(
@@ -1048,6 +1067,18 @@ class _CropFormSheetState extends State<_CropFormSheet> {
                         : 'Use this when the crop is being managed in protected conditions.',
                   ),
                 ),
+                if (_protectedEnvironment) ...<Widget>[
+                  const SizedBox(height: 8),
+                  _GreenhouseCropGuidanceCard(
+                    cropName: _nameController.text,
+                    landSizeHa: _landSizeUnit == LandSizeUnit.plots
+                        ? (double.tryParse(_landSizeController.text.trim()) ??
+                                0) *
+                            CropAdviceCatalog.plotToHa
+                        : double.tryParse(_landSizeController.text.trim()) ??
+                            0,
+                  ),
+                ],
                 const SizedBox(height: 8),
                 AppTextField(
                   controller: _notesController,
@@ -1167,32 +1198,8 @@ class _CropFormSheetState extends State<_CropFormSheet> {
     CropAdviceProfile? profile,
     CropStage stage,
     bool protectedEnvironment,
-  ) {
-    final String key = profile?.name.toLowerCase().trim() ?? '';
-    final Map<String, int> baseCycleDays = <String, int>{
-      'maize': 110,
-      'rice': 120,
-      'sorghum': 110,
-      'millet': 90,
-      'wheat': 125,
-      'cassava': 360,
-      'yam': 270,
-      'sweet potato': 120,
-      'potato': 100,
-      'bean': 70,
-      'cowpea': 75,
-      'groundnut': 110,
-      'soybean': 100,
-      'tomato': 110,
-      'pepper': 150,
-      'onion': 150,
-      'okra': 65,
-      'cabbage': 90,
-    };
-    final int base = baseCycleDays[key] ?? 90;
-    final int protectedBonus = protectedEnvironment ? -7 : 0;
-    return (base + protectedBonus).clamp(45, 540);
-  }
+  ) =>
+      CropPlanning.suggestedCycleDays(profile, stage, protectedEnvironment);
 
   int _stageOffsetDays(CropStage stage) {
     switch (stage) {
@@ -1214,39 +1221,9 @@ class _CropFormSheetState extends State<_CropFormSheet> {
     double areaHa,
     CropStage stage,
     bool protectedEnvironment,
-  ) {
-    final String key = profile?.name.toLowerCase().trim() ?? '';
-    final Map<String, double> yieldPerHa = <String, double>{
-      'maize': 4200,
-      'rice': 5200,
-      'sorghum': 2600,
-      'millet': 1800,
-      'wheat': 3500,
-      'cassava': 24000,
-      'yam': 12000,
-      'sweet potato': 15000,
-      'potato': 17000,
-      'bean': 1200,
-      'cowpea': 1000,
-      'groundnut': 1700,
-      'soybean': 2400,
-      'tomato': 22000,
-      'pepper': 13000,
-      'onion': 20000,
-      'okra': 8500,
-      'cabbage': 28000,
-    };
-    final double base = yieldPerHa[key] ?? 2500;
-    final double stageFactor = switch (stage) {
-      CropStage.seeding => 1.0,
-      CropStage.germination => 0.98,
-      CropStage.vegetative => 1.0,
-      CropStage.flowering => 0.96,
-      CropStage.fruiting => 0.92,
-    };
-    final double environmentFactor = protectedEnvironment ? 1.1 : 1.0;
-    return areaHa * base * stageFactor * environmentFactor;
-  }
+  ) =>
+      CropPlanning.suggestedYieldKg(
+          profile, areaHa, stage, protectedEnvironment);
 
   void _submit() {
     final String? nameError =
@@ -1956,6 +1933,85 @@ class _CropPlanningSummary {
   final double matchConfidence;
   final String areaLabel;
   final int reminders;
+}
+
+/// Matches a free-typed crop name to a known [GreenhouseCropType], so the
+/// greenhouse guidance card can react to what the farmer is actually typing
+/// instead of only offering a generic mixed-vegetables estimate.
+GreenhouseCropType _matchGreenhouseCropType(String cropName) {
+  final String name = cropName.trim().toLowerCase();
+  if (name.isEmpty) {
+    return GreenhouseCropType.mixedVegetables;
+  }
+  if (name.contains('tomato')) return GreenhouseCropType.tomato;
+  if (name.contains('cucumber')) return GreenhouseCropType.cucumber;
+  if (name.contains('pepper') || name.contains('capsicum')) {
+    return GreenhouseCropType.bellPepper;
+  }
+  if (name.contains('lettuce')) return GreenhouseCropType.lettuce;
+  if (name.contains('cabbage')) return GreenhouseCropType.cabbage;
+  if (name.contains('watermelon')) return GreenhouseCropType.watermelon;
+  if (name.contains('spinach')) return GreenhouseCropType.spinach;
+  return GreenhouseCropType.mixedVegetables;
+}
+
+class _GreenhouseCropGuidanceCard extends StatelessWidget {
+  const _GreenhouseCropGuidanceCard({
+    required this.cropName,
+    required this.landSizeHa,
+  });
+
+  final String cropName;
+  final double landSizeHa;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final GreenhouseCropType cropType = _matchGreenhouseCropType(cropName);
+    final double usableAreaM2 =
+        (landSizeHa > 0 ? landSizeHa : 0.05) * 10000 * 0.72;
+    final GreenhousePlan plan = GreenhousePlannerService.planForArea(
+      usableAreaM2: usableAreaM2,
+      cropType: cropType,
+    );
+
+    return AppCard(
+      color: theme.colorScheme.tertiaryContainer.withOpacity(0.3),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Icon(Icons.spa_rounded,
+                    size: 18, color: theme.colorScheme.onTertiaryContainer),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Greenhouse guidance for ${cropType.label}',
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '${plan.plantSpacingM.toStringAsFixed(2)} m plant spacing, ${plan.rowSpacingM.toStringAsFixed(2)} m row spacing - about ${plan.estimatedPlantSlots} plants for this land size. ${plan.heightNote}',
+              style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Estimated setup budget: ${CurrencyUtils.formatCurrency(plan.totalBudgetNaira)} (typical market estimate - adjust for local prices). Full breakdown is in the farm\'s Greenhouse planner.',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(fontStyle: FontStyle.italic, height: 1.4),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _CropPlanningCard extends StatelessWidget {

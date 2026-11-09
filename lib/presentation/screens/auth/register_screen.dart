@@ -106,6 +106,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             controller: _nameController,
             label: 'Full name',
             hint: 'Amina James',
+            textInputAction: TextInputAction.next,
+            autofillHints: const <String>[AutofillHints.name],
+            prefix: const Icon(Icons.person_outline_rounded),
           ),
           const SizedBox(height: 14),
           AppTextField(
@@ -113,6 +116,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             label: 'Email',
             hint: 'farmer@example.com',
             keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            autofillHints: const <String>[AutofillHints.email],
+            prefix: const Icon(Icons.alternate_email_rounded),
           ),
           const SizedBox(height: 14),
           // Phone number field with country code
@@ -150,6 +156,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   label: 'Phone number',
                   hint: '805 123 4567',
                   keyboardType: TextInputType.phone,
+                  textInputAction: TextInputAction.next,
+                  autofillHints: const <String>[AutofillHints.telephoneNumber],
+                  prefix: const Icon(Icons.phone_outlined),
                 ),
               ),
             ],
@@ -160,6 +169,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             label: 'Password',
             hint: 'Choose a strong password',
             obscureText: _obscurePassword,
+            textInputAction: TextInputAction.next,
+            autofillHints: const <String>[AutofillHints.newPassword],
+            prefix: const Icon(Icons.lock_outline_rounded),
             suffix: IconButton(
               onPressed: () =>
                   setState(() => _obscurePassword = !_obscurePassword),
@@ -174,6 +186,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             label: 'Confirm password',
             hint: 'Repeat your password',
             obscureText: _obscureConfirmPassword,
+            textInputAction: TextInputAction.done,
+            prefix: const Icon(Icons.lock_reset_rounded),
             suffix: IconButton(
               onPressed: () => setState(
                   () => _obscureConfirmPassword = !_obscureConfirmPassword),
@@ -189,6 +203,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 'After signup, we will send a verification email before full access is granted.',
             color: Color(0xFFE7F7DE),
           ),
+          const SizedBox(height: 18),
+          AuthPrimaryButton(
+            label: 'Create account',
+            isLoading: isLoading,
+            onPressed: _submit,
+          ),
+          const SizedBox(height: 18),
+          const AuthDivider(),
           const SizedBox(height: 14),
           if (kIsWeb)
             buildGoogleSignInButton()
@@ -215,12 +237,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             ),
           ),
           const SizedBox(height: 18),
-          AuthPrimaryButton(
-            label: 'Create account',
-            isLoading: isLoading,
-            onPressed: _submit,
-          ),
-          const SizedBox(height: 18),
           const AuthSecondaryLinkRow(
             prompt: 'Already have an account?',
             actionLabel: 'Log in here',
@@ -235,8 +251,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final String name = _nameController.text.trim();
     final String email = _emailController.text.trim();
     final String phone = _phoneController.text.trim();
-    final String password = _passwordController.text.trim();
-    final String confirmPassword = _confirmPasswordController.text.trim();
+    final String password = _passwordController.text;
+    final String confirmPassword = _confirmPasswordController.text;
 
     final String? nameError = Validators.combine(
       <String? Function(String?)>[

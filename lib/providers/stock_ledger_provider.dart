@@ -16,6 +16,8 @@ export '../domain/models/stock_movement.dart';
 /// background. Rows are never edited - a correction is a new row.
 final stockLedgerProvider =
     StateNotifierProvider<StockLedgerNotifier, List<StockMovement>>((ref) {
+  // Rebuilt for every account so one person never sees another's records.
+  ref.watch(sessionUidProvider);
   return StockLedgerNotifier(ref.watch(firebaseServiceProvider));
 });
 

@@ -26,7 +26,7 @@ class AppButton extends StatelessWidget {
     this.clipBehavior = Clip.none,
   }) : style = ButtonStyle(
          backgroundColor: const WidgetStatePropertyAll(AppColors.primary),
-         foregroundColor: const WidgetStatePropertyAll(AppColors.surfaceLight),
+         foregroundColor: const WidgetStatePropertyAll(AppColors.onPrimaryBrand),
          elevation: const WidgetStatePropertyAll(0),
          shadowColor: WidgetStatePropertyAll(AppColors.primary.withOpacity(0.2)),
          shape: WidgetStatePropertyAll(
@@ -105,7 +105,9 @@ class AppButton extends StatelessWidget {
     final ButtonStyle resolvedStyle = isSecondary
         ? baseStyle.copyWith(
             backgroundColor: WidgetStatePropertyAll(Theme.of(context).colorScheme.surface),
-            foregroundColor: WidgetStatePropertyAll(Theme.of(context).colorScheme.primary),
+            foregroundColor: WidgetStatePropertyAll(
+              AppColors.primaryForeground(Theme.of(context).brightness),
+            ),
             side: WidgetStatePropertyAll(
               BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
             ),

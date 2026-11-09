@@ -23,7 +23,9 @@ abstract final class AppTheme {
     surfaceContainer: AppColors.surfaceLightContainer,
     surfaceContainerHighest: AppColors.surfaceLightCard,
     surfaceContainerHigh: AppColors.surfaceLightElevated,
-    onPrimary: Colors.white,
+    // Dark label on the bright brand green (white on it is only ~2:1).
+    onPrimary: AppColors.onPrimaryBrand,
+    onSecondary: AppColors.onPrimaryBrand,
     onSurfaceVariant: const Color(0xFF6B7280),
     outline: AppColors.borderLight,
     outlineVariant: AppColors.borderLight,
@@ -273,6 +275,80 @@ abstract final class AppTheme {
         ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
+        ),
+      ),
+      // Buttons: one shape, one minimum touch size (48dp+), readable labels.
+      // Individual screens can still override any of this.
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(64, 52),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          textStyle: GoogleFonts.plusJakartaSans(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          minimumSize: const Size(64, 52),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          textStyle: GoogleFonts.plusJakartaSans(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(64, 52),
+          foregroundColor: AppColors.primaryForeground(brightness),
+          side: BorderSide(color: colorScheme.outlineVariant),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          textStyle: GoogleFonts.plusJakartaSans(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          foregroundColor: AppColors.primaryForeground(brightness),
+          textStyle: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+      tabBarTheme: TabBarThemeData(
+        labelColor: AppColors.primaryForeground(brightness),
+        unselectedLabelColor: colorScheme.onSurfaceVariant,
+        indicatorColor: AppColors.primaryForeground(brightness),
+        labelStyle: GoogleFonts.plusJakartaSans(
+          fontSize: 14,
+          fontWeight: FontWeight.w800,
+        ),
+        unselectedLabelStyle: GoogleFonts.plusJakartaSans(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+        dividerColor: colorScheme.outlineVariant,
+      ),
+      drawerTheme: DrawerThemeData(
+        backgroundColor: brightness == Brightness.light
+            ? AppColors.surfaceLightElevated
+            : AppColors.darkElevatedCard,
+        surfaceTintColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.horizontal(right: Radius.circular(28)),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(

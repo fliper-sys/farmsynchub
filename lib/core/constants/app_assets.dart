@@ -8,6 +8,7 @@ abstract final class AppAssets {
   static const String onboardingWelcomeAnimation = 'assets/modern farm.json';
   static const String onboardingSyncAnimation = 'assets/Loading screen.json';
   static const String onboardingSuccessAnimation = 'assets/Check Mark.json';
+  static const String confettiAnimation = 'assets/Confetti.json';
 
   // Supporting onboarding artwork
   static const String onboardingField = 'assets/fields.png';
