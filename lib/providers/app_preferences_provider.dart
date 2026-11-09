@@ -2,10 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/i18n/pidgin_phrases.dart';
+
 enum AppLanguage {
   english,
   hausa,
   french,
+  pidgin,
+}
+
+extension AppLanguageBuildContext on BuildContext {
+  /// Reads the current app language from the nearest ProviderScope without
+  /// subscribing. Use inside StatelessWidgets whose parent already watches
+  /// [appLanguageProvider] (so they rebuild when the language changes).
+  AppLanguage get appLanguage =>
+      ProviderScope.containerOf(this).read(appLanguageProvider);
 }
 
 extension AppLanguageX on AppLanguage {
@@ -17,6 +28,8 @@ extension AppLanguageX on AppLanguage {
         return 'Hausa';
       case AppLanguage.french:
         return 'French';
+      case AppLanguage.pidgin:
+        return 'Pidgin';
     }
   }
 
@@ -28,6 +41,10 @@ extension AppLanguageX on AppLanguage {
         return const Locale('ha');
       case AppLanguage.french:
         return const Locale('fr');
+      case AppLanguage.pidgin:
+        // No Material localizations exist for Pidgin (pcm); English-Nigeria
+        // keeps widget text (dialogs, pickers) readable.
+        return const Locale('en', 'NG');
     }
   }
 
@@ -35,6 +52,7 @@ extension AppLanguageX on AppLanguage {
     required String en,
     String? ha,
     String? fr,
+    String? pcm,
   }) {
     switch (this) {
       case AppLanguage.english:
@@ -43,6 +61,8 @@ extension AppLanguageX on AppLanguage {
         return ha ?? en;
       case AppLanguage.french:
         return fr ?? en;
+      case AppLanguage.pidgin:
+        return pcm ?? kPidginPhrases[en] ?? en;
     }
   }
 }

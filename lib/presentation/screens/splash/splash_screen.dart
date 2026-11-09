@@ -52,18 +52,18 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _handleNavigation() async {
-    // Keep only enough time for the branded entrance to feel intentional.
-    // The previous multi-second hold made even returning users wait on startup.
-    final List<Object?> readiness =
-        await Future.wait<Object?>(<Future<Object?>>[
+    // Load startup state together, while showing a short branded entrance.
+    final List<Object?> readiness = await Future.wait<Object?>(<Future<Object?>>[
       SharedPreferences.getInstance(),
       OnboardingPreferences.isCompleted(),
-      Future<void>.delayed(const Duration(milliseconds: 700)),
+      Future<void>.delayed(const Duration(milliseconds: 900)),
     ]);
     final SharedPreferences prefs = readiness[0]! as SharedPreferences;
     final bool hasCompletedOnboarding = readiness[1]! as bool;
+    final Future<void> minimumSplash = Future<void>.value();
     final String? adminSessionEmail = prefs.getString('admin_session_email');
     final FirebaseService firebaseService = FirebaseService();
+    await minimumSplash;
     if (!mounted) {
       return;
     }
@@ -85,8 +85,7 @@ class _SplashScreenState extends State<SplashScreen>
     User? user = firebaseService.currentUser;
     if (user == null) {
       try {
-        // The first auth event also resolves a signed-out session. Filtering
-        // null values here used to wait for a non-existent login for five seconds.
+        // The first event resolves a restored session or a signed-out state.
         user = await firebaseService.authStateChanges
             .timeout(const Duration(seconds: 3))
             .first;

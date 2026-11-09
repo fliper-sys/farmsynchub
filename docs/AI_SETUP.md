@@ -4,7 +4,7 @@ FarmSyncHub tries these routes in order and uses the first that answers:
 
 1. **Firebase AI Logic** (Gemini through your Firebase project).
 2. **Gemini API key** (direct call to Google, no Firebase/App Check involved).
-3. **Free OpenAI-compatible route** (OpenRouter free models by default).
+3. **Free OpenAI-compatible route** (OpenRouter free models by default; the optional `AI_FALLBACK_*` route such as Groq is also supported).
 4. **Offline farm guidance** (built in; used only if all of the above fail).
 
 Routes 1 to 3 cover the AI Advisor chat, the **photo/image review** (a photo
@@ -50,8 +50,10 @@ Optional: `--dart-define=FIREBASE_AI_MODEL=gemini-flash-latest` (the default).
    If you do not set it, photos are sent to `AI_FREE_MODEL`; if that model
    cannot read images the call fails and the app falls back to offline advice.
 
-Any other OpenAI-compatible service also works (for example Groq): set
-`AI_FREE_BASE_URL`, `AI_FREE_API_KEY` and `AI_FREE_MODEL` to its values.
+Any other OpenAI-compatible service also works. Set `AI_FREE_BASE_URL`,
+`AI_FREE_API_KEY` and `AI_FREE_MODEL` for the built-in free route. The optional
+`AI_FALLBACK_BASE_URL`, `AI_FALLBACK_API_KEY` and `AI_FALLBACK_MODEL` values
+configure the additional provider route and are tried after Gemini.
 
 Combine both: `--dart-define=GEMINI_API_KEY=... --dart-define=AI_FREE_API_KEY=...`
 

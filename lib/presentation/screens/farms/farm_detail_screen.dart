@@ -29,6 +29,7 @@ import '../../../domain/models/notification.dart' as app_notification;
 import '../../../domain/models/transaction.dart';
 import '../../../domain/models/user_profile.dart';
 import '../../../providers/app_preferences_provider.dart';
+import 'farm_members_screen.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/crop_provider.dart';
 import '../../../providers/farm_provider.dart';
@@ -40,6 +41,7 @@ import '../../../providers/user_profile_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
+import '../../common/widgets/detail_ui.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_progress_bar.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
@@ -467,13 +469,45 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
         ),
         sections: <Widget>[
           if (farm.coverImageBase64.isNotEmpty) ...<Widget>[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(28),
-              child: Image.memory(
-                base64Decode(farm.coverImageBase64),
-                height: 220,
-                width: double.infinity,
-                fit: BoxFit.cover,
+            FadeInUp(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(28),
+                child: Stack(
+                  children: <Widget>[
+                    Image.memory(
+                      base64Decode(farm.coverImageBase64),
+                      height: 220,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: <Color>[
+                              Colors.transparent,
+                              Colors.black.withOpacity(0.55),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 16,
+                      right: 16,
+                      bottom: 14,
+                      child: Text(
+                        '${farm.ward} ward  ·  ${farm.sizeHa.toStringAsFixed(1)} ha',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 18),
@@ -488,36 +522,130 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
           ),
           RepaintBoundary(
             key: _shareBoundaryKey,
-            child: AppCard(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
+            child: FadeInUp(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(28),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    _Tag(
-                        text: operatingStatus,
-                        color: _operatingStatusSolidColor(operatingStatus),
-                        emphasized: true),
-                    _Tag(
-                        text: '$urgentFarmTasks urgent farm tasks',
-                        color: const Color(0xFFFFEBD0)),
-                    _Tag(
-                        text: '$cropOpenTasks crop reminders',
-                        color: const Color(0xFFE5F5D8)),
-                    _Tag(
-                        text: '$livestockOpenTasks livestock reminders',
-                        color: const Color(0xFFDFF1FF)),
-                    _Tag(
-                        text: '$harvestReadyCount harvest windows',
-                        color: const Color(0xFFEDE8FF)),
-                    _Tag(
-                        text: '$healthWatchCount animal health watch',
-                        color: const Color(0xFFFFEBD0)),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: <Color>[
+                            _operatingStatusSolidColor(operatingStatus),
+                            Color.lerp(
+                                _operatingStatusSolidColor(operatingStatus),
+                                Colors.black,
+                                0.25)!,
+                          ],
+                        ),
+                      ),
+                      child: Row(
+                        children: <Widget>[
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              operatingStatus == 'Stable workflow'
+                                  ? Icons.check_circle_rounded
+                                  : Icons.flag_rounded,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  language.tr(
+                                      en: 'Farm status',
+                                      ha: 'Matsayin gona',
+                                      fr: 'Etat de la ferme'),
+                                  style: TextStyle(
+                                      color: Colors.white.withOpacity(0.85),
+                                      fontSize: 12),
+                                ),
+                                Text(
+                                  operatingStatus,
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w900),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        children: <Widget>[
+                          _FocusRow(
+                              icon: Icons.priority_high_rounded,
+                              color: const Color(0xFFE0685F),
+                              count: urgentFarmTasks,
+                              label: 'urgent farm tasks'),
+                          _FocusRow(
+                              icon: Icons.spa_rounded,
+                              color: const Color(0xFF2E9E5B),
+                              count: cropOpenTasks,
+                              label: 'crop reminders'),
+                          _FocusRow(
+                              icon: Icons.pets_rounded,
+                              color: const Color(0xFF3B82C4),
+                              count: livestockOpenTasks,
+                              label: 'livestock reminders'),
+                          _FocusRow(
+                              icon: Icons.agriculture_rounded,
+                              color: const Color(0xFF7A5BC4),
+                              count: harvestReadyCount,
+                              label: 'harvest windows'),
+                          _FocusRow(
+                              icon: Icons.favorite_rounded,
+                              color: const Color(0xFFE08A1E),
+                              count: healthWatchCount,
+                              label: 'animal health watch'),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 40,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: <Widget>[
+                for (final String id in (greenhousePlan == null
+                    ? _collapsibleSectionIds
+                        .where((String x) => x != 'greenhousePlanner')
+                        .toList()
+                    : _collapsibleSectionIds))
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ActionChip(
+                      label: Text(_localizedSectionTitle(language, id)),
+                      onPressed: () => _scrollToSection(id),
+                    ),
+                  ),
+              ],
             ),
           ),
           const SizedBox(height: 18),
@@ -1035,6 +1163,19 @@ class _FarmDetailScreenState extends ConsumerState<FarmDetailScreen> {
                         )
                         .toList(),
                   ),
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.tonalIcon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => FarmMembersScreen(farmId: farm!.id),
+                ),
+              ),
+              icon: const Icon(Icons.groups_rounded),
+              label: const Text('Manage team'),
+            ),
           ),
           const SizedBox(height: 18),
           _CollapsibleSection(
@@ -3809,96 +3950,135 @@ class _WorkspaceMemberTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    return AppCard(
+    final Color accent =
+        member.isActive ? const Color(0xFF2E9E5B) : const Color(0xFFE08A1E);
+    return Material(
       color: theme.colorScheme.surfaceContainerHighest,
-      child: ListTile(
+      borderRadius: BorderRadius.circular(22),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
         onTap: onEdit,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        leading: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: member.isActive
-                ? (theme.brightness == Brightness.dark
-                    ? AppColors.primary.withOpacity(0.16)
-                    : AppColors.surfaceSoft)
-                : theme.colorScheme.errorContainer,
-            shape: BoxShape.circle,
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            member.name.trim().isEmpty
-                ? '?'
-                : member.name.trim().substring(0, 1).toUpperCase(),
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: member.isActive
-                  ? AppColors.primaryForeground(theme.brightness)
-                  : theme.colorScheme.onErrorContainer,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-        title: Text(member.name),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 6),
-          child: Column(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 4, 14),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text(
-                '${member.roleLabel} - ${member.email}${member.phone.isEmpty ? '' : ' - ${member.phone}'}',
-                style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
+              Container(
+                width: 46,
+                height: 46,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: <Color>[accent, accent.withOpacity(0.6)],
+                  ),
+                ),
+                child: Text(
+                  member.name.isNotEmpty ? member.name[0].toUpperCase() : '?',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18),
+                ),
               ),
-              if (!member.isActive) ...<Widget>[
-                const SizedBox(height: 2),
-                Text('Invite pending',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.tertiary,
-                        fontWeight: FontWeight.w600)),
-              ],
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: <Widget>[
-                  _Tag(
-                      text: member.financeAccessLabel,
-                      color: const Color(0xFFDFF1FF)),
-                  _Tag(
-                      text: '${member.allowedFarmIds.length} farm(s)',
-                      color: const Color(0xFFEDE8FF)),
-                  _Tag(
-                      text: member.canManageTasks ? 'Tasks' : 'No task access',
-                      color: const Color(0xFFE5F5D8)),
-                  if (member.hasScopedRecordAccess)
-                    _Tag(
-                        text:
-                            '${member.allowedCropIds.length + member.allowedLivestockIds.length} record(s) only',
-                        color: const Color(0xFFFFEBD0)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Flexible(
+                          child: Text(member.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w800)),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: Text(member.roleLabel,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: theme.colorScheme.primary)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${member.email}${member.phone.isEmpty ? '' : '  ·  ${member.phone}'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                    if (!member.isActive) ...<Widget>[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: <Widget>[
+                          Icon(Icons.hourglass_top_rounded,
+                              size: 13, color: accent),
+                          const SizedBox(width: 4),
+                          Text('Invite pending',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                  color: accent, fontWeight: FontWeight.w700)),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: <Widget>[
+                        _Tag(
+                            text: member.financeAccessLabel,
+                            color: const Color(0xFFDFF1FF)),
+                        _Tag(
+                            text: '${member.allowedFarmIds.length} farm(s)',
+                            color: const Color(0xFFEDE8FF)),
+                        _Tag(
+                            text: member.canManageTasks
+                                ? 'Tasks'
+                                : 'No task access',
+                            color: const Color(0xFFE5F5D8)),
+                        if (member.hasScopedRecordAccess)
+                          _Tag(
+                              text:
+                                  '${member.allowedCropIds.length + member.allowedLivestockIds.length} record(s) only',
+                              color: const Color(0xFFFFEBD0)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert_rounded),
+                onSelected: (String value) {
+                  if (value == 'edit') {
+                    onEdit();
+                  } else if (value == 'remove') {
+                    onRemove();
+                  }
+                },
+                itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                  const PopupMenuItem<String>(
+                    value: 'edit',
+                    child: Text('Edit'),
+                  ),
+                  const PopupMenuItem<String>(
+                    value: 'remove',
+                    child: Text('Remove from farm'),
+                  ),
                 ],
               ),
             ],
           ),
-        ),
-        trailing: PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert_rounded),
-          onSelected: (String value) {
-            if (value == 'edit') {
-              onEdit();
-            } else if (value == 'remove') {
-              onRemove();
-            }
-          },
-          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-            const PopupMenuItem<String>(
-              value: 'edit',
-              child: Text('Edit'),
-            ),
-            const PopupMenuItem<String>(
-              value: 'remove',
-              child: Text('Remove from farm'),
-            ),
-          ],
         ),
       ),
     );
@@ -4044,79 +4224,75 @@ class _TaskListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final Color accent = AppColors.primaryForeground(theme.brightness);
-
+    final bool overdue =
+        !task.isCompleted && task.dueAt.isBefore(DateTime.now());
+    final Color accent = task.isCompleted
+        ? const Color(0xFF2E9E5B)
+        : overdue
+            ? theme.colorScheme.error
+            : const Color(0xFF3B82C4);
     return Container(
-      padding: const EdgeInsets.fromLTRB(8, 8, 10, 8),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
+          Container(width: 4, color: accent),
           Checkbox(
-            value: task.isCompleted,
-            onChanged: (_) => onToggle(),
-            semanticLabel: task.isCompleted
-                ? 'Mark ${task.title} as not done'
-                : 'Mark ${task.title} as done',
-          ),
-          const SizedBox(width: 4),
+              value: task.isCompleted,
+              shape: const CircleBorder(),
+              onChanged: (_) {
+                HapticFeedback.selectionClick();
+                onToggle();
+              }),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  task.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    decoration:
-                        task.isCompleted ? TextDecoration.lineThrough : null,
-                  ),
-                ),
-                const SizedBox(height: 7),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: <Widget>[
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Icon(Icons.schedule_rounded,
-                            size: 14,
-                            color: theme.colorScheme.onSurfaceVariant),
-                        const SizedBox(width: 4),
-                        Text(
-                          app_date.DateUtils.formatDateTime(task.dueAt),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 200),
+                    style: (theme.textTheme.titleSmall ?? const TextStyle())
+                        .copyWith(
+                      fontWeight: FontWeight.w700,
+                      decoration: task.isCompleted
+                          ? TextDecoration.lineThrough
+                          : TextDecoration.none,
+                      color: task.isCompleted
+                          ? theme.colorScheme.onSurfaceVariant
+                          : theme.colorScheme.onSurface,
                     ),
-                    if (task.reminderEnabled)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Icon(Icons.notifications_active_outlined,
-                              size: 14, color: accent),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${task.reminderLeadMinutes}m reminder',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
+                    child: Text(task.title),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: <Widget>[
+                      Icon(
+                          overdue
+                              ? Icons.warning_amber_rounded
+                              : Icons.schedule_rounded,
+                          size: 13,
+                          color: accent),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          '${app_date.DateUtils.formatDateTime(task.dueAt)}${task.reminderEnabled ? ' · ${task.reminderLeadMinutes}m reminder' : ''}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                              color: overdue
+                                  ? accent
+                                  : theme.colorScheme.onSurfaceVariant),
+                        ),
                       ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
           PopupMenuButton<String>(
@@ -4158,59 +4334,64 @@ class _ActivityLogTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final Color accent = AppColors.primaryForeground(theme.brightness);
-    final Color iconFill = theme.brightness == Brightness.dark
-        ? accent.withOpacity(0.16)
-        : AppColors.surfaceSoft;
-    return AppCard(
-      color: theme.colorScheme.surfaceContainerHighest,
-      child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        leading: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: iconFill,
-            shape: BoxShape.circle,
+    final bool ownersOnly = activity.audience == FarmActivityAudience.owners;
+    final Color accent =
+        ownersOnly ? const Color(0xFF3B82C4) : const Color(0xFF7A5BC4);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: accent.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(ownersOnly ? Icons.lock_rounded : Icons.history_rounded,
+                size: 20, color: accent),
           ),
-          child: Icon(Icons.history_rounded, color: accent),
-        ),
-        title: Text(
-          activity.action,
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w800,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(activity.action,
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(
+                  '${activity.actorLabel} · ${activity.detail}',
+                  style: theme.textTheme.bodySmall?.copyWith(height: 1.45),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: <Widget>[
+                    _Tag(
+                        text: activity.audienceLabel,
+                        color: const Color(0xFFE5F5D8)),
+                    if (activity.sentToOwners)
+                      const _Tag(
+                          text: 'Sent to owners', color: Color(0xFFDFF1FF)),
+                    Text(
+                      app_date.DateUtils.formatDateTime(activity.createdAt),
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 6),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                '${activity.actorLabel} - ${activity.detail}',
-                style: theme.textTheme.bodySmall?.copyWith(height: 1.45),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: <Widget>[
-                  _Tag(
-                      text: activity.audienceLabel,
-                      color: const Color(0xFFE5F5D8)),
-                  _Tag(
-                      text:
-                          app_date.DateUtils.formatDateTime(activity.createdAt),
-                      color: const Color(0xFFFFEBD0)),
-                  if (activity.sentToOwners)
-                    const _Tag(
-                        text: 'Sent to owners', color: Color(0xFFDFF1FF)),
-                ],
-              ),
-            ],
-          ),
-        ),
+        ],
       ),
     );
   }
@@ -4376,6 +4557,37 @@ class _Tag extends StatelessWidget {
   }
 }
 
+IconData _sectionIcon(String id) {
+  switch (id) {
+    case 'operationProfile':
+      return Icons.badge_rounded;
+    case 'workspaceBoard':
+      return Icons.dashboard_rounded;
+    case 'greenhousePlanner':
+      return Icons.solar_power_rounded;
+    case 'workspaceMembers':
+      return Icons.groups_rounded;
+    case 'taskCalendar':
+      return Icons.event_note_rounded;
+    case 'activityLog':
+      return Icons.history_rounded;
+    case 'farmNotes':
+      return Icons.sticky_note_2_rounded;
+    case 'documentStorage':
+      return Icons.folder_rounded;
+    case 'linkedPerformance':
+      return Icons.query_stats_rounded;
+    case 'cycleTracking':
+      return Icons.autorenew_rounded;
+    case 'linkedCrops':
+      return Icons.spa_rounded;
+    case 'linkedLivestock':
+      return Icons.pets_rounded;
+    default:
+      return Icons.folder_open_rounded;
+  }
+}
+
 class _CollapsibleSection extends StatelessWidget {
   const _CollapsibleSection({
     required this.sectionKey,
@@ -4450,6 +4662,7 @@ class _CollapsibleSection extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(height: 4),
         ClipRect(
           child: AnimatedSize(
             duration: const Duration(milliseconds: 240),
@@ -4466,6 +4679,22 @@ class _CollapsibleSection extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Maps a localized/English section title back to its id for the icon.
+String _sectionIdForTitle(String title) {
+  final String t = title.toLowerCase();
+  for (final MapEntry<String, String> e in _sectionTitles.entries) {
+    if (e.value.toLowerCase() == t) return e.key;
+  }
+  if (t.contains('member')) return 'workspaceMembers';
+  if (t.contains('task')) return 'taskCalendar';
+  if (t.contains('activity')) return 'activityLog';
+  if (t.contains('note')) return 'farmNotes';
+  if (t.contains('document')) return 'documentStorage';
+  if (t.contains('crop')) return 'linkedCrops';
+  if (t.contains('livestock')) return 'linkedLivestock';
+  return '';
 }
 
 class _QuickActionCard extends StatelessWidget {
@@ -4525,6 +4754,83 @@ class _QuickActionCard extends StatelessWidget {
   }
 }
 
+class _FocusRow extends StatelessWidget {
+  const _FocusRow({
+    required this.icon,
+    required this.color,
+    required this.count,
+    required this.label,
+  });
+
+  final IconData icon;
+  final Color color;
+  final int count;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool active = count > 0;
+    final Color c = active ? color : theme.colorScheme.onSurfaceVariant;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: c.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, size: 18, color: c),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(label,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                    color: active ? null : theme.colorScheme.onSurfaceVariant)),
+          ),
+          TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0, end: count.toDouble()),
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeOutCubic,
+            builder: (BuildContext context, double v, Widget? w) => Text(
+              '${v.round()}',
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w900, color: c),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Counts up the leading integer of values like "12", "3 ha" or "NGN 4.2k".
+class _AnimatedValue extends StatelessWidget {
+  const _AnimatedValue({required this.value, this.style});
+
+  final String value;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    final RegExpMatch? m = RegExp(r'^(\d+)$').firstMatch(value);
+    if (m == null) {
+      return Text(value,
+          style: style, maxLines: 1, overflow: TextOverflow.ellipsis);
+    }
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: double.parse(m.group(1)!)),
+      duration: const Duration(milliseconds: 650),
+      curve: Curves.easeOutCubic,
+      builder: (BuildContext context, double v, Widget? w) =>
+          Text('${v.round()}', style: style),
+    );
+  }
+}
+
 class _FarmMetricCard extends StatelessWidget {
   const _FarmMetricCard({
     required this.title,
@@ -4569,12 +4875,21 @@ class _FarmMetricCard extends StatelessWidget {
                     color:
                         isDark ? tint.withOpacity(0.42) : Colors.transparent),
               ),
-              child: Icon(icon, color: iconForeground),
+              child: Icon(icon,
+                  color: isDark
+                      ? iconForeground
+                      : HSLColor.fromColor(tint)
+                          .withLightness(0.35)
+                          .withSaturation(0.55)
+                          .toColor()),
             ),
             const SizedBox(height: 14),
             Text(title, style: theme.textTheme.bodySmall),
             const SizedBox(height: 6),
-            Text(value, style: theme.textTheme.titleMedium),
+            _AnimatedValue(
+                value: value,
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 6),
             Text(note, style: theme.textTheme.bodySmall),
             if (progress != null) ...<Widget>[

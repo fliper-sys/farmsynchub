@@ -24,6 +24,7 @@ import '../../../providers/user_profile_provider.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
+import '../../common/widgets/detail_ui.dart';
 import '../../common/widgets/entity_card_pieces.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
@@ -32,6 +33,9 @@ import '../schedule/schedule_screen.dart';
 import 'crop_batch_comparison_screen.dart';
 import 'crop_detail_screen.dart';
 import 'crop_wizard_screen.dart';
+
+final StateProvider<String> _cropFilterProvider =
+    StateProvider<String>((Ref ref) => 'all');
 
 class CropsScreen extends ConsumerWidget {
   const CropsScreen({super.key});
@@ -79,6 +83,22 @@ class CropsScreen extends ConsumerWidget {
     for (final Crop crop in crops) {
       adviceByCrop[crop.id] = CropAdviceCatalog.summarize(crop);
     }
+    final String cropFilter = ref.watch(_cropFilterProvider);
+    final List<Crop> shownCrops = crops.where((Crop crop) {
+      switch (cropFilter) {
+        case 'seeding':
+          return crop.currentStage == CropStage.seeding;
+        case 'growing':
+          return crop.currentStage == CropStage.germination ||
+              crop.currentStage == CropStage.vegetative;
+        case 'flowering':
+          return crop.currentStage == CropStage.flowering;
+        case 'ready':
+          return crop.status == CropStatus.ready;
+        default:
+          return true;
+      }
+    }).toList(growable: false);
 
     return SoftScreenScaffold(
       heroTitle: language.tr(
@@ -149,6 +169,8 @@ class CropsScreen extends ConsumerWidget {
                   label: language.tr(en: 'Seeding', ha: 'Shuki', fr: 'Semis'),
                   value: '$seedingCount crops',
                   color: const Color(0xFFE8F4D8),
+                  icon: Icons.grain_rounded,
+                  accent: const Color(0xFF7BA428),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => _StageCropListScreen(
@@ -169,6 +191,8 @@ class CropsScreen extends ConsumerWidget {
                       en: 'Growing', ha: 'Girma', fr: 'Croissance'),
                   value: '$growingCount crops',
                   color: const Color(0xFFDDF0E4),
+                  icon: Icons.spa_rounded,
+                  accent: const Color(0xFF2E9E5B),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => _StageCropListScreen(
@@ -191,6 +215,8 @@ class CropsScreen extends ConsumerWidget {
                       en: 'Flowering', ha: 'Furanni', fr: 'Floraison'),
                   value: '$floweringCount crops',
                   color: const Color(0xFFFFEBD0),
+                  icon: Icons.local_florist_rounded,
+                  accent: const Color(0xFFE08A1E),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => _StageCropListScreen(
@@ -210,6 +236,8 @@ class CropsScreen extends ConsumerWidget {
                   label: language.tr(en: 'Ready', ha: 'A shirye', fr: 'Pret'),
                   value: '$readyCount crops',
                   color: const Color(0xFFDCEEFF),
+                  icon: Icons.check_circle_rounded,
+                  accent: const Color(0xFF3B82C4),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => _StageCropListScreen(
@@ -232,6 +260,8 @@ class CropsScreen extends ConsumerWidget {
                       fr: 'Taches ouvertes'),
                   value: '$openTaskCount todos',
                   color: const Color(0xFFEDE8FF),
+                  icon: Icons.checklist_rounded,
+                  accent: const Color(0xFF7A5BC4),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => const ScheduleScreen(),
@@ -246,6 +276,8 @@ class CropsScreen extends ConsumerWidget {
                       fr: 'Intrants synchronises'),
                   value: CurrencyUtils.formatCurrency(inputSpend),
                   color: const Color(0xFFFFF2C7),
+                  icon: Icons.payments_rounded,
+                  accent: const Color(0xFFC99A1A),
                 );
             }
           },
@@ -300,14 +332,48 @@ class CropsScreen extends ConsumerWidget {
                 ? null
                 : () => _openCropSheet(context, ref, farms: eligibleFarms),
           )
-        else
+        else ...<Widget>[
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: <Widget>[
+                for (final MapEntry<String, String> f
+                    in <String, String>{
+                  'all': 'All',
+                  'seeding': 'Seeding',
+                  'growing': 'Growing',
+                  'flowering': 'Flowering',
+                  'ready': 'Ready',
+                }.entries)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(f.value),
+                      selected: cropFilter == f.key,
+                      onSelected: (_) => ref
+                          .read(_cropFilterProvider.notifier)
+                          .state = f.key,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (shownCrops.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Text('No crops in this group right now.',
+                    style: Theme.of(context).textTheme.bodyMedium),
+              ),
+            ),
           ...<Crop>[
-            ...crops.where((Crop crop) => crop.isFavorite),
-            ...crops.where((Crop crop) => !crop.isFavorite),
+            ...shownCrops.where((Crop crop) => crop.isFavorite),
+            ...shownCrops.where((Crop crop) => !crop.isFavorite),
           ].map(
             (Crop crop) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: _CropCard(
+              child: FadeInUp(child: _CropCard(
                 crop: crop,
                 farmName: farmById[crop.farmId]?.name ?? 'Unknown farm',
                 advice: adviceByCrop[crop.id],
@@ -323,9 +389,10 @@ class CropsScreen extends ConsumerWidget {
                 onAddInput: () => _openCropInputSheet(context, ref, crop),
                 onToggleTask: (FarmTodoItem task) =>
                     _toggleCropTask(context, ref, crop, task),
-              ),
+              )),
             ),
           ),
+        ],
         const SizedBox(height: 18),
         AppCard(
           color: scheme.surfaceContainerHighest,
@@ -1271,58 +1338,94 @@ class _StageCard extends StatelessWidget {
     required this.label,
     required this.value,
     required this.color,
+    this.icon = Icons.spa_rounded,
+    this.accent = const Color(0xFF2E9E5B),
     this.onTap,
   });
 
   final String label;
   final String value;
   final Color color;
+  final IconData icon;
+  final Color accent;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final bool isDark = theme.brightness == Brightness.dark;
-    final Color iconBackground = isDark
-        ? Color.alphaBlend(color.withOpacity(0.22), theme.colorScheme.surface)
-        : color;
-    final Color iconForeground =
-        isDark ? theme.colorScheme.onSurface : const Color(0xFF44624E);
-
-    return AppCard(
+    // The value arrives as "3 crops" or a currency string; animate the
+    // leading integer when there is one.
+    final RegExpMatch? m = RegExp(r'^(\d+)(.*)$').firstMatch(value);
+    return Material(
       color: theme.colorScheme.surfaceContainerHighest,
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      borderRadius: BorderRadius.circular(24),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Stack(
           children: <Widget>[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: <Widget>[
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: iconBackground,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                        color: isDark
-                            ? color.withOpacity(0.42)
-                            : Colors.transparent),
-                  ),
-                  child: Icon(Icons.spa_rounded,
-                      color: iconForeground, size: 20),
+            Positioned(
+              right: -18,
+              top: -18,
+              child: Container(
+                width: 84,
+                height: 84,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: accent.withOpacity(0.10),
                 ),
-                if (onTap != null)
-                  Icon(Icons.chevron_right_rounded,
-                      color: theme.colorScheme.onSurfaceVariant, size: 20),
-              ],
+              ),
             ),
-            const Spacer(),
-            Text(value, style: theme.textTheme.titleLarge),
-            const SizedBox(height: 4),
-            Text(label, style: theme.textTheme.bodySmall),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: <Widget>[
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: accent.withOpacity(0.16),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: Icon(icon, color: accent, size: 21),
+                      ),
+                      if (onTap != null)
+                        Icon(Icons.chevron_right_rounded,
+                            color: theme.colorScheme.onSurfaceVariant,
+                            size: 20),
+                    ],
+                  ),
+                  const Spacer(),
+                  if (m != null)
+                    TweenAnimationBuilder<double>(
+                      tween: Tween<double>(
+                          begin: 0, end: double.parse(m.group(1)!)),
+                      duration: const Duration(milliseconds: 650),
+                      curve: Curves.easeOutCubic,
+                      builder: (BuildContext context, double v, Widget? c) =>
+                          Text('${v.round()}${m.group(2)}',
+                              style: theme.textTheme.titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w900)),
+                    )
+                  else
+                    Text(value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 2),
+                  Text(label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant)),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -1466,7 +1569,8 @@ class _CropCard extends StatelessWidget {
                           const SizedBox(width: 6),
                           EntityStageBadge(
                             label: _stageTag(crop.currentStage),
-                            tint: const Color(0xFFE8F4D8),
+                            tint: _stageColor(crop.currentStage)
+                                .withOpacity(0.25),
                           ),
                         ],
                       ),
@@ -1512,12 +1616,38 @@ class _CropCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: LinearProgressIndicator(
-                value: crop.growthProgress,
-                minHeight: 4,
-              ),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween<double>(
+                          begin: 0,
+                          end: crop.growthProgress.clamp(0.0, 1.0).toDouble()),
+                      duration: const Duration(milliseconds: 800),
+                      curve: Curves.easeOutCubic,
+                      builder:
+                          (BuildContext context, double v, Widget? c) =>
+                              LinearProgressIndicator(
+                        value: v,
+                        minHeight: 7,
+                        backgroundColor:
+                            _stageColor(crop.currentStage).withOpacity(0.15),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                            _stageColor(crop.currentStage)),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  '${(crop.growthProgress.clamp(0.0, 1.0) * 100).round()}%',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: _stageColor(crop.currentStage)),
+                ),
+              ],
             ),
             const SizedBox(height: 10),
             EntityMetricChipRow(
@@ -1553,6 +1683,21 @@ class _CropCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static Color _stageColor(CropStage stage) {
+    switch (stage) {
+      case CropStage.seeding:
+        return const Color(0xFF7BA428);
+      case CropStage.germination:
+        return const Color(0xFF4FAE4B);
+      case CropStage.vegetative:
+        return const Color(0xFF2E9E5B);
+      case CropStage.flowering:
+        return const Color(0xFFE08A1E);
+      case CropStage.fruiting:
+        return const Color(0xFFD9622B);
+    }
   }
 
   String _stageTag(CropStage stage) {

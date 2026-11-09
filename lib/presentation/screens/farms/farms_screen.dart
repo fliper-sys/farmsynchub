@@ -31,7 +31,12 @@ import '../../common/widgets/soft_screen_scaffold.dart';
 import '../../common/wizard/guided_wizard_screen.dart' show openWizard;
 import '../schedule/schedule_screen.dart';
 import 'farm_detail_screen.dart';
+import 'farm_members_screen.dart';
+import '../../common/widgets/detail_ui.dart';
 import 'farm_wizard_screen.dart';
+
+final StateProvider<String> _farmSearchProvider =
+    StateProvider<String>((Ref ref) => '');
 
 class FarmsScreen extends ConsumerWidget {
   const FarmsScreen({super.key});
@@ -88,6 +93,14 @@ class FarmsScreen extends ConsumerWidget {
     final double totalOperatingCost = transactions
         .where((Transaction item) => item.type == TransactionType.expense)
         .fold<double>(0.0, (double sum, Transaction item) => sum + item.amount);
+    final int openTasks = visibleFarms.fold<int>(
+        0, (int sum, Farm farm) => sum + farm.openWorkspaceTaskCount);
+    final String farmQuery =
+        ref.watch(_farmSearchProvider).trim().toLowerCase();
+    final List<Farm> shownFarms = visibleFarms.where((Farm farm) {
+      if (farmQuery.isEmpty) return true;
+      return '${farm.name} ${farm.ward}'.toLowerCase().contains(farmQuery);
+    }).toList(growable: false);
     final int fieldNotesCount = crops
             .where((Crop crop) => crop.notes.trim().isNotEmpty)
             .length +
@@ -143,56 +156,73 @@ class FarmsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 18),
         ],
-        SoftSectionTitle(
-          title: language.tr(
-            en: 'Structure overview',
-            ha: 'Bayanin tsari',
-            fr: 'Apercu de la structure',
-          ),
-        ),
-        AppCard(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
+        FadeInUp(
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(28),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: <Color>[Color(0xFF0E5A41), Color(0xFF2E9E5B)],
+              ),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: const Color(0xFF0E5A41).withOpacity(0.35),
+                  blurRadius: 24,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Expanded(
-                  child: _CompactStatTile(
-                    icon: Icons.map_rounded,
-                    label: language.tr(
-                      en: 'Managed land',
-                      ha: 'Kasar da ake sarrafawa',
-                      fr: 'Terres gerees',
-                    ),
-                    value: '${totalHectares.toStringAsFixed(1)} ha',
-                    color: const Color(0xFFE5F5D8),
+                Text(
+                  language.tr(
+                    en: 'Managed land',
+                    ha: 'Kasar da ake sarrafawa',
+                    fr: 'Terres gerees',
                   ),
+                  style: TextStyle(
+                      color: Colors.white.withOpacity(0.85), fontSize: 13),
                 ),
-                const _CompactDivider(),
-                Expanded(
-                  child: _CompactStatTile(
-                    icon: Icons.account_balance_wallet_rounded,
-                    label: language.tr(
-                      en: 'Inventory value',
-                      ha: 'Darajar kaya',
-                      fr: 'Valeur des stocks',
-                    ),
-                    value: CurrencyUtils.formatCompactCurrency(inventoryValue),
-                    color: const Color(0xFFDFF1FF),
-                  ),
+                const SizedBox(height: 4),
+                TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 0, end: totalHectares),
+                  duration: const Duration(milliseconds: 900),
+                  curve: Curves.easeOutCubic,
+                  builder: (BuildContext context, double v, Widget? c) =>
+                      Text('${v.toStringAsFixed(1)} ha',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 34,
+                              fontWeight: FontWeight.w900)),
                 ),
-                const _CompactDivider(),
-                Expanded(
-                  child: _CompactStatTile(
-                    icon: Icons.sync_rounded,
-                    label: language.tr(
-                      en: 'Pending sync',
-                      ha: 'Ana jiran sync',
-                      fr: 'Synchro en attente',
-                    ),
-                    value: '$pendingSync',
-                    color: const Color(0xFFFFEBD2),
-                  ),
+                const SizedBox(height: 14),
+                Row(
+                  children: <Widget>[
+                    _heroStat(language.tr(en: 'Farms', ha: 'Gonaki', fr: 'Fermes'), '${visibleFarms.length}'),
+                    _heroStat(
+                        language.tr(
+                            en: 'Inventory value',
+                            ha: 'Darajar kaya',
+                            fr: 'Valeur du stock',
+                            pcm: 'Value of your stock'),
+                        CurrencyUtils.formatCompactCurrency(inventoryValue)),
+                    _heroStat(
+                        language.tr(
+                            en: 'Open tasks',
+                            ha: 'Ayyukan da suka rage',
+                            fr: 'Taches ouvertes'),
+                        '$openTasks'),
+                    _heroStat(
+                        language.tr(
+                            en: 'Pending sync',
+                            ha: 'Ana jiran sync',
+                            fr: 'Sync en attente',
+                            pcm: 'Dey wait sync'),
+                        '$pendingSync'),
+                  ],
                 ),
               ],
             ),
@@ -214,6 +244,27 @@ class FarmsScreen extends ConsumerWidget {
             ),
           ),
         ),
+        if (visibleFarms.length > 2) ...<Widget>[
+          TextField(
+            onChanged: (String v) =>
+                ref.read(_farmSearchProvider.notifier).state = v,
+            decoration: InputDecoration(
+              hintText: language.tr(
+                  en: 'Search farms by name or ward',
+                  ha: 'Nemi gona da suna ko unguwa',
+                  fr: 'Rechercher une ferme par nom ou quartier',
+                  pcm: 'Search farm by name or ward'),
+              prefixIcon: const Icon(Icons.search_rounded),
+              filled: true,
+              fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         if (farmsAsync.isLoading && visibleFarms.isEmpty)
           _FarmLoadingCard(language: language)
         else if (visibleFarms.isEmpty)
@@ -223,12 +274,12 @@ class FarmsScreen extends ConsumerWidget {
           )
         else
           ...<Farm>[
-            ...visibleFarms.where((Farm farm) => farm.isFavorite),
-            ...visibleFarms.where((Farm farm) => !farm.isFavorite),
+            ...shownFarms.where((Farm farm) => farm.isFavorite),
+            ...shownFarms.where((Farm farm) => !farm.isFavorite),
           ].map(
             (Farm farm) => Padding(
               padding: const EdgeInsets.only(bottom: 14),
-              child: _FarmManagementCard(
+              child: FadeInUp(child: _FarmManagementCard(
                 farm: farm,
                 crops:
                     crops.where((Crop crop) => crop.farmId == farm.id).toList(),
@@ -252,7 +303,7 @@ class FarmsScreen extends ConsumerWidget {
                 },
                 onEdit: () => _openFarmSheet(context, ref, farm: farm),
                 onDelete: () => _confirmDelete(context, ref, farm),
-              ),
+              )),
             ),
           ),
         const SizedBox(height: 18),
@@ -559,6 +610,28 @@ class FarmsScreen extends ConsumerWidget {
   }
 }
 
+Widget _heroStat(String label, String value) => Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(value,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18)),
+          ),
+          Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  color: Colors.white.withOpacity(0.8), fontSize: 11)),
+        ],
+      ),
+    );
+
 class _FarmManagementCard extends StatelessWidget {
   const _FarmManagementCard({
     required this.farm,
@@ -750,58 +823,41 @@ class _FarmManagementCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surface,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: theme.colorScheme.outlineVariant),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: theme.brightness == Brightness.dark
-                              ? Color.alphaBlend(
-                                  const Color(0xFFE9F4DB).withOpacity(0.22),
-                                  theme.colorScheme.surface)
-                              : const Color(0xFFE9F4DB),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Icon(
-                          Icons.fact_check_rounded,
-                          color: theme.brightness == Brightness.dark
-                              ? theme.colorScheme.onSurface
-                              : const Color(0xFF44624E),
-                        ),
+                const SizedBox(height: 14),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: onOpen,
+                        icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                        label: Text(context.appLanguage.tr(
+                            en: 'Open farm',
+                            ha: 'Bude gona',
+                            fr: 'Ouvrir la ferme',
+                            pcm: 'Open farm')),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              'Last updated',
-                              style: theme.textTheme.bodySmall
-                                  ?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${app_date.DateUtils.formatDate(farm.updatedAt)}. Keep structure, notes, inventory, and processes refreshed from this space.',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                height: 1.5,
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => FarmMembersScreen(farmId: farm.id),
+                          ),
                         ),
+                        icon: const Icon(Icons.groups_rounded, size: 18),
+                        label: Text(
+                            '${context.appLanguage.tr(en: 'Team', ha: 'Tawaga', fr: 'Equipe', pcm: 'Team')} (${farm.workspaceMembers.length})'),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  '${context.appLanguage.tr(en: 'Updated', ha: 'An sabunta', fr: 'Mis a jour', pcm: 'Dem update am')} ${app_date.DateUtils.formatDate(farm.updatedAt)}'
+                  '${farm.openWorkspaceTaskCount > 0 ? '  ·  ${farm.openWorkspaceTaskCount} ${context.appLanguage.tr(en: 'open tasks', ha: 'ayyuka a bude', fr: 'taches ouvertes', pcm: 'tasks dey open')}' : ''}',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                 ),
               ],
             ),

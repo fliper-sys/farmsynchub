@@ -8,19 +8,19 @@ import '../../../core/services/gemini_service.dart';
 import '../../../core/services/report_file_saver.dart';
 import '../../../core/services/report_share_service.dart';
 import '../../../core/services/report_file_saver_base.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/date_utils.dart' as app_date;
 import '../../../domain/models/crop.dart';
 import '../../../domain/models/farm.dart';
 import '../../../domain/models/livestock.dart';
 import '../../../domain/models/transaction.dart';
+import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/crop_provider.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/finance_provider.dart';
 import '../../../providers/livestock_provider.dart';
 import '../../common/widgets/app_button.dart';
-import '../../common/widgets/app_card.dart';
+import '../../common/widgets/detail_ui.dart';
 import '../../common/widgets/farm_scene_artwork.dart';
 import '../../common/widgets/soft_screen_scaffold.dart';
 
@@ -95,8 +95,12 @@ class _FarmInsightSummaryScreenState extends ConsumerState<FarmInsightSummaryScr
         ),
       ),
       body: SoftScreenScaffold(
-        heroTitle: 'AI farm briefing',
-        heroSubtitle: 'A practical briefing for ${farm.name} based on the stored farm, crop, livestock, and finance records.',
+        heroTitle: context.appLanguage.tr(en: 'AI farm briefing', ha: 'Takaitaccen bayanin gona na AI', fr: 'Bilan agricole IA', pcm: 'AI farm briefing'),
+        heroSubtitle: context.appLanguage.tr(
+          en: 'A practical briefing for ${farm.name} based on the stored farm, crop, livestock, and finance records.',
+          ha: 'Takaitaccen bayani mai amfani kan ${farm.name} daga bayanan gona, amfanin gona, dabbobi da kudi.',
+          fr: 'Un bilan pratique de ${farm.name} base sur les donnees de la ferme, des cultures, du betail et des finances.',
+          pcm: 'Correct summary for ${farm.name} wey dey based on your farm, crop, animal and money records.'),
         heroIcon: Icons.insights_rounded,
         heroVariant: FarmArtworkVariant.dashboard,
         heroBadge: '${farm.documents.length} docs • ${farm.openWorkspaceTaskCount} open tasks',
@@ -115,64 +119,42 @@ class _FarmInsightSummaryScreenState extends ConsumerState<FarmInsightSummaryScr
           ),
         ),
         sections: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: _SummaryStat(
-                  label: 'Income',
-                  value: CurrencyUtils.formatCompactCurrency(_financeIncome(transactions)),
-                  color: const Color(0xFFE5F5D8),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _SummaryStat(
-                  label: 'Expenses',
-                  value: CurrencyUtils.formatCompactCurrency(_financeExpenses(transactions)),
-                  color: const Color(0xFFFFE7D7),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _SummaryStat(
-                  label: 'Balance',
-                  value: CurrencyUtils.formatCompactCurrency(_financeIncome(transactions) - _financeExpenses(transactions)),
-                  color: const Color(0xFFDFF1FF),
-                ),
-              ),
-            ],
+          FadeInUp(
+            child: _BalanceHero(
+              income: _financeIncome(transactions),
+              expenses: _financeExpenses(transactions),
+            ),
           ),
-          const SizedBox(height: 18),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: _SummaryStat(
-                  label: 'Crops',
-                  value: '${crops.length}',
-                  color: const Color(0xFFE8F4DB),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _SummaryStat(
-                  label: 'Livestock',
-                  value: '${livestock.fold<int>(0, (int sum, Livestock item) => sum + item.count)}',
-                  color: const Color(0xFFDFF1FF),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _SummaryStat(
-                  label: 'Records',
-                  value: '${farm.documents.length + farm.activityLog.length + transactions.length}',
-                  color: const Color(0xFFFFEBD0),
-                ),
-              ),
-            ],
+          const SizedBox(height: 12),
+          FadeInUp(
+            index: 1,
+            child: Row(
+              children: <Widget>[
+                _InsightStat(
+                    icon: Icons.grass_rounded,
+                    label: context.appLanguage.tr(en: 'Crops', ha: 'Amfanin gona', fr: 'Cultures', pcm: 'Crops'),
+                    value: '${crops.length}',
+                    color: const Color(0xFF2E9E5B)),
+                const SizedBox(width: 10),
+                _InsightStat(
+                    icon: Icons.pets_rounded,
+                    label: context.appLanguage.tr(en: 'Livestock', ha: 'Dabbobi', fr: 'Betail', pcm: 'Animals'),
+                    value:
+                        '${livestock.fold<int>(0, (int sum, Livestock item) => sum + item.count)}',
+                    color: const Color(0xFF3B82C4)),
+                const SizedBox(width: 10),
+                _InsightStat(
+                    icon: Icons.folder_copy_rounded,
+                    label: context.appLanguage.tr(en: 'Records', ha: 'Bayanai', fr: 'Registres', pcm: 'Records'),
+                    value:
+                        '${farm.documents.length + farm.activityLog.length + transactions.length}',
+                    color: const Color(0xFFE08A1E)),
+              ],
+            ),
           ),
           const SizedBox(height: 18),
           SoftSectionTitle(
-            title: 'AI briefing',
+            title: context.appLanguage.tr(en: 'AI briefing', ha: 'Bayanin AI', fr: 'Bilan IA', pcm: 'AI briefing'),
             action: TextButton.icon(
               onPressed: () {
                 setState(() {
@@ -181,25 +163,23 @@ class _FarmInsightSummaryScreenState extends ConsumerState<FarmInsightSummaryScr
                 });
               },
               icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Refresh'),
+              label: Text(context.appLanguage.tr(en: 'Refresh', ha: 'Sabunta', fr: 'Actualiser', pcm: 'Refresh')),
             ),
           ),
           FutureBuilder<String>(
             future: _summaryFuture,
             builder: (BuildContext context, AsyncSnapshot<String> snapshot) {
+              final bool waiting =
+                  snapshot.connectionState == ConnectionState.waiting;
               final String briefing = snapshot.data?.trim().isNotEmpty == true
                   ? snapshot.data!.trim()
                   : _summaryText.trim().isNotEmpty
                       ? _summaryText
-                      : _localFallbackBriefing(farm!, crops, livestock, transactions);
+                      : _localFallbackBriefing(
+                          farm!, crops, livestock, transactions);
 
-              if (snapshot.connectionState == ConnectionState.waiting && briefing.isEmpty) {
-                return const AppCard(
-                  child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                );
+              if (waiting && _summaryText.trim().isEmpty) {
+                return const _BriefingLoading();
               }
 
               if (snapshot.hasData && snapshot.data!.trim().isNotEmpty) {
@@ -208,50 +188,39 @@ class _FarmInsightSummaryScreenState extends ConsumerState<FarmInsightSummaryScr
                 _summaryText = briefing;
               }
 
-              return AppCard(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: SelectableText(
-                    briefing,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.45),
-                  ),
-                ),
+              return _BriefingView(
+                key: ValueKey<int>(briefing.hashCode),
+                text: briefing,
               );
             },
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Recommended next actions'),
-          AppCard(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: _nextActions(farm, crops, livestock, transactions),
-              ),
+          SoftSectionTitle(
+              title: context.appLanguage.tr(en: 'Recommended next actions', ha: 'Matakan da aka shawarta', fr: 'Actions recommandees', pcm: 'Wetin you suppose do next')),
+          FadeInUp(
+            child: _ActionChecklist(
+              actions: _nextActionTexts(farm, crops, livestock, transactions),
             ),
           ),
           const SizedBox(height: 18),
-          const SoftSectionTitle(title: 'Important context'),
-          AppCard(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: <Widget>[
-                  _MiniTag(text: farm.farmType.name),
-                  _MiniTag(text: farm.soilType.name),
-                  _MiniTag(text: farm.waterSource.name),
-                  _MiniTag(text: '${farm.workspaceMembers.length} members'),
-                  _MiniTag(text: '${farm.openWorkspaceTaskCount} open tasks'),
-                  _MiniTag(text: app_date.DateUtils.formatDate(farm.updatedAt)),
-                ],
-              ),
-            ),
+          SoftSectionTitle(
+              title: context.appLanguage.tr(en: 'Important context', ha: 'Muhimman bayanai', fr: 'Contexte important', pcm: 'Important things')),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              _ContextChip(Icons.agriculture_rounded, farm.farmType.name),
+              _ContextChip(Icons.terrain_rounded, farm.soilType.name),
+              _ContextChip(Icons.water_drop_rounded, farm.waterSource.name),
+              _ContextChip(Icons.groups_rounded,
+                  '${farm.workspaceMembers.length} members'),
+              _ContextChip(Icons.task_alt_rounded,
+                  '${farm.openWorkspaceTaskCount} open tasks'),
+              _ContextChip(Icons.update_rounded,
+                  app_date.DateUtils.formatDate(farm.updatedAt)),
+            ],
           ),
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -362,7 +331,7 @@ Next 7 days
 ''';
   }
 
-  List<Widget> _nextActions(
+  List<String> _nextActionTexts(
     Farm farm,
     List<Crop> crops,
     List<Livestock> livestock,
@@ -380,30 +349,97 @@ Next 7 days
       'Export the report after the next update cycle so the latest record set is preserved.',
     ];
 
-    return actions
-        .map(
-          (String action) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const Text('- '),
-                Expanded(child: Text(action)),
-              ],
-            ),
-          ),
-        )
-        .toList(growable: false);
+    return actions;
   }
 }
 
-class _SummaryStat extends StatelessWidget {
-  const _SummaryStat({
+class _BalanceHero extends StatelessWidget {
+  const _BalanceHero({required this.income, required this.expenses});
+
+  final double income;
+  final double expenses;
+
+  @override
+  Widget build(BuildContext context) {
+    final double balance = income - expenses;
+    final bool positive = balance >= 0;
+    final double total = income + expenses;
+    final double incomeShare = total <= 0 ? 0.5 : income / total;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: positive
+              ? const <Color>[Color(0xFF0E5A41), Color(0xFF2E9E5B)]
+              : const <Color>[Color(0xFF8A2D1E), Color(0xFFD9622B)],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+              context.appLanguage.tr(en: 'Net balance', ha: 'Ragowar kudi', fr: 'Solde net', pcm: 'Money wey remain'),
+              style: TextStyle(
+                  color: Colors.white.withOpacity(0.85), fontSize: 13)),
+          const SizedBox(height: 4),
+          TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0, end: balance),
+            duration: const Duration(milliseconds: 900),
+            curve: Curves.easeOutCubic,
+            builder: (BuildContext context, double v, Widget? c) => Text(
+              CurrencyUtils.formatCurrency(v),
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 30,
+                  fontWeight: FontWeight.w900),
+            ),
+          ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0, end: incomeShare),
+              duration: const Duration(milliseconds: 900),
+              curve: Curves.easeOutCubic,
+              builder: (BuildContext context, double v, Widget? c) =>
+                  LinearProgressIndicator(
+                value: v,
+                minHeight: 8,
+                backgroundColor: Colors.white.withOpacity(0.25),
+                valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: <Widget>[
+              Text(
+                  '${context.appLanguage.tr(en: 'Income', ha: 'Kudin shiga', fr: 'Revenus', pcm: 'Income')} ${CurrencyUtils.formatCompactCurrency(income)}',
+                  style: const TextStyle(color: Colors.white, fontSize: 12)),
+              Text(
+                  '${context.appLanguage.tr(en: 'Expenses', ha: 'Kashe kudi', fr: 'Depenses', pcm: 'Expenses')} ${CurrencyUtils.formatCompactCurrency(expenses)}',
+                  style: const TextStyle(color: Colors.white, fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InsightStat extends StatelessWidget {
+  const _InsightStat({
+    required this.icon,
     required this.label,
     required this.value,
     required this.color,
   });
 
+  final IconData icon;
   final String label;
   final String value;
   final Color color;
@@ -411,31 +447,31 @@ class _SummaryStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final bool isDark = theme.brightness == Brightness.dark;
-    final Color background = AppColors.chipBackgroundFor(
-      color,
-      isDark: isDark,
-      surface: theme.colorScheme.surfaceContainerHighest,
-    );
-    final Color foreground = AppColors.chipForegroundFor(
-      isDark: isDark,
-      onSurface: theme.colorScheme.onSurface,
-    );
-    return AppCard(
-      color: background,
-      child: Padding(
+    return Expanded(
+      child: Container(
         padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(20),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text(label,
-                style: theme.textTheme.labelMedium?.copyWith(color: foreground)),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w700, color: foreground),
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 18, color: color),
             ),
+            const SizedBox(height: 10),
+            Text(value,
+                style: theme.textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w900)),
+            Text(label,
+                style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant)),
           ],
         ),
       ),
@@ -443,20 +479,308 @@ class _SummaryStat extends StatelessWidget {
   }
 }
 
-class _MiniTag extends StatelessWidget {
-  const _MiniTag({required this.text});
+class _BriefingLoading extends StatefulWidget {
+  const _BriefingLoading();
+
+  @override
+  State<_BriefingLoading> createState() => _BriefingLoadingState();
+}
+
+class _BriefingLoadingState extends State<_BriefingLoading>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1100))
+    ..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (BuildContext context, Widget? child) {
+        final Color bar = theme.colorScheme.onSurface
+            .withOpacity(0.06 + 0.08 * _c.value);
+        Widget line(double w) => Container(
+              height: 12,
+              width: w,
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                  color: bar, borderRadius: BorderRadius.circular(6)),
+            );
+        return Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(children: <Widget>[
+                Icon(Icons.auto_awesome_rounded,
+                    size: 18, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                    context.appLanguage.tr(en: 'Analysing your farm records...', ha: 'Ana nazarin bayanan gonarka...', fr: 'Analyse des donnees de votre ferme...', pcm: 'We dey check your farm records...'),
+                    style: theme.textTheme.labelLarge),
+              ]),
+              const SizedBox(height: 16),
+              line(double.infinity),
+              line(260),
+              line(double.infinity),
+              line(180),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _BriefingBlock {
+  _BriefingBlock(this.heading);
+  final String heading;
+  final List<String> lines = <String>[];
+}
+
+List<_BriefingBlock> _parseBriefing(String text) {
+  final List<_BriefingBlock> blocks = <_BriefingBlock>[];
+  _BriefingBlock? current;
+  for (final String raw in text.split('\n')) {
+    String line = raw.trim();
+    if (line.isEmpty) continue;
+    line = line.replaceAll('**', '').replaceAll(RegExp(r'^#+\s*'), '');
+    final bool bullet = RegExp(r'^([-*\u2022]|\d+[.)])\s+').hasMatch(line);
+    if (bullet) {
+      line = line.replaceFirst(RegExp(r'^([-*\u2022]|\d+[.)])\s+'), '');
+      current ??= _BriefingBlock('');
+      if (!blocks.contains(current)) blocks.add(current);
+      current.lines.add(line);
+    } else if (line.length <= 48 && !line.endsWith('.')) {
+      current = _BriefingBlock(line.replaceAll(RegExp(r':$'), ''));
+      blocks.add(current);
+    } else {
+      current ??= _BriefingBlock('');
+      if (!blocks.contains(current)) blocks.add(current);
+      current.lines.add(line);
+    }
+  }
+  return blocks;
+}
+
+IconData _headingIcon(String h) {
+  final String t = h.toLowerCase();
+  if (t.contains('risk')) return Icons.warning_amber_rounded;
+  if (t.contains('strength')) return Icons.thumb_up_alt_rounded;
+  if (t.contains('next') || t.contains('action') || t.contains('recommend')) {
+    return Icons.flag_rounded;
+  }
+  if (t.contains('situation') || t.contains('snapshot') || t.contains('summary')) {
+    return Icons.insights_rounded;
+  }
+  return Icons.auto_awesome_rounded;
+}
+
+Color _headingColor(String h) {
+  final String t = h.toLowerCase();
+  if (t.contains('risk')) return const Color(0xFFD9622B);
+  if (t.contains('strength')) return const Color(0xFF2E9E5B);
+  if (t.contains('next') || t.contains('action')) return const Color(0xFF3B82C4);
+  return const Color(0xFF7A5BC4);
+}
+
+class _BriefingView extends StatelessWidget {
+  const _BriefingView({super.key, required this.text});
 
   final String text;
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final List<_BriefingBlock> blocks = _parseBriefing(text);
+    if (blocks.isEmpty) {
+      return SelectableText(text);
+    }
+    return Column(
+      children: <Widget>[
+        for (int i = 0; i < blocks.length; i++)
+          FadeInUp(
+            index: i,
+            child: Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(20),
+                border: Border(
+                  left: BorderSide(
+                      color: _headingColor(blocks[i].heading), width: 4),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  if (blocks[i].heading.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(children: <Widget>[
+                        Icon(_headingIcon(blocks[i].heading),
+                            size: 18, color: _headingColor(blocks[i].heading)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(blocks[i].heading,
+                              style: theme.textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w800)),
+                        ),
+                      ]),
+                    ),
+                  for (final String line in blocks[i].lines)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Padding(
+                            padding: const EdgeInsets.only(top: 7, right: 10),
+                            child: Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: _headingColor(blocks[i].heading),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: SelectableText(line,
+                                style: theme.textTheme.bodyMedium
+                                    ?.copyWith(height: 1.4)),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ActionChecklist extends StatefulWidget {
+  const _ActionChecklist({required this.actions});
+
+  final List<String> actions;
+
+  @override
+  State<_ActionChecklist> createState() => _ActionChecklistState();
+}
+
+class _ActionChecklistState extends State<_ActionChecklist> {
+  final Set<int> _done = <int>{};
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        children: <Widget>[
+          for (int i = 0; i < widget.actions.length; i++)
+            InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => setState(() {
+                if (!_done.add(i)) _done.remove(i);
+              }),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      width: 26,
+                      height: 26,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _done.contains(i)
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.primary.withOpacity(0.12),
+                      ),
+                      child: _done.contains(i)
+                          ? const Icon(Icons.check_rounded,
+                              size: 16, color: Colors.white)
+                          : Text('${i + 1}',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: theme.colorScheme.primary)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 220),
+                        style: (theme.textTheme.bodyMedium ??
+                                const TextStyle())
+                            .copyWith(
+                          height: 1.4,
+                          decoration: _done.contains(i)
+                              ? TextDecoration.lineThrough
+                              : TextDecoration.none,
+                          color: _done.contains(i)
+                              ? theme.colorScheme.onSurfaceVariant
+                              : theme.colorScheme.onSurface,
+                        ),
+                        child: Text(widget.actions[i]),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ContextChip extends StatelessWidget {
+  const _ContextChip(this.icon, this.text);
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(text),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 15, color: theme.colorScheme.primary),
+          const SizedBox(width: 6),
+          Text(text, style: theme.textTheme.labelMedium),
+        ],
+      ),
     );
   }
 }

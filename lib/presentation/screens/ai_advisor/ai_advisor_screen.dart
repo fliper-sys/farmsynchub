@@ -10,6 +10,7 @@ import '../../../domain/models/ai_topic.dart';
 import '../../../domain/models/chat_message.dart';
 import '../../../providers/ai_chat_provider.dart';
 import '../../../providers/app_preferences_provider.dart';
+import '../../common/widgets/detail_ui.dart';
 
 /// A focused, chat-first AI advisor screen: the message list is the whole
 /// screen, the composer stays fixed at the bottom, and everything else
@@ -109,8 +110,22 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Text(ai.activeTopic.emoji, style: const TextStyle(fontSize: 18)),
-              const SizedBox(width: 8),
+              Container(
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: <Color>[Color(0xFF0E5A41), Color(0xFF2E9E5B)],
+                  ),
+                ),
+                child: Text(ai.activeTopic.emoji,
+                    style: const TextStyle(fontSize: 16)),
+              ),
+              const SizedBox(width: 10),
               Flexible(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -192,16 +207,20 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
                             final ChatMessage message = messages[index];
                             if (message.isLoading) {
                               return const Padding(
-                                padding: EdgeInsets.only(bottom: 10),
+                                padding: EdgeInsets.only(bottom: 12),
                                 child: Align(
                                   alignment: Alignment.centerLeft,
                                   child: _TypingBubble(),
                                 ),
                               );
                             }
+                            final Widget bubble =
+                                _ChatBubble(language: language, message: message);
                             return Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: _ChatBubble(language: language, message: message),
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: index == messages.length - 1
+                                  ? FadeInUp(child: bubble)
+                                  : bubble,
                             );
                           },
                         ),
@@ -263,6 +282,7 @@ class _AiAdvisorScreenState extends ConsumerState<AiAdvisorScreen> {
         ? 'Please inspect this image carefully. Provide a likely diagnosis, specific signs I should look for to confirm, and a practical list of next steps for my farm.'
         : text;
 
+    HapticFeedback.lightImpact();
     _messageController.clear();
     final Uint8List? imageBytes = _selectedImageBytes;
     _clearSelectedImage();
@@ -450,6 +470,7 @@ class _CooldownBanner extends StatelessWidget {
                 en: 'Please wait $seconds seconds before sending another request.',
                 ha: 'Da fatan za a jira dakiku $seconds kafin aika wata bukata.',
                 fr: 'Veuillez patienter $seconds secondes avant d\'envoyer une autre demande.',
+                pcm: 'Abeg wait $seconds seconds before you send another request.',
               ),
               style: const TextStyle(color: Color(0xFF7A4B00), fontSize: 12.5),
             ),
@@ -551,46 +572,86 @@ class _EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final List<AiStudioAction> suggestions = _studioActionsFor(language);
     return ListView(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
       children: <Widget>[
-        Center(
-          child: Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.14),
-              shape: BoxShape.circle,
+        FadeInUp(
+          child: Column(
+            children: <Widget>[
+              TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0.6, end: 1),
+                duration: const Duration(milliseconds: 700),
+                curve: Curves.elasticOut,
+                builder: (BuildContext context, double v, Widget? c) =>
+                    Transform.scale(scale: v, child: c),
+                child: Container(
+                  width: 76,
+                  height: 76,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: <Color>[Color(0xFF0E5A41), Color(0xFF2E9E5B)],
+                    ),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: const Color(0xFF2E9E5B).withOpacity(0.4),
+                        blurRadius: 24,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.auto_awesome_rounded,
+                      color: Colors.white, size: 36),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                language.tr(
+                    en: 'Ask me anything about your farm',
+                    ha: 'Yi mini tambaya kan gonarka',
+                    fr: 'Posez-moi une question sur votre ferme'),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: _aiText(context), fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                language.tr(
+                    en: 'Type a question or attach a photo for a diagnosis. Try one of these to get started:',
+                    ha: 'Rubuta tambaya ko haɗa hoto domin gano matsala. Gwada daya daga cikin wadannan domin farawa:',
+                    fr: 'Tapez une question ou joignez une photo pour un diagnostic. Essayez l\'une de ces suggestions pour commencer :'),
+                textAlign: TextAlign.center,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: _aiMuted(context), height: 1.4),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 22),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: suggestions.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            mainAxisExtent: 148,
+          ),
+          itemBuilder: (BuildContext context, int i) => FadeInUp(
+            index: i.clamp(0, 5),
+            child: _SuggestionTile(
+              action: suggestions[i],
+              onTap: () {
+                HapticFeedback.selectionClick();
+                onSuggestionTap(suggestions[i]);
+              },
             ),
-            child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 30),
           ),
         ),
-        const SizedBox(height: 16),
-        Text(
-          language.tr(
-              en: 'Ask me anything about your farm',
-              ha: 'Yi mini tambaya kan gonarka',
-              fr: 'Posez-moi une question sur votre ferme'),
-          textAlign: TextAlign.center,
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(color: _aiText(context), fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          language.tr(
-              en: 'Type a question or attach a photo for a diagnosis. Try one of these to get started:',
-              ha: 'Rubuta tambaya ko haɗa hoto domin gano matsala. Gwada daya daga cikin wadannan domin farawa:',
-              fr: 'Tapez une question ou joignez une photo pour un diagnostic. Essayez l\'une de ces suggestions pour commencer :'),
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: _aiMuted(context)),
-        ),
-        const SizedBox(height: 20),
-        for (final AiStudioAction action in suggestions)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _SuggestionTile(action: action, onTap: () => onSuggestionTap(action)),
-          ),
       ],
     );
   }
@@ -606,37 +667,41 @@ class _SuggestionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: _aiSurfaceAlt(context),
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(22),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Padding(
+        child: Container(
           padding: const EdgeInsets.all(14),
-          child: Row(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: _aiBorder(context)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Container(
-                width: 38,
-                height: 38,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   color: action.tint.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(action.icon, size: 19, color: action.tint),
+                child: Icon(action.icon, size: 21, color: action.tint),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(action.title,
-                        style: TextStyle(color: _aiText(context), fontWeight: FontWeight.w700, fontSize: 13.5)),
-                    const SizedBox(height: 2),
-                    Text(action.subtitle,
-                        style: TextStyle(color: _aiMuted(context), fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
-                  ],
-                ),
-              ),
-              Icon(Icons.arrow_forward_ios_rounded, size: 14, color: _aiMuted(context)),
+              const Spacer(),
+              Text(action.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      color: _aiText(context),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14)),
+              const SizedBox(height: 3),
+              Text(action.subtitle,
+                  style: TextStyle(color: _aiMuted(context), fontSize: 11.5),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis),
             ],
           ),
         ),
@@ -870,8 +935,20 @@ class _ChatBubble extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 320),
           child: Container(
             decoration: BoxDecoration(
-              color: AppColors.primary,
-              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: <Color>[
+                  AppColors.primary,
+                  Color.lerp(AppColors.primary, Colors.black, 0.22)!,
+                ],
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(6),
+              ),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
             child: Column(
@@ -903,31 +980,69 @@ class _ChatBubble extends StatelessWidget {
       );
     }
 
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560),
-        child: Container(
-          decoration: BoxDecoration(
-            color: _aiSurfaceAlt(context),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _aiBorder(context)),
-          ),
-          padding: const EdgeInsets.fromLTRB(16, 14, 10, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              _MarkdownLiteText(text: message.text, color: _aiText(context)),
-              const SizedBox(height: 2),
-              Align(
-                alignment: Alignment.centerRight,
-                child: _CopyButton(text: message.text),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        const _AiAvatar(),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 540),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: _aiSurfaceAlt(context),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(6),
+                    topRight: Radius.circular(20),
+                    bottomLeft: Radius.circular(20),
+                    bottomRight: Radius.circular(20),
+                  ),
+                  border: Border.all(color: _aiBorder(context)),
+                ),
+                padding: const EdgeInsets.fromLTRB(16, 14, 10, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    _MarkdownLiteText(
+                        text: message.text, color: _aiText(context)),
+                    const SizedBox(height: 2),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: _CopyButton(text: message.text),
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+class _AiAvatar extends StatelessWidget {
+  const _AiAvatar();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 28,
+      height: 28,
+      margin: const EdgeInsets.only(top: 2),
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[Color(0xFF0E5A41), Color(0xFF2E9E5B)],
+        ),
       ),
+      child: const Icon(Icons.auto_awesome_rounded,
+          size: 15, color: Colors.white),
     );
   }
 }
@@ -1134,6 +1249,17 @@ class _TypingBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        const _AiAvatar(),
+        const SizedBox(width: 8),
+        _typingPill(context),
+      ],
+    );
+  }
+
+  Widget _typingPill(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(

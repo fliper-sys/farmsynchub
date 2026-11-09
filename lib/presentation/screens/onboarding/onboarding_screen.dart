@@ -36,7 +36,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         fr: 'Gérez chaque ferme depuis un seul endroit',
       ),
       body: LocalizedText(
-        'Create farms, keep records and see what needs doing today, even with a weak signal.',
+        'Create farms, keep records and see what needs doing today, even with a weak signal. Record work offline and keep daily learning streaks growing.',
         ha: 'Ƙirƙiri gonaki, adana bayanai ka ga abin da ya kamata a yi a yau, ko da sigina ba ta da ƙarfi.',
         fr: 'Créez vos fermes, tenez vos registres et voyez ce qu’il faut faire aujourd’hui, même avec un signal faible.',
       ),

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/app_preferences_provider.dart';
 import '../../../providers/engagement_provider.dart';
 import 'engagement_widgets.dart';
+import 'learning_reminder_sheet.dart';
 import 'streak_freeze_sheet.dart';
 
 /// Streak + progress calendar. Every day shows whether it was passed
@@ -35,7 +36,18 @@ class _StreakCalendarScreenState extends ConsumerState<StreakCalendarScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(language.tr(
-            en: 'Streak', ha: 'Jerin Kwanaki', fr: 'Série')),
+            en: 'Streak', ha: 'Jerin Kwanaki', fr: 'Série', pcm: 'Streak')),
+        actions: <Widget>[
+          IconButton(
+            tooltip: language.tr(
+                en: 'Reminders',
+                ha: 'Tunatarwa',
+                fr: 'Rappels',
+                pcm: 'Reminders'),
+            icon: const Icon(Icons.notifications_active_outlined),
+            onPressed: () => showLearningReminderSheet(context),
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),

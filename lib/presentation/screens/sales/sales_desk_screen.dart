@@ -19,6 +19,7 @@ import '../../../providers/auth_provider.dart';
 import '../../../providers/farm_provider.dart';
 import '../../../providers/finance_provider.dart';
 import '../../../providers/operations_hub_provider.dart';
+import '../../../core/i18n/context_tr.dart';
 import '../../common/widgets/app_button.dart';
 import '../../common/widgets/app_card.dart';
 import '../../common/widgets/app_text_field.dart';
@@ -161,7 +162,7 @@ class _SalesDeskScreenState extends ConsumerState<SalesDeskScreen> {
             ),
             PopupMenuButton<String>(
               icon: const Icon(Icons.add_circle_outline_rounded),
-              tooltip: 'Add',
+              tooltip: ctr(context, 'Add', 'Kara', 'Ajouter', 'Add'),
               onSelected: (String v) {
                 if (v == 'product') {
                   if (farms.isNotEmpty) _openProductSheet();
@@ -170,11 +171,13 @@ class _SalesDeskScreenState extends ConsumerState<SalesDeskScreen> {
                 }
               },
               itemBuilder: (BuildContext context) =>
-                  const <PopupMenuEntry<String>>[
+                  <PopupMenuEntry<String>>[
                 PopupMenuItem<String>(
-                    value: 'product', child: Text('Add product')),
+                    value: 'product',
+                    child: Text(ctr(context, 'Add product', 'Kara kaya', 'Ajouter un produit', 'Add product'))),
                 PopupMenuItem<String>(
-                    value: 'customer', child: Text('Add customer')),
+                    value: 'customer',
+                    child: Text(ctr(context, 'Add customer', 'Kara abokin ciniki', 'Ajouter un client', 'Add customer'))),
               ],
             ),
           ],
@@ -186,24 +189,24 @@ class _SalesDeskScreenState extends ConsumerState<SalesDeskScreen> {
           stats: <MetricStat>[
             MetricStat(
               icon: Icons.payments_rounded,
-              label: 'Sold today',
+              label: ctr(context, 'Sold today', 'An sayar yau', 'Vendu aujourd’hui', 'Sold today'),
               value: CurrencyUtils.formatCurrency(todayRevenue),
             ),
             MetricStat(
               icon: Icons.receipt_rounded,
-              label: 'Receipts',
+              label: ctr(context, 'Receipts', 'Rasit-rasit', 'Reçus', 'Receipts'),
               value: '${recentReceipts.length}',
               color: const Color(0xFF0EA5A4),
             ),
             MetricStat(
               icon: Icons.inventory_2_rounded,
-              label: 'Products',
+              label: ctr(context, 'Products', 'Kayayyaki', 'Produits', 'Products'),
               value: '${inventory.length}',
               color: const Color(0xFF8B5CF6),
             ),
             MetricStat(
               icon: Icons.warning_amber_rounded,
-              label: 'Low / out',
+              label: ctr(context, 'Low / out', 'Kadan / an gama', 'Faible / épuisé', 'Low / don finish'),
               value: '$lowCount',
               color: lowCount > 0
                   ? const Color(0xFFD99A1E)
@@ -229,7 +232,7 @@ class _SalesDeskScreenState extends ConsumerState<SalesDeskScreen> {
           controller: _searchController,
           onChanged: (_) => setState(() {}),
           decoration: InputDecoration(
-            hintText: 'Search products',
+            hintText: ctr(context, 'Search products', 'Nemi kayayyaki', 'Rechercher des produits', 'Search products'),
             prefixIcon: const Icon(Icons.search_rounded),
             suffixIcon: _searchController.text.isEmpty
                 ? null
@@ -309,7 +312,7 @@ class _SalesDeskScreenState extends ConsumerState<SalesDeskScreen> {
                     FilledButton.icon(
                       onPressed: _openProductSheet,
                       icon: const Icon(Icons.add_rounded),
-                      label: const Text('Add product'),
+                      label: Text(ctr(context, 'Add product', 'Kara kaya', 'Ajouter un produit', 'Add product')),
                     ),
                   ],
                 ],
@@ -361,7 +364,7 @@ class _SalesDeskScreenState extends ConsumerState<SalesDeskScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text('Customer handoff',
+                Text(ctr(context, 'Customer handoff', 'Ba abokin ciniki', 'Remise au client', 'Give customer'),
                     style: Theme.of(context)
                         .textTheme
                         .titleMedium
@@ -387,7 +390,7 @@ class _SalesDeskScreenState extends ConsumerState<SalesDeskScreen> {
                                 width: 18,
                                 height: 18,
                                 child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Text('Share as image'),
+                            : Text(ctr(context, 'Share as image', 'Raba a matsayin hoto', 'Partager en image', 'Share as image')),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -396,7 +399,7 @@ class _SalesDeskScreenState extends ConsumerState<SalesDeskScreen> {
                         onPressed: _activeReceiptNumber == null || _isSharingReceipt
                             ? null
                             : () => _shareReceipt(context),
-                        child: const Text('Share as PDF'),
+                        child: Text(ctr(context, 'Share as PDF', 'Raba a matsayin PDF', 'Partager en PDF', 'Share as PDF')),
                       ),
                     ),
                   ],
@@ -673,7 +676,7 @@ class _SalesDeskScreenState extends ConsumerState<SalesDeskScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content:
-                Text('Checkout complete. Receipt $receiptNumber is ready.')),
+                Text(ctr(context, 'Checkout complete. Receipt $receiptNumber is ready.', 'An kammala siyarwa. Rasit $receiptNumber ya shirya.', 'Paiement terminé. Le reçu $receiptNumber est prêt.', 'Checkout don finish. Receipt $receiptNumber don ready.'))),
       );
       await _openReceipt(context, receiptNumber);
     } finally {
@@ -757,8 +760,8 @@ class _SalesDeskScreenState extends ConsumerState<SalesDeskScreen> {
           await captureBoundaryImage(_receiptBoundaryKey);
       if (imageBytes == null) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Could not capture the receipt image.')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(ctr(context, 'Could not capture the receipt image.', 'Ba a iya ɗaukar hoton rasit ba.', 'Impossible de capturer l’image du reçu.', 'We no fit capture the receipt picture.'))));
         }
         return;
       }
@@ -1028,7 +1031,8 @@ class _SalesReceiptScreenState extends ConsumerState<SalesReceiptScreen> {
           await _fileSaver.savePdf(bytes: bytes, fileName: fileName);
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Receipt saved to $path')));
+          .showSnackBar(SnackBar(
+          content: Text(ctr(context, 'Receipt saved to $path', 'An adana rasit a $path', 'Reçu enregistré dans $path', 'Receipt don save for $path'))));
     } finally {
       if (mounted) {
         setState(() => _isExporting = false);
@@ -1067,8 +1071,8 @@ class _SalesReceiptScreenState extends ConsumerState<SalesReceiptScreen> {
           await captureBoundaryImage(_receiptBoundaryKey);
       if (imageBytes == null) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Could not capture the receipt image.')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(ctr(context, 'Could not capture the receipt image.', 'Ba a iya ɗaukar hoton rasit ba.', 'Impossible de capturer l’image du reçu.', 'We no fit capture the receipt picture.'))));
         }
         return;
       }
@@ -1108,9 +1112,9 @@ class _FarmSelector extends StatelessWidget {
       value: farms.any((Farm farm) => farm.id == selectedFarmId)
           ? selectedFarmId
           : null,
-      decoration: const InputDecoration(
-        labelText: 'Active farm',
-        border: OutlineInputBorder(),
+      decoration: InputDecoration(
+        labelText: ctr(context, 'Active farm', 'Gonar da ake amfani da ita', 'Ferme active', 'Active farm'),
+        border: const OutlineInputBorder(),
       ),
       items: farms
           .map((Farm farm) =>
@@ -1536,7 +1540,7 @@ class _CartLineEditorSheetState extends State<_CartLineEditorSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text('Edit cart line',
+            Text(ctr(context, 'Edit cart line', 'Gyara layin keken sayayya', 'Modifier la ligne du panier', 'Edit cart line'),
                 style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 6),
             Text(widget.item.name,
@@ -1544,16 +1548,16 @@ class _CartLineEditorSheetState extends State<_CartLineEditorSheet> {
             const SizedBox(height: 16),
             AppTextField(
               controller: _quantityController,
-              label: 'Quantity',
-              hint: 'Enter sold quantity',
+              label: ctr(context, 'Quantity', 'Adadi', 'Quantité', 'Quantity'),
+              hint: ctr(context, 'Enter sold quantity', 'Shigar da adadin da aka sayar', 'Saisissez la quantité vendue', 'Put the quantity wey you sell'),
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
             ),
             const SizedBox(height: 12),
             AppTextField(
               controller: _priceController,
-              label: 'Unit price',
-              hint: 'Override sale price',
+              label: ctr(context, 'Unit price', 'Farashin guda', 'Prix unitaire', 'Price for one'),
+              hint: ctr(context, 'Override sale price', 'Canza farashin siyarwa', 'Remplacer le prix de vente', 'Change the selling price'),
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
             ),
@@ -1563,14 +1567,14 @@ class _CartLineEditorSheetState extends State<_CartLineEditorSheet> {
                 Expanded(
                   child: AppButton.secondary(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancel'),
+                    child: Text(ctr(context, 'Cancel', 'Soke', 'Annuler', 'Cancel')),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: AppButton.primary(
                     onPressed: _submit,
-                    child: const Text('Save'),
+                    child: Text(ctr(context, 'Save', 'Adana', 'Enregistrer', 'Save')),
                   ),
                 ),
               ],
@@ -1650,7 +1654,7 @@ class _ProductSheetState extends State<_ProductSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text('Create product',
+              Text(ctr(context, 'Create product', 'Ƙirƙiri kaya', 'Créer un produit', 'Create product'),
                   style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
@@ -1660,42 +1664,43 @@ class _ProductSheetState extends State<_ProductSheet> {
                         value: farm.id, child: Text(farm.name)))
                     .toList(growable: false),
                 onChanged: (String? value) => setState(() => _farmId = value),
-                decoration: const InputDecoration(
-                    labelText: 'Farm', border: OutlineInputBorder()),
+                decoration: InputDecoration(
+                    labelText: ctr(context, 'Farm', 'Gona', 'Ferme', 'Farm'),
+                    border: const OutlineInputBorder()),
               ),
               const SizedBox(height: 12),
               AppTextField(
                   controller: _nameController,
-                  label: 'Product name',
-                  hint: 'e.g. Eggs'),
+                  label: ctr(context, 'Product name', 'Sunan kaya', 'Nom du produit', 'Product name'),
+                  hint: ctr(context, 'e.g. Eggs', 'misali Kwai', 'p. ex. Œufs', 'e.g. Eggs')),
               const SizedBox(height: 12),
               AppTextField(
                   controller: _categoryController,
-                  label: 'Category',
-                  hint: 'e.g. Livestock'),
+                  label: ctr(context, 'Category', 'Rukuni', 'Catégorie', 'Category'),
+                  hint: ctr(context, 'e.g. Livestock', 'misali Dabbobi', 'p. ex. Bétail', 'e.g. Animals')),
               const SizedBox(height: 12),
               AppTextField(
                   controller: _unitController,
-                  label: 'Unit',
-                  hint: 'e.g. crate'),
+                  label: ctr(context, 'Unit', 'Ma’auni', 'Unité', 'Unit'),
+                  hint: ctr(context, 'e.g. crate', 'misali kwandon kwai', 'p. ex. caisse', 'e.g. crate')),
               const SizedBox(height: 12),
               AppTextField(
                   controller: _quantityController,
-                  label: 'Opening quantity',
+                  label: ctr(context, 'Opening quantity', 'Adadin farko', 'Quantité initiale', 'Opening quantity'),
                   hint: '0',
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true)),
               const SizedBox(height: 12),
               AppTextField(
                   controller: _costController,
-                  label: 'Cost price',
+                  label: ctr(context, 'Cost price', 'Farashin sayowa', 'Prix de revient', 'Cost price'),
                   hint: '0',
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true)),
               const SizedBox(height: 12),
               AppTextField(
                   controller: _priceController,
-                  label: 'Sale price',
+                  label: ctr(context, 'Sale price', 'Farashin siyarwa', 'Prix de vente', 'Selling price'),
                   hint: '0',
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true)),
@@ -1705,14 +1710,14 @@ class _ProductSheetState extends State<_ProductSheet> {
                   Expanded(
                     child: AppButton.secondary(
                       onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Cancel'),
+                      child: Text(ctr(context, 'Cancel', 'Soke', 'Annuler', 'Cancel')),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: AppButton.primary(
                       onPressed: _submit,
-                      child: const Text('Save product'),
+                      child: Text(ctr(context, 'Save product', 'Adana kaya', 'Enregistrer le produit', 'Save product')),
                     ),
                   ),
                 ],
@@ -1795,24 +1800,24 @@ class _PartnerSheetState extends State<_PartnerSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text('Create customer',
+              Text(ctr(context, 'Create customer', 'Ƙirƙiri abokin ciniki', 'Créer un client', 'Create customer'),
                   style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 14),
               AppTextField(
                   controller: _nameController,
-                  label: 'Name',
-                  hint: 'Customer name'),
+                  label: ctr(context, 'Name', 'Suna', 'Nom', 'Name'),
+                  hint: ctr(context, 'Customer name', 'Sunan abokin ciniki', 'Nom du client', 'Customer name')),
               const SizedBox(height: 12),
               AppTextField(
                   controller: _emailController,
-                  label: 'Email',
-                  hint: 'Optional email',
+                  label: ctr(context, 'Email', 'Imel', 'E-mail', 'Email'),
+                  hint: ctr(context, 'Optional email', 'Imel (ba dole ba)', 'E-mail (facultatif)', 'Email (optional)'),
                   keyboardType: TextInputType.emailAddress),
               const SizedBox(height: 12),
               AppTextField(
                   controller: _phoneController,
-                  label: 'Phone',
-                  hint: 'Optional phone',
+                  label: ctr(context, 'Phone', 'Waya', 'Téléphone', 'Phone'),
+                  hint: ctr(context, 'Optional phone', 'Waya (ba dole ba)', 'Téléphone (facultatif)', 'Phone (optional)'),
                   keyboardType: TextInputType.phone),
               const SizedBox(height: 18),
               Row(
@@ -1820,14 +1825,14 @@ class _PartnerSheetState extends State<_PartnerSheet> {
                   Expanded(
                     child: AppButton.secondary(
                       onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Cancel'),
+                      child: Text(ctr(context, 'Cancel', 'Soke', 'Annuler', 'Cancel')),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: AppButton.primary(
                       onPressed: _submit,
-                      child: const Text('Save'),
+                      child: Text(ctr(context, 'Save', 'Adana', 'Enregistrer', 'Save')),
                     ),
                   ),
                 ],
@@ -1886,11 +1891,11 @@ class _ProductDetailsPreview extends StatelessWidget {
                 Text('${item.category} • $farmName'),
                 const SizedBox(height: 12),
                 Text(
-                    '${item.availableQuantity.toStringAsFixed(2)} ${item.unit} available'),
+                    '${item.availableQuantity.toStringAsFixed(2)} ${item.unit} ${ctr(context, 'available', 'akwai', 'disponible', 'available')}'),
                 const SizedBox(height: 6),
-                Text('Cost ${CurrencyUtils.formatCurrency(item.costPrice)}'),
+                Text('${ctr(context, 'Cost', 'Farashin sayowa', 'Coût', 'Cost')} ${CurrencyUtils.formatCurrency(item.costPrice)}'),
                 const SizedBox(height: 6),
-                Text('Sell ${CurrencyUtils.formatCurrency(item.unitPrice)}'),
+                Text('${ctr(context, 'Sell', 'Sayarwa', 'Vente', 'Sell')} ${CurrencyUtils.formatCurrency(item.unitPrice)}'),
               ],
             ),
           ),
@@ -1977,7 +1982,7 @@ class _CartSheetState extends State<_CartSheet> {
                         owner.setState(owner._cart.clear);
                         _refresh();
                       },
-                      child: const Text('Clear'),
+                      child: Text(ctr(context, 'Clear', 'Share', 'Vider', 'Clear')),
                     ),
                   ],
                 ),
@@ -2016,7 +2021,7 @@ class _CartSheetState extends State<_CartSheet> {
                                     ?.copyWith(fontWeight: FontWeight.w700),
                               ),
                             ),
-                            Text('Change',
+                            Text(ctr(context, 'Change', 'Canza', 'Changer', 'Change'),
                                 style: TextStyle(
                                     color: theme.colorScheme.primary,
                                     fontWeight: FontWeight.w800)),
@@ -2169,7 +2174,7 @@ class _CartSheetState extends State<_CartSheet> {
                   owner._removeCartLine(id);
                   _refresh();
                 },
-                child: const Text('Remove'),
+                child: Text(ctr(context, 'Remove', 'Cire', 'Retirer', 'Remove')),
               ),
             ],
           ),
@@ -2220,14 +2225,14 @@ class _CustomerPickerSheetState extends State<_CustomerPickerSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text('Who is buying?',
+              Text(ctr(context, 'Who is buying?', 'Wa ke saye?', 'Qui achète ?', 'Who dey buy?'),
                   style: theme.textTheme.titleLarge
                       ?.copyWith(fontWeight: FontWeight.w900)),
               const SizedBox(height: 12),
               TextField(
                 onChanged: (String v) => setState(() => _query = v),
                 decoration: InputDecoration(
-                  hintText: 'Search customers',
+                  hintText: ctr(context, 'Search customers', 'Nemi abokan ciniki', 'Rechercher des clients', 'Search customers'),
                   prefixIcon: const Icon(Icons.search_rounded),
                   filled: true,
                   fillColor: theme.colorScheme.surfaceContainerHighest,
@@ -2244,7 +2249,7 @@ class _CustomerPickerSheetState extends State<_CustomerPickerSheet> {
                   children: <Widget>[
                     ListTile(
                       leading: const Icon(Icons.directions_walk_rounded),
-                      title: const Text('Walk-in customer'),
+                      title: Text(ctr(context, 'Walk-in customer', 'Abokin ciniki na zuwa kai tsaye', 'Client de passage', 'Walk-in customer')),
                       trailing: widget.selectedId == null
                           ? const Icon(Icons.check_circle_rounded)
                           : null,
@@ -2265,7 +2270,7 @@ class _CustomerPickerSheetState extends State<_CustomerPickerSheet> {
                       ),
                     ListTile(
                       leading: const Icon(Icons.person_add_alt_1_rounded),
-                      title: const Text('New customer'),
+                      title: Text(ctr(context, 'New customer', 'Sabon abokin ciniki', 'Nouveau client', 'New customer')),
                       onTap: () => Navigator.of(context).pop('__new__'),
                     ),
                   ],

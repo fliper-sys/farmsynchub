@@ -25,6 +25,7 @@ import '../../../providers/theme_provider.dart';
 import '../../../providers/user_profile_provider.dart';
 import '../crops/crop_detail_screen.dart';
 import '../livestock/livestock_detail_screen.dart';
+import '../../common/widgets/brand_title.dart';
 import 'streak_challenge_banner.dart';
 import 'widgets/activity_feed.dart';
 import 'widgets/latest_news_carousel.dart';
@@ -144,34 +145,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       appBar: AppBar(
         backgroundColor: theme.scaffoldBackgroundColor,
         foregroundColor: theme.colorScheme.onSurface,
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.asset(
-                'assets/appicon.png',
-                width: 34,
-                height: 34,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Icon(
-                  Icons.eco_rounded,
-                  size: 30,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              'FarmSyncHub',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.35,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-          ],
-        ),
+        title: const BrandTitle(),
         actions: <Widget>[
           _SyncHeaderIcon(
             pendingCount: sync.pendingCount,
